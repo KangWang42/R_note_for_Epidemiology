@@ -1,0 +1,478 @@
+---
+title: "倾向性得分匹配 - 因果推断的利器"
+date: "2026-01-11"
+categories: [因果推断, 统计方法, R包]
+image: "figure/psm-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 📦 什么是倾向性得分匹配？
+
+> 倾向性得分匹配 (Propensity Score Matching, PSM) 是一种用于观察性研究中控制混杂因素、估计因果效应的统计方法。
+
+### 为什么需要 PSM？
+
+在**随机对照试验 (RCT)** 中，随机分组确保了处理组和对照组在基线特征上的可比性。但在**观察性研究**中，我们无法随机分配处理，导致：
+
+- 处理组和对照组可能存在系统性差异
+- 直接比较结局会产生**选择偏倚**
+- 无法区分是"处理效应"还是"基线差异"导致的结果差异
+
+**PSM 的核心思想**：找到在"接受处理的概率"上相似的个体进行配对，从而模拟随机化实验。
+
+### 核心概念
+
+| 概念 | 定义 | 公式 |
+|------|------|------|
+| 倾向性得分 | 给定协变量 X 时，个体接受处理的条件概率 | $e(X) = P(T=1|X)$ |
+| 平衡性 | 匹配后处理组与对照组协变量分布相似 | $X \perp T | e(X)$ |
+| ATE | 平均处理效应 (Average Treatment Effect) | $E[Y(1) - Y(0)]$ |
+| ATT | 处理组平均处理效应 | $E[Y(1) - Y(0) | T=1]$ |
+
+## 🛠 安装与加载
+
+```{r}
+# 核心包
+library(MatchIt)      # PSM 主力包
+library(cobalt)       # 平衡性诊断
+library(marginaleffects)  # 效应估计
+
+# 辅助包
+library(tidyverse)
+library(gtsummary)
+library(ggplot2)
+```
+
+## 💡 PSM 完整流程
+
+PSM 分析包含 **5 个关键步骤**：
+
+```
+1. 数据准备 → 2. 估计倾向性得分 → 3. 匹配 → 4. 平衡性检验 → 5. 效应估计
+```
+
+---
+
+## 📊 实战案例：吸烟对出生体重的影响
+
+我们使用 `MatchIt` 包内置的 `lalonde` 数据集模拟一个经典问题：**母亲吸烟是否影响新生儿体重？**
+
+为了演示，我们构造一个模拟数据集：
+
+```{r}
+# 模拟数据：母亲吸烟与新生儿体重
+set.seed(2024)
+n <- 1000
+
+# 生成协变量
+age <- round(rnorm(n, 28, 5))  # 母亲年龄
+education <- sample(1:4, n, replace = TRUE, 
+                    prob = c(0.1, 0.3, 0.4, 0.2))  # 教育水平
+income <- round(rnorm(n, 50000, 15000))  # 家庭收入
+prenatal_visits <- rpois(n, 8)  # 产检次数
+
+# 吸烟状态受协变量影响（混杂）
+smoke_prob <- plogis(-2 + 0.05 * (age - 28) - 0.3 * education + 
+                      0.00001 * (income - 50000) - 0.1 * prenatal_visits)
+smoking <- rbinom(n, 1, smoke_prob)
+
+# 出生体重受吸烟和协变量影响
+# 真实因果效应：吸烟降低体重 250g
+birthweight <- 3300 + 
+  10 * (age - 28) + 
+  50 * education + 
+  0.002 * (income - 50000) + 
+  20 * prenatal_visits - 
+  250 * smoking +  # 真实处理效应
+  rnorm(n, 0, 300)
+
+# 创建数据框
+birth_data <- tibble(
+  id = 1:n,
+  age = age,
+  education = factor(education, labels = c("初中", "高中", "本科", "研究生")),
+  income = income,
+  prenatal_visits = prenatal_visits,
+  smoking = smoking,
+  birthweight = round(birthweight)
+)
+
+birth_data
+```
+
+### 步骤 1：探索性数据分析
+
+首先查看吸烟组和非吸烟组的基线特征差异：
+
+```{r}
+# 基线特征对比
+birth_data |> 
+  tbl_summary(
+    by = smoking,
+    include = c(age, education, income, prenatal_visits, birthweight),
+    label = list(
+      age ~ "年龄",
+      education ~ "教育水平",
+      income ~ "家庭收入",
+      prenatal_visits ~ "产检次数",
+      birthweight ~ "出生体重 (g)"
+    ),
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    )
+  ) |> 
+  add_p() |> 
+  add_overall() |> 
+  modify_header(label = "**变量**") |> 
+  modify_spanning_header(c("stat_1", "stat_2") ~ "**吸烟状态**")
+```
+
+可以看到，吸烟组和非吸烟组在多个基线特征上存在显著差异，这就是**混杂**。
+
+### 步骤 2：估计倾向性得分
+
+使用 Logistic 回归估计每个个体的倾向性得分：
+
+```{r}
+# 估计倾向性得分
+ps_model <- glm(
+  smoking ~ age + education + income + prenatal_visits,
+  data = birth_data,
+  family = binomial
+)
+
+# 添加倾向性得分到数据
+birth_data$ps <- predict(ps_model, type = "response")
+
+# 查看倾向性得分分布
+ggplot(birth_data, aes(x = ps, fill = factor(smoking))) +
+  geom_density(alpha = 0.6) +
+  scale_fill_manual(
+    values = c("#3b82f6", "#ef4444"),
+    labels = c("不吸烟", "吸烟")
+  ) +
+  labs(
+    title = "倾向性得分分布",
+    subtitle = "匹配前：两组分布存在明显差异",
+    x = "倾向性得分 P(吸烟|X)",
+    y = "密度",
+    fill = "吸烟状态"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "top")
+```
+
+**重要**：两组的倾向性得分分布应有重叠区域（common support），否则无法进行有效匹配。
+
+### 步骤 3：进行匹配
+
+`MatchIt` 包提供多种匹配方法：
+
+| 方法 | 参数 | 特点 |
+|------|------|------|
+| 最近邻匹配 | `method = "nearest"` | 最常用，1:1 或 1:k 匹配 |
+| 精确匹配 | `method = "exact"` | 协变量完全相同 |
+| 卡尺匹配 | `caliper = 0.2` | 限制匹配距离 |
+| 最优匹配 | `method = "optimal"` | 全局最优配对 |
+| 全匹配 | `method = "full"` | 所有样本加权 |
+
+```{r}
+# 1:1 最近邻匹配（带卡尺）
+match_out <- matchit(
+  smoking ~ age + education + income + prenatal_visits,
+  data = birth_data,
+  method = "nearest",      # 最近邻匹配
+  distance = "glm",        # 用 logistic 回归估计 PS
+  caliper = 0.2,           # 卡尺：0.2 个标准差
+  ratio = 1,               # 1:1 匹配
+  replace = FALSE          # 不放回
+)
+
+# 查看匹配结果摘要
+summary(match_out)
+```
+
+```{r}
+# 提取匹配后数据
+matched_data <- match.data(match_out)
+
+# 匹配后样本量
+cat("匹配前样本量:", nrow(birth_data), "\n")
+cat("匹配后样本量:", nrow(matched_data), "\n")
+cat("匹配成功的处理组:", sum(matched_data$smoking == 1), "\n")
+cat("匹配成功的对照组:", sum(matched_data$smoking == 0), "\n")
+```
+
+### 步骤 4：平衡性检验（关键！）
+
+匹配后**必须**检验协变量的平衡性。常用指标：
+
+- **标准化均值差 (SMD)**：< 0.1 表示良好平衡
+- **方差比 (Variance Ratio)**：接近 1 表示良好
+
+```{r}
+# 使用 cobalt 包进行平衡性诊断
+bal_tab <- bal.tab(match_out, 
+                   thresholds = c(m = 0.1))  # SMD 阈值
+bal_tab
+```
+
+```{r fig.height=6}
+# 可视化：Love Plot（最常用）
+love.plot(match_out,
+          binary = "std",
+          thresholds = c(m = 0.1),
+          colors = c("#ef4444", "#22c55e"),
+          shapes = c("circle", "triangle"),
+          var.order = "unadjusted",
+          title = "协变量平衡性检验 (Love Plot)") +
+  theme_minimal(base_size = 11)
+```
+
+**解读**：
+- 红点：匹配前的 SMD
+- 绿点：匹配后的 SMD
+- 垂直线：0.1 阈值
+- 所有绿点都应落在阈值线内
+
+```{r fig.height=4}
+# 可视化：匹配后倾向性得分分布
+ggplot(matched_data, aes(x = ps, fill = factor(smoking))) +
+  geom_density(alpha = 0.6) +
+  scale_fill_manual(
+    values = c("#3b82f6", "#ef4444"),
+    labels = c("不吸烟", "吸烟")
+  ) +
+  labs(
+    title = "匹配后倾向性得分分布",
+    subtitle = "两组分布高度重叠，平衡性良好",
+    x = "倾向性得分",
+    y = "密度",
+    fill = "吸烟状态"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "top")
+```
+
+### 步骤 5：估计处理效应
+
+平衡性满足后，可以估计因果效应：
+
+```{r}
+# 方法 1：简单 t 检验（匹配后）
+t_test_result <- t.test(birthweight ~ smoking, data = matched_data)
+cat("匹配后均值差:", 
+    round(diff(t_test_result$estimate), 1), "g\n")
+cat("95% CI:", 
+    round(-t_test_result$conf.int[2], 1), "到",
+    round(-t_test_result$conf.int[1], 1), "g\n")
+cat("p 值:", format.pval(t_test_result$p.value, digits = 3), "\n")
+```
+
+```{r}
+# 方法 2：使用回归模型（推荐，可调整残余混杂）
+# 双重稳健估计：PS 匹配 + 结局回归
+outcome_model <- lm(
+  birthweight ~ smoking + age + education + income + prenatal_visits,
+  data = matched_data,
+  weights = weights  # 使用匹配权重
+)
+
+# 使用 marginaleffects 估计 ATT
+avg_comparisons(
+  outcome_model,
+  variables = "smoking",
+  vcov = "HC2",  # 稳健标准误
+  newdata = subset(matched_data, smoking == 1)
+)
+```
+
+```{r}
+# 查看回归模型结果
+summary(outcome_model)
+```
+
+**结果解读**：
+
+- 匹配后估计的吸烟效应约为 **-250g**（与我们设定的真实效应一致）
+- 95% CI 不包含 0，说明效应显著
+- 这个效应可以解释为：**在相似背景的人群中，吸烟导致新生儿体重平均降低约 250g**
+
+---
+
+## 🔬 进阶：不同匹配方法对比
+
+```{r}
+# 比较不同匹配方法
+methods <- list(
+  "最近邻 1:1" = matchit(smoking ~ age + education + income + prenatal_visits,
+                         data = birth_data, method = "nearest", ratio = 1),
+  "最近邻 1:2" = matchit(smoking ~ age + education + income + prenatal_visits,
+                         data = birth_data, method = "nearest", ratio = 2),
+  "最优匹配" = matchit(smoking ~ age + education + income + prenatal_visits,
+                       data = birth_data, method = "optimal"),
+  "全匹配" = matchit(smoking ~ age + education + income + prenatal_visits,
+                     data = birth_data, method = "full")
+)
+
+# 提取各方法的平衡性
+balance_comparison <- map_dfr(names(methods), function(name) {
+  bal <- bal.tab(methods[[name]], stats = "m")
+  tibble(
+    方法 = name,
+    最大SMD = max(abs(bal$Balance$Diff.Adj), na.rm = TRUE),
+    平均SMD = mean(abs(bal$Balance$Diff.Adj), na.rm = TRUE),
+    样本量 = nrow(match.data(methods[[name]]))
+  )
+})
+
+balance_comparison
+```
+
+---
+
+## 📋 敏感性分析
+
+PSM 依赖"无未测量混杂"假设。使用敏感性分析评估结果的稳健性：
+
+```{r}
+# Rosenbaum bounds 敏感性分析
+# 安装 rbounds 包：install.packages("rbounds")
+if (requireNamespace("rbounds", quietly = TRUE)) {
+  library(rbounds)
+  
+  # 提取匹配对的结局差
+  matched_pairs <- matched_data |> 
+    group_by(subclass) |> 
+    summarise(
+      treated_outcome = birthweight[smoking == 1],
+      control_outcome = birthweight[smoking == 0],
+      diff = treated_outcome - control_outcome
+    )
+  
+  # Wilcoxon 符号秩检验的敏感性分析
+  # psens(matched_pairs$diff, Gamma = 2, GammaInc = 0.1)
+}
+```
+
+---
+
+## ⚠️ PSM 的局限性与注意事项
+
+### 1. 常见陷阱
+
+| 陷阱 | 问题 | 解决方案 |
+|------|------|----------|
+| 忽略平衡性检验 | 匹配后仍存在混杂 | **必须**检查 SMD < 0.1 |
+| 过度匹配 | 样本量大幅减少，精度下降 | 考虑加权法而非匹配 |
+| 纳入中介变量 | 阻断因果路径，偏倚效应 | 只纳入混杂因素 |
+| 纳入碰撞因子 | 引入新的偏倚 | 画 DAG 图辨别 |
+| 忽略 common support | 外推到无重叠区域 | 使用卡尺限制 |
+
+### 2. PSM vs 其他方法
+
+| 方法 | 适用场景 | 优点 | 缺点 |
+|------|----------|------|------|
+| PSM | 处理组较小 | 直观、易解释 | 样本损失大 |
+| IPW | 全样本估计 | 保留全部样本 | 极端权重问题 |
+| IPTW+截断 | 存在极端 PS | 稳健性好 | 需选择截断点 |
+| DR 估计 | 追求稳健性 | 双重保护 | 复杂度高 |
+
+### 3. DAG 图的重要性
+
+在做 PSM 前，**强烈建议**画出因果图 (DAG)：
+
+```
+        年龄 ──────────────┐
+          │                ↓
+          ↓              出生体重
+        吸烟 ────────────→ ↑
+          ↑                │
+        教育 ──────────────┘
+```
+
+- **混杂因素**：同时影响处理和结局的变量（应纳入 PS 模型）
+- **中介变量**：处理影响结局的路径上的变量（不应纳入）
+- **碰撞因子**：同时被处理和结局影响的变量（不应纳入）
+
+---
+
+## 📝 函数速查表
+
+### MatchIt 核心函数
+
+| 函数 | 功能 | 关键参数 |
+|------|------|----------|
+| `matchit()` | 执行匹配 | `method`, `distance`, `caliper`, `ratio` |
+| `match.data()` | 提取匹配数据 | `weights`, `subclass` |
+| `summary()` | 匹配摘要 | `interactions`, `un` |
+| `plot()` | 可视化 | `type = "jitter"`, `"density"`, `"ecdf"` |
+
+### cobalt 核心函数
+
+| 函数 | 功能 | 关键参数 |
+|------|------|----------|
+| `bal.tab()` | 平衡性表格 | `thresholds`, `stats` |
+| `love.plot()` | Love Plot | `binary`, `thresholds` |
+| `bal.plot()` | 单变量平衡图 | `var.name`, `which` |
+
+---
+
+## 🔗 参考资料
+
+- [MatchIt 官方文档](https://kosukeimai.github.io/MatchIt/)
+- [cobalt 官方文档](https://ngreifer.github.io/cobalt/)
+- Rosenbaum PR (2002). Observational Studies. Springer.
+- Austin PC (2011). An Introduction to Propensity Score Methods. *Multivariate Behavioral Research*.
+- 《因果推断实用计量方法》- 邱嘉平
+
+---
+
+## 📚 完整代码模板
+
+```r
+# ========== PSM 分析模板 ==========
+
+library(MatchIt)
+library(cobalt)
+library(marginaleffects)
+
+# 1. 匹配
+m <- matchit(
+  treatment ~ x1 + x2 + x3,  # 处理 ~ 混杂因素
+
+  data = your_data,
+  method = "nearest",
+  distance = "glm",
+  caliper = 0.2,
+  ratio = 1
+)
+
+# 2. 检查平衡性
+summary(m)
+love.plot(m, thresholds = c(m = 0.1))
+
+# 3. 提取数据
+matched <- match.data(m)
+
+# 4. 估计效应（双重稳健）
+fit <- lm(outcome ~ treatment + x1 + x2 + x3, 
+          data = matched, weights = weights)
+
+# 5. ATT 估计
+avg_comparisons(fit, variables = "treatment",
+                newdata = subset(matched, treatment == 1))
+```
