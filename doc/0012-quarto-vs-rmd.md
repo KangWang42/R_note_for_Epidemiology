@@ -3,6 +3,7 @@ title: "Quarto vs RMarkdown 对比"
 date: "2026-01-11"
 categories: [入门, 工具]
 description: "Quarto 和 RMarkdown 的功能对比，帮助你选择合适的文档工具"
+image: "figure/quarto-vs-rmd.svg"
 ---
 
 ## 概述
