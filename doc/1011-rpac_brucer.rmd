@@ -1,0 +1,378 @@
+---
+title: "bruceR - 统计分析工具"
+date: "2025-01-10"
+categories: [R包, 统计分析, 数据处理]
+image: "figure/bruceR-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## R包介绍
+
+**bruceR** 全称 "**BR**oadly **U**seful **C**onvenient and **E**fficient **R** functions"，由包寒吴霜博士开发，是一个集成了众多实用功能的 R 包，专为科研数据分析设计。
+
+链接：[CRAN](https://cran.r-project.org/package=bruceR) | [GitHub](https://github.com/psychbruce/bruceR) | [中文教程](https://zhuanlan.zhihu.com/p/281150493)
+
+### 核心功能
+
+bruceR 涵盖了数据分析的完整流程：
+
+| 模块 | 功能 | 主要函数 |
+|------|------|----------|
+| 基础编程 | 路径设置、数据导入导出、表格打印 | `set.wd()`, `import()`, `export()`, `print_table()` |
+| 数据计算 | 量表计算、反向计分、重编码 | `MEAN()`, `SUM()`, `RECODE()`, `RESCALE()` |
+| 信效度分析 | 信度分析、因子分析 | `Alpha()`, `EFA()`, `PCA()`, `CFA()` |
+| 描述统计 | 描述统计、频率分析、相关分析 | `Describe()`, `Freq()`, `Corr()` |
+| 方差分析 | t检验、ANOVA、简单效应、事后比较 | `TTEST()`, `MANOVA()`, `EMMEANS()` |
+| 回归模型 | 模型汇总、多层模型 | `model_summary()`, `HLM_summary()` |
+| 中介调节 | PROCESS 宏 | `PROCESS()`, `med_summary()` |
+
+### 依赖包自动加载
+
+加载 bruceR 时会自动加载常用包：
+
+- **数据处理**：`data.table`, `dplyr`, `tidyr`, `stringr`
+- **可视化**：`ggplot2`
+- **统计分析**：`psych`, `emmeans`, `lmerTest`, `effectsize`, `performance`
+
+## R包安装
+
+```{r eval=FALSE}
+# 方法1：从 CRAN 安装（推荐）
+install.packages("bruceR", dep = TRUE)
+
+# 方法2：从 GitHub 安装最新版
+install.packages("devtools")
+devtools::install_github("psychbruce/bruceR", dep = TRUE, force = TRUE)
+```
+
+```{r}
+library(bruceR)
+```
+
+---
+
+## 基础编程功能
+
+### set.wd()：智能设置工作目录
+
+自动将工作目录设置为当前脚本所在路径：
+
+```{r eval=FALSE}
+set.wd()
+```
+
+### import() / export()：万能数据导入导出
+
+支持几乎所有常见数据格式，自动识别文件类型：
+
+```{r eval=FALSE}
+# 支持的格式：
+# - 文本：.txt, .csv, .tsv
+# - Excel：.xls, .xlsx
+# - SPSS：.sav
+# - Stata：.dta
+# - R对象：.rda, .rds, .RData
+
+# 导入数据
+data <- import("data.xlsx")
+data <- import("data.sav")
+data <- import("data.dta")
+
+# 导出数据
+export(data, file = "output.xlsx")
+export(data, file = "output.csv")
+```
+
+### cc()：快速创建字符向量
+
+比 `c()` 更简洁，无需引号：
+
+```{r}
+# 传统写法
+c("age", "gender", "education")
+
+# bruceR 写法
+cc("age, gender, education")
+```
+
+### print_table()：生成三线表
+
+```{r}
+summary_data <- data.frame(
+  Variable = c("Age", "Income", "Score"),
+  Mean = c(35.2, 5000, 78.5),
+  SD = c(8.3, 1200, 12.1),
+  N = c(100, 100, 100)
+)
+
+print_table(summary_data)
+```
+
+---
+
+## 数据计算功能
+
+### MEAN() / SUM()：横向计算（支持反向计分）
+
+心理学量表经常需要计算多个题目的均值或总分，并处理反向计分：
+
+```{r}
+# 创建模拟问卷数据（5点量表，共6题）
+set.seed(42)
+questionnaire <- data.frame(
+  id = 1:5,
+  q1 = sample(1:5, 5, replace = TRUE),
+  q2 = sample(1:5, 5, replace = TRUE),
+  q3 = sample(1:5, 5, replace = TRUE),
+  q4 = sample(1:5, 5, replace = TRUE),
+  q5 = sample(1:5, 5, replace = TRUE),
+  q6 = sample(1:5, 5, replace = TRUE)
+)
+questionnaire
+
+# 计算均值（q3、q6 反向计分，量表范围1-5）
+questionnaire$score_mean <- MEAN(
+  questionnaire, 
+  varrange = "q1:q6",
+  rev = c("q3", "q6"),
+  likert = 1:5
+)
+
+# 计算总分
+questionnaire$score_sum <- SUM(
+  questionnaire, 
+  varrange = "q1:q6",
+  rev = c("q3", "q6"),
+  likert = 1:5
+)
+
+questionnaire[, c("id", "score_mean", "score_sum")]
+```
+
+### RECODE()：变量重编码
+
+```{r}
+d <- data.frame(age = c(18, 25, 35, 45, 55, 65, 75))
+
+d$age_group <- RECODE(d$age, 
+  "lo:29 = '青年'; 
+   30:59 = '中年'; 
+   60:hi = '老年'"
+)
+d
+```
+
+### RESCALE()：变量标准化
+
+```{r}
+scores <- c(2, 3, 4, 5, 6, 7, 8)
+RESCALE(scores, to = 0:100)
+```
+
+---
+
+## 信度与因子分析
+
+### Alpha()：信度分析
+
+```{r}
+data("bfi", package = "psych")
+
+# Alpha 需要指定数据和变量名
+Alpha(bfi, var = "A", items = 1:5)
+```
+
+### EFA()：探索性因子分析
+
+```{r}
+data("bfi", package = "psych")
+
+# 探索性因子分析：使用 var + items 格式
+# 分析外向性(E)量表的5个题目
+EFA(bfi, var = "E", items = 1:5, nfactors = 2, plot.scree = FALSE)
+```
+
+---
+
+## 描述统计与相关分析
+
+### Describe()：描述统计
+
+```{r}
+Describe(iris[, 1:4])
+```
+
+### Freq()：频率分析
+
+```{r}
+Freq(iris$Species)
+```
+
+### Corr()：相关分析
+
+```{r}
+Corr(iris[, 1:4])
+```
+
+---
+
+## 统计检验
+
+### TTEST()：t检验
+
+```{r}
+# 独立样本 t 检验（需要两水平因子）
+iris_subset <- iris[iris$Species %in% c("versicolor", "virginica"), ]
+iris_subset$Species <- droplevels(iris_subset$Species)
+
+TTEST(iris_subset, y = "Sepal.Length", x = "Species")
+```
+
+### MANOVA()：多因素方差分析
+
+```{r}
+MANOVA(data = npk, dv = "yield", between = c("N", "P", "K"))
+```
+
+### EMMEANS()：边际均值与事后比较
+
+```{r}
+result <- MANOVA(npk, dv = "yield", between = c("N", "P"))
+EMMEANS(result, effect = "N")
+```
+
+---
+
+## 回归分析
+
+### model_summary()：模型汇总
+
+```{r}
+lm1 <- lm(Sepal.Length ~ Sepal.Width, data = iris)
+lm2 <- lm(Sepal.Length ~ Sepal.Width + Petal.Length, data = iris)
+lm3 <- lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width, data = iris)
+
+# 多个模型对比
+model_summary(list(lm1, lm2, lm3))
+
+# 输出标准化系数
+model_summary(lm3, std = TRUE)
+```
+
+---
+
+## 中介与调节分析
+
+### PROCESS()：中介调节分析
+
+```{r}
+set.seed(123)
+n <- 200
+mediation_data <- data.frame(
+  X = rnorm(n),
+  M = rnorm(n),
+  Y = rnorm(n)
+)
+mediation_data$M <- 0.5 * mediation_data$X + rnorm(n, sd = 0.5)
+mediation_data$Y <- 0.4 * mediation_data$M + 0.3 * mediation_data$X + rnorm(n, sd = 0.5)
+
+# 简单中介模型
+PROCESS(mediation_data, y = "Y", x = "X", meds = "M", 
+        ci = "boot", nsim = 100)
+```
+
+---
+
+## 其他实用功能
+
+### 运算符
+
+```{r}
+# %notin%：不在其中
+c(1, 2, 3) %notin% c(2, 4, 6)
+
+# %allin%：全部在其中
+c(1, 2) %allin% c(1, 2, 3, 4)
+```
+
+### theme_bruce()：ggplot2 主题
+
+```{r fig.height=4}
+library(ggplot2)
+
+ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "鸢尾花数据可视化") +
+  theme_bruce()
+```
+
+---
+
+## 导出到 Word
+
+bruceR 的一大特色是可以将结果直接导出到 Word 文档：
+
+```{r eval=FALSE}
+# 描述统计
+Describe(iris[, 1:4], file = "descriptives.doc")
+
+# 相关矩阵
+Corr(iris[, 1:4], file = "correlation.doc")
+
+# 回归模型
+model_summary(list(lm1, lm2, lm3), file = "regression.doc")
+
+# 中介分析
+PROCESS(data, y = "Y", x = "X", meds = "M", file = "mediation.doc")
+```
+
+---
+
+## 函数速查表
+
+| 类别 | 函数 | 功能 |
+|------|------|------|
+| **基础** | `set.wd()` | 设置工作目录到当前脚本位置 |
+| | `import()` / `export()` | 万能数据导入/导出 |
+| | `cc()` | 快速创建字符向量 |
+| | `print_table()` | 打印三线表 |
+| **计算** | `MEAN()` / `SUM()` | 横向计算（支持反向计分） |
+| | `RECODE()` | 变量重编码 |
+| | `RESCALE()` | 变量标准化 |
+| **信效度** | `Alpha()` | Cronbach's α 信度分析 |
+| | `EFA()` / `PCA()` | 探索性因子分析/主成分分析 |
+| | `CFA()` | 验证性因子分析 |
+| **描述** | `Describe()` | 描述统计 |
+| | `Freq()` | 频率分析与交叉表 |
+| | `Corr()` | 相关分析与热力图 |
+| **检验** | `TTEST()` | t检验（单样本/独立/配对） |
+| | `MANOVA()` | 多因素方差分析 |
+| | `EMMEANS()` | 边际均值与事后比较 |
+| **回归** | `model_summary()` | 回归模型整洁输出 |
+| | `GLM_summary()` | 广义线性模型汇总 |
+| | `HLM_summary()` | 多层线性模型汇总 |
+| **中介** | `PROCESS()` | 中介/调节效应分析 |
+| | `med_summary()` | 中介效应汇总 |
+
+---
+
+## 参考资源
+
+- [bruceR GitHub 主页](https://github.com/psychbruce/bruceR)
+- [CRAN 官方页面](https://cran.r-project.org/package=bruceR)
+- [中文教程：概述篇](https://zhuanlan.zhihu.com/p/281150493)
+- [中文教程：常见问题](https://zhuanlan.zhihu.com/p/432931518)
+- 引用：Bao, H. W. S. (2021). bruceR: Broadly useful convenient and efficient R functions. https://doi.org/10.32614/CRAN.package.bruceR

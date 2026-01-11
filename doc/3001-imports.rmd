@@ -1,0 +1,107 @@
+---
+title: "R语言批量导入数据"
+date: "2024-10-20"
+categories: [实用操作, 数据导入]
+image: "https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410220949048.webp"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+##library(tidyverse) # Wickham的数据整理的整套工具
+pdf.options(height=10/2.54, width=10/2.54, family="GB1") # 注意：此设置要放在最后
+```
+
+## 批量导入文件夹下的所有数据文件
+
+
+以公开数据库CHRALS为例
+
+在文件夹下有10个dta文件，文件名各不一致。如何将所有文件导入一个列表中？
+
+![](https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410220949048.webp)
+
+### 载入包
+
+```{r message=F}
+library(bruceR)
+library(purrr)
+rm(list = ls())
+# set_wd() # 自动构建时无需设置工作路径
+
+```
+
+### 第一步:提取文件名
+
+```{r}
+files <- 
+    fs::dir_ls("01-attch\\10\\CHARLS", 
+                   recurse = TRUE,
+                    glob = "*.dta")
+
+print(files)
+
+```
+
+### 第二步:批量导入
+
+```{r}
+data_list <- files |> 
+    map(\(filename)
+    {import(file=filename)})
+
+```
+
+可以看到已经导入成功
+![](https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410220957711.webp)
+
+### 接下来美化一下
+
+
+```{r}
+data_list_neat <- set_names(
+    data_list,
+    files |> 
+        map(\(str)
+        {str_remove(str, 
+        "01-attch/10/CHARLS/")})
+)
+```
+
+可以看到列表每个元素名也规范了
+
+![](https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410221002367.webp)
+
+## 批量导入excel下的多个sheet
+
+现在我们有一个excel文件，其中有多个sheet，如何一次性导入到列表里呢
+![](https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410221031909.webp)
+
+### 第一步:提取sheet名
+
+```{r}
+
+sheet_names <- readxl::excel_sheets(
+    "01-attch/10/CHARLS/data.xlsx"
+)
+
+sheet_names
+```
+
+### 第二步:批量导入
+```{r}
+data_list <- 
+    sheet_names |>
+    map(\(var)
+        {import(
+        file='01-attch/10/CHARLS/data.xlsx',
+        sheet = var) 
+    }) |> 
+    set_names(sheet_names)
+
+str(data_list)
+
+```
+
+## 尾语
+
+本期主要使用了bruceR包和purrr包，基本可以满足日常数据导入的所有需求。

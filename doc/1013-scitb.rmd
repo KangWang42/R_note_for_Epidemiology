@@ -1,0 +1,118 @@
+---
+title: "scitb-快速生成基线表一"
+date: "2024-10-20"
+categories: [R包, 表格]
+image: "https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410211052806.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+##library(tidyverse) # Wickham的数据整理的整套工具
+pdf.options(height=10/2.54, width=10/2.54, family="GB1") # 注意：此设置要放在最后
+```
+
+## R包介绍
+
+scitb是一个专门用于基线表开发的包，相较于tableone scitb具有更好使用，导出方便，快速设置的优点
+
+[CRAN库](https://cran.r-project.org/web//packages/scitb/index.html)
+
+[作者教程]([URL_ADDRESS](https://mp.weixin.qq.com/s?__biz=MzI1NjM3NTE1NQ==&mid=2247489581&idx=1&sn=de498ce7eaf3a3084efebddc568c7068&chksm=ea26f831dd5171272e58c707dac3242a8695d1413dfe5a5c8df926fa32c96728637290b14a6d&scene=21#wechat_redirect))
+
+## R包安装
+
+```{r eval=FALSE}
+install.packages("scitb")
+```
+
+
+## R包使用
+
+### 导入示例数据
+
+导入数据prematurity，：low 是否是小于2500g早产低体重儿，age 母亲的年龄，lwt 末次月经体重，race 种族，smoke孕期抽烟，ptl 早产史（计数），ht 有高血压病史，ui 子宫过敏，ftv 早孕时看医生的次数bwt 新生儿体重数值
+
+```{r}
+library(scitb)
+library(bruceR)
+
+data <- prematurity
+head(data,5)
+```
+
+### 生成描述性表1
+
+#### 首先定义变量
+
+为什么这里要定义变量，而不在基线表函数里直接引入字符向量，这是为了有良好的编程习惯。先从构建函数框架开始，最后函数调用，后续无论是修改变量还是增删变量都会很清晰
+
+```{r}
+allVars<-c("low","age","lwt","race","smoke","ptl","ht","ui","ftv","bwt")
+fvars<-c("low","race","smoke","ptl","ht","ui","ftv")
+strata<-c("bwt")
+```
+
+
+#### 生成基线表
+
+```{r}
+data_neat <- data |> 
+  mutate(
+    race = as.factor(race),
+    smoke = as.factor(smoke)
+  )
+
+tab0<-scitb1(vars=allVars,fvars=fvars,strata=strata,data=data_neat)
+
+tab0
+
+```
+
+
+#### 设置有非正态资料
+
+设置非正态后可以看到lwt变量是用百分位数进行描述，后边的pvalue也调用非参检验
+
+```{r}
+tab2 <-scitb1(vars=allVars,fvars=fvars,strata=strata,data=data_neat, nonnormal=c("lwt"))
+
+tab2
+```
+
+
+### 连续变量快速分层描述
+
+输出1可以看出年龄的自动分层记录，表明从14到20到25到45进行了分层
+
+如果想要生成其它分层数，设置参数 num = n
+
+```{r}
+
+# allvar删不删除年龄都可以
+
+allVars3 <-c("race", "lwt","smoke", "ptl", "ht", "ui","ftv", "bwt")
+fvars3 <-c("smoke","ht","ui","race")
+strata3 <- "age"
+
+tab3 <-scitb1(vars=allVars3,fvars=fvars3,strata=strata3,data=data_neat)
+
+tab3
+
+```
+
+
+### 保存结果
+
+
+```{r eval=FALSE}
+write.csv(tab0,file= "01-attch\\10\\data.csv",row.names = F, 
+    fileEncoding = "gbk")
+```
+
+保存出来是下图，复制到word改改就能用
+
+![](https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410211052806.png)
+
+## 总结
+
+使用体验：自定义度，结果展示等不如comparegroups，但是胜在参数简单，在期刊没那么高要求和平时展示可以用

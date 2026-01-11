@@ -1,0 +1,865 @@
+---
+title: "mlr3 机器学习全流程指南"
+date: "2026-01-10"
+categories: [R语言方法, 机器学习, mlr3]
+image: "figure/mlr3-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## mlr3 简介
+
+**mlr3** 是 R 语言中新一代机器学习框架，采用 R6 面向对象设计，提供统一、模块化的机器学习工作流。相比传统的 caret 包，mlr3 更加现代化、可扩展性更强。
+
+### 核心优势
+
+| 特点 | 说明 |
+|------|------|
+| **统一接口** | 所有算法使用相同的 API |
+| **模块化设计** | 任务、学习器、重采样、评估指标独立封装 |
+| **管道操作** | 支持复杂的预处理和模型组合 |
+| **并行计算** | 原生支持并行化 |
+| **可扩展** | 丰富的扩展包生态 |
+
+### mlr3 生态系统
+
+```{r echo=FALSE}
+eco_data <- data.frame(
+  包名 = c("mlr3", "mlr3learners", "mlr3tuning", "mlr3pipelines", 
+           "mlr3viz", "mlr3verse", "mlr3extralearners"),
+  功能 = c("核心框架", "常用学习器（随机森林、XGBoost等）", 
+           "超参数调优", "数据预处理管道",
+           "可视化", "一键加载所有包", "更多学习器")
+)
+knitr::kable(eco_data, align = "ll")
+```
+
+
+## 安装与加载
+
+```{r eval=FALSE}
+# 安装核心包
+install.packages("mlr3verse")  # 一键安装所有常用包
+
+# 或单独安装
+install.packages(c("mlr3", "mlr3learners", "mlr3tuning", 
+                   "mlr3pipelines", "mlr3viz"))
+```
+
+```{r}
+library(mlr3verse)
+library(ggplot2)
+library(dplyr)
+
+# 设置随机种子
+set.seed(42)
+```
+
+
+## 机器学习工作流概览
+
+mlr3 的工作流程包含以下核心组件：
+
+```
+数据 → Task（任务） → Learner（学习器） → 训练/预测 → Measure（评估）
+                           ↓
+                    Resampling（重采样）
+                           ↓
+                    Tuning（调参）
+```
+
+
+## 第一部分：Task（任务）
+
+Task 是 mlr3 的数据容器，封装了数据集和预测目标。
+
+### 创建分类任务
+
+```{r}
+# 使用内置数据集
+data("penguins", package = "palmerpenguins")
+penguins_clean <- na.omit(penguins)
+
+# 创建分类任务
+task_penguins <- TaskClassif$new(
+  id = "penguins",
+  backend = penguins_clean,
+  target = "species"
+)
+
+task_penguins
+```
+
+### 创建回归任务
+
+```{r}
+# 使用 mtcars 数据集
+task_mtcars <- TaskRegr$new(
+  id = "mtcars",
+  backend = mtcars,
+  target = "mpg"
+)
+
+task_mtcars
+```
+
+### 使用内置任务
+
+mlr3 提供了许多内置任务：
+
+```{r}
+# 查看所有内置任务
+as.data.table(mlr_tasks)[, .(key, task_type, nrow, ncol)]
+```
+
+```{r}
+# 加载内置任务
+task_iris <- tsk("iris")
+task_iris
+```
+
+### 任务操作
+
+```{r}
+# 查看特征
+task_penguins$feature_names
+
+# 查看目标变量
+task_penguins$target_names
+
+# 数据维度
+c(nrow = task_penguins$nrow, ncol = task_penguins$ncol)
+
+# 查看类别分布
+task_penguins$data(cols = "species") |> 
+  table()
+```
+
+### 选择特征子集
+
+```{r}
+# 只使用数值特征
+task_numeric <- task_penguins$clone()
+task_numeric$select(c("bill_length_mm", "bill_depth_mm", 
+                      "flipper_length_mm", "body_mass_g"))
+task_numeric$feature_names
+```
+
+
+## 第二部分：Learner（学习器）
+
+Learner 封装了机器学习算法。
+
+### 查看可用学习器
+
+```{r}
+# 分类学习器
+as.data.table(mlr_learners)[
+  task_type == "classif", 
+  .(key, label, packages)
+] |> head(10)
+```
+
+### 创建学习器
+
+```{r}
+# 决策树
+learner_tree <- lrn("classif.rpart")
+
+# 随机森林
+learner_rf <- lrn("classif.ranger", num.trees = 100)
+
+# 逻辑回归
+learner_log <- lrn("classif.log_reg")
+
+learner_rf
+```
+
+### 查看学习器参数
+
+```{r}
+# 随机森林的参数
+learner_rf$param_set$ids()
+```
+
+### 设置预测类型
+
+```{r}
+# 设置输出概率（用于 AUC 等指标）
+learner_rf$predict_type <- "prob"
+learner_rf$predict_type
+```
+
+
+## 第三部分：训练与预测
+
+### 基础训练流程
+
+```{r}
+# 划分训练集和测试集
+train_set <- sample(task_penguins$nrow, 0.8 * task_penguins$nrow)
+test_set <- setdiff(seq_len(task_penguins$nrow), train_set)
+
+# 训练模型
+learner_rf$train(task_penguins, row_ids = train_set)
+
+# 查看训练后的模型
+learner_rf$model
+```
+
+### 预测
+
+```{r}
+# 在测试集上预测
+prediction <- learner_rf$predict(task_penguins, row_ids = test_set)
+prediction
+```
+
+### 查看预测结果
+
+```{r}
+# 预测结果转为数据框
+pred_df <- as.data.table(prediction)
+head(pred_df)
+```
+
+### 混淆矩阵
+
+```{r}
+# 生成混淆矩阵
+prediction$confusion
+```
+
+
+## 第四部分：Measure（评估指标）
+
+### 查看可用指标
+
+```{r}
+# 分类指标
+as.data.table(mlr_measures)[
+  task_type == "classif",
+  .(key, label)
+] |> head(15)
+```
+
+### 计算评估指标
+
+```{r}
+# 单个指标
+prediction$score(msr("classif.acc"))
+
+# 多个指标
+measures <- msrs(c("classif.acc", "classif.ce", "classif.bacc"))
+prediction$score(measures)
+```
+
+### 常用分类指标
+
+| 指标 | 代码 | 说明 |
+|------|------|------|
+| 准确率 | `classif.acc` | 正确预测比例 |
+| 错误率 | `classif.ce` | 1 - 准确率 |
+| AUC | `classif.auc` | ROC曲线下面积（需要概率预测） |
+| F1 | `classif.fbeta` | 精确率和召回率的调和平均 |
+| Kappa | `classif.kappa` | 考虑随机一致性的准确率 |
+
+### 常用回归指标
+
+| 指标 | 代码 | 说明 |
+|------|------|------|
+| MSE | `regr.mse` | 均方误差 |
+| RMSE | `regr.rmse` | 均方根误差 |
+| MAE | `regr.mae` | 平均绝对误差 |
+| R² | `regr.rsq` | 决定系数 |
+
+
+## 第五部分：Resampling（重采样）
+
+重采样用于更可靠地评估模型性能。
+
+### 查看重采样方法
+
+```{r}
+as.data.table(mlr_resamplings)[, .(key, label)]
+```
+
+### 交叉验证
+
+```{r}
+# 5折交叉验证
+cv5 <- rsmp("cv", folds = 5)
+
+# 执行重采样
+rr <- resample(task_penguins, learner_rf, cv5)
+
+# 查看每折结果
+rr$score(msr("classif.acc"))
+```
+
+### 汇总结果
+
+```{r}
+# 平均性能
+rr$aggregate(msr("classif.acc"))
+
+# 多个指标
+rr$aggregate(msrs(c("classif.acc", "classif.ce")))
+```
+
+### 重复交叉验证
+
+```{r}
+# 5折交叉验证重复3次
+rcv <- rsmp("repeated_cv", folds = 5, repeats = 3)
+rr_repeated <- resample(task_penguins, learner_rf, rcv)
+
+rr_repeated$aggregate(msr("classif.acc"))
+```
+
+### 可视化重采样结果
+
+```{r}
+# 提取每折的准确率
+scores <- rr$score(msr("classif.acc"))
+
+ggplot(scores, aes(x = factor(iteration), y = classif.acc)) +
+  geom_col(fill = "#4f46e5", alpha = 0.8) +
+  geom_hline(yintercept = mean(scores$classif.acc), 
+             linetype = "dashed", color = "red") +
+  labs(
+    title = "5折交叉验证结果",
+    subtitle = paste("平均准确率:", round(mean(scores$classif.acc), 4)),
+    x = "折数",
+    y = "准确率"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+
+## 第六部分：Benchmarking（模型比较）
+
+比较多个模型在同一任务上的表现。
+
+### 设计基准测试
+
+```{r}
+# 定义多个学习器
+learners <- list(
+  lrn("classif.rpart", id = "决策树"),
+  lrn("classif.ranger", num.trees = 100, id = "随机森林"),
+  lrn("classif.kknn", id = "KNN"),
+  lrn("classif.naive_bayes", id = "朴素贝叶斯")
+)
+
+# 定义重采样
+cv5 <- rsmp("cv", folds = 5)
+
+# 创建基准测试设计
+design <- benchmark_grid(
+  tasks = task_penguins,
+  learners = learners,
+  resamplings = cv5
+)
+
+design
+```
+
+### 运行基准测试
+
+```{r}
+# 执行基准测试
+bmr <- benchmark(design)
+
+# 汇总结果
+bmr$aggregate(msrs(c("classif.acc", "classif.ce")))
+```
+
+### 可视化比较
+
+```{r}
+# 提取所有结果
+scores_all <- bmr$score(msr("classif.acc"))
+
+ggplot(scores_all, aes(x = learner_id, y = classif.acc, fill = learner_id)) +
+  geom_boxplot(alpha = 0.8) +
+  scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b", "#ef4444")) +
+  labs(
+    title = "模型性能比较",
+    x = "模型",
+    y = "准确率"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+```
+
+### 排名分析
+
+```{r}
+# 计算平均排名
+bmr$aggregate(msr("classif.acc"))[order(-classif.acc)]
+```
+
+
+## 第七部分：Tuning（超参数调优）
+
+### 定义搜索空间
+
+```{r}
+# 随机森林的参数空间
+learner_rf_tune <- lrn("classif.ranger")
+
+search_space <- ps(
+  num.trees = p_int(lower = 50, upper = 500),
+  mtry = p_int(lower = 1, upper = 4),
+  min.node.size = p_int(lower = 1, upper = 10)
+)
+
+search_space
+```
+
+### 网格搜索
+
+```{r}
+# 创建调优实例（新版 mlr3tuning 使用 ti() 函数）
+instance <- ti(
+  task = task_penguins,
+  learner = learner_rf_tune,
+  resampling = rsmp("cv", folds = 3),
+  measures = msr("classif.acc"),
+  search_space = search_space,
+  terminator = trm("evals", n_evals = 20)
+)
+
+# 网格搜索调优器
+tuner <- tnr("grid_search", resolution = 3)
+
+# 执行调优
+tuner$optimize(instance)
+```
+
+### 查看调优结果
+
+```{r}
+# 最优参数
+instance$result_learner_param_vals
+
+# 最优性能
+instance$result_y
+```
+
+### 调优历史可视化
+
+```{r}
+# 提取调优历史
+archive <- as.data.table(instance$archive)
+
+ggplot(archive, aes(x = seq_len(nrow(archive)), y = classif.acc)) +
+  geom_line(color = "#4f46e5", linewidth = 0.8) +
+  geom_point(color = "#4f46e5", size = 2) +
+  geom_hline(yintercept = instance$result_y, 
+             linetype = "dashed", color = "red") +
+  labs(
+    title = "超参数调优过程",
+    subtitle = paste("最优准确率:", round(instance$result_y, 4)),
+    x = "迭代次数",
+    y = "准确率"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### 使用最优参数训练最终模型
+
+```{r}
+# 用最优参数创建学习器
+learner_final <- lrn("classif.ranger")
+learner_final$param_set$values <- instance$result_learner_param_vals
+
+# 在全部数据上训练
+learner_final$train(task_penguins)
+learner_final$model
+```
+
+### 随机搜索
+
+```{r eval=FALSE}
+# 随机搜索（更适合大搜索空间）
+tuner_random <- tnr("random_search")
+tuner_random$optimize(instance)
+```
+
+
+## 第八部分：Pipeline（预处理管道）
+
+mlr3pipelines 提供了灵活的数据预处理能力。
+
+### 查看可用操作
+
+```{r}
+# 常用预处理操作
+as.data.table(mlr_pipeops)[, .(key, packages)] |> head(15)
+```
+
+### 创建预处理步骤
+
+```{r}
+# 缺失值填充
+po_impute <- po("imputemedian")
+
+# 标准化
+po_scale <- po("scale")
+
+# 独热编码
+po_encode <- po("encode")
+```
+
+### 构建管道
+
+```{r}
+# 创建完整管道：填充 → 编码 → 标准化 → 随机森林
+graph <- po("imputemedian") %>>%
+  po("encode") %>>%
+  po("scale") %>>%
+  lrn("classif.ranger", num.trees = 100)
+
+# 转换为学习器
+graph_learner <- as_learner(graph)
+graph_learner$id <- "pipeline_rf"
+
+graph_learner
+```
+
+### 使用管道训练
+
+```{r}
+# 使用原始数据（含缺失值）
+data("penguins", package = "palmerpenguins")
+
+task_full <- TaskClassif$new(
+  id = "penguins_full",
+  backend = penguins,
+  target = "species"
+)
+
+# 交叉验证
+cv5 <- rsmp("cv", folds = 5)
+rr_pipe <- resample(task_full, graph_learner, cv5)
+
+rr_pipe$aggregate(msr("classif.acc"))
+```
+
+### 可视化管道结构
+
+```{r fig.width=10, fig.height=4}
+# 简单管道可视化
+graph_simple <- po("imputemedian") %>>%
+  po("scale") %>>%
+  lrn("classif.ranger")
+
+graph_simple$plot()
+```
+
+### 分支管道（模型选择）
+
+```{r}
+# 创建分支：同时尝试多个模型
+graph_branch <- po("imputemedian") %>>%
+  po("encode") %>>%
+  po("branch", options = c("rf", "tree", "knn")) %>>%
+  gunion(list(
+    rf = lrn("classif.ranger", num.trees = 100),
+    tree = lrn("classif.rpart"),
+    knn = lrn("classif.kknn")
+  )) %>>%
+  po("unbranch")
+
+graph_branch
+```
+
+
+## 第九部分：特征工程
+
+### 特征选择
+
+```{r}
+# 基于过滤器的特征选择
+library(mlr3filters)
+
+# 查看可用过滤器
+as.data.table(mlr_filters)[, .(key, task_types, packages)]
+```
+
+```{r}
+# 使用随机森林内置的特征重要性
+learner_rf_imp <- lrn("classif.ranger", 
+                      num.trees = 100,
+                      importance = "impurity")
+learner_rf_imp$train(task_penguins)
+
+# 提取特征重要性
+importance_scores <- learner_rf_imp$model$variable.importance
+importance_df <- data.frame(
+  feature = names(importance_scores),
+  score = importance_scores
+)
+importance_df
+```
+
+### 可视化特征重要性
+
+```{r}
+ggplot(importance_df, aes(x = reorder(feature, score), y = score)) +
+  geom_col(fill = "#4f46e5", alpha = 0.8) +
+  coord_flip() +
+  labs(
+    title = "特征重要性（随机森林）",
+    x = "特征",
+    y = "重要性得分"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### 在管道中进行特征选择
+
+```{r}
+# 使用 select 操作符选择特定特征
+graph_fs <- po("select", 
+               selector = selector_name(c("flipper_length_mm", "bill_length_mm", "bill_depth_mm"))) %>>%
+  lrn("classif.ranger", num.trees = 100)
+
+graph_fs_learner <- as_learner(graph_fs)
+graph_fs_learner$id <- "fs_rf"
+
+# 评估
+rr_fs <- resample(task_penguins, graph_fs_learner, rsmp("cv", folds = 5))
+rr_fs$aggregate(msr("classif.acc"))
+```
+
+
+## 第十部分：完整实战案例
+
+### 案例：企鹅物种分类
+
+```{r}
+# 1. 准备数据
+data("penguins", package = "palmerpenguins")
+
+task <- TaskClassif$new(
+  id = "penguin_classification",
+  backend = penguins,
+  target = "species"
+)
+
+# 2. 构建预处理管道
+# 注意：先用众数填充因子缺失值，再用中位数填充数值缺失值
+preprocess <- po("imputemode") %>>%       # 填充因子缺失值（如 sex）
+  po("imputemedian") %>>%                  # 填充数值缺失值
+  po("encode") %>>%
+  po("scale")
+
+# 3. 定义候选模型
+learners <- list(
+  决策树 = preprocess %>>% lrn("classif.rpart"),
+  随机森林 = preprocess %>>% lrn("classif.ranger", num.trees = 200),
+  KNN = preprocess %>>% lrn("classif.kknn", k = 5),
+  朴素贝叶斯 = preprocess %>>% lrn("classif.naive_bayes")
+)
+
+# 转换为学习器
+graph_learners <- lapply(names(learners), function(name) {
+  gl <- as_learner(learners[[name]])
+  gl$id <- name
+  gl
+})
+
+# 4. 基准测试
+design <- benchmark_grid(
+  tasks = task,
+  learners = graph_learners,
+  resamplings = rsmp("repeated_cv", folds = 5, repeats = 3)
+)
+
+bmr <- benchmark(design)
+```
+
+### 结果汇总
+
+```{r}
+# 汇总统计
+results <- bmr$aggregate(msrs(c("classif.acc", "classif.ce")))
+results[order(-classif.acc)]
+```
+
+### 可视化最终结果
+
+```{r}
+scores_final <- bmr$score(msr("classif.acc"))
+
+ggplot(scores_final, aes(x = learner_id, y = classif.acc, fill = learner_id)) +
+  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.5, size = 1) +
+  scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b", "#ef4444")) +
+  labs(
+    title = "企鹅物种分类 - 模型比较",
+    subtitle = "5折交叉验证 × 3次重复",
+    x = "模型",
+    y = "准确率"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  ) +
+  ylim(0.9, 1.0)
+```
+
+### 选择最优模型并调参
+
+```{r}
+# 对最优模型（随机森林）进行调参
+learner_best <- as_learner(
+  preprocess %>>% lrn("classif.ranger")
+)
+
+search_space <- ps(
+  classif.ranger.num.trees = p_int(100, 500),
+  classif.ranger.mtry = p_int(1, 4),
+  classif.ranger.min.node.size = p_int(1, 10)
+)
+
+instance <- ti(
+  task = task,
+  learner = learner_best,
+  resampling = rsmp("cv", folds = 5),
+  measures = msr("classif.acc"),
+  search_space = search_space,
+  terminator = trm("evals", n_evals = 30)
+)
+
+tuner <- tnr("random_search")
+tuner$optimize(instance)
+
+# 最优参数
+instance$result_learner_param_vals
+
+# 最优性能
+instance$result_y
+```
+
+
+## 常用代码速查
+
+### 创建任务
+
+```{r eval=FALSE}
+# 分类任务
+task <- TaskClassif$new(id, backend, target)
+
+# 回归任务
+task <- TaskRegr$new(id, backend, target)
+
+# 内置任务
+task <- tsk("iris")
+```
+
+### 创建学习器
+
+```{r eval=FALSE}
+# 基础语法
+learner <- lrn("classif.ranger", num.trees = 100)
+
+# 设置预测类型
+learner$predict_type <- "prob"
+```
+
+### 训练与预测
+
+```{r eval=FALSE}
+# 训练
+learner$train(task, row_ids = train_ids)
+
+# 预测
+prediction <- learner$predict(task, row_ids = test_ids)
+
+# 评估
+prediction$score(msr("classif.acc"))
+```
+
+### 重采样
+
+```{r eval=FALSE}
+# 交叉验证
+rr <- resample(task, learner, rsmp("cv", folds = 5))
+rr$aggregate(msr("classif.acc"))
+```
+
+### 基准测试
+
+```{r eval=FALSE}
+design <- benchmark_grid(tasks, learners, resamplings)
+bmr <- benchmark(design)
+bmr$aggregate(measures)
+```
+
+### 调参
+
+```{r eval=FALSE}
+# 定义搜索空间
+search_space <- ps(
+  param1 = p_int(lower, upper),
+  param2 = p_dbl(lower, upper)
+)
+
+# 调优（新版使用 ti() 函数）
+instance <- ti(task, learner, resampling, measures, search_space, terminator)
+tuner <- tnr("grid_search")
+tuner$optimize(instance)
+```
+
+
+## 总结
+
+mlr3 提供了完整的机器学习工作流：
+
+| 阶段 | 组件 | 功能 |
+|------|------|------|
+| 数据准备 | Task | 封装数据和目标 |
+| 建模 | Learner | 封装算法 |
+| 评估 | Measure | 定义评估指标 |
+| 验证 | Resampling | 交叉验证等 |
+| 比较 | Benchmark | 多模型对比 |
+| 调参 | Tuning | 超参数优化 |
+| 预处理 | Pipeline | 数据转换流程 |
+
+### 推荐学习资源
+
+- [mlr3 官方文档](https://mlr3.mlr-org.com/)
+- [mlr3 book](https://mlr3book.mlr-org.com/)
+- [mlr3 gallery](https://mlr3gallery.mlr-org.com/)
+
+### 与其他框架对比
+
+| 特性 | mlr3 | caret | tidymodels |
+|------|------|-------|------------|
+| 设计 | R6 OOP | S3 函数式 | tidy 函数式 |
+| 管道 | mlr3pipelines | 内置 | recipes |
+| 扩展性 | 高 | 中 | 高 |
+| 学习曲线 | 中等 | 低 | 中等 |
+| 并行支持 | 原生 | 需配置 | 原生 |

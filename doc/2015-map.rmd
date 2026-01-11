@@ -1,0 +1,230 @@
+---
+title: "R语言采样地图绘制详细教程"
+date: "2024-10-20"
+categories: [可视化, 地图]
+image: "figure/map-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+## library(tidyverse) # Wickham的数据整理的整套工具
+pdf.options(height = 10 / 2.54, width = 10 / 2.54, family = "GB1") # 注意：此设置要放在最后
+```
+
+> 本期主要介绍如何绘制采样地图和国内区域地图，并自定义相关内容
+
+## R包介绍
+
+[ggspatial教程](https://cran.r-project.org/web/packages/ggspatial/index.html)
+
+## R包安装
+
+```{r eval=FALSE}
+install.packages("ggspatial")
+install.packages("sf")
+```
+
+## 基础绘图代码
+
+### 导入地图json数据
+
+进入从[阿里云DataV可视化网站](http://datav.aliyun.com/portal/school/atlas/area_selector)（可选择其他平台）下载格式为.json的地图数据：
+
+![](https://pic-go-42.oss-cn-guangzhou.aliyuncs.com/img/202410270835984.webp)
+
+### 数据导入
+
+```{r}
+library(ggspatial)
+library(sf)
+library(ggplot2)
+
+# 导入地图json数据
+map <- st_read("01-attch\\10\\广州市.json")
+```
+
+### 开始绘制
+
+#### 添加省份区边框
+```{r collapse=TRUE}
+ggplot() +
+  labs(title = "Guangzhou", x = NULL, y = NULL) +
+  geom_sf(data = map, fill = c("#f0eedf"), size = 0.8, color = "black")
+```
+
+#### 添加指南针annotation
+
+```{r}
+p <- ggplot() +
+  labs(title = "Guangzhou", x = NULL, y = NULL) +
+  geom_sf(data = map, fill = c("#f0eedf"), size = 0.8, color = "black") + # 设置比例尺
+  annotation_north_arrow(
+    location = "tl",
+    style = north_arrow_nautical(
+      fill = c("black", "white"),
+      line_col = "black"
+    )
+  )
+p
+
+```
+
+## 我们来自定义绘图内容
+
+### 设置白云区天河区突出显示
+
+我们新加一个图层就可以，然后fill填充亮色
+
+```{r}
+p + geom_sf(
+  data = map |> dplyr::filter(name %in% c("天河区", "白云区", "番禺区")),
+  fill = c("#c98c50"),
+  size = 0.8,
+  color = "black"
+)
+```
+
+### 设置text
+
+接下来我们要在图里标注部分区名
+
+```{r message = F}
+library(showtext)
+showtext::showtext_auto()
+```
+
+```{r warning = F}
+p + geom_sf(
+  data = map |> dplyr::filter(name %in% c("天河区", "白云区", "番禺区")),
+  fill = c("#c98c50"),
+  size = 0.8,
+  color = "black"
+) +
+  geom_sf_text(
+    data = map |> dplyr::filter(name %in% c("天河区", "白云区", "番禺区")),
+    aes(label = name),
+    size = 3,
+    color = "black",
+    fontface = "bold"
+  )
+```
+
+### 设置一个合适的主题
+
+
+```{r warning = F} 
+p2 <-
+  p + geom_sf(
+    data = map |> dplyr::filter(name %in% c("天河区", "白云区", "番禺区")),
+    fill = c("#c98c50"),
+    size = 0.8,
+    color = "black"
+  ) +
+  geom_sf_text(
+    data = map |> dplyr::filter(name %in% c("天河区", "白云区", "番禺区")),
+    aes(label = name),
+    size = 3,
+    color = "black",
+    fontface = "bold"
+  ) +
+  theme_minimal()
+
+p2
+```
+
+### 设置根据数值变量对各区的fill进行映射
+
+
+```{r warning = F}
+# 先生成一个随机变量
+map_neat_1 <-
+  map |>
+  dplyr::mutate(
+    value = sample(1:100, nrow(map), replace = TRUE)
+  )
+
+
+ggplot() +
+  labs(title = "map_neat_1", x = NULL, y = NULL) +
+  geom_sf(data = map_neat_1, aes(fill = value), size = 0.8, color = "black") + # 设置比例尺
+  annotation_north_arrow(
+    location = "tl",
+    style = north_arrow_nautical(
+      fill = c("black", "white"),
+      line_col = "black"
+    )
+  ) +
+  geom_sf_text(
+    data = map,
+    aes(label = name),
+    size = 3,
+    color = "black",
+    fontface = "bold"
+  ) +
+  theme_minimal()
+```
+
+### 根据分类变量对区进行fill映射
+
+
+```{r warning = F}
+library(MetBrewer)
+
+map_neat_2 <-
+  map |>
+  dplyr::mutate(
+    group = sample(c("A", "B", "C"), nrow(map), replace = TRUE)
+  )
+
+ggplot() +
+  labs(title = "map_neat_2", x = NULL, y = NULL) +
+  geom_sf(data = map_neat_2, aes(fill = group), size = 0.8, color = "black") + # 设置比例尺
+  annotation_north_arrow(
+    location = "tl",
+    style = north_arrow_nautical(
+      fill = c("black", "white"),
+      line_col = "black"
+    )
+  ) +
+  geom_sf_text(
+    data = map,
+    aes(label = name),
+    size = 3,
+    color = "black",
+    fontface = "bold"
+  ) +
+  theme_minimal() +
+  scale_fill_met_d("Cassatt1")
+
+```
+
+### 添加采样点
+
+```{r warning = F}
+
+data_sample <-
+  tibble::tibble(
+    lon = c(113.292333, 113.412333, 113.532333),
+    lat = c(23.191944, 23.331944, 22.931944),
+    point = c("A", "B", "C"),
+  )
+
+p2 +
+  geom_point(
+    data = data_sample,
+    aes(x = lon, y = lat),
+    size = 2,
+    color = "#1647a3"
+  ) +
+  geom_text(
+    data = data_sample,
+    aes(x = lon, y = lat, label = point),
+    size = 4,
+    color = "#000000",
+    fontface = "bold",
+    nudge_y = 0.05
+  )+
+  labs(title = "广州市")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+

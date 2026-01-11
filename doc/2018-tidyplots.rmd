@@ -1,0 +1,530 @@
+---
+title: "tidyplots：简洁优雅的数据可视化"
+date: "2026-01-10"
+categories: [可视化, tidyplots]
+image: "figure/tidyplots-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  warning = FALSE, 
+  message = FALSE,
+  fig.width = 7,
+  fig.height = 4.5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+
+# 关键：设置 tidyplots 使用 ggplot2 默认尺寸，不使用固定 mm 尺寸
+library(tidyplots)
+tidyplots_options(width = NA, height = NA)
+```
+
+> tidyplots 是一个基于 ggplot2 的高级绑图包，用极简的语法创建出版级的科研图表。它的设计理念是"用最少的代码，做最专业的图"。
+
+## R包介绍
+
+### 为什么选择 tidyplots？
+
+tidyplots 解决了 ggplot2 的几个痛点：
+
+1. **代码冗长**：ggplot2 需要多层叠加，tidyplots 一行搞定
+2. **主题繁琐**：自动应用专业的学术主题
+3. **配色困难**：内置优秀的配色方案
+4. **统计标注**：自动添加 p 值、误差线等
+5. **多图拼接**：原生支持分面和组合
+
+### 安装与加载
+
+```{r eval=FALSE}
+# CRAN 安装
+install.packages("tidyplots")
+```
+
+```{r}
+library(tidyplots)
+library(dplyr)
+```
+
+### 核心设计理念
+
+tidyplots 采用 **管道式语法**，核心函数是 `tidyplot()`：
+
+```
+数据 |> tidyplot(x, y, color) |> add_*() |> adjust_*() |> theme_*()
+```
+
+## 快速入门
+
+### 第一个 tidyplots 图
+
+```{r}
+# 使用内置数据集
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar()
+```
+
+对比传统 ggplot2 代码：
+
+```{r eval=FALSE}
+# ggplot2 需要先计算统计量
+library(ggplot2)
+study |>
+  group_by(treatment) |>
+  summarise(
+    mean = mean(score),
+    se = sd(score) / sqrt(n())
+  ) |>
+  ggplot(aes(x = treatment, y = mean, fill = treatment)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+  theme_minimal()
+```
+
+tidyplots 只需 3 行，ggplot2 需要 10+ 行！
+
+## 基础图形
+
+### 柱状图 (Bar Plot)
+
+```{r}
+# 基础柱状图
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar()
+```
+
+```{r}
+# 带误差线和数据点的柱状图
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar(alpha = 0.4) |>
+  add_sem_errorbar() |>
+  add_data_points()
+```
+
+### 箱线图 (Box Plot)
+
+```{r}
+# 箱线图
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_boxplot()
+```
+
+```{r}
+# 箱线图 + 抖动点
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_boxplot(alpha = 0.3) |>
+  add_data_points_jitter()
+```
+
+### 小提琴图 (Violin Plot)
+
+```{r}
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_violin() |>
+  add_boxplot(width = 0.1, alpha = 0)
+```
+
+### 散点图 (Scatter Plot)
+
+```{r}
+# 基础散点图
+study |>
+  tidyplot(x = age, y = score, color = treatment) |>
+  add_data_points()
+```
+
+```{r}
+# 带拟合线的散点图
+study |>
+  tidyplot(x = age, y = score, color = treatment) |>
+  add_data_points() |>
+  add_curve_fit()
+```
+
+### 折线图 (Line Plot)
+
+```{r}
+# 分组折线图
+time_course |>
+  tidyplot(x = day, y = score, color = treatment) |>
+  add_mean_line() |>
+  add_sem_ribbon()
+```
+
+### 直方图 (Histogram)
+
+```{r}
+study |>
+  tidyplot(x = score, color = treatment) |>
+  add_histogram()
+```
+
+## 统计标注
+
+### 添加 p 值
+
+tidyplots 可以自动计算并标注统计检验结果：
+
+```{r}
+# 添加配对比较的 p 值
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar() |>
+  add_test_pvalue()
+```
+
+### 添加显著性标记
+
+```{r}
+# 使用星号表示显著性
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar() |>
+  add_test_asterisks()
+```
+
+## 配色方案
+
+### 内置配色
+
+tidyplots 内置多种专业配色方案：
+
+```{r}
+# 默认配色
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar()
+```
+
+```{r}
+# 使用不同配色方案
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  adjust_colors(new_colors = c("#0073C2", "#EFC000", "#868686"))
+```
+
+### 可用的配色方案
+
+| 配色名称 | 适用场景 |
+|---------|---------|
+| `colors_discrete_seaside` | 海洋色调 |
+| `colors_discrete_friendly` | 色盲友好 |
+| `colors_continuous_viridis` | 连续变量 |
+
+## 主题设置
+
+### 内置主题
+
+```{r}
+# 默认主题 (已经很专业)
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar()
+```
+
+### 调整标题
+
+```{r}
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar() |>
+  adjust_title("实验结果") |>
+  adjust_x_axis_title("分组") |>
+  adjust_y_axis_title("得分")
+```
+
+### 调整字体大小
+
+```{r}
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar() |>
+  adjust_font(fontsize = 14)
+```
+
+### 隐藏图例
+
+```{r}
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  remove_legend()
+```
+
+## 分面与组合
+
+### 分面 (Faceting)
+
+```{r}
+# 按变量分面
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar() |>
+  split_plot(by = group)
+```
+
+### 多图组合
+
+```{r fig.width=10, fig.height=4}
+# 创建多个图并组合
+p1 <- study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar() |>
+  adjust_title("A. 柱状图")
+
+p2 <- study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_boxplot() |>
+  adjust_title("B. 箱线图")
+
+p3 <- study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_violin() |>
+  adjust_title("C. 小提琴图")
+
+# 组合图形（使用 patchwork）
+library(patchwork)
+p1 + p2 + p3
+```
+
+## 保存图形
+
+### 基本保存
+
+```{r eval=FALSE}
+# 保存单个图形
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  save_plot("figure1.png")
+
+# 指定尺寸和分辨率
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  save_plot("figure1.png", width = 10, height = 8, dpi = 300)
+```
+
+## 实战案例
+
+### 案例1：临床试验结果图
+
+```{r fig.width=8, fig.height=5}
+# 模拟临床数据
+set.seed(42)
+clinical <- data.frame(
+  patient = 1:90,
+  treatment = rep(c("Placebo", "Drug A", "Drug B"), each = 30),
+  response = c(
+    rnorm(30, 45, 12),
+    rnorm(30, 60, 10),
+    rnorm(30, 72, 8)
+  ),
+  gender = sample(c("Male", "Female"), 90, replace = TRUE)
+)
+
+# 创建专业的临床结果图
+clinical |>
+  tidyplot(x = treatment, y = response, color = treatment) |>
+  add_mean_bar(alpha = 0.6) |>
+  add_sem_errorbar() |>
+  add_data_points_jitter(width = 0.2, alpha = 0.5) |>
+  add_test_asterisks() |>
+  adjust_title("药物疗效比较") |>
+  adjust_x_axis_title("治疗组") |>
+  adjust_y_axis_title("应答率 (%)") |>
+  remove_legend()
+```
+
+### 案例2：时间序列数据
+
+```{r}
+# 带误差带的时间序列图
+time_course |>
+  tidyplot(x = day, y = score, color = treatment) |>
+  add_mean_line(linewidth = 1) |>
+  add_sem_ribbon(alpha = 0.2) |>
+  add_data_points(alpha = 0.3, size = 1) |>
+  adjust_title("治疗效果时间曲线") |>
+  adjust_x_axis_title("时间 (天)") |>
+  adjust_y_axis_title("评分")
+```
+
+### 案例3：多组比较
+
+```{r fig.width=9, fig.height=6}
+# 创建分组比较图
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_boxplot(alpha = 0.3) |>
+  add_data_points_jitter() |>
+  add_test_pvalue() |>
+  split_plot(by = group) |>
+  adjust_title("不同亚组的治疗效果")
+```
+
+### 案例4：相关性分析
+
+```{r}
+study |>
+  tidyplot(x = age, y = score, color = treatment) |>
+  add_data_points(size = 2.5, alpha = 0.6) |>
+  add_curve_fit() |>
+  adjust_title("年龄与评分的关系") |>
+  adjust_x_axis_title("年龄 (岁)") |>
+  adjust_y_axis_title("评分")
+```
+
+## 高级技巧
+
+### 与 ggplot2 结合
+
+tidyplots 返回的是 ggplot2 对象，可以继续添加 ggplot2 层：
+
+```{r}
+library(ggplot2)
+
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  add_sem_errorbar() +
+  # 添加 ggplot2 层
+  geom_hline(yintercept = 50, linetype = "dashed", color = "red") +
+  annotate("text", x = 3.5, y = 52, label = "基线", color = "red")
+```
+
+### 自定义绑图函数
+
+```{r}
+# 创建自定义绑图函数
+my_barplot <- function(data, x, y, color) {
+  data |>
+    tidyplot(x = {{x}}, y = {{y}}, color = {{color}}) |>
+    add_mean_bar(alpha = 0.5) |>
+    add_sem_errorbar() |>
+    add_data_points_jitter() |>
+    add_test_asterisks() |>
+    remove_legend()
+}
+
+# 使用自定义函数
+study |>
+  my_barplot(treatment, score, treatment)
+```
+
+## tidyplots 函数速查表
+
+### 添加几何图形 (add_*)
+
+| 函数 | 说明 |
+|------|------|
+| `add_mean_bar()` | 均值柱状图 |
+| `add_boxplot()` | 箱线图 |
+| `add_violin()` | 小提琴图 |
+| `add_data_points()` | 数据点 |
+| `add_data_points_jitter()` | 抖动数据点 |
+| `add_sem_errorbar()` | 标准误误差线 |
+| `add_sd_errorbar()` | 标准差误差线 |
+| `add_sem_ribbon()` | 标准误误差带 |
+| `add_mean_line()` | 均值连线 |
+| `add_curve_fit()` | 拟合线 |
+| `add_histogram()` | 直方图 |
+| `add_heatmap()` | 热图 |
+
+### 添加统计 (add_test_*)
+
+| 函数 | 说明 |
+|------|------|
+| `add_test_pvalue()` | p 值标注 |
+| `add_test_asterisks()` | 星号显著性标注 |
+
+### 调整样式 (adjust_*)
+
+| 函数 | 说明 |
+|------|------|
+| `adjust_colors()` | 配色方案 |
+| `adjust_title()` | 主标题 |
+| `adjust_x_axis_title()` | X 轴标题 |
+| `adjust_y_axis_title()` | Y 轴标题 |
+| `adjust_font()` | 字体大小 |
+| `adjust_legend_title()` | 图例标题 |
+| `adjust_size()` | 图形尺寸 |
+
+### 其他操作
+
+| 函数 | 说明 |
+|------|------|
+| `split_plot()` | 分面 |
+| `remove_legend()` | 移除图例 |
+| `view_plot()` | 查看图形 |
+| `save_plot()` | 保存图形 |
+
+## 常见问题
+
+### 1. tidyplots 和 ggplot2 哪个更好？
+
+tidyplots 是基于 ggplot2 的封装，两者可以互补：
+
+- **快速作图**：用 tidyplots
+- **高度定制**：用 ggplot2
+- **混合使用**：tidyplots 创建基础图，ggplot2 添加细节
+
+### 2. 如何添加中文标签？
+
+```{r}
+study |>
+  tidyplot(x = treatment, y = score, color = treatment) |>
+  add_mean_bar() |>
+  adjust_title("实验结果") |>
+  adjust_x_axis_title("分组") |>
+  adjust_y_axis_title("得分")
+```
+
+### 3. 如何导出高分辨率图片？
+
+```{r eval=FALSE}
+# 使用 save_plot 指定 dpi
+p |> save_plot("figure.png", dpi = 600, width = 12, height = 8)
+
+# 或结合 ggplot2::ggsave + ragg
+ggsave("figure.png", p, device = ragg::agg_png, dpi = 300)
+```
+
+## 总结
+
+tidyplots 的核心优势：
+
+1. **极简语法**：管道式操作，一行代码一个功能
+2. **专业默认**：开箱即用的学术主题和配色
+3. **统计内置**：自动计算并标注 p 值
+4. **完全兼容**：可与 ggplot2 无缝结合
+
+推荐学习路径：
+
+1. 掌握 `tidyplot() |> add_*()` 基本模式
+2. 学习 `adjust_*()` 调整样式
+3. 探索统计标注功能
+4. 结合 ggplot2 实现高级定制
+
+参考资源：
+
+- [tidyplots 官方文档](https://jbengler.github.io/tidyplots/)
+- [GitHub 仓库](https://github.com/jbengler/tidyplots)
+- [CRAN 页面](https://cran.r-project.org/package=tidyplots)

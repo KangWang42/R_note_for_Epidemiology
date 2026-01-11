@@ -1,0 +1,153 @@
+---
+title: "purrr: 函数式编程,彻底摆脱for循环"
+date: "2024-10-20"
+categories: [R包, 编程]
+image: "figure/default-cover1.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+##library(tidyverse) # Wickham的数据整理的整套工具
+pdf.options(height=10/2.54, width=10/2.54, family="GB1") # 注意：此设置要放在最后
+```
+
+## R包介绍
+
+purrr 通过提供一套完整且一致的用于处理函数和向量的工具来增强 **R 的函数式编程 (FP) 工具包**。如果您以前从未听说过 FP，那么最好的起点是map()函数系列，它允许您用更简洁、更易于阅读的代码替换许多 for 循环。
+
+听起来有点复杂，但更简单来说，就是用嵌套函数来**替代for循环的冗长的框架结构**。让输入输出更简单。
+
+相关教程：[官网网站](https://purrr.tidyverse.org/)
+
+## R包安装
+
+
+```{r eval=FALSE}
+install.packages("purrr")
+```
+
+## 语法
+
+purrr系列函数都以**map，map2和pmap作为大类，搭配更多的后缀来设定输出类型**。
+
+- map(.x, .f)：输入一个向量(.x)，以该向量为输入进行循环(.f函数循环)
+- map(.x, .f)：输入两个向量
+- map3(.x, .f)：输入n（大于2）向量
+
+这里边的向量是比较广的向量，包含**向量，列表，字符串，数据框（可以看作向量的向量），只要有这种顺序结构的都可以作为map的输入**
+
+
+## 举个栗子
+
+### 加载数据
+```{r message=FALSE}
+library(tidyverse)
+library(purrr)
+```
+
+```{r}
+data <- mtcars
+
+head(data, 5)
+```
+
+### 使用tidyverse结构和purrr来划分数据分别做回归
+
+我们现在想根据cyl对数据框进行划分，在分出来的数据框中做回归，然后把回归结果放到一个数字向量里
+
+```{r}
+data |> 
+  split(data$cyl) |>  # 划分数据
+  map(\(df) lm(mpg ~ wt, data = df)) |> #分别做循环
+  map(summary) %>%  #对结果做summary
+  map_dbl("r.squared")
+```
+
+查看以下代码，发现了什么？
+
+- purrr循环的第一个参数始终是数据，因此 purrr 可以自然地与管道配合使用。
+- map_xxx（map的后缀相当于自定义了输出类型）
+
+### 常规方法来做这个模型
+
+```{r}
+var <- c("disp", "hp", "drat")
+
+data_list <- split(data, mtcars$cyl)
+
+vec_result = c()
+for (temp_data in data_list) {
+    model = lm(mpg ~ wt, data = temp_data)
+    model_summary = summary(model)
+    r2 = model_summary$"r.squared"
+    vec_result = c(vec_result, r2)
+}
+
+print(vec_result)
+```
+
+发现了什么
+
+1. 代码行数多了很多
+2. 多了一些中间变量
+3. 代码可读性差，很不优雅
+
+## 多变量索引循环
+
+如果是想用多个向量来索引循环，输入多个向量，我们要怎么做呢。举一个简单的例子就知道了。
+
+```{r}
+var1 <- c("disp", "hp", "drat")
+var2 <- c("wt", "qsec", "vs")
+var_add <- map2(var1, var2, \(x, y) paste0(x, "+", y))
+print(var_add)
+```
+
+再举个例子
+
+```{r}
+means <- 1:4
+sds <- 1:4
+set.seed(2020)
+samples <- map2(means, sds, \(mean, sds){rnorm(mean, sds, n = 5)})
+
+#这里也可以写为，如下，不过有时候想要更复杂的操作就不要用这种简化的写法
+#samples <- map2(means, sds, rnorm, n = 5)
+str(samples)
+```
+
+如果输入的是多个向量可以参考如下
+
+```{r}
+var3 <- c("disp", "hp", "drat")
+
+var4 <- c("wt", "qsec", "vs")
+
+#使用pmap的时候，把多个向量放到list框里作为第一个参数
+pvar_add <- pmap(list(var1, var2, var3, var4), 
+            \(x, y, z, p) 
+            paste0(x, "+", y, "+", z, "+", "p"))
+
+print(pvar_add)
+```
+
+注意：这里用的都是简单的字符向量，但我们使用的时候可以自由拓展到数据框和列表等复杂向量结构，就能感觉到purrr循环的魅力了
+
+
+
+## 嵌套循环
+
+如果是嵌套结构我们怎么用purrr来做呢，其实也很简单。我们现在来算一下1：10分别乘以10:20然后放到一个数字向量里怎么实现吧
+
+```{r}
+map(1:10, 
+        \(x){map(10:20, 
+        \(y){x*y})}) |> 
+    unlist()
+```
+
+举得例子比较没有意义，但是可以在此基础上一窥嵌套循环的实现。
+
+## 更多
+
+purrr可以快捷实现很多高级操作，比如批量导入数据，批量绘图以及批量建模等，后续分开写吧。这一期写得很宽泛，大家可以自己去探索更多操作。

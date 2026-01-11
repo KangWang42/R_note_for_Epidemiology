@@ -1,0 +1,187 @@
+---
+title: "compareGroups-描述性表一快速生成"
+date: "2024-10-20"
+categories: [R包, 表格]
+image: "figure/comparegroups-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+##library(tidyverse) # Wickham的数据整理的整套工具
+pdf.options(height=10/2.54, width=10/2.54, family="GB1") # 注意：此设置要放在最后
+```
+
+> 第95期 R语言教程！compareGroups神包制作描述性表一
+>
+> 描述性表1在论文写作中占据着开篇起笔的作用。**对所用的数据进行描述和简单分析，为后续的模型构建提供数据可靠性信息**
+>
+> 本期介绍如何使用compareGroups神包来快速生成符合学术规范的表1。并进行包括以下自定义设置：1**.设置亚组 2.设置非正态变量使用非参组间检验 3.设置显示缺失值 4.设置显示OR值 5.设置使用自定义组间比较方法 6 数据导出**
+
+## R包介绍
+
+compareGroups 是一个在 CRAN 上可用的 R 包，**它可以生成描述性表格，展示几个变量的均值、标准差、分位数或频率。此外，还会使用适当的测试计算 p 值来检验组间差异。**
+
+通过简单的代码，就能在 R 中生成美观、规范且可直接用于论文发表的描述性表格。这些表格还可以**导出到不同的格式，如 Word、Excel、PDF，或插入到 R-Sweave 或 R-markdown 文档中**。
+
+在[手册](https://cran.r-project.org/web/packages/compareGroups/vignettes/compareGroups_vignette.html) <https://cran.r-project.org/web/packages/compareGroups/vignettes/compareGroups_vignette.html>里提供了非常友好的R包教程，描述了 compareGroups 的所有功能，并附有实际示例。\
+
+## R包安装
+
+从CRAN中安装R包
+
+```{r,eval=FALSE}
+install.packages("compareGroups") 
+```
+
+或者从github安装最新版本
+
+```{r,eval=FALSE}
+library(devtools) 
+devtools::install_github("isubirana/compareGroups")
+```
+
+## R包参数
+
+### **查看数据**
+
+(不重要可以不看，知道是**包含多种数据类型的数据集即可**)调用R包自带的regicor数据，包含25个变量。regicor（吉罗纳心脏登记）研究是一项横断面研究，参与者来自西班牙东北部地区。在此研究中，收集了参与者的各种数据集，包括人口统计信息（如年龄和性别）、人体测量数据（如身高、体重和腰围）以及脂质水平（包括总胆固醇和甘油三酯）。此外，参与者还完成了涵盖体育活动和生活质量等领域的问卷。
+
+为了追踪健康结果，研究还收集了关于心血管事件和死亡的数据。这些信息是通过医院和官方登记册及报告，在超过10年的时间里获得的。
+
+```{r,result="hide",warning=FALSE,message=FALSE}
+library(compareGroups)
+library(bruceR) #之前有介绍过，方便描述数据
+```
+
+```{r,result="hide",warning=FALSE}
+# 方便起见，我们只分析前十个变量
+data("regicor")
+
+regicor <- regicor[,1:10]
+
+str(regicor)
+```
+
+### **生成描述性统计表**
+
+简单生成一个最简单的描述性统计表，发现定量资料用平均值标准差描述，分类资料用例数和占比描述
+
+```{r}
+descrTable( ~ ., data = regicor)
+```
+
+### **设置分组变量**
+
+根据吸烟情况将人群分为三组，同时生成组间比较列（p.overall）。自动使用卡方检验(分类变量)和方差分析(计量资料：两类时等价t检验)。
+
+```{r}
+descrTable(`smoker`~ ., data = regicor)
+```
+
+### **删除某些变量不显示**
+
+如不希望描述性统计对Id和year进行描述，直接在\~右侧的.后使用减号进行删除（如需要的变量比较少，也可以手动写公式一个个加）
+
+```{r}
+descrTable(`smoker`~ .-id-year, data = regicor)
+```
+
+### **亚组描述**
+
+subset=(逻辑判断)来挑选出男性患者进行分析
+
+```{r}
+descrTable(`smoker`~ .-id-year-sex, data = regicor,
+           subset=(sex=="Male"))
+```
+
+### **自定义设置分组检验方法**
+
+设置mehtod参数值，如果不设置，默认所有变量符合正态分布。修改age为非正态后使用四分位数进行描述，同时使用非参检验进行分组比较
+
+-   **参数值为1：正态分布分析** ：此值强制分析假设行变量遵循正态分布。
+
+-   **参数值为2：连续非正态分析** ：选择此值意味着分析不假设行变量遵循正态分布，将其视为连续但非正态分布的变量。
+
+-   **参数值为3：分类分析**：此值强制分析将行变量视为分类变量，无论其原始类型如何。
+
+-   **参数值为4：Shapiro-Wilks检验 （正态检验）**：使用此值触发Shapiro-Wilks检验，以确定变量是否应在正态性假设下进行分析，还是非正态。这对于根据数据做出如何处理每个变量的决策非常有用。
+
+```{r}
+# descrTable(`smoker`~ .-id-year, data = regicor,method = 1) 假定所有变量符合正态分布
+
+#设置age变量为非正态，使用非参检验进行比较
+descrTable(`sex`~ .-id-year, data = regicor, method=c(age = 2))
+```
+
+### **不显示标签label值**
+
+有些数据集自带label，可以通过**include.label设置是否显示标签**
+
+```{r}
+descrTable(`sex`~ .-id-year, data = regicor, include.label= FALSE)
+```
+
+### **设置计量资料用四分位法描述**
+
+设置**Q1参数和Q3参数**设置如何描述非正态连续变量。如果设置成0和1就是最小值最大值描述
+
+```{r}
+descrTable(`sex`~ .-id-year, data = regicor,method = c(age=2),
+           Q1=0.025, Q3=0.975)
+```
+
+### **生成OR和HR值**
+
+使用show.ratio变量来显示OR值，对于变量类型是time-to-event变量则输出HR值
+
+```{r}
+ descrTable(`sex`~ .-id-year, data = regicor,show.ratio = TRUE)
+```
+
+#### **设置OR值的ref对照**
+
+使用ref参数设置变量的ref对照值。代码所示为把smoker的因子level为3（值为”Former\>=1y”）的设置为对照组计算其它组的OR值
+
+同样作用的函数还有ref.no 和 ref.y
+
+```{r}
+descrTable(`sex`~ .-id-year, data = regicor,
+           include.label = FALSE,show.ratio = TRUE,
+           ref = c(smoker=3))
+```
+
+### **不显示对照组的描述信息**
+
+使用hide.no来隐藏某些因子水平的描述。常用来隐藏掉2分类变量的否的信息
+
+```{r}
+ descrTable(`sex`~ .-id-year, data = regicor,hide.no = "No")
+```
+
+### **同时显示总人群的描述**
+
+```{r}
+descrTable(`sex`~ .-id-year, data = regicor,show.all = TRUE)
+```
+
+### 结果导出
+
+可导出各种格式,export2xls, export2latex, export2pdf, export2csv, export2md, export2word
+
+```{r eval = F} 
+export2word(tab_0,file="1 data_summary.docx")
+```
+
+### **快速可视化**
+
+使用plot函数进行可视化，设置file和type参数进行保存例如
+
+plot(res[c(1,2)], file="./figures/univar/", type="png")
+
+```{r}
+tab0 <- descrTable(`sex`~ .-id-year, data = regicor)
+
+plot(tab0)
+```
+
