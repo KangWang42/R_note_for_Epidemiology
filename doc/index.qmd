@@ -30,88 +30,89 @@ document.addEventListener('DOMContentLoaded', async function() {
   const tocNav = document.querySelector('#TOC') || document.querySelector('.toc');
   if (!tocNav) return;
 
+  // 显示加载状态
+  tocNav.innerHTML = `<div class="random-tip-sidebar"><div class="tip-header">📚 随机笔记</div><div class="tip-desc">加载中...</div></div>`;
+
   try {
+    // 从 search.json 抓取真实章节内容
     const response = await fetch('search.json');
-    if (!response.ok) throw new Error('Failed to load search index');
-    
     const data = await response.json();
     
-    // 按文章分组
-    const docs = {};
-    data.forEach(item => {
-      // 过滤掉当前页和索引页
-      const excludeTitles = ["R 语言学习笔记", "实用 R 包", "可视化教程", "R 语言方法", "实用操作"];
-      if (!item.title || excludeTitles.includes(item.title)) return;
-      
-      const path = item.href.split('#')[0];
-      if (!docs[path]) {
-        docs[path] = {
-          title: item.title,
-          url: path,
-          sections: []
-        };
-      }
-      
-      // 提取有意义的章节（忽略无标题章节）
-      if (item.section && item.title !== item.section && item.text) {
-        // 清理文本，截断过长内容
-        const cleanText = item.text.replace(/\s+/g, ' ').trim();
-        if (cleanText.length > 10) {
-          docs[path].sections.push({
-            h: item.section,
-            text: cleanText.length > 60 ? cleanText.substring(0, 60) + '...' : cleanText
-          });
-        }
-      }
+    // 筛选有效章节：有标题内容、不是首页/分类页、内容长度适中
+    const sections = data.filter(item => {
+      const hasSection = item.section && item.section.length > 0;
+      const hasText = item.text && item.text.length > 50;
+      const notIndex = !item.href.includes('index.html');
+      const notSections = !item.href.includes('sections/');
+      const notTest = !item.href.includes('test.html');
+      return hasSection && hasText && notIndex && notSections && notTest;
     });
 
-    const docList = Object.values(docs).filter(d => d.sections.length >= 1);
-    
-    if (docList.length === 0) return;
+    if (sections.length === 0) {
+      throw new Error('没有找到有效章节');
+    }
 
-    // 随机选择一篇文章
-    const tip = docList[Math.floor(Math.random() * docList.length)];
+    // 随机选择一个章节
+    const section = sections[Math.floor(Math.random() * sections.length)];
     
-    // 随机选择最多3个章节
-    const displaySections = tip.sections
-      .sort(() => 0.5 - Math.random()) // 随机打乱
-      .slice(0, 3);                    // 取前3个
-
-    // 渲染 HTML
-    const sectionsHtml = displaySections.map(s => 
-      `<div class="tip-section">
-        <div class="tip-section-title">${s.h}</div>
-        <div class="tip-section-text">${s.text}</div>
-      </div>`
-    ).join('');
+    // 处理内容：清理代码块，截取适当长度
+    let content = section.text
+      .replace(/```[\s\S]*?```/g, '')  // 移除代码块
+      .replace(/##[^\n]*/g, '')        // 移除标题
+      .replace(/\|[^\n]*\|/g, '')      // 移除表格
+      .replace(/\s+/g, ' ')            // 合并空白
+      .trim();
+    
+    // 截取前 150 字符
+    if (content.length > 150) {
+      content = content.substring(0, 150).trim() + '...';
+    }
+    
+    // 获取文章标题（从 href 解析）
+    const articleTitle = section.title || '笔记';
     
     tocNav.innerHTML = `
       <div class="random-tip-sidebar">
-        <div class="tip-title">${tip.title}</div>
-        <div class="tip-content">
-          ${sectionsHtml || '<div class="tip-section-text">点击下方按钮阅读全文...</div>'}
-        </div>
+        <div class="tip-header">📚 随机笔记</div>
+        <div class="tip-section">${section.section}</div>
+        <div class="tip-desc">${content}</div>
+        <div class="tip-from">—— ${articleTitle}</div>
         <div class="tip-actions">
-          <a href="${tip.url}" class="tip-btn">阅读详情</a>
+          <a href="${section.href}" class="tip-btn">阅读详情 →</a>
           <span class="tip-refresh" onclick="location.reload()">🎲 换一篇</span>
         </div>
       </div>
     `;
-
   } catch (error) {
-    console.error('Error loading random tip:', error);
+    // 加载失败时显示提示
+    tocNav.innerHTML = `
+      <div class="random-tip-sidebar">
+        <div class="tip-header">📚 随机笔记</div>
+        <div class="tip-desc">请在服务器环境下查看随机笔记功能</div>
+        <div class="tip-actions">
+          <a href="1011-rpac_brucer.html" class="tip-btn">浏览教程 →</a>
+        </div>
+      </div>
+    `;
   }
 });
 </script>
 
 <style>
+/* 去掉外层 toc 的默认样式 */
+#TOC, .toc {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
 .random-tip-sidebar {
   background: #ffffff;
   border-radius: 12px;
   padding: 1.25rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
-  border: 1px solid #f1f5f9;
-  margin-top: 1rem;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
   position: relative;
   overflow: hidden;
 }
@@ -123,60 +124,47 @@ document.addEventListener('DOMContentLoaded', async function() {
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 3px;
   background: linear-gradient(90deg, #3b82f6, #8b5cf6);
 }
 
-.random-tip-sidebar .tip-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  letter-spacing: -0.01em;
-}
-
-.random-tip-sidebar .tip-title::before {
-  content: "💡";
-  margin-right: 0.5rem;
-  font-size: 1.2rem;
+.random-tip-sidebar .tip-header {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
 }
 
 .random-tip-sidebar .tip-section {
-  margin-bottom: 0.75rem;
-  background: #f8fafc;
-  padding: 0.75rem 0.9rem;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.6rem;
+  line-height: 1.4;
 }
 
-.random-tip-sidebar .tip-section:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-}
-
-.random-tip-sidebar .tip-section-title {
+.random-tip-sidebar .tip-desc {
   font-size: 0.85rem;
-  font-weight: 600;
-  color: #334155;
-  margin-bottom: 0.2rem;
+  color: #64748b;
+  line-height: 1.6;
+  margin-bottom: 0.6rem;
 }
 
-.random-tip-sidebar .tip-section-text {
-  font-size: 0.8rem;
-  color: #64748b;
-  line-height: 1.5;
+.random-tip-sidebar .tip-from {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+  margin-bottom: 0.8rem;
 }
 
 .random-tip-sidebar .tip-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 1.25rem;
   padding-top: 0.75rem;
-  border-top: 1px dashed #e2e8f0;
+  border-top: 1px solid #f1f5f9;
 }
 
 .random-tip-sidebar .tip-btn {
@@ -184,18 +172,16 @@ document.addEventListener('DOMContentLoaded', async function() {
   font-size: 0.8rem;
   color: white !important;
   background: #3b82f6;
-  padding: 0.35rem 0.8rem;
+  padding: 0.4rem 0.9rem;
   border-radius: 6px;
   text-decoration: none !important;
   font-weight: 500;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   transition: all 0.2s;
 }
 
 .random-tip-sidebar .tip-btn:hover {
   background: #2563eb;
   transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
 }
 
 .random-tip-sidebar .tip-refresh {
@@ -203,8 +189,6 @@ document.addEventListener('DOMContentLoaded', async function() {
   color: #94a3b8;
   cursor: pointer;
   transition: color 0.2s;
-  display: flex;
-  align-items: center;
   user-select: none;
 }
 
