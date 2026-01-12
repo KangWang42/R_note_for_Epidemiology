@@ -1191,13 +1191,13 @@ ul.task-list li input[type="checkbox"] {
 
             if (tocLinks.length > 0) {
 
-                 tocBtn.style.display = 'flex';
+                tocBtn.style.display = 'flex';
 
-                 
 
-                 // Function to populate modal
 
-                 const populateToc = () => {
+                // Function to populate modal
+
+                const populateToc = () => {
 
                     tocBody.innerHTML = '';
 
@@ -1205,7 +1205,7 @@ ul.task-list li input[type="checkbox"] {
 
                     tocBody.appendChild(tocClone);
 
-                    
+
 
                     // Add click listeners to close modal on link click
 
@@ -1215,43 +1215,43 @@ ul.task-list li input[type="checkbox"] {
 
                             tocOverlay.classList.remove('active');
 
-                             // Smooth scroll to target (handled by browser usually, but ensure modal closes first)
+                            // Smooth scroll to target (handled by browser usually, but ensure modal closes first)
 
                         });
 
                     });
 
-                 };
+                };
 
 
 
-                 tocBtn.addEventListener('click', () => {
+                tocBtn.addEventListener('click', () => {
 
-                     populateToc();
+                    populateToc();
 
-                     tocOverlay.classList.add('active');
+                    tocOverlay.classList.add('active');
 
-                 });
-
-
-
-                 tocClose.addEventListener('click', () => {
-
-                     tocOverlay.classList.remove('active');
-
-                 });
+                });
 
 
 
-                 tocOverlay.addEventListener('click', (e) => {
+                tocClose.addEventListener('click', () => {
 
-                     if (e.target === tocOverlay) {
+                    tocOverlay.classList.remove('active');
 
-                         tocOverlay.classList.remove('active');
+                });
 
-                     }
 
-                 });
+
+                tocOverlay.addEventListener('click', (e) => {
+
+                    if (e.target === tocOverlay) {
+
+                        tocOverlay.classList.remove('active');
+
+                    }
+
+                });
 
             } else {
 
@@ -1267,33 +1267,47 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-        // Article Footer Navigation (Prev/Next + Random)
+        // Article Footer Random Recommendation
 
         // Only run on article pages (has sidebar and main content)
 
-        const sidebar = document.querySelector('.sidebar-navigation');
+        const sidebar = document.querySelector('#quarto-sidebar') || document.querySelector('.sidebar');
 
         const mainContent = document.querySelector('main');
 
-        
+
 
         if (sidebar && mainContent) {
 
-            const links = Array.from(sidebar.querySelectorAll('.sidebar-item-container a'));
+            const links = Array.from(sidebar.querySelectorAll('a.sidebar-item-text'));
 
-            const currentUrl = window.location.href.split('#')[0]; // Ignore hash
 
-            
+
+            // If no links found with specific class, try generic anchor in sidebar
+
+            const allLinks = links.length > 0 ? links : Array.from(sidebar.querySelectorAll('a'));
+
+
+
+            // Filter out section headers if they are just toggles (usually href is # or empty)
+
+            const validLinks = allLinks.filter(a => a.href && !a.href.endsWith('#') && !a.href.includes('javascript:'));
+
+
+
+            // Article Footer Navigation (Prev/Next + Random)
+
+            const currentUrl = window.location.href.split('#')[0];
 
             let currentIndex = -1;
 
-            
+
 
             // Find current article index
 
-            for (let i = 0; i < links.length; i++) {
+            for (let i = 0; i < validLinks.length; i++) {
 
-                if (links[i].href.split('#')[0] === currentUrl) {
+                if (validLinks[i].href.split('#')[0] === currentUrl) {
 
                     currentIndex = i;
 
@@ -1305,31 +1319,41 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+            // Create Container
+
+            const footerNav = document.createElement('div');
+
+            footerNav.className = 'article-footer-nav-container';
+
+            footerNav.style.marginTop = '4rem';
+
+            footerNav.style.paddingTop = '2rem';
+
+            footerNav.style.borderTop = '1px solid #e5e7eb';
+
+
+
+            // 1. Prev/Next Navigation
+
             if (currentIndex !== -1) {
-
-                const footerNav = document.createElement('div');
-
-                footerNav.className = 'article-footer-nav-container';
-
-                
 
                 let navHtml = '<div class="article-footer-nav">';
 
-                
 
-                // Previous Link
+
+                // Previous
 
                 if (currentIndex > 0) {
 
-                    const prevLink = links[currentIndex - 1];
+                    const prevLink = validLinks[currentIndex - 1];
 
-                    const prevTitle = prevLink.querySelector('.sidebar-item-text').innerText;
+                    const prevTitle = prevLink.innerText.trim();
 
                     navHtml += `
 
                         <a href="${prevLink.href}" class="article-nav-link">
 
-                            <span class="nav-label">Previous Article</span>
+                            <span class="nav-label">上一篇</span>
 
                             <span class="nav-title">« ${prevTitle}</span>
 
@@ -1339,25 +1363,25 @@ ul.task-list li input[type="checkbox"] {
 
                 } else {
 
-                     navHtml += `<div></div>`; // Spacer
+                    navHtml += `<div></div>`;
 
                 }
 
-                
 
-                // Next Link
 
-                if (currentIndex < links.length - 1) {
+                // Next
 
-                    const nextLink = links[currentIndex + 1];
+                if (currentIndex < validLinks.length - 1) {
 
-                    const nextTitle = nextLink.querySelector('.sidebar-item-text').innerText;
+                    const nextLink = validLinks[currentIndex + 1];
+
+                    const nextTitle = nextLink.innerText.trim();
 
                     navHtml += `
 
                         <a href="${nextLink.href}" class="article-nav-link" style="text-align: right;">
 
-                            <span class="nav-label">Next Article</span>
+                            <span class="nav-label">下一篇</span>
 
                             <span class="nav-title">${nextTitle} »</span>
 
@@ -1367,39 +1391,47 @@ ul.task-list li input[type="checkbox"] {
 
                 } else {
 
-                     navHtml += `<div></div>`; // Spacer
+                    navHtml += `<div></div>`;
 
                 }
 
-                
+
 
                 navHtml += '</div>';
 
 
 
-                // Random Recommendation
+                // Append Prev/Next HTML
 
-                // Pick a random index not equal to current, prev, or next
+                const navDiv = document.createElement('div');
 
-                if (links.length > 3) {
+                navDiv.innerHTML = navHtml;
 
-                    let randomIdx;
+                footerNav.appendChild(navDiv);
 
-                    do {
+            }
 
-                        randomIdx = Math.floor(Math.random() * links.length);
 
-                    } while (randomIdx === currentIndex || randomIdx === currentIndex - 1 || randomIdx === currentIndex + 1);
 
-                    
+            // 2. Random Recommendation
 
-                    const randomLink = links[randomIdx];
+            const otherLinks = validLinks.filter((_, idx) => idx !== currentIndex);
 
-                    const randomTitle = randomLink.querySelector('.sidebar-item-text').innerText;
+            if (otherLinks.length > 0) {
 
-                    
+                const randomIdx = Math.floor(Math.random() * otherLinks.length);
 
-                    navHtml += `
+                const randomLink = otherLinks[randomIdx];
+
+                const randomTitle = randomLink.innerText.trim(); // Use innerText for title
+
+
+
+                if (randomTitle) {
+
+                    const randomDiv = document.createElement('div');
+
+                    randomDiv.innerHTML = `
 
                         <div class="random-recommendation">
 
@@ -1417,15 +1449,15 @@ ul.task-list li input[type="checkbox"] {
 
                     `;
 
+                    footerNav.appendChild(randomDiv);
+
                 }
 
-
-
-                footerNav.innerHTML = navHtml;
-
-                mainContent.appendChild(footerNav);
-
             }
+
+
+
+            mainContent.appendChild(footerNav);
 
         }
 
