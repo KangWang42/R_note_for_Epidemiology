@@ -1,0 +1,147 @@
+---
+title: "质性研究与文本挖掘"
+date: "2025-01-12"
+categories: [R包, 质性研究, 文本挖掘]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+虽然质性研究（Qualitative Research）通常依赖于人工编码和 NVivo 等专业软件，但在大数据时代，结合 R 语言的文本挖掘（Text Mining）技术可以为质性分析提供一种“量化”的视角，帮助研究者从海量文本中快速提取主题和模式。
+
+本文将介绍如何使用 R 进行基础的文本分析和主题建模，作为传统质性研究的辅助工具。
+
+## 核心 R 包
+
+-   `tidytext`: 以 Tidy Data 的理念处理文本数据。
+-   `jiebaR`: 强大的中文分词工具。
+-   `topicmodels`: 主题模型（LDA）。
+-   `wordcloud2`: 绘制词云。
+
+## 安装
+
+```{r eval=FALSE}
+install.packages(c("tidytext", "jiebaR", "topicmodels", "wordcloud2", "dplyr", "ggplot2"))
+```
+
+```{r}
+library(tidytext)
+library(jiebaR)
+library(dplyr)
+library(ggplot2)
+library(wordcloud2)
+```
+
+## 中文分词
+
+假设我们有一些访谈记录或文本数据。
+
+```{r}
+# 模拟文本数据
+text_data <- data.frame(
+    id = 1:3,
+    text = c(
+        "患者表示对治疗效果非常满意，护士服务态度很好。",
+        "治疗过程很痛苦，但是为了康复必须坚持，医生很专业。",
+        "医院环境不错，但是挂号排队时间太长了，希望改进。"
+    ),
+    stringsAsFactors = FALSE
+)
+
+# 初始化分词器
+cutter <- worker()
+
+# 分词函数
+segment_text <- function(text) {
+    segment(text, cutter)
+}
+
+# 进行分词
+# 实际操作中通常配合 tidytext 的 unnest_tokens 使用，但中文需要先分好词
+text_data$segmented <- sapply(text_data$text, function(x) paste(segment_text(x), collapse = " "))
+
+# 转换为 Tidy 格式 (One-token-per-row)
+tidy_text <- text_data %>%
+    unnest_tokens(word, segmented, token = "ngrams", n = 1)
+
+head(tidy_text)
+```
+
+## 词频统计与词云
+
+最基础的分析是查看哪些词出现的频率最高。
+
+```{r}
+# 统计词频
+word_counts <- tidy_text %>%
+    count(word, sort = TRUE) %>%
+    filter(nchar(word) > 1) # 过滤掉单字
+
+# 绘制柱状图
+tidy_text %>%
+    count(word, sort = TRUE) %>%
+    filter(n >= 1 & nchar(word) > 1) %>%
+    ggplot(aes(reorder(word, n), n)) +
+    geom_col(fill = "steelblue") +
+    coord_flip() +
+    labs(x = NULL, y = "出现频次", title = "访谈高频词统计") +
+    theme_minimal()
+```
+
+```{r eval=FALSE}
+# 绘制词云 (交互式，网页中显示)
+wordcloud2(word_counts)
+```
+
+## 主题模型 (LDA)
+
+当文本量巨大时，潜狄利克雷分布 (Latent Dirichlet Allocation, LDA) 可以自动发现文本中的潜在主题。
+
+```{r}
+library(topicmodels)
+
+# 创建文档-词矩阵 (DTM)
+dtm <- tidy_text %>%
+    count(id, word) %>%
+    cast_dtm(id, word, n)
+
+# 运行 LDA 模型 (假设有 2 个主题)
+lda_model <- LDA(dtm, k = 2, control = list(seed = 1234))
+
+# 提取主题-词概率 (beta)
+topics <- tidy(lda_model, matrix = "beta")
+
+# 可视化每个主题的高概率词
+top_terms <- topics %>%
+    group_by(topic) %>%
+    slice_max(beta, n = 5) %>%
+    ungroup() %>%
+    arrange(topic, -beta)
+
+top_terms %>%
+    mutate(term = reorder_within(term, beta, topic)) %>%
+    ggplot(aes(beta, term, fill = factor(topic))) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~topic, scales = "free") +
+    scale_y_reordered() +
+    labs(title = "LDA 模型提取的潜在主题", x = "Beta (词属于该主题的概率)", y = NULL)
+```
+
+## 总结
+
+虽然 R 用于质性研究不如 NVivo 直观，但通过文本挖掘，我们可以：
+1.  **快速概览**：使用词频和词云了解数据全貌。
+2.  **发现主题**：使用 LDA 等模型辅助归纳主题。
+3.  **情感分析**：通过情感词典对文本情感倾向进行评分（需配合中文情感词典）。
+
+这些方法可以作为传统质性编码的有力补充，形成“混合研究”的分析路径。

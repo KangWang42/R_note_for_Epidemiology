@@ -1,0 +1,150 @@
+---
+title: "潜类别分析 (Latent Class Analysis)"
+date: "2025-01-12"
+categories: [R包, 统计模型, 聚类分析]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+**潜类别分析 (Latent Class Analysis, LCA)** 是一种统计方法，用于识别观测数据中未观察到的子群体（潜类别）。它通常用于分类变量（如问卷调查中的是非题或李克特量表），旨在将具有相似响应模式的个体归为一类。
+
+在 R 中，`poLCA` 是最常用的进行 LCA 分析的包。
+
+## 安装
+
+```{r eval=FALSE}
+install.packages("poLCA")
+```
+
+```{r}
+library(poLCA)
+library(dplyr)
+library(ggplot2)
+```
+
+## 实例数据
+
+我们将使用 `poLCA` 包自带的 `values` 数据集。该数据集包含了 216 名受访者对 4 个二分变量（趋向普世主义或特定主义）的回答。
+
+```{r}
+data(values)
+head(values)
+# 变量说明：
+# A, B, C, D 都是二分类变量 (1, 2)
+```
+
+## 模型构建
+
+LCA 的关键步骤是确定最佳的潜类别数量 (k)。通常我们需要比较不同 k 值模型的拟合优度指标，如 BIC (贝叶斯信息准则) 和 AIC (赤池信息准则)。
+
+### 1. 寻找最佳类别数
+
+我们循环运行 k=2 到 k=5 的模型，并比较其 BIC 值。BIC 越小，模型拟合越好且越简洁。
+
+```{r}
+# 定义公式
+f <- cbind(A, B, C, D) ~ 1
+
+# 存储结果
+results <- list()
+bic_values <- c()
+
+set.seed(123)
+for (k in 2:5) {
+    res <- poLCA(f, values, nclass = k, verbose = FALSE, nrep = 5)
+    results[[k]] <- res
+    bic_values[k] <- res$bic
+    cat("k =", k, ": BIC =", res$bic, "\n")
+}
+
+# 绘制 BIC 变化图
+plot(2:5, bic_values[2:5], type = "b", xlab = "Number of Classes (k)", ylab = "BIC", main = "BIC Plot")
+```
+
+假设根据 BIC，k=2 或 k=3 是较好的选择（这里假设选择 k=2 进行演示）。
+
+### 2. 拟合最终模型
+
+```{r}
+# 运行 k=2 的模型
+best_model <- poLCA(f, values, nclass = 2, verbose = FALSE, graphs = TRUE)
+```
+
+## 结果解读
+
+### 类别概率 (Class Proportions)
+
+查看每个潜类别在总样本中的占比。
+
+```{r}
+best_model$P
+```
+
+### 条件概率 (Item Response Probabilities)
+
+查看每个类别在各个观测变量上的回答概率。这是定义每个类别特征的关键。
+
+```{r}
+best_model$probs
+```
+
+例如，如果在变量 A 上，Class 1 选择 "1" 的概率很高，而 Class 2 选择 "2" 的概率很高，这就是这两个类别的区分特征。
+
+## 可视化
+
+除了 `poLCA` 自带的图，我们可以用 `ggplot2` 自定义条件概率图，更清晰地展示类别特征。
+
+```{r}
+# 数据整理
+probs_df <- data.frame()
+for (var in names(best_model$probs)) {
+    tmp <- as.data.frame(best_model$probs[[var]])
+    tmp$class <- 1:nrow(tmp)
+    tmp$variable <- var
+    # 取出回答为 1 (或某个特定选项) 的概率
+    tmp$prob <- tmp[, 1]
+    probs_df <- rbind(probs_df, tmp[, c("class", "variable", "prob")])
+}
+
+# 绘图
+ggplot(probs_df, aes(x = variable, y = prob, group = class, color = factor(class))) +
+    geom_line(size = 1) +
+    geom_point(size = 3) +
+    labs(
+        title = "潜类别特征图 (Profile Plot)",
+        y = "Probability of Response Category 1",
+        color = "Latent Class"
+    ) +
+    theme_minimal()
+```
+
+## 分配类别
+
+我们可以提取每个样本属于各个类别的后验概率，并进行分类。
+
+```{r}
+# 后验概率
+head(best_model$posterior)
+
+# 预测的类别
+head(best_model$predclass)
+
+# 将预测类别合并回原数据
+values$class <- best_model$predclass
+head(values)
+```
+
+## 参考文献
+
+-   Linzer, D. A., & Lewis, J. B. (2011). poLCA: An R Package for Polytomous Variable Latent Class Analysis. *Journal of Statistical Software*, 42(10), 1-29.

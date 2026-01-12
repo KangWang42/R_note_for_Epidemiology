@@ -1,0 +1,138 @@
+---
+title: "方差分析 (ANOVA)"
+date: "2025-01-12"
+categories: [R包, 统计检验, 基础统计]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+**方差分析 (Analysis of Variance, ANOVA)** 用于比较三个或更多组的均值是否存在显著差异。根据因素的数量和设计类型，可分为单因素 ANOVA、多因素 ANOVA、重复测量 ANOVA 等。
+
+在 R 中，基础包 `stats` 提供了 `aov()` 函数，但 **`rstatix`** 包提供了一个更现代、更符合 "Tidy" 风格的框架，特别适合与 `ggplot2` 和 `ggpubr` 结合使用。
+
+## 安装
+
+```{r eval=FALSE}
+install.packages("rstatix")
+install.packages("ggpubr")
+```
+
+```{r}
+library(rstatix)
+library(ggpubr)
+library(dplyr)
+```
+
+## 1. 单因素方差分析 (One-way ANOVA)
+
+研究植物生长数据 (`PlantGrowth`)，比较三种处理条件下的产量差异。
+
+```{r}
+data("PlantGrowth")
+head(PlantGrowth)
+
+# 1.1 描述统计
+PlantGrowth %>%
+    group_by(group) %>%
+    get_summary_stats(weight, type = "mean_sd")
+
+# 1.2 可视化
+ggboxplot(PlantGrowth, x = "group", y = "weight", color = "group")
+```
+
+```{r}
+# 1.3 执行 ANOVA
+res.aov <- PlantGrowth %>% anova_test(weight ~ group)
+res.aov
+
+# 1.4 事后两两比较 (Tukey HSD)
+pwc <- PlantGrowth %>% tukey_hsd(weight ~ group)
+pwc
+```
+
+## 2. 双因素方差分析 (Two-way ANOVA)
+
+使用 `ToothGrowth` 数据集，研究维生素 C 剂量 (`dose`) 和给药方式 (`supp`) 对牙齿长度 (`len`) 的影响。
+
+```{r}
+data("ToothGrowth")
+ToothGrowth$dose <- as.factor(ToothGrowth$dose) # 转换为因子
+
+# 2.1 可视化
+ggboxplot(ToothGrowth,
+    x = "dose", y = "len", color = "supp",
+    add = "jitter"
+)
+
+# 2.2 执行 ANOVA (包含交互作用)
+res.aov2 <- ToothGrowth %>% anova_test(len ~ supp * dose)
+res.aov2
+```
+
+结果显示 `dose` 主效应显著，`supp` 主效应显著，且二者存在交互作用 (`supp:dose`)。
+
+## 3. 重复测量方差分析 (Repeated Measures ANOVA)
+
+假设我们有一组受试者在三个不同时间点测量了焦虑分数。
+
+```{r}
+# 生成模拟数据
+# 10 subjects, 3 time points
+data_rm <- data.frame(
+    id = rep(1:10, each = 3),
+    time = rep(c("T1", "T2", "T3"), 10),
+    score = c(replicate(10, sort(rnorm(3, mean = 20, sd = 5))))
+)
+
+# 转换为因子
+data_rm$id <- as.factor(data_rm$id)
+data_rm$time <- as.factor(data_rm$time)
+
+# 3.1 执行重复测量 ANOVA
+res.rm <- data_rm %>% anova_test(score ~ time + Error(id / time))
+res.rm
+
+# 3.2 事后比较 (配对 t 检验 + Bonferroni 校正)
+pwc_rm <- data_rm %>%
+    pairwise_t_test(
+        score ~ time,
+        paired = TRUE,
+        p.adjust.method = "bonferroni"
+    )
+pwc_rm
+```
+
+## 4. 假设检验
+
+ANOVA 有几个关键假设需要满足：正态性和方差齐性。
+
+```{r}
+# 检查正态性 (Shapiro-Wilk test)
+PlantGrowth %>%
+    group_by(group) %>%
+    shapiro_test(weight)
+
+# 检查方差齐性 (Levene's test)
+PlantGrowth %>% levene_test(weight ~ group)
+```
+
+如果假设不满足，可以考虑使用非参数检验（如 Kruskal-Wallis 检验）。
+
+```{r}
+PlantGrowth %>% kruskal_test(weight ~ group)
+```
+
+## 总结
+
+`rstatix` 包使得 ANOVA 分析流程非常标准化：`anova_test()`用于主分析，`tukey_hsd()` 或 `pairwise_t_test()` 用于事后比较，且结果直接输出为数据框，方便查看和导出。

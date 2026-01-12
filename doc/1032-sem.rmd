@@ -1,0 +1,125 @@
+---
+title: "结构方程模型 (SEM)"
+date: "2025-01-12"
+categories: [R包, 统计模型, 因果推断]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+**结构方程模型 (Structural Equation Modeling, SEM)** 是一种强大的多元统计分析技术，它结合了因子分析（测量模型）和路径分析（结构模型），允许研究者同时检验观测变量与潜变量之间、以及潜变量之间的复杂关系。
+
+在 R 语言中，`lavaan` (Latent Variable Analysis) 是最流行的 SEM 包，它语法简洁且功能全面。`semPlot` 包则常用于绘制路径图。
+
+## 安装
+
+```{r eval=FALSE}
+install.packages("lavaan")
+install.packages("semPlot")
+```
+
+```{r}
+library(lavaan)
+library(semPlot)
+```
+
+## 实例数据
+
+我们将使用 `lavaan` 自带的 `PoliticalDemocracy` 数据集，该数据集包含了 1960 年和 1965 年各国的工业化程度与政治民主程度的数据。
+
+```{r}
+data(PoliticalDemocracy)
+head(PoliticalDemocracy)
+```
+
+## 模型设定
+
+`lavaan` 使用一种直观的字符串语法来描述模型：
+
+-   `=~` : 定义潜变量 (由...测量)
+-   `~`  : 定义回归关系 (被...预测)
+-   `~~` : 定义协方差/方差 (与...相关)
+
+```{r}
+model <- "
+  # 测量模型 (定义潜变量)
+    ind60 =~ x1 + x2 + x3
+    dem60 =~ y1 + y2 + y3 + y4
+    dem65 =~ y5 + y6 + y7 + y8
+
+  # 结构模型 (回归关系)
+    dem60 ~ ind60
+    dem65 ~ ind60 + dem60
+
+  # 残差相关 (可选)
+    y1 ~~ y5
+    y2 ~~ y4 + y6
+    y3 ~~ y7
+    y4 ~~ y8
+    y6 ~~ y8
+"
+```
+
+## 模型拟合
+
+使用 `sem()` 函数拟合模型。
+
+```{r}
+fit <- sem(model, data = PoliticalDemocracy)
+```
+
+## 查看结果
+
+使用 `summary()` 函数查看详细结果，`standardized = TRUE` 可以输出标准化系数，`fit.measures = TRUE` 输出拟合指数。
+
+```{r}
+summary(fit, standardized = TRUE, fit.measures = TRUE, rsquare = TRUE)
+```
+
+### 结果解读关键点
+
+1.  **拟合指数 (Fit Measures)**:
+    -   **CFI / TLI**: 通常要求 > 0.90 或 > 0.95。
+    -   **RMSEA**: 通常要求 < 0.08 或 < 0.06。
+    -   **SRMR**: 通常要求 < 0.08。
+2.  **系数显著性**: 查看 `P(>|z|)` 列，判断路径系数是否显著。
+3.  **标准化系数 (Std.all)**: 用于比较不同路径的影响大小。
+
+## 路径图可视化
+
+使用 `semPaths()` 函数绘制模型路径图。
+
+```{r}
+semPaths(fit,
+    what = "std", # 显示标准化系数
+    layout = "tree", # 树状布局
+    edge.label.cex = 0.8, # 标签字体大小
+    curvePivot = TRUE, # 曲线弯曲
+    fade = FALSE, # 不根据系数大小淡化颜色
+    style = "lisrel", # 绘图风格
+    rotation = 2 # 旋转
+)
+```
+
+## 修正指数 (Modification Indices)
+
+如果模型拟合不佳，可以查看修正指数，了解添加哪些路径可以改善模型。
+
+```{r}
+mi <- modindices(fit, sort = TRUE)
+head(mi[mi$mi > 10, ]) # 查看 MI > 10 的路径
+```
+
+## 参考文献
+
+-   Rosseel, Y. (2012). lavaan: An R Package for Structural Equation Modeling. *Journal of Statistical Software*, 48(2), 1-36.

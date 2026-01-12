@@ -1,0 +1,113 @@
+---
+title: "组合算法: FFT + VMD + GMM"
+date: "2025-01-12"
+categories: [R包, 信号处理, 机器学习, 聚类]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+在复杂数据分析中，单一算法往往难以奏效。本文介绍一种经典的组合分析思路：
+
+1.  **FFT (快速傅里叶变换)**: 将信号从时域转换到频域，识别主要频率成分。
+2.  **VMD (变分模态分解)**: 根据频域信息设定 K 值，将非平稳信号分解为若干平稳的 IMF 分量。
+3.  **GMM (高斯混合模型)**: 对分解出的模态特征或原始数据进行聚类，识别潜在的状态或模式。
+
+## 1. 信号生成与 FFT 分析
+
+首先，我们生成一个非平稳信号，并使用 FFT 确定其主要频率成分，这有助于为 VMD 选择合适的模态数 K。
+
+```{r}
+# 1.1 生成信号
+fs <- 1000
+t <- seq(0, 2, 1 / fs)
+# 信号在 t=1s 处发生频率变化
+sig <- c(sin(2 * pi * 10 * t[t <= 1]), sin(2 * pi * 50 * t[t > 1])) + rnorm(length(t), 0, 0.2)
+plot(t, sig, type = "l", main = "非平稳信号")
+
+# 1.2 FFT 分析
+sig_fft <- fft(sig)
+P2 <- abs(sig_fft / length(sig))
+P1 <- P2[1:(length(sig) / 2 + 1)]
+P1[2:length(P1) - 1] <- 2 * P1[2:length(P1) - 1]
+f <- fs * (0:(length(sig) / 2)) / length(sig)
+
+# 绘制频谱图
+plot(f, P1, type = "l", xlim = c(0, 100), main = "单边频谱图 (FFT)", xlab = "f (Hz)", ylab = "|P1(f)|")
+```
+
+从频谱图中，我们可以清晰地看到主要频率峰值，从而确定 VMD 的分解层数 K（例如看到两个峰，则 K=2）。
+
+## 2. VMD 分解
+
+利用上一步确定的 K 值进行 VMD 分解。
+
+```{r error=TRUE}
+# library(VMDecomp) # 假设已安装
+# res <- vmd(sig, alpha=2000, tau=0, K=2, DC=FALSE, init=1, tol=1e-6)
+# imfs <- res$u
+
+# 模拟分解结果
+imf1 <- c(sin(2 * pi * 10 * t[t <= 1]), rep(0, sum(t > 1))) # 模拟低频部分
+imf2 <- c(rep(0, sum(t <= 1)), sin(2 * pi * 50 * t[t > 1])) # 模拟高频部分
+imfs <- data.frame(IMF1 = imf1, IMF2 = imf2)
+
+par(mfrow = c(2, 1))
+plot(t, imf1, type = "l", main = "IMF 1")
+plot(t, imf2, type = "l", main = "IMF 2")
+```
+
+## 3. 特征提取与 GMM 聚类
+
+分解后，我们通常提取 IMF 的特征（如能量、熵、峭度等）输入到机器学习模型中。这里我们演示如何使用 **GMM (高斯混合模型)** 对提取的特征进行聚类。
+
+`mclust` 是 R 中用于 GMM 聚类的优秀包。
+
+```{r eval=FALSE}
+install.packages("mclust")
+```
+
+```{r}
+library(mclust)
+
+# 3.1 构造特征矩阵 (这里简单使用滑动窗口提取 IMF1 的能量特征)
+window_size <- 100
+n_windows <- floor(length(t) / window_size)
+features <- numeric(n_windows)
+
+for (i in 1:n_windows) {
+    idx <- ((i - 1) * window_size + 1):(i * window_size)
+    features[i] <- sum(imf1[idx]^2) # 计算能量
+}
+
+feature_df <- data.frame(Energy = features)
+
+# 3.2 GMM 聚类
+# Mclust 自动选择最佳的组数 (G) 和模型类型
+fit_gmm <- Mclust(feature_df)
+
+summary(fit_gmm)
+
+# 3.3 结果可视化
+plot(fit_gmm, what = "classification")
+title("GMM Clustering on IMF Features")
+```
+
+图中展示了基于 IMF 能量特征的聚类结果，不同的颜色代表识别出的不同状态（例如“低频活跃期”和“静默期”）。
+
+## 总结
+
+这种 **FFT -> VMD -> Feature Extraction -> GMM** 的流程是一个非常通用的信号处理与模式识别框架：
+1.  **FFT** 提供先验知识。
+2.  **VMD** 进行降噪和成分分离。
+3.  **GMM** 实现自动化状态识别。
