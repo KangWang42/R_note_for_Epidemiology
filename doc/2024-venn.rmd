@@ -1,0 +1,348 @@
+---
+title: "韦恩图 (Venn Diagram) 绑制指南"
+date: "2026-01-13"
+categories: [可视化, 集合运算, 生物信息]
+image: "images/2024_cover.svg"
+description: "使用 ggVennDiagram 和 VennDiagram 展示集合关系，适用于基因组学和数据交集分析。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 8,
+    dpi = 150
+)
+```
+
+## 1. 什么是韦恩图？
+
+**韦恩图 (Venn Diagram)** 是展示**集合之间交集和差集关系**的经典图形。它由重叠的圆（或椭圆）组成，不同区域代表不同的集合关系。
+
+### 应用场景
+
+| 领域 | 示例 |
+|------|------|
+| **生物信息学** | 差异表达基因交集、GO富集通路比较 |
+| **市场分析** | 用户群体重叠、渠道来源对比 |
+| **文献研究** | 数据库检索结果对比、筛选流程 |
+| **问卷调查** | 多选题答案分布、偏好交叉分析 |
+
+> [!NOTE]
+> 标准韦恩图最多支持 **5 个集合**。超过 5 个时建议使用 UpSet 图或 Euler 图。
+
+## 2. 方法一：ggVennDiagram（推荐）
+
+`ggVennDiagram` 是目前最现代、最美观的 R 韦恩图包，基于 ggplot2，支持高度自定义。
+
+### 安装与加载
+
+```{r eval=FALSE}
+install.packages("ggVennDiagram")
+```
+
+```{r eval=FALSE}
+library(ggVennDiagram)
+library(ggplot2)
+```
+
+### 2.1 基础韦恩图（2-4 个集合）
+
+```{r eval=FALSE}
+# 创建示例数据：基因列表
+gene_list <- list(
+    Treatment_A = c("Gene1", "Gene2", "Gene3", "Gene4", "Gene5", "Gene6"),
+    Treatment_B = c("Gene3", "Gene4", "Gene5", "Gene7", "Gene8", "Gene9"),
+    Treatment_C = c("Gene1", "Gene5", "Gene9", "Gene10", "Gene11", "Gene12")
+)
+
+# 绑制基础韦恩图
+ggVennDiagram(gene_list) +
+    scale_fill_gradient(low = "#F4FAFE", high = "#4f46e5") +
+    labs(title = "三组处理的差异基因交集") +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        legend.position = "none"
+    )
+```
+
+### 2.2 自定义样式
+
+```{r eval=FALSE}
+# 自定义颜色和标签
+ggVennDiagram(
+    gene_list,
+    label = "count", # 显示计数
+    label_alpha = 0, # 标签背景透明
+    edge_size = 1 # 边框宽度
+) +
+    scale_fill_distiller(palette = "RdBu") +
+    scale_color_manual(values = c("#e11d48", "#0891b2", "#16a34a")) +
+    labs(title = "差异基因韦恩图") +
+    theme_void() +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        legend.position = "bottom"
+    )
+```
+
+### 2.3 显示百分比
+
+```{r eval=FALSE}
+ggVennDiagram(
+    gene_list,
+    label = "percent", # 显示百分比
+    label_percent_digit = 1
+) +
+    scale_fill_gradient(low = "white", high = "#22c55e") +
+    theme_void()
+```
+
+### 2.4 四集合韦恩图
+
+```{r eval=FALSE}
+# 四组数据
+gene_list_4 <- list(
+    Condition_A = paste0("Gene", sample(1:100, 40)),
+    Condition_B = paste0("Gene", sample(1:100, 35)),
+    Condition_C = paste0("Gene", sample(1:100, 45)),
+    Condition_D = paste0("Gene", sample(1:100, 30))
+)
+
+set.seed(123)
+ggVennDiagram(gene_list_4, label = "count") +
+    scale_fill_gradient(low = "#f0f9ff", high = "#0369a1") +
+    theme_void() +
+    labs(title = "四条件差异基因比较")
+```
+
+### 2.5 五集合韦恩图
+
+```{r eval=FALSE}
+# 五组数据
+gene_list_5 <- list(
+    A = paste0("Gene", sample(1:200, 50)),
+    B = paste0("Gene", sample(1:200, 45)),
+    C = paste0("Gene", sample(1:200, 55)),
+    D = paste0("Gene", sample(1:200, 40)),
+    E = paste0("Gene", sample(1:200, 35))
+)
+
+set.seed(456)
+ggVennDiagram(gene_list_5, label = "count", label_size = 3) +
+    scale_fill_gradient(low = "white", high = "#7c3aed") +
+    theme_void()
+```
+
+## 3. 方法二：VennDiagram 包
+
+`VennDiagram` 是经典的韦恩图包，功能强大但语法较复杂。
+
+### 安装与加载
+
+```{r eval=FALSE}
+install.packages("VennDiagram")
+```
+
+```{r eval=FALSE}
+library(VennDiagram)
+library(grid)
+```
+
+### 3.1 双集合韦恩图
+
+```{r results='hide', eval=FALSE}
+# 绑制双集合图
+venn.plot <- draw.pairwise.venn(
+    area1 = 100,
+    area2 = 80,
+    cross.area = 30,
+    category = c("Group A", "Group B"),
+    fill = c("#4f46e5", "#f97316"),
+    alpha = 0.5,
+    cat.pos = c(-20, 20),
+    cat.dist = 0.05,
+    cat.fontfamily = "sans",
+    fontfamily = "sans"
+)
+grid.draw(venn.plot)
+```
+
+### 3.2 三集合韦恩图
+
+```{r results='hide', eval=FALSE}
+grid.newpage()
+venn.plot <- draw.triple.venn(
+    area1 = 100,
+    area2 = 80,
+    area3 = 90,
+    n12 = 30,
+    n23 = 25,
+    n13 = 35,
+    n123 = 15,
+    category = c("A", "B", "C"),
+    fill = c("#4f46e5", "#22c55e", "#f97316"),
+    alpha = 0.4,
+    cat.fontfamily = "sans",
+    fontfamily = "sans"
+)
+grid.draw(venn.plot)
+```
+
+## 4. 提取交集元素
+
+在实际分析中，我们通常需要提取各区域的具体元素。
+
+```{r eval=FALSE}
+# 使用 ggVennDiagram 的辅助函数
+library(ggVennDiagram)
+
+# 获取交集信息
+venn_result <- process_data(Venn(gene_list))
+
+# 查看各区域
+venn_region(venn_result)
+```
+
+### 手动提取交集
+
+```{r}
+# 创建示例数据
+gene_list <- list(
+    Treatment_A = c("Gene1", "Gene2", "Gene3", "Gene4", "Gene5", "Gene6"),
+    Treatment_B = c("Gene3", "Gene4", "Gene5", "Gene7", "Gene8", "Gene9"),
+    Treatment_C = c("Gene1", "Gene5", "Gene9", "Gene10", "Gene11", "Gene12")
+)
+
+# 经典方法：使用 Reduce 和 intersect
+A <- gene_list$Treatment_A
+B <- gene_list$Treatment_B
+C <- gene_list$Treatment_C
+
+# A ∩ B（仅 A 和 B 的交集，不含 C）
+AB_only <- setdiff(intersect(A, B), C)
+cat("A ∩ B (not C):", AB_only, "\n")
+
+# A ∩ B ∩ C（三者共有）
+ABC <- Reduce(intersect, gene_list)
+cat("A ∩ B ∩ C:", ABC, "\n")
+
+# 仅 A 独有
+A_only <- setdiff(A, union(B, C))
+cat("Only A:", A_only, "\n")
+```
+
+## 5. Euler 图（面积成比例）
+
+标准韦恩图的圆圈大小是固定的。如果需要**面积与集合大小成比例**，可以使用 `eulerr` 包。
+
+```{r eval=FALSE}
+install.packages("eulerr")
+```
+
+```{r eval=FALSE}
+library(eulerr)
+
+# 定义集合大小
+fit <- euler(c(
+    A = 50,
+    B = 40,
+    C = 30,
+    "A&B" = 15,
+    "A&C" = 10,
+    "B&C" = 8,
+    "A&B&C" = 5
+))
+
+# 绑制 Euler 图
+plot(fit,
+    fills = list(fill = c("#4f46e5", "#22c55e", "#f97316"), alpha = 0.5),
+    labels = list(fontsize = 14),
+    quantities = list(fontsize = 12)
+)
+```
+
+## 6. UpSet 图（超过 5 个集合）
+
+当集合数量超过 5 个时，韦恩图变得难以阅读。**UpSet 图**是更好的替代方案。
+
+```{r eval=FALSE}
+install.packages("UpSetR")
+```
+
+```{r eval=FALSE}
+library(UpSetR)
+
+# 准备数据（二进制矩阵格式）
+set.seed(789)
+upset_data <- data.frame(
+    Gene = paste0("Gene", 1:100),
+    Study_A = sample(0:1, 100, replace = TRUE),
+    Study_B = sample(0:1, 100, replace = TRUE),
+    Study_C = sample(0:1, 100, replace = TRUE),
+    Study_D = sample(0:1, 100, replace = TRUE),
+    Study_E = sample(0:1, 100, replace = TRUE),
+    Study_F = sample(0:1, 100, replace = TRUE)
+)
+
+# 绑制 UpSet 图
+upset(
+    upset_data,
+    sets = c("Study_A", "Study_B", "Study_C", "Study_D", "Study_E", "Study_F"),
+    order.by = "freq",
+    main.bar.color = "#4f46e5",
+    sets.bar.color = "#22c55e",
+    matrix.color = "#1e293b",
+    point.size = 3,
+    line.size = 1
+)
+```
+
+## 7. 实战案例：文献筛选
+
+```{r eval=FALSE}
+# 模拟三个数据库的文献检索结果
+databases <- list(
+    PubMed = paste0("PMID_", sample(1:500, 120)),
+    Web_of_Science = paste0("PMID_", sample(1:500, 100)),
+    Scopus = paste0("PMID_", sample(1:500, 90))
+)
+
+# 绑制韦恩图
+ggVennDiagram(databases, label = "count") +
+    scale_fill_gradient(low = "#fef3c7", high = "#d97706") +
+    labs(
+        title = "文献检索结果去重",
+        caption = paste("总计:", length(unique(unlist(databases))), "篇独立文献")
+    ) +
+    theme_void() +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        plot.caption = element_text(hjust = 0.5, size = 12)
+    )
+```
+
+## 8. 最佳实践
+
+> [!TIP]
+> **选择正确的可视化方法**：
+> - **2-4 个集合** → 标准韦恩图
+> - **面积需成比例** → Euler 图
+> - **5+ 个集合** → UpSet 图
+
+### 常见问题
+
+| 问题 | 解决方案 |
+|------|----------|
+| 图形重叠混乱 | 减少集合数量或使用 UpSet 图 |
+| 标签显示不全 | 调整 `label_size` 或使用百分比 |
+| 颜色难以区分 | 使用对比度高的配色方案 |
+| 需要导出元素 | 使用 `process_data()` 提取 |
+
+## 参考文献
+
+-   Chen, H., & Boutros, P. C. (2011). VennDiagram: a package for the generation of highly-customizable Venn and Euler diagrams in R. *BMC Bioinformatics*.
+-   Gao, C. H. (2021). ggVennDiagram: A ggplot2 extension for drawing proportional Venn diagrams.
+-   Conway, J. R., et al. (2017). UpSetR: An R package for the visualization of intersecting sets. *Bioinformatics*.

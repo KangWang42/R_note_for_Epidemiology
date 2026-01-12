@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="dcterms.date" content="2026-01-12">
+<meta name="dcterms.date" content="2026-01-13">
 <meta name="description" content="处理非线性非平稳信号的利器：完全非递归的 VMD 分解算法 R 语言实现。">
 
 <title>变分模态分解 (VMD) 信号处理指南 – R 语言学习笔记</title>
@@ -323,6 +323,18 @@ window.Quarto = {
  <span class="menu-text">GGally - 可视化扩展</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2023-radar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">雷达图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2024-venn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">韦恩图</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -507,11 +519,27 @@ window.Quarto = {
     <h2 id="toc-title">目录</h2>
    
   <ul>
-  <li><a href="#vmd-vs-emd为什么要用-vmd" id="toc-vmd-vs-emd为什么要用-vmd" class="nav-link active" data-scroll-target="#vmd-vs-emd为什么要用-vmd">1. VMD vs EMD：为什么要用 VMD？</a></li>
+  <li><a href="#vmd-vs-emd为什么要用-vmd" id="toc-vmd-vs-emd为什么要用-vmd" class="nav-link active" data-scroll-target="#vmd-vs-emd为什么要用-vmd">1. VMD vs EMD：为什么要用 VMD？</a>
+  <ul class="collapse">
+  <li><a href="#vmd-vs-emd-对比" id="toc-vmd-vs-emd-对比" class="nav-link" data-scroll-target="#vmd-vs-emd-对比">VMD vs EMD 对比</a></li>
+  </ul></li>
   <li><a href="#工具vmdecomp" id="toc-工具vmdecomp" class="nav-link" data-scroll-target="#工具vmdecomp">2. 工具：VMDecomp</a></li>
   <li><a href="#构造仿真信号" id="toc-构造仿真信号" class="nav-link" data-scroll-target="#构造仿真信号">3. 构造仿真信号</a></li>
-  <li><a href="#参数设置与分解" id="toc-参数设置与分解" class="nav-link" data-scroll-target="#参数设置与分解">4. 参数设置与分解</a></li>
+  <li><a href="#参数设置与分解" id="toc-参数设置与分解" class="nav-link" data-scroll-target="#参数设置与分解">4. 参数设置与分解</a>
+  <ul class="collapse">
+  <li><a href="#参数选择指南" id="toc-参数选择指南" class="nav-link" data-scroll-target="#参数选择指南">参数选择指南</a></li>
+  <li><a href="#alpha-参数的影响" id="toc-alpha-参数的影响" class="nav-link" data-scroll-target="#alpha-参数的影响">alpha 参数的影响</a></li>
+  <li><a href="#执行分解" id="toc-执行分解" class="nav-link" data-scroll-target="#执行分解">执行分解</a></li>
+  </ul></li>
   <li><a href="#结果可视化与验证" id="toc-结果可视化与验证" class="nav-link" data-scroll-target="#结果可视化与验证">5. 结果可视化与验证</a></li>
+  <li><a href="#频谱验证" id="toc-频谱验证" class="nav-link" data-scroll-target="#频谱验证">6. 频谱验证</a></li>
+  <li><a href="#实际应用场景" id="toc-实际应用场景" class="nav-link" data-scroll-target="#实际应用场景">7. 实际应用场景</a>
+  <ul class="collapse">
+  <li><a href="#生物医学信号处理" id="toc-生物医学信号处理" class="nav-link" data-scroll-target="#生物医学信号处理">7.1 生物医学信号处理</a></li>
+  <li><a href="#金融时间序列" id="toc-金融时间序列" class="nav-link" data-scroll-target="#金融时间序列">7.2 金融时间序列</a></li>
+  <li><a href="#故障诊断" id="toc-故障诊断" class="nav-link" data-scroll-target="#故障诊断">7.3 故障诊断</a></li>
+  </ul></li>
+  <li><a href="#常见问题与解决方案" id="toc-常见问题与解决方案" class="nav-link" data-scroll-target="#常见问题与解决方案">8. 常见问题与解决方案</a></li>
   <li><a href="#参考文献" id="toc-参考文献" class="nav-link" data-scroll-target="#参考文献">参考文献</a></li>
   </ul>
 </nav>
@@ -542,7 +570,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">January 12, 2026</p>
+      <p class="date">January 13, 2026</p>
     </div>
   </div>
   
@@ -561,6 +589,53 @@ window.Quarto = {
 <li><strong>EMD (经验模态分解)</strong>：经典方法，但由递归筛选过程决定，容易受到噪声干扰（“模态混叠”）。</li>
 <li><strong>VMD (变分模态分解)</strong>：基于坚实的数学理论（维纳滤波、希尔伯特变换）。它将分解问题构建为一个约束变分问题，<strong>完全非递归</strong>，抗噪性强，能有效分离频率接近的成分。</li>
 </ul>
+<section id="vmd-vs-emd-对比" class="level3">
+<h3 class="anchored" data-anchor-id="vmd-vs-emd-对比">VMD vs EMD 对比</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>特性</th>
+<th>VMD</th>
+<th>EMD</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>理论基础</strong></td>
+<td>变分优化理论</td>
+<td>经验算法，无严格数学基础</td>
+</tr>
+<tr class="even">
+<td><strong>分解方式</strong></td>
+<td>非递归，同时分解</td>
+<td>递归筛选</td>
+</tr>
+<tr class="odd">
+<td><strong>模态混叠</strong></td>
+<td>有效避免</td>
+<td>容易发生</td>
+</tr>
+<tr class="even">
+<td><strong>噪声敏感性</strong></td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr class="odd">
+<td><strong>模态数K</strong></td>
+<td>需预先设定</td>
+<td>自适应确定</td>
+</tr>
+<tr class="even">
+<td><strong>计算速度</strong></td>
+<td>较慢</td>
+<td>较快</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<p>[!NOTE] VMD 的主要优势在于其”带宽限制”的变分框架，能够将频率相近的成分有效分离。</p>
+</blockquote>
+</section>
 </section>
 <section id="工具vmdecomp" class="level2">
 <h2 class="anchored" data-anchor-id="工具vmdecomp">2. 工具：VMDecomp</h2>
@@ -611,67 +686,243 @@ window.Quarto = {
 <section id="参数设置与分解" class="level2">
 <h2 class="anchored" data-anchor-id="参数设置与分解">4. 参数设置与分解</h2>
 <p>VMD 需要预先设定几个关键参数，其中最重要的是 <strong>K (模态数)</strong> 和 <strong>alpha (带宽限制)</strong>。</p>
-<ul>
-<li><strong>alpha</strong>: 越小带宽越大，越大带宽越窄。</li>
-<li><strong>K</strong>: 预期的成分数量。</li>
-</ul>
+<section id="参数选择指南" class="level3">
+<h3 class="anchored" data-anchor-id="参数选择指南">参数选择指南</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>参数</th>
+<th>含义</th>
+<th>推荐值/选择方法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>K</strong></td>
+<td>模态数量</td>
+<td>先用FFT估计主要频率成分数</td>
+</tr>
+<tr class="even">
+<td><strong>alpha</strong></td>
+<td>带宽限制因子</td>
+<td>2000（中等），越大带宽越窄</td>
+</tr>
+<tr class="odd">
+<td><strong>tau</strong></td>
+<td>噪声容限</td>
+<td>0（无严格约束）或 0.01</td>
+</tr>
+<tr class="even">
+<td><strong>DC</strong></td>
+<td>是否包含直流分量</td>
+<td>FALSE（通常无需）</td>
+</tr>
+<tr class="odd">
+<td><strong>tol</strong></td>
+<td>收敛容差</td>
+<td>1e-6 或 1e-7</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<p>[!TIP] <strong>如何确定K值</strong>： 1. 先对信号做FFT，识别明显的频率峰 2. K = 峰的数量 + 1（为噪声预留一个模态） 3. 过大的K会导致过拟合，过小会丢失信息</p>
+</blockquote>
+</section>
+<section id="alpha-参数的影响" class="level3">
+<h3 class="anchored" data-anchor-id="alpha-参数的影响">alpha 参数的影响</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># VMD 参数</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>alpha <span class="ot">&lt;-</span> <span class="dv">2000</span> <span class="co"># 适中的带宽限制</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>tau <span class="ot">&lt;-</span> <span class="dv">0</span> <span class="co"># 噪声容限 (0 表示无严格去噪，或依靠 alpha)</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>K <span class="ot">&lt;-</span> <span class="dv">3</span> <span class="co"># 我们知道有 3 个主要成分</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>DC <span class="ot">&lt;-</span> <span class="cn">FALSE</span> <span class="co"># 无直流偏移</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>init <span class="ot">&lt;-</span> <span class="dv">1</span> <span class="co"># 初始化模式 (1 = 均匀分布)</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>tol <span class="ot">&lt;-</span> <span class="fl">1e-6</span> <span class="co"># 收敛容差</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 执行分解</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 输出结果包含了分解出的模态 (u) 和中心频率 (omega) 等</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>vmd_res <span class="ot">&lt;-</span> VMDecomp<span class="sc">::</span><span class="fu">vmd</span>(sig, alpha, tau, K, DC, init, tol)</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 提取模态分量矩阵 (K 行 x N 列)</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>imfs <span class="ot">&lt;-</span> vmd_res<span class="sc">$</span>u</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 不同 alpha 值的效果对比</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mfrow =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>))</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># alpha 较小（带宽宽）</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>vmd_low_alpha <span class="ot">&lt;-</span> VMDecomp<span class="sc">::</span><span class="fu">vmd</span>(sig, <span class="at">alpha =</span> <span class="dv">500</span>, <span class="at">tau =</span> <span class="dv">0</span>, <span class="at">K =</span> <span class="dv">3</span>, <span class="at">DC =</span> <span class="cn">FALSE</span>, <span class="at">init =</span> <span class="dv">1</span>, <span class="at">tol =</span> <span class="fl">1e-6</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, vmd_low_alpha<span class="sc">$</span>u[, <span class="dv">1</span>], <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">main =</span> <span class="st">"alpha=500 (宽带宽)"</span>, <span class="at">ylab =</span> <span class="st">"IMF 1"</span>, <span class="at">xlab =</span> <span class="st">"Time"</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co"># alpha 较大（带宽窄）</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>vmd_high_alpha <span class="ot">&lt;-</span> VMDecomp<span class="sc">::</span><span class="fu">vmd</span>(sig, <span class="at">alpha =</span> <span class="dv">5000</span>, <span class="at">tau =</span> <span class="dv">0</span>, <span class="at">K =</span> <span class="dv">3</span>, <span class="at">DC =</span> <span class="cn">FALSE</span>, <span class="at">init =</span> <span class="dv">1</span>, <span class="at">tol =</span> <span class="fl">1e-6</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, vmd_high_alpha<span class="sc">$</span>u[, <span class="dv">1</span>], <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">main =</span> <span class="st">"alpha=5000 (窄带宽)"</span>, <span class="at">ylab =</span> <span class="st">"IMF 1"</span>, <span class="at">xlab =</span> <span class="st">"Time"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1034-nvmd_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
 </div>
+</div>
+</div>
+</section>
+<section id="执行分解" class="level3">
+<h3 class="anchored" data-anchor-id="执行分解">执行分解</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># VMD 参数</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>alpha <span class="ot">&lt;-</span> <span class="dv">2000</span> <span class="co"># 适中的带宽限制</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>tau <span class="ot">&lt;-</span> <span class="dv">0</span> <span class="co"># 噪声容限 (0 表示无严格去噪，或依靠 alpha)</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>K <span class="ot">&lt;-</span> <span class="dv">3</span> <span class="co"># 我们知道有 3 个主要成分</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>DC <span class="ot">&lt;-</span> <span class="cn">FALSE</span> <span class="co"># 无直流偏移</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>init <span class="ot">&lt;-</span> <span class="dv">1</span> <span class="co"># 初始化模式 (1 = 均匀分布)</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>tol <span class="ot">&lt;-</span> <span class="fl">1e-6</span> <span class="co"># 收敛容差</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 执行分解</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 输出结果包含了分解出的模态 (u) 和中心频率 (omega) 等</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>vmd_res <span class="ot">&lt;-</span> VMDecomp<span class="sc">::</span><span class="fu">vmd</span>(sig, alpha, tau, K, DC, init, tol)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 提取模态分量矩阵 (K 行 x N 列)</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>imfs <span class="ot">&lt;-</span> vmd_res<span class="sc">$</span>u</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
 </section>
 <section id="结果可视化与验证" class="level2">
 <h2 class="anchored" data-anchor-id="结果可视化与验证">5. 结果可视化与验证</h2>
 <p>我们将分解出的 3 个 IMF 分量与原始信号的真实成分进行对比。</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mfrow =</span> <span class="fu">c</span>(<span class="dv">4</span>, <span class="dv">1</span>), <span class="at">mar =</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">2</span>, <span class="dv">1</span>))</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 原始信号</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, sig, <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">main =</span> <span class="st">"Original Noisy Signal"</span>, <span class="at">col =</span> <span class="st">"gray"</span>)</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 分解出的 IMF 1 (对应低频 10Hz)</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, imfs[, <span class="dv">1</span>],</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">col =</span> <span class="st">"blue"</span>, <span class="at">lwd =</span> <span class="fl">1.5</span>,</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"IMF 1 (Extracted Low Freq)"</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 分解出的 IMF 2 (对应中频 50Hz)</span></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, imfs[, <span class="dv">2</span>],</span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">col =</span> <span class="st">"green"</span>, <span class="at">lwd =</span> <span class="fl">1.5</span>,</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"IMF 2 (Extracted Mid Freq)"</span></span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 分解出的 IMF 3 (对应高频 100Hz)</span></span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, imfs[, <span class="dv">3</span>],</span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">col =</span> <span class="st">"red"</span>, <span class="at">lwd =</span> <span class="fl">1.5</span>,</span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"IMF 3 (Extracted High Freq)"</span></span>
-<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mfrow =</span> <span class="fu">c</span>(<span class="dv">4</span>, <span class="dv">1</span>), <span class="at">mar =</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">2</span>, <span class="dv">1</span>))</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 原始信号</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, sig, <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">main =</span> <span class="st">"Original Noisy Signal"</span>, <span class="at">col =</span> <span class="st">"gray"</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 分解出的 IMF 1 (对应低频 10Hz)</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, imfs[, <span class="dv">1</span>],</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">col =</span> <span class="st">"blue"</span>, <span class="at">lwd =</span> <span class="fl">1.5</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"IMF 1 (Extracted Low Freq)"</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 分解出的 IMF 2 (对应中频 50Hz)</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, imfs[, <span class="dv">2</span>],</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">col =</span> <span class="st">"green"</span>, <span class="at">lwd =</span> <span class="fl">1.5</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"IMF 2 (Extracted Mid Freq)"</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 分解出的 IMF 3 (对应高频 100Hz)</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(t, imfs[, <span class="dv">3</span>],</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">col =</span> <span class="st">"red"</span>, <span class="at">lwd =</span> <span class="fl">1.5</span>,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"IMF 3 (Extracted High Freq)"</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="1034-nvmd_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid figure-img" width="3000"></p>
+<p><img src="1034-nvmd_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid figure-img" width="3000"></p>
 </figure>
 </div>
 </div>
 </div>
 <p><strong>观察</strong>: 即使存在噪声，VMD 也能非常干净地还原出原始的 10Hz, 50Hz, 100Hz 正弦波，表现优于许多传统滤波器。</p>
 </section>
+<section id="频谱验证" class="level2">
+<h2 class="anchored" data-anchor-id="频谱验证">6. 频谱验证</h2>
+<p>使用FFT验证分解出的各模态确实对应预期的频率：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算各 IMF 的频谱</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mfrow =</span> <span class="fu">c</span>(<span class="dv">3</span>, <span class="dv">1</span>), <span class="at">mar =</span> <span class="fu">c</span>(<span class="dv">4</span>, <span class="dv">4</span>, <span class="dv">2</span>, <span class="dv">1</span>))</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>) {</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    imf_fft <span class="ot">&lt;-</span> <span class="fu">fft</span>(imfs[, i])</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    P <span class="ot">&lt;-</span> <span class="fu">abs</span>(imf_fft <span class="sc">/</span> <span class="fu">length</span>(imfs[, i]))</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    P1 <span class="ot">&lt;-</span> P[<span class="dv">1</span><span class="sc">:</span>(<span class="fu">length</span>(imfs[, i]) <span class="sc">/</span> <span class="dv">2</span> <span class="sc">+</span> <span class="dv">1</span>)]</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    f <span class="ot">&lt;-</span> fs <span class="sc">*</span> (<span class="dv">0</span><span class="sc">:</span>(<span class="fu">length</span>(imfs[, i]) <span class="sc">/</span> <span class="dv">2</span>)) <span class="sc">/</span> <span class="fu">length</span>(imfs[, i])</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">plot</span>(f, P1,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">type =</span> <span class="st">"l"</span>, <span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">150</span>),</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">main =</span> <span class="fu">paste</span>(<span class="st">"IMF"</span>, i, <span class="st">"频谱"</span>),</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">xlab =</span> <span class="st">"Frequency (Hz)"</span>, <span class="at">ylab =</span> <span class="st">"Amplitude"</span>,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">col =</span> <span class="fu">c</span>(<span class="st">"blue"</span>, <span class="st">"green"</span>, <span class="st">"red"</span>)[i]</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1034-nvmd_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="实际应用场景" class="level2">
+<h2 class="anchored" data-anchor-id="实际应用场景">7. 实际应用场景</h2>
+<section id="生物医学信号处理" class="level3">
+<h3 class="anchored" data-anchor-id="生物医学信号处理">7.1 生物医学信号处理</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>应用</th>
+<th>信号类型</th>
+<th>VMD 作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>心电图 (ECG)</strong></td>
+<td>心跳节律</td>
+<td>分离心率变异性(HRV)成分</td>
+</tr>
+<tr class="even">
+<td><strong>脑电图 (EEG)</strong></td>
+<td>脑波</td>
+<td>提取 α, β, θ, δ 波</td>
+</tr>
+<tr class="odd">
+<td><strong>肌电图 (EMG)</strong></td>
+<td>肌肉活动</td>
+<td>去除运动伪迹</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="金融时间序列" class="level3">
+<h3 class="anchored" data-anchor-id="金融时间序列">7.2 金融时间序列</h3>
+<ul>
+<li><strong>股票价格分解</strong>：分离长期趋势、周期波动和噪声</li>
+<li><strong>波动率分析</strong>：提取不同频率的波动成分</li>
+</ul>
+</section>
+<section id="故障诊断" class="level3">
+<h3 class="anchored" data-anchor-id="故障诊断">7.3 故障诊断</h3>
+<ul>
+<li><strong>轴承振动信号</strong>：提取特征频率，识别故障类型</li>
+<li><strong>电机电流分析</strong>：检测异常振动成分</li>
+</ul>
+</section>
+</section>
+<section id="常见问题与解决方案" class="level2">
+<h2 class="anchored" data-anchor-id="常见问题与解决方案">8. 常见问题与解决方案</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>问题</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>模态混叠</td>
+<td>K 值过小</td>
+<td>增加 K 值</td>
+</tr>
+<tr class="even">
+<td>过分解</td>
+<td>K 值过大</td>
+<td>减少 K 值或增加 alpha</td>
+</tr>
+<tr class="odd">
+<td>边缘效应</td>
+<td>信号不对称</td>
+<td>使用镜像延拓预处理</td>
+</tr>
+<tr class="even">
+<td>收敛慢/不收敛</td>
+<td>tol 过小或 alpha 不当</td>
+<td>调整参数</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<p>[!WARNING] VMD 对参数敏感！建议先用仿真信号确定最佳参数组合，再应用于真实数据。</p>
+</blockquote>
+</section>
 <section id="参考文献" class="level2">
 <h2 class="anchored" data-anchor-id="参考文献">参考文献</h2>
 <ul>
 <li>Dragomiretskiy, K., &amp; Zosso, D. (2014). Variational Mode Decomposition. <em>IEEE Transactions on Signal Processing</em>, 62(3), 531-544.</li>
+<li>Nazari, M., &amp; Sakhaei, S. M. (2020). Variational Mode Decomposition: Applications in biomedical signal processing. <em>Computers in Biology and Medicine</em>.</li>
 </ul>
 
 

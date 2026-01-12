@@ -1,7 +1,9 @@
 ---
-title: "方差分析 (ANOVA)"
-date: "2025-01-12"
+title: "方差分析 (ANOVA) 完全指南"
+date: "2026-01-13"
 categories: [R包, 统计检验, 基础统计]
+image: "images/1036_cover.svg"
+description: "从单因素到重复测量：使用 rstatix 包进行方差分析的全流程教学，包含效应量计算与结果报告。"
 ---
 
 ```{r setup, include=FALSE}
@@ -20,6 +22,15 @@ knitr::opts_chunk$set(
 **方差分析 (Analysis of Variance, ANOVA)** 用于比较三个或更多组的均值是否存在显著差异。根据因素的数量和设计类型，可分为单因素 ANOVA、多因素 ANOVA、重复测量 ANOVA 等。
 
 在 R 中，基础包 `stats` 提供了 `aov()` 函数，但 **`rstatix`** 包提供了一个更现代、更符合 "Tidy" 风格的框架，特别适合与 `ggplot2` 和 `ggpubr` 结合使用。
+
+### ANOVA 类型速查表
+
+| 类型 | 适用场景 | 函数 |
+|------|----------|------|
+| **单因素 ANOVA** | 1个因素，多个水平 | `anova_test(y ~ group)` |
+| **双因素 ANOVA** | 2个因素，考察主效应+交互 | `anova_test(y ~ A * B)` |
+| **重复测量 ANOVA** | 同一受试者多次测量 | `anova_test(y ~ time + Error(id/time))` |
+| **混合设计 ANOVA** | 组间+组内因素 | `anova_test(y ~ between * within + Error(id/within))` |
 
 ## 安装
 
@@ -61,6 +72,19 @@ pwc <- PlantGrowth %>% tukey_hsd(weight ~ group)
 pwc
 ```
 
+### 效应量解读
+
+`rstatix` 自动计算 **η² (eta-squared)** 和 **ges (generalized eta-squared)**：
+
+| 效应量 | 小效应 | 中效应 | 大效应 |
+|--------|--------|--------|--------|
+| η² | 0.01 | 0.06 | 0.14 |
+| ω² | 0.01 | 0.06 | 0.14 |
+| Cohen's f | 0.10 | 0.25 | 0.40 |
+
+> [!TIP]
+> **η² 解读**：表示因变量变异中被自变量解释的比例。η² = 0.14 意味着 14% 的方差可以由组别差异解释。
+
 ## 2. 双因素方差分析 (Two-way ANOVA)
 
 使用 `ToothGrowth` 数据集，研究维生素 C 剂量 (`dose`) 和给药方式 (`supp`) 对牙齿长度 (`len`) 的影响。
@@ -82,6 +106,19 @@ res.aov2
 
 结果显示 `dose` 主效应显著，`supp` 主效应显著，且二者存在交互作用 (`supp:dose`)。
 
+### 交互作用解读
+
+当交互作用显著时：
+1. **不应单独解释主效应**：因为一个因素的效应取决于另一个因素的水平
+2. **应进行简单效应分析**：分别检验每个因素在另一因素各水平的效应
+
+```{r}
+# 简单效应分析：在每个 dose 水平检验 supp 的效应
+ToothGrowth %>%
+    group_by(dose) %>%
+    anova_test(len ~ supp)
+```
+
 ## 3. 重复测量方差分析 (Repeated Measures ANOVA)
 
 假设我们有一组受试者在三个不同时间点测量了焦虑分数。
@@ -89,6 +126,7 @@ res.aov2
 ```{r}
 # 生成模拟数据
 # 10 subjects, 3 time points
+set.seed(123)
 data_rm <- data.frame(
     id = rep(1:10, each = 3),
     time = rep(c("T1", "T2", "T3"), 10),
@@ -113,6 +151,9 @@ pwc_rm <- data_rm %>%
 pwc_rm
 ```
 
+> [!WARNING]
+> 重复测量 ANOVA 需要满足**球形性假设**。如果 Mauchly 球形性检验显著 (p < 0.05)，应使用 Greenhouse-Geisser 或 Huynh-Feldt 校正。
+
 ## 4. 假设检验
 
 ANOVA 有几个关键假设需要满足：正态性和方差齐性。
@@ -127,12 +168,69 @@ PlantGrowth %>%
 PlantGrowth %>% levene_test(weight ~ group)
 ```
 
+### 假设违反时的替代方案
+
+| 假设违反 | 替代方案 |
+|----------|----------|
+| **正态性** | Kruskal-Wallis 检验（非参数） |
+| **方差齐性** | Welch's ANOVA |
+| **两者都违反** | 置换检验或秩变换 |
+
 如果假设不满足，可以考虑使用非参数检验（如 Kruskal-Wallis 检验）。
 
 ```{r}
 PlantGrowth %>% kruskal_test(weight ~ group)
 ```
 
+或使用 Welch's ANOVA（不假设方差齐性）：
+
+```{r}
+PlantGrowth %>% welch_anova_test(weight ~ group)
+```
+
+## 5. 结果报告模板
+
+### APA 格式报告示例
+
+> 单因素方差分析结果显示，处理组别对植物重量有显著影响，*F*(2, 27) = 4.85, *p* = .016, η² = .26。事后比较（Tukey HSD）表明，trt2 组的重量显著高于 ctrl 组（*p* = .012），而 trt1 组与其他组无显著差异。
+
+### 制作结果表格
+
+```{r}
+# 组合主分析和事后比较结果
+knitr::kable(res.aov, caption = "ANOVA Results")
+knitr::kable(pwc, caption = "Post-hoc Pairwise Comparisons")
+```
+
+### 可视化带显著性标记
+
+```{r}
+# 添加显著性标记的箱线图
+pwc <- pwc %>% add_xy_position(x = "group")
+ggboxplot(PlantGrowth, x = "group", y = "weight", color = "group") +
+    stat_pvalue_manual(pwc, hide.ns = TRUE) +
+    labs(
+        subtitle = get_test_label(res.aov, detailed = TRUE),
+        caption = get_pwc_label(pwc)
+    )
+```
+
 ## 总结
 
-`rstatix` 包使得 ANOVA 分析流程非常标准化：`anova_test()`用于主分析，`tukey_hsd()` 或 `pairwise_t_test()` 用于事后比较，且结果直接输出为数据框，方便查看和导出。
+`rstatix` 包使得 ANOVA 分析流程非常标准化：
+
+| 步骤 | 函数 |
+|------|------|
+| 主分析 | `anova_test()` |
+| 事后比较 | `tukey_hsd()`, `pairwise_t_test()` |
+| 假设检验 | `shapiro_test()`, `levene_test()` |
+| 非参数替代 | `kruskal_test()`, `welch_anova_test()` |
+
+> [!IMPORTANT]
+> 始终报告效应量（η²）！统计显著性只说明差异是否存在，效应量说明差异有多大。
+
+## 参考文献
+
+-   Kassambara, A. (2023). rstatix: Pipe-Friendly Framework for Basic Statistical Tests. R package.
+-   Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences* (2nd ed.).
+

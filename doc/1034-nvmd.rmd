@@ -2,7 +2,7 @@
 title: "变分模态分解 (VMD) 信号处理指南"
 date: "2026-01-13"
 categories: [R包, 信号处理, 时间序列]
-
+image: "images/1034_cover.svg"
 description: "处理非线性非平稳信号的利器：完全非递归的 VMD 分解算法 R 语言实现。"
 ---
 
@@ -21,8 +21,22 @@ knitr::opts_chunk$set(
 
 在处理生物医学信号（EEG, ECG）或金融时间序列时，我们经常遇到**非平稳**和**非线性**信号。
 
--   **EMD (经验模态分解)**：经典方法，但由递归筛选过程决定，容易受到噪声干扰（“模态混叠”）。
+-   **EMD (经验模态分解)**：经典方法，但由递归筛选过程决定，容易受到噪声干扰（"模态混叠"）。
 -   **VMD (变分模态分解)**：基于坚实的数学理论（维纳滤波、希尔伯特变换）。它将分解问题构建为一个约束变分问题，**完全非递归**，抗噪性强，能有效分离频率接近的成分。
+
+### VMD vs EMD 对比
+
+| 特性 | VMD | EMD |
+|------|-----|-----|
+| **理论基础** | 变分优化理论 | 经验算法，无严格数学基础 |
+| **分解方式** | 非递归，同时分解 | 递归筛选 |
+| **模态混叠** | 有效避免 | 容易发生 |
+| **噪声敏感性** | 低 | 高 |
+| **模态数K** | 需预先设定 | 自适应确定 |
+| **计算速度** | 较慢 | 较快 |
+
+> [!NOTE]
+> VMD 的主要优势在于其"带宽限制"的变分框架，能够将频率相近的成分有效分离。
 
 ## 2. 工具：VMDecomp
 
@@ -70,8 +84,38 @@ plot(t, sig,
 
 VMD 需要预先设定几个关键参数，其中最重要的是 **K (模态数)** 和 **alpha (带宽限制)**。
 
--   **alpha**: 越小带宽越大，越大带宽越窄。
--   **K**: 预期的成分数量。
+### 参数选择指南
+
+| 参数 | 含义 | 推荐值/选择方法 |
+|------|------|-----------------|
+| **K** | 模态数量 | 先用FFT估计主要频率成分数 |
+| **alpha** | 带宽限制因子 | 2000（中等），越大带宽越窄 |
+| **tau** | 噪声容限 | 0（无严格约束）或 0.01 |
+| **DC** | 是否包含直流分量 | FALSE（通常无需） |
+| **tol** | 收敛容差 | 1e-6 或 1e-7 |
+
+> [!TIP]
+> **如何确定K值**：
+> 1. 先对信号做FFT，识别明显的频率峰
+> 2. K = 峰的数量 + 1（为噪声预留一个模态）
+> 3. 过大的K会导致过拟合，过小会丢失信息
+
+### alpha 参数的影响
+
+```{r}
+# 不同 alpha 值的效果对比
+par(mfrow = c(1, 2))
+
+# alpha 较小（带宽宽）
+vmd_low_alpha <- VMDecomp::vmd(sig, alpha = 500, tau = 0, K = 3, DC = FALSE, init = 1, tol = 1e-6)
+plot(t, vmd_low_alpha$u[, 1], type = "l", main = "alpha=500 (宽带宽)", ylab = "IMF 1", xlab = "Time")
+
+# alpha 较大（带宽窄）
+vmd_high_alpha <- VMDecomp::vmd(sig, alpha = 5000, tau = 0, K = 3, DC = FALSE, init = 1, tol = 1e-6)
+plot(t, vmd_high_alpha$u[, 1], type = "l", main = "alpha=5000 (窄带宽)", ylab = "IMF 1", xlab = "Time")
+```
+
+### 执行分解
 
 ```{r}
 # VMD 参数
@@ -122,6 +166,63 @@ plot(t, imfs[, 3],
 **观察**:
 即使存在噪声，VMD 也能非常干净地还原出原始的 10Hz, 50Hz, 100Hz 正弦波，表现优于许多传统滤波器。
 
+## 6. 频谱验证
+
+使用FFT验证分解出的各模态确实对应预期的频率：
+
+```{r}
+# 计算各 IMF 的频谱
+par(mfrow = c(3, 1), mar = c(4, 4, 2, 1))
+
+for (i in 1:3) {
+    imf_fft <- fft(imfs[, i])
+    P <- abs(imf_fft / length(imfs[, i]))
+    P1 <- P[1:(length(imfs[, i]) / 2 + 1)]
+    f <- fs * (0:(length(imfs[, i]) / 2)) / length(imfs[, i])
+
+    plot(f, P1,
+        type = "l", xlim = c(0, 150),
+        main = paste("IMF", i, "频谱"),
+        xlab = "Frequency (Hz)", ylab = "Amplitude",
+        col = c("blue", "green", "red")[i]
+    )
+}
+```
+
+## 7. 实际应用场景
+
+### 7.1 生物医学信号处理
+
+| 应用 | 信号类型 | VMD 作用 |
+|------|----------|----------|
+| **心电图 (ECG)** | 心跳节律 | 分离心率变异性(HRV)成分 |
+| **脑电图 (EEG)** | 脑波 | 提取 α, β, θ, δ 波 |
+| **肌电图 (EMG)** | 肌肉活动 | 去除运动伪迹 |
+
+### 7.2 金融时间序列
+
+- **股票价格分解**：分离长期趋势、周期波动和噪声
+- **波动率分析**：提取不同频率的波动成分
+
+### 7.3 故障诊断
+
+- **轴承振动信号**：提取特征频率，识别故障类型
+- **电机电流分析**：检测异常振动成分
+
+## 8. 常见问题与解决方案
+
+| 问题 | 可能原因 | 解决方案 |
+|------|----------|----------|
+| 模态混叠 | K 值过小 | 增加 K 值 |
+| 过分解 | K 值过大 | 减少 K 值或增加 alpha |
+| 边缘效应 | 信号不对称 | 使用镜像延拓预处理 |
+| 收敛慢/不收敛 | tol 过小或 alpha 不当 | 调整参数 |
+
+> [!WARNING]
+> VMD 对参数敏感！建议先用仿真信号确定最佳参数组合，再应用于真实数据。
+
 ## 参考文献
 
 -   Dragomiretskiy, K., & Zosso, D. (2014). Variational Mode Decomposition. *IEEE Transactions on Signal Processing*, 62(3), 531-544.
+-   Nazari, M., & Sakhaei, S. M. (2020). Variational Mode Decomposition: Applications in biomedical signal processing. *Computers in Biology and Medicine*.
+
