@@ -1,0 +1,658 @@
+---
+title: "多水平/混合效应模型完全指南"
+date: "2026-01-12"
+categories: [R语言方法, 统计建模, 混合效应模型]
+image: "figure/multilevel-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 什么是多水平模型？
+
+**多水平模型（Multilevel Model）**，也称**混合效应模型（Mixed Effects Model）** 或**层次模型（Hierarchical Model）**，用于分析具有嵌套/层次结构的数据。
+
+### 数据层次结构示例
+
+| 层次结构 | 第一层 | 第二层 | 第三层 |
+|----------|--------|--------|--------|
+| 教育研究 | 学生 | 班级 | 学校 |
+| 临床试验 | 测量时点 | 患者 | 医院 |
+| 心理学 | 试验 | 被试 | 实验条件 |
+| 组织行为 | 员工 | 团队 | 公司 |
+
+### 为什么需要多水平模型？
+
+1. **违反独立性假设**：同一组内的观测不独立
+2. **避免聚合偏差**：保持原始数据层次
+3. **正确估计方差**：考虑组内相关性
+4. **研究跨层效应**：探索不同层次变量的影响
+
+### 核心概念
+
+| 概念 | 定义 |
+|------|------|
+| **固定效应** | 所有组共享的效应（总体平均） |
+| **随机效应** | 各组特有的随机变异 |
+| **随机截距** | 各组的基线水平不同 |
+| **随机斜率** | 各组的效应强度不同 |
+| **ICC** | 组内相关系数，组间方差占总方差的比例 |
+
+---
+
+## R 包安装与加载
+
+```{r}
+# 核心包
+library(lme4)         # 混合效应模型主力包
+library(lmerTest)     # 提供 p 值
+library(performance)  # 模型诊断
+library(sjPlot)       # 结果可视化
+library(tidyverse)    # 数据处理
+library(broom.mixed)  # 模型整理
+library(MuMIn)        # 模型比较
+```
+
+---
+
+## 数据准备
+
+使用模拟的教育数据：学生成绩（学生嵌套在班级中）
+
+```{r}
+# 模拟两层嵌套数据
+set.seed(2024)
+
+n_classes <- 30      # 班级数
+n_students <- 20     # 每班学生数
+N <- n_classes * n_students  # 总样本量
+
+# 生成班级层面数据
+class_data <- tibble(
+  class_id = 1:n_classes,
+  teacher_exp = round(runif(n_classes, 1, 20)),  # 教师经验（年）
+  class_size = sample(25:40, n_classes, replace = TRUE),
+  # 班级层面随机效应
+  class_intercept = rnorm(n_classes, 0, 8),      # 随机截距
+  class_slope = rnorm(n_classes, 0, 0.3)         # 随机斜率
+)
+
+# 生成学生层面数据
+student_data <- tibble(
+  student_id = 1:N,
+  class_id = rep(1:n_classes, each = n_students),
+  # 学生变量
+  prior_score = round(rnorm(N, 70, 12)),         # 先前成绩
+  study_hours = round(pmax(0, rnorm(N, 10, 4))), # 学习时长
+  gender = factor(sample(c("男", "女"), N, replace = TRUE))
+) |>
+  left_join(class_data, by = "class_id") |>
+  mutate(
+    # 生成结局：数学成绩
+    score = 20 +
+      0.5 * prior_score +                        # 个体效应
+      (2 + class_slope) * study_hours +          # 随机斜率效应
+      0.8 * teacher_exp +                        # 班级效应
+      class_intercept +                          # 随机截距
+      rnorm(N, 0, 8)                             # 残差
+  ) |>
+  mutate(
+    score = round(pmin(100, pmax(0, score))),
+    class_id = factor(class_id)
+  )
+
+# 查看数据
+glimpse(student_data)
+```
+
+### 探索性分析
+
+```{r fig.height=5}
+# 查看各班级成绩分布
+ggplot(student_data, aes(x = class_id, y = score, fill = class_id)) +
+  geom_boxplot(show.legend = FALSE, alpha = 0.7) +
+  scale_fill_viridis_d() +
+  labs(
+    title = "各班级数学成绩分布",
+    x = "班级",
+    y = "成绩"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+# 各班级回归线
+ggplot(student_data, aes(x = study_hours, y = score, color = class_id)) +
+  geom_point(alpha = 0.3, size = 1) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.5) +
+  scale_color_viridis_d() +
+  labs(
+    title = "学习时长与成绩的关系（按班级）",
+    subtitle = "斜率的变异提示需要随机斜率模型",
+    x = "每周学习时长",
+    y = "数学成绩"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+---
+
+## 计算组内相关系数 (ICC)
+
+ICC 衡量组间变异占总变异的比例，用于判断是否需要多水平模型。
+
+```{r}
+# 拟合空模型（仅含随机截距）
+null_model <- lmer(score ~ 1 + (1 | class_id), data = student_data)
+
+# 计算 ICC
+icc(null_model)
+```
+
+**解读**：
+- ICC > 0.05 通常建议使用多水平模型
+- ICC 表示约 X% 的成绩差异归因于班级间差异
+
+---
+
+## 模型构建
+
+### 模型 1：随机截距模型
+
+```{r}
+# 随机截距模型
+# (1 | class_id) 表示班级有不同的基准水平
+model1 <- lmer(
+  score ~ study_hours + prior_score + gender + (1 | class_id),
+  data = student_data
+)
+
+summary(model1)
+```
+
+### 模型 2：随机斜率模型
+
+```{r}
+# 随机斜率模型
+# (study_hours | class_id) 表示学习时长的效应因班级而异
+model2 <- lmer(
+  score ~ study_hours + prior_score + gender + (study_hours | class_id),
+  data = student_data
+)
+
+summary(model2)
+```
+
+### 模型 3：添加跨层变量
+
+```{r}
+# 添加班级层面的解释变量
+model3 <- lmer(
+  score ~ study_hours + prior_score + gender + teacher_exp + 
+    (study_hours | class_id),
+  data = student_data
+)
+
+summary(model3)
+```
+
+### 模型 4：跨层交互作用
+
+```{r}
+# 检验教师经验是否调节学习时长的效应
+model4 <- lmer(
+  score ~ study_hours * teacher_exp + prior_score + gender + 
+    (study_hours | class_id),
+  data = student_data
+)
+
+summary(model4)
+```
+
+---
+
+## 模型比较
+
+### 似然比检验
+
+```{r}
+# 比较随机截距 vs 随机斜率模型
+anova(model1, model2)  # 检验随机斜率是否必要
+```
+
+### 信息准则比较
+
+```{r}
+# AIC/BIC 比较
+model_comparison <- data.frame(
+  Model = c("随机截距", "随机斜率", "含跨层变量", "含交互作用"),
+  AIC = c(AIC(model1), AIC(model2), AIC(model3), AIC(model4)),
+  BIC = c(BIC(model1), BIC(model2), BIC(model3), BIC(model4))
+) |>
+  mutate(
+    Delta_AIC = AIC - min(AIC),
+    Delta_BIC = BIC - min(BIC)
+  )
+
+model_comparison
+```
+
+### R² 计算
+
+```{r}
+# 边际 R²（仅固定效应）和条件 R²（固定+随机效应）
+r2(model3)
+```
+
+---
+
+## 结果解释
+
+### 固定效应
+
+```{r}
+# 提取固定效应
+fixef(model3)
+
+# 置信区间
+confint(model3, parm = "beta_", method = "Wald")
+```
+
+### 随机效应
+
+```{r}
+# 随机效应方差
+VarCorr(model3)
+
+# 各班级的随机效应
+ranef(model3)$class_id |> head(10)
+```
+
+### 整洁输出
+
+```{r}
+# 使用 sjPlot 生成表格
+tab_model(model3,
+          show.se = TRUE,
+          show.ci = 0.95,
+          show.stat = TRUE,
+          title = "多水平线性回归结果")
+```
+
+---
+
+## 模型诊断
+
+### 残差检验
+
+```{r fig.height=8}
+# 综合诊断
+check_model(model3)
+```
+
+### 正态性检验
+
+```{r}
+# 第一层残差
+plot(model3, type = c("p", "smooth"))
+
+# 第二层随机效应
+qqnorm(ranef(model3)$class_id$`(Intercept)`, main = "随机截距 Q-Q 图")
+qqline(ranef(model3)$class_id$`(Intercept)`)
+```
+
+### 影响诊断
+
+```{r}
+# 检测有影响力的组
+influence_class <- influence(model3, group = "class_id")
+
+# Cook's 距离
+cooks_d <- cooks.distance(influence_class)
+plot(cooks_d, type = "h", main = "各班级 Cook's 距离")
+```
+
+---
+
+## 可视化
+
+### 固定效应可视化
+
+```{r}
+# 固定效应森林图
+plot_model(model3, type = "est", show.values = TRUE, 
+           title = "固定效应估计")
+```
+
+### 随机效应可视化
+
+```{r fig.height=6}
+# 随机效应分布
+plot_model(model3, type = "re", 
+           title = "各班级随机效应")
+```
+
+### 条件效应图
+
+```{r}
+# 预测图：学习时长与成绩（考虑随机效应）
+plot_model(model3, type = "pred", terms = "study_hours",
+           title = "学习时长的预测效应")
+```
+
+### 边际效应
+
+```{r}
+# 查看边际效应
+library(ggeffects)
+
+# 预测值
+pred_hours <- ggpredict(model3, terms = "study_hours [0:20]")
+plot(pred_hours) +
+  labs(title = "学习时长的边际效应")
+```
+
+### 交互效应可视化
+
+```{r}
+# 跨层交互作用
+pred_interact <- ggpredict(model4, terms = c("study_hours", "teacher_exp [5, 10, 15]"))
+plot(pred_interact) +
+  labs(
+    title = "学习时长 × 教师经验的交互效应",
+    color = "教师经验"
+  )
+```
+
+---
+
+## 广义混合效应模型 (GLMM)
+
+对于非正态分布的结局变量：
+
+### 二分类结局
+
+```{r}
+# 模拟二分类数据：是否通过考试
+student_data <- student_data |>
+  mutate(
+    pass = as.integer(score >= 60)
+  )
+
+# Logistic 混合效应模型
+glmm_logit <- glmer(
+  pass ~ study_hours + prior_score + (1 | class_id),
+  data = student_data,
+  family = binomial
+)
+
+summary(glmm_logit)
+```
+
+```{r}
+# OR 及 95% CI
+exp(fixef(glmm_logit))
+exp(confint(glmm_logit, parm = "beta_", method = "Wald"))
+```
+
+### 计数结局
+
+```{r}
+# 模拟计数数据：缺勤次数
+student_data <- student_data |>
+  mutate(
+    absences = rpois(n(), lambda = exp(2 - 0.05 * score + rnorm(n(), 0, 0.3)))
+  )
+
+# Poisson 混合效应模型
+glmm_pois <- glmer(
+  absences ~ score + gender + (1 | class_id),
+  data = student_data,
+  family = poisson
+)
+
+summary(glmm_pois)
+```
+
+---
+
+## 三层嵌套模型
+
+```{r}
+# 模拟三层数据：学生 → 班级 → 学校
+n_schools <- 10
+n_classes_per_school <- 3
+n_students_per_class <- 20
+
+three_level_data <- expand_grid(
+  school_id = 1:n_schools,
+  class_in_school = 1:n_classes_per_school,
+  student_in_class = 1:n_students_per_class
+) |>
+  mutate(
+    class_id = paste0(school_id, "_", class_in_school),
+    student_id = row_number(),
+    # 学校随机效应
+    school_effect = rep(rnorm(n_schools, 0, 5), 
+                        each = n_classes_per_school * n_students_per_class),
+    # 班级随机效应
+    class_effect = rep(rnorm(n_schools * n_classes_per_school, 0, 3),
+                       each = n_students_per_class),
+    # 学生变量
+    ability = rnorm(n(), 0, 1),
+    # 成绩
+    score = 70 + 10 * ability + school_effect + class_effect + rnorm(n(), 0, 5)
+  ) |>
+  mutate(
+    school_id = factor(school_id),
+    class_id = factor(class_id)
+  )
+
+# 三层嵌套模型
+model_3level <- lmer(
+  score ~ ability + (1 | school_id/class_id),  # 班级嵌套在学校中
+  data = three_level_data
+)
+
+summary(model_3level)
+```
+
+```{r}
+# 各层 ICC
+icc(model_3level, by_group = TRUE)
+```
+
+---
+
+## 纵向数据分析
+
+混合效应模型非常适合分析重复测量数据：
+
+```{r}
+# 模拟纵向数据：4 个时间点
+n_subjects <- 100
+n_timepoints <- 4
+
+longitudinal_data <- expand_grid(
+  subject_id = 1:n_subjects,
+  time = 0:(n_timepoints - 1)
+) |>
+  mutate(
+    # 个体随机效应
+    subject_intercept = rep(rnorm(n_subjects, 0, 10), each = n_timepoints),
+    subject_slope = rep(rnorm(n_subjects, 0, 2), each = n_timepoints),
+    # 治疗组
+    treatment = factor(rep(sample(c("对照", "治疗"), n_subjects, replace = TRUE), 
+                           each = n_timepoints)),
+    # 结局
+    outcome = 50 + subject_intercept + 
+      (3 + subject_slope) * time + 
+      5 * (treatment == "治疗") * time +
+      rnorm(n(), 0, 5)
+  ) |>
+  mutate(subject_id = factor(subject_id))
+
+# 增长曲线模型
+growth_model <- lmer(
+  outcome ~ time * treatment + (time | subject_id),
+  data = longitudinal_data
+)
+
+summary(growth_model)
+```
+
+```{r fig.height=5}
+# 可视化纵向变化
+ggplot(longitudinal_data, aes(x = time, y = outcome, group = subject_id, 
+                               color = treatment)) +
+  geom_line(alpha = 0.3) +
+  geom_smooth(aes(group = treatment), method = "lm", linewidth = 1.5) +
+  scale_color_manual(values = c("#4f46e5", "#10b981")) +
+  labs(
+    title = "纵向变化轨迹",
+    x = "时间点",
+    y = "结局",
+    color = "组别"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+---
+
+## 常见问题与陷阱
+
+### 1. 组数太少
+
+```r
+# 随机效应估计需要足够的组数
+# 推荐：至少 20-30 个组
+# 组数少时，随机效应方差估计可能为 0
+```
+
+### 2. 奇异性拟合
+
+```{r}
+# 检查是否存在奇异性
+isSingular(model2)
+
+# 解决方案：
+# 1. 简化随机效应结构
+# 2. 移除相关性参数
+# model_nocorr <- lmer(y ~ x + (1 | g) + (0 + x | g), data = data)
+```
+
+### 3. 中心化
+
+```{r}
+# 组内中心化（组均值中心化）
+student_data <- student_data |>
+  group_by(class_id) |>
+  mutate(
+    study_hours_cwc = study_hours - mean(study_hours)  # 组内中心化
+  ) |>
+  ungroup() |>
+  mutate(
+    class_mean_hours = ave(study_hours, class_id)       # 组均值
+  )
+
+# 分解组内和组间效应
+model_cwc <- lmer(
+  score ~ study_hours_cwc + class_mean_hours + prior_score + (1 | class_id),
+  data = student_data
+)
+
+summary(model_cwc)
+```
+
+### 4. 收敛问题
+
+```r
+# 收敛失败时的解决方案
+# 1. 增加迭代次数
+lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 100000))
+
+# 2. 使用不同优化器
+lmerControl(optimizer = "nloptwrap")
+
+# 3. 简化模型
+# 4. 对变量标准化
+```
+
+---
+
+## 完整分析模板
+
+```{r eval=FALSE}
+# ========== 多水平模型完整流程 ==========
+
+library(lme4)
+library(lmerTest)
+library(performance)
+
+# 1. 数据准备和探索
+# - 识别层次结构
+# - 可视化组间差异
+
+# 2. 计算 ICC
+null <- lmer(y ~ 1 + (1 | group), data = data)
+icc(null)
+
+# 3. 逐步构建模型
+m1 <- lmer(y ~ x1 + (1 | group), data)                    # 随机截距
+m2 <- lmer(y ~ x1 + (x1 | group), data)                   # 随机斜率
+m3 <- lmer(y ~ x1 + group_var + (x1 | group), data)       # 跨层变量
+m4 <- lmer(y ~ x1 * group_var + (x1 | group), data)       # 跨层交互
+
+# 4. 模型比较
+anova(m1, m2, m3, m4)
+compare_performance(m1, m2, m3, m4)
+
+# 5. 模型诊断
+check_model(m3)
+
+# 6. 结果呈现
+summary(m3)
+tab_model(m3)
+```
+
+---
+
+## 总结
+
+| 模型类型 | 语法 | 适用场景 |
+|----------|------|----------|
+| 随机截距 | `(1 | g)` | 组间基线不同 |
+| 随机斜率 | `(x | g)` | 效应强度因组而异 |
+| 无相关性 | `(1 | g) + (0 + x | g)` | 截距和斜率独立 |
+| 三层嵌套 | `(1 | g1/g2)` | 多层嵌套结构 |
+| 交叉随机效应 | `(1 | g1) + (1 | g2)` | 非嵌套分组 |
+
+### 报告多水平模型的 Checklist
+
+- [ ] 描述数据的层次结构
+- [ ] 报告各层样本量
+- [ ] 报告 ICC
+- [ ] 报告固定效应及置信区间
+- [ ] 报告随机效应方差
+- [ ] 报告边际 R² 和条件 R²
+- [ ] 提供残差诊断
+- [ ] 说明如何处理缺失值
+
+### 推荐阅读
+
+- Raudenbush SW, Bryk AS. Hierarchical Linear Models
+- Snijders TAB, Bosker RJ. Multilevel Analysis
+- [lme4 package 文档](https://cran.r-project.org/web/packages/lme4/)
+- [UCLA 多水平模型教程](https://stats.oarc.ucla.edu/r/dae/)

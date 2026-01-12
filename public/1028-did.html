@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-01-12">
+
+<title>双重差分法 (DiD) 完全指南 – R 语言学习笔记</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-234273d1456647dabc34a594ac50e507.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-374967827064a263f620006ef06629b3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">R 语言学习笔记</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">主页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/packages.html"> 
+<span class="menu-text">实用 R 包</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/visualization.html"> 
+<span class="menu-text">可视化教程</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/methods.html"> 
+<span class="menu-text">R 语言方法</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/operation.html"> 
+<span class="menu-text">实用操作</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1028-did.html">双重差分法 (DiD)</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用 R 包</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bruceR - 统计分析工具</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1012-comparegroups.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">compareGroups - 描述性表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1013-scitb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scitb - 快速基线表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">purrr - 函数式编程</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">可视化教程</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2021-cowplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cowplot - 图形组合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2018-tidyplots.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidyplots - 极简可视化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggtext - 中英文字体混合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2019-dualaxis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双坐标轴</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2011-viscolor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">配色方案</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">patchwork - 图片拼接</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2013-legend.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">图例自定义</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2014-sankey.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">桑基图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">地图绑制</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2016-forestplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">森林图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2022-ggally.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GGally - 可视化扩展</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">R 语言方法</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">卫生经济学分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1017-timeseries.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">时间序列分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">倾向性得分匹配</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1019-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logistic 回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">生存分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1021-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多元线性回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1023-mediation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">中介效应分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1024-multilevel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多水平模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1025-gam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">广义加性模型 (GAM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1026-poisson.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Poisson/负二项回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1027-rcs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">限制性立方样条 (RCS)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1028-did.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">双重差分法 (DiD)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用操作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">数据导入导出</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RMarkdown 入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quarto vs RMarkdown</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Positron IDE 教程</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#什么是双重差分法" id="toc-什么是双重差分法" class="nav-link active" data-scroll-target="#什么是双重差分法">什么是双重差分法？</a>
+  <ul class="collapse">
+  <li><a href="#核心思想" id="toc-核心思想" class="nav-link" data-scroll-target="#核心思想">核心思想</a></li>
+  <li><a href="#适用场景" id="toc-适用场景" class="nav-link" data-scroll-target="#适用场景">适用场景</a></li>
+  <li><a href="#核心假设" id="toc-核心假设" class="nav-link" data-scroll-target="#核心假设">核心假设</a></li>
+  </ul></li>
+  <li><a href="#r-包安装与加载" id="toc-r-包安装与加载" class="nav-link" data-scroll-target="#r-包安装与加载">R 包安装与加载</a></li>
+  <li><a href="#数据准备" id="toc-数据准备" class="nav-link" data-scroll-target="#数据准备">数据准备</a>
+  <ul class="collapse">
+  <li><a href="#探索性分析" id="toc-探索性分析" class="nav-link" data-scroll-target="#探索性分析">探索性分析</a></li>
+  </ul></li>
+  <li><a href="#基础-did-估计" id="toc-基础-did-估计" class="nav-link" data-scroll-target="#基础-did-估计">基础 DiD 估计</a>
+  <ul class="collapse">
+  <li><a href="#did最简单情况" id="toc-did最简单情况" class="nav-link" data-scroll-target="#did最简单情况">2×2 DiD（最简单情况）</a></li>
+  <li><a href="#手动计算-did" id="toc-手动计算-did" class="nav-link" data-scroll-target="#手动计算-did">手动计算 DiD</a></li>
+  </ul></li>
+  <li><a href="#双向固定效应-didtwfe" id="toc-双向固定效应-didtwfe" class="nav-link" data-scroll-target="#双向固定效应-didtwfe">双向固定效应 DiD（TWFE）</a>
+  <ul class="collapse">
+  <li><a href="#添加控制变量" id="toc-添加控制变量" class="nav-link" data-scroll-target="#添加控制变量">添加控制变量</a></li>
+  <li><a href="#模型比较" id="toc-模型比较" class="nav-link" data-scroll-target="#模型比较">模型比较</a></li>
+  </ul></li>
+  <li><a href="#平行趋势检验" id="toc-平行趋势检验" class="nav-link" data-scroll-target="#平行趋势检验">平行趋势检验</a>
+  <ul class="collapse">
+  <li><a href="#事件研究法event-study" id="toc-事件研究法event-study" class="nav-link" data-scroll-target="#事件研究法event-study">事件研究法（Event Study）</a></li>
+  <li><a href="#自定义事件研究图" id="toc-自定义事件研究图" class="nav-link" data-scroll-target="#自定义事件研究图">自定义事件研究图</a></li>
+  <li><a href="#平行趋势的正式检验" id="toc-平行趋势的正式检验" class="nav-link" data-scroll-target="#平行趋势的正式检验">平行趋势的正式检验</a></li>
+  </ul></li>
+  <li><a href="#交错处理-did" id="toc-交错处理-did" class="nav-link" data-scroll-target="#交错处理-did">交错处理 DiD</a>
+  <ul class="collapse">
+  <li><a href="#callaway-santanna-估计器" id="toc-callaway-santanna-估计器" class="nav-link" data-scroll-target="#callaway-santanna-估计器">Callaway-Sant’Anna 估计器</a></li>
+  </ul></li>
+  <li><a href="#安慰剂检验" id="toc-安慰剂检验" class="nav-link" data-scroll-target="#安慰剂检验">安慰剂检验</a>
+  <ul class="collapse">
+  <li><a href="#时间安慰剂" id="toc-时间安慰剂" class="nav-link" data-scroll-target="#时间安慰剂">时间安慰剂</a></li>
+  <li><a href="#组别安慰剂" id="toc-组别安慰剂" class="nav-link" data-scroll-target="#组别安慰剂">组别安慰剂</a></li>
+  </ul></li>
+  <li><a href="#结果可视化" id="toc-结果可视化" class="nav-link" data-scroll-target="#结果可视化">结果可视化</a>
+  <ul class="collapse">
+  <li><a href="#did-图解" id="toc-did-图解" class="nav-link" data-scroll-target="#did-图解">DiD 图解</a></li>
+  </ul></li>
+  <li><a href="#异质性分析" id="toc-异质性分析" class="nav-link" data-scroll-target="#异质性分析">异质性分析</a></li>
+  <li><a href="#常见问题与陷阱" id="toc-常见问题与陷阱" class="nav-link" data-scroll-target="#常见问题与陷阱">常见问题与陷阱</a>
+  <ul class="collapse">
+  <li><a href="#平行趋势假设" id="toc-平行趋势假设" class="nav-link" data-scroll-target="#平行趋势假设">1. 平行趋势假设</a></li>
+  <li><a href="#预期效应" id="toc-预期效应" class="nav-link" data-scroll-target="#预期效应">2. 预期效应</a></li>
+  <li><a href="#溢出效应" id="toc-溢出效应" class="nav-link" data-scroll-target="#溢出效应">3. 溢出效应</a></li>
+  <li><a href="#交错处理下的-twfe-问题" id="toc-交错处理下的-twfe-问题" class="nav-link" data-scroll-target="#交错处理下的-twfe-问题">4. 交错处理下的 TWFE 问题</a></li>
+  <li><a href="#标准误聚类" id="toc-标准误聚类" class="nav-link" data-scroll-target="#标准误聚类">5. 标准误聚类</a></li>
+  </ul></li>
+  <li><a href="#完整分析模板" id="toc-完整分析模板" class="nav-link" data-scroll-target="#完整分析模板">完整分析模板</a></li>
+  <li><a href="#总结" id="toc-总结" class="nav-link" data-scroll-target="#总结">总结</a>
+  <ul class="collapse">
+  <li><a href="#报告-did-分析的-checklist" id="toc-报告-did-分析的-checklist" class="nav-link" data-scroll-target="#报告-did-分析的-checklist">报告 DiD 分析的 Checklist</a></li>
+  <li><a href="#推荐阅读" id="toc-推荐阅读" class="nav-link" data-scroll-target="#推荐阅读">推荐阅读</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content column-body" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1028-did.html">双重差分法 (DiD)</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">双重差分法 (DiD) 完全指南</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">R语言方法</div>
+    <div class="quarto-category">因果推断</div>
+    <div class="quarto-category">DiD</div>
+  </div>
+  </div>
+
+
+
+<div class="quarto-title-meta column-body">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">January 12, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="什么是双重差分法" class="level2">
+<h2 class="anchored" data-anchor-id="什么是双重差分法">什么是双重差分法？</h2>
+<p><strong>双重差分法（Difference-in-Differences, DiD）</strong> 是一种准实验设计方法，用于估计政策干预或事件的<strong>因果效应</strong>。它通过比较处理组和对照组在干预前后的变化差异来识别效应。</p>
+<section id="核心思想" class="level3">
+<h3 class="anchored" data-anchor-id="核心思想">核心思想</h3>
+<p><span class="math display">\[\text{DiD} = (\bar{Y}_{treat,post} - \bar{Y}_{treat,pre}) - (\bar{Y}_{control,post} - \bar{Y}_{control,pre})\]</span></p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>对比</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一重差分</td>
+<td>比较前后时间变化</td>
+</tr>
+<tr class="even">
+<td>第二重差分</td>
+<td>比较处理组与对照组</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="适用场景" class="level3">
+<h3 class="anchored" data-anchor-id="适用场景">适用场景</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>政策评估</td>
+<td>最低工资调整对就业的影响</td>
+</tr>
+<tr class="even">
+<td>公共卫生</td>
+<td>禁烟令对健康的影响</td>
+</tr>
+<tr class="odd">
+<td>医疗干预</td>
+<td>新药上市对处方行为的影响</td>
+</tr>
+<tr class="even">
+<td>教育政策</td>
+<td>学费补贴对入学率的影响</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="核心假设" class="level3">
+<h3 class="anchored" data-anchor-id="核心假设">核心假设</h3>
+<p><strong>平行趋势假设（Parallel Trends）</strong>： &gt; 如果没有干预，处理组和对照组的结局变量会呈现相同的时间趋势。</p>
+<p>这是 DiD 方法最关键的假设！</p>
+<hr>
+</section>
+</section>
+<section id="r-包安装与加载" class="level2">
+<h2 class="anchored" data-anchor-id="r-包安装与加载">R 包安装与加载</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 核心包</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse) <span class="co"># 数据处理</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(fixest) <span class="co"># 固定效应模型（推荐）</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(did) <span class="co"># Callaway &amp; Sant'Anna DiD</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(plm) <span class="co"># 面板数据</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2) <span class="co"># 可视化</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(broom) <span class="co"># 模型整理</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+<section id="数据准备" class="level2">
+<h2 class="anchored" data-anchor-id="数据准备">数据准备</h2>
+<p>模拟一个政策评估场景：某地区在 2018 年实施健康干预政策</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 模拟面板数据</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2024</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>n_units <span class="ot">&lt;-</span> <span class="dv">200</span> <span class="co"># 地区数</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>n_periods <span class="ot">&lt;-</span> <span class="dv">8</span> <span class="co"># 时间期数 (2015-2022)</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>treat_time <span class="ot">&lt;-</span> <span class="dv">4</span> <span class="co"># 干预发生时点 (第4期=2018年)</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 生成基础面板结构</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>panel_data <span class="ot">&lt;-</span> <span class="fu">expand_grid</span>(</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">unit_id =</span> <span class="dv">1</span><span class="sc">:</span>n_units,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> <span class="dv">1</span><span class="sc">:</span>n_periods</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">year =</span> <span class="dv">2014</span> <span class="sc">+</span> time,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 处理组分配（50%的地区接受干预）</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">treated =</span> <span class="fu">as.integer</span>(unit_id <span class="sc">&lt;=</span> n_units <span class="sc">/</span> <span class="dv">2</span>),</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 干预后标记</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">post =</span> <span class="fu">as.integer</span>(time <span class="sc">&gt;=</span> treat_time),</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># DiD 交互项</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="at">did =</span> treated <span class="sc">*</span> post,</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 单位固定效应</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        <span class="at">unit_fe =</span> <span class="fu">rep</span>(<span class="fu">rnorm</span>(n_units, <span class="dv">0</span>, <span class="dv">5</span>), <span class="at">each =</span> n_periods),</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 时间固定效应</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        <span class="at">time_fe =</span> <span class="fu">rep</span>(<span class="fu">rnorm</span>(n_periods, <span class="dv">0</span>, <span class="dv">2</span>), n_units),</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 个体时变协变量</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>        <span class="at">population =</span> <span class="fu">round</span>(<span class="dv">100000</span> <span class="sc">+</span> <span class="dv">50000</span> <span class="sc">*</span> <span class="fu">rnorm</span>(<span class="fu">n</span>()) <span class="sc">+</span> <span class="dv">5000</span> <span class="sc">*</span> time),</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>        <span class="at">income =</span> <span class="fu">round</span>(<span class="dv">30000</span> <span class="sc">+</span> <span class="dv">2000</span> <span class="sc">*</span> time <span class="sc">+</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), <span class="dv">0</span>, <span class="dv">5000</span>))</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a><span class="co"># 生成结局变量：疾病发病率</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="co"># 真实干预效应 = -3（降低 3 个发病率单位）</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>panel_data <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 基线发病率</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>        <span class="at">baseline_rate =</span> <span class="dv">50</span> <span class="sc">+</span> unit_fe <span class="sc">+</span> time_fe,</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 处理效应（真实效应 = -3）</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>        <span class="at">treatment_effect =</span> <span class="sc">-</span><span class="dv">3</span> <span class="sc">*</span> did,</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 平行趋势（干预前两组趋势相同）</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>        <span class="at">common_trend =</span> <span class="fl">0.5</span> <span class="sc">*</span> time,</span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 最终结局</span></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>        <span class="at">outcome =</span> baseline_rate <span class="sc">+</span> common_trend <span class="sc">+</span> treatment_effect <span class="sc">+</span></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>            <span class="fu">rnorm</span>(<span class="fu">n</span>(), <span class="dv">0</span>, <span class="dv">3</span>),</span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 转为因子</span></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>        <span class="at">unit_id =</span> <span class="fu">factor</span>(unit_id),</span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>        <span class="at">year =</span> <span class="fu">factor</span>(year)</span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(panel_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Rows: 1,600
+Columns: 14
+$ unit_id          &lt;fct&gt; 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3,…
+$ time             &lt;int&gt; 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2,…
+$ year             &lt;fct&gt; 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2015,…
+$ treated          &lt;int&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
+$ post             &lt;int&gt; 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0,…
+$ did              &lt;int&gt; 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0,…
+$ unit_fe          &lt;dbl&gt; 4.9098471, 4.9098471, 4.9098471, 4.9098471, 4.9098471…
+$ time_fe          &lt;dbl&gt; 0.004378923, 0.950728669, -1.555484993, 0.410755350, …
+$ population       &lt;dbl&gt; 149028, 131568, 80453, 147967, 96810, -7116, 167134, …
+$ income           &lt;dbl&gt; 26219, 36752, 46703, 30755, 36470, 36142, 46737, 5285…
+$ baseline_rate    &lt;dbl&gt; 54.91423, 55.86058, 53.35436, 55.32060, 56.95494, 52.…
+$ treatment_effect &lt;dbl&gt; 0, 0, 0, -3, -3, -3, -3, -3, 0, 0, 0, -3, -3, -3, -3,…
+$ common_trend     &lt;dbl&gt; 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 0.5, 1.0, 1.5…
+$ outcome          &lt;dbl&gt; 51.27613, 57.68301, 53.51673, 52.82152, 54.10289, 48.…</code></pre>
+</div>
+</div>
+<section id="探索性分析" class="level3">
+<h3 class="anchored" data-anchor-id="探索性分析">探索性分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算各组各时期的均值</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>group_means <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(treated, time) <span class="sc">|&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">mean_outcome =</span> <span class="fu">mean</span>(outcome),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">se =</span> <span class="fu">sd</span>(outcome) <span class="sc">/</span> <span class="fu">sqrt</span>(<span class="fu">n</span>()),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">group =</span> <span class="fu">factor</span>(treated, <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"对照组"</span>, <span class="st">"处理组"</span>)),</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">year =</span> <span class="dv">2014</span> <span class="sc">+</span> time</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 可视化趋势</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(group_means, <span class="fu">aes</span>(<span class="at">x =</span> year, <span class="at">y =</span> mean_outcome, <span class="at">color =</span> group)) <span class="sc">+</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_ribbon</span>(<span class="fu">aes</span>(</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">ymin =</span> mean_outcome <span class="sc">-</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">ymax =</span> mean_outcome <span class="sc">+</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        <span class="at">fill =</span> group</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    ), <span class="at">alpha =</span> <span class="fl">0.2</span>, <span class="at">color =</span> <span class="cn">NA</span>) <span class="sc">+</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="fl">2017.5</span>, <span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">color =</span> <span class="st">"gray50"</span>) <span class="sc">+</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">annotate</span>(<span class="st">"text"</span>,</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="fl">2017.5</span>, <span class="at">y =</span> <span class="fu">max</span>(group_means<span class="sc">$</span>mean_outcome),</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>        <span class="at">label =</span> <span class="st">"干预实施"</span>, <span class="at">hjust =</span> <span class="sc">-</span><span class="fl">0.1</span>, <span class="at">vjust =</span> <span class="dv">1</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"#4f46e5"</span>, <span class="st">"#ef4444"</span>)) <span class="sc">+</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"#4f46e5"</span>, <span class="st">"#ef4444"</span>)) <span class="sc">+</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"处理组与对照组的趋势比较"</span>,</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>        <span class="at">subtitle =</span> <span class="st">"干预前的平行趋势是 DiD 的关键假设"</span>,</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="st">"年份"</span>,</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> <span class="st">"发病率"</span>,</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"组别"</span>,</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>        <span class="at">fill =</span> <span class="st">"组别"</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_minimal</span>(<span class="at">base_size =</span> <span class="dv">12</span>) <span class="sc">+</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"bottom"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1028-did_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="基础-did-估计" class="level2">
+<h2 class="anchored" data-anchor-id="基础-did-估计">基础 DiD 估计</h2>
+<section id="did最简单情况" class="level3">
+<h3 class="anchored" data-anchor-id="did最简单情况">2×2 DiD（最简单情况）</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 保留干预前后各一期</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>did_2x2 <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(time <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">3</span>, <span class="dv">5</span>)) <span class="co"># 干预前一期 vs 干预后一期</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 基础 DiD 回归</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>basic_did <span class="ot">&lt;-</span> <span class="fu">lm</span>(outcome <span class="sc">~</span> treated <span class="sc">+</span> post <span class="sc">+</span> did, <span class="at">data =</span> did_2x2)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(basic_did)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Call:
+lm(formula = outcome ~ treated + post + did, data = did_2x2)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-18.5866  -3.9671  -0.1156   4.0321  16.3757 
+
+Coefficients:
+            Estimate Std. Error t value Pr(&gt;|t|)    
+(Intercept)  50.7672     0.6081  83.485  &lt; 2e-16 ***
+treated      -1.3255     0.8600  -1.541   0.1240    
+post          4.3712     0.8600   5.083 5.74e-07 ***
+did          -2.7537     1.2162  -2.264   0.0241 *  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 6.081 on 396 degrees of freedom
+Multiple R-squared:  0.1104,    Adjusted R-squared:  0.1036 
+F-statistic: 16.37 on 3 and 396 DF,  p-value: 4.748e-10</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 解读：did 系数就是 DiD 估计量</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"DiD 估计量:"</span>, <span class="fu">round</span>(<span class="fu">coef</span>(basic_did)[<span class="st">"did"</span>], <span class="dv">3</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>DiD 估计量: -2.754 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"真实效应: -3.000</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>真实效应: -3.000</code></pre>
+</div>
+</div>
+</section>
+<section id="手动计算-did" class="level3">
+<h3 class="anchored" data-anchor-id="手动计算-did">手动计算 DiD</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 手动验证 DiD</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>means_table <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(time <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">3</span>, <span class="dv">5</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(treated, post) <span class="sc">|&gt;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="at">mean_y =</span> <span class="fu">mean</span>(outcome), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pivot_wider</span>(</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">names_from =</span> post, <span class="at">values_from =</span> mean_y,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">names_prefix =</span> <span class="st">"post_"</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>means_table</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 3
+  treated post_0 post_1
+    &lt;int&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+1       0   50.8   55.1
+2       1   49.4   51.1</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># DiD = (处理组后 - 处理组前) - (对照组后 - 对照组前)</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>did_manual <span class="ot">&lt;-</span> (means_table<span class="sc">$</span>post_1[<span class="dv">2</span>] <span class="sc">-</span> means_table<span class="sc">$</span>post_0[<span class="dv">2</span>]) <span class="sc">-</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    (means_table<span class="sc">$</span>post_1[<span class="dv">1</span>] <span class="sc">-</span> means_table<span class="sc">$</span>post_0[<span class="dv">1</span>])</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"手动计算 DiD:"</span>, <span class="fu">round</span>(did_manual, <span class="dv">3</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>手动计算 DiD: -2.754 </code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="双向固定效应-didtwfe" class="level2">
+<h2 class="anchored" data-anchor-id="双向固定效应-didtwfe">双向固定效应 DiD（TWFE）</h2>
+<p>使用面板数据的标准方法：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 fixest 包（推荐）</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>twfe_model <span class="ot">&lt;-</span> <span class="fu">feols</span>(</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> did <span class="sc">|</span> unit_id <span class="sc">+</span> year, <span class="co"># 单位固定效应 + 时间固定效应</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> panel_data,</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">cluster =</span> <span class="sc">~</span>unit_id <span class="co"># 聚类标准误</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(twfe_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>OLS estimation, Dep. Var.: outcome
+Observations: 1,600
+Fixed-effects: unit_id: 200,  year: 8
+Standard-errors: Clustered (unit_id) 
+    Estimate Std. Error  t value  Pr(&gt;|t|)    
+did -2.84542   0.297556 -9.56264 &lt; 2.2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+RMSE: 2.8407     Adj. R2: 0.760579
+               Within R2: 0.055525</code></pre>
+</div>
+</div>
+<section id="添加控制变量" class="level3">
+<h3 class="anchored" data-anchor-id="添加控制变量">添加控制变量</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 添加时变协变量</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>twfe_controls <span class="ot">&lt;-</span> <span class="fu">feols</span>(</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> did <span class="sc">+</span> <span class="fu">log</span>(population) <span class="sc">+</span> <span class="fu">log</span>(income) <span class="sc">|</span> unit_id <span class="sc">+</span> year,</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> panel_data,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">cluster =</span> <span class="sc">~</span>unit_id</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(twfe_controls)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>OLS estimation, Dep. Var.: outcome
+Observations: 1,591
+Fixed-effects: unit_id: 200,  year: 8
+Standard-errors: Clustered (unit_id) 
+                 Estimate Std. Error   t value  Pr(&gt;|t|)    
+did             -2.818033   0.295763 -9.527999 &lt; 2.2e-16 ***
+log(population) -0.115437   0.155857 -0.740660   0.45977    
+log(income)      0.495693   0.590165  0.839922   0.40196    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+RMSE: 2.84025     Adj. R2: 0.760808
+                Within R2: 0.054949</code></pre>
+</div>
+</div>
+</section>
+<section id="模型比较" class="level3">
+<h3 class="anchored" data-anchor-id="模型比较">模型比较</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 fixest 的模型比较表格</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="fu">etable</span>(twfe_model, twfe_controls,</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">headers =</span> <span class="fu">c</span>(<span class="st">"基础模型"</span>, <span class="st">"含控制变量"</span>),</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">fitstat =</span> <span class="fu">c</span>(<span class="st">"n"</span>, <span class="st">"r2"</span>, <span class="st">"ar2"</span>)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                        twfe_model      twfe_controls
+                      基础模型    含控制变量
+Dependent Var.:            outcome            outcome
+                                                     
+did             -2.845*** (0.2976) -2.818*** (0.2958)
+log(population)                      -0.1154 (0.1559)
+log(income)                           0.4957 (0.5902)
+Fixed-Effects:  ------------------ ------------------
+unit_id                        Yes                Yes
+year                           Yes                Yes
+_______________ __________________ __________________
+S.E.: Clustered        by: unit_id        by: unit_id
+Observations                 1,600              1,591
+R2                         0.79157            0.79225
+Adj. R2                    0.76058            0.76081
+---
+Signif. codes: 0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="平行趋势检验" class="level2">
+<h2 class="anchored" data-anchor-id="平行趋势检验">平行趋势检验</h2>
+<section id="事件研究法event-study" class="level3">
+<h3 class="anchored" data-anchor-id="事件研究法event-study">事件研究法（Event Study）</h3>
+<p>事件研究法是检验平行趋势的标准方法：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建相对时间变量</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>panel_data <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">rel_time =</span> time <span class="sc">-</span> treat_time,</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 创建各期指示变量（处理组 × 相对时期）</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">rel_time_factor =</span> <span class="fu">factor</span>(rel_time)</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 事件研究回归（以 t-1 为参照期）</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>es_model <span class="ot">&lt;-</span> <span class="fu">feols</span>(</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> <span class="fu">i</span>(rel_time_factor, treated, <span class="at">ref =</span> <span class="sc">-</span><span class="dv">1</span>) <span class="sc">|</span> unit_id <span class="sc">+</span> year,</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> panel_data,</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">cluster =</span> <span class="sc">~</span>unit_id</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(es_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>OLS estimation, Dep. Var.: outcome
+Observations: 1,600
+Fixed-effects: unit_id: 200,  year: 8
+Standard-errors: Clustered (unit_id) 
+                             Estimate Std. Error   t value   Pr(&gt;|t|)    
+rel_time_factor::-3:treated  0.261268   0.583770  0.447552 6.5496e-01    
+rel_time_factor::-2:treated  0.405381   0.613904  0.660333 5.0980e-01    
+rel_time_factor::0:treated  -2.865183   0.551963 -5.190901 5.1468e-07 ***
+rel_time_factor::1:treated  -2.753691   0.629742 -4.372727 1.9767e-05 ***
+rel_time_factor::2:treated  -2.487630   0.583297 -4.264777 3.0907e-05 ***
+rel_time_factor::3:treated  -2.860663   0.615626 -4.646752 6.1265e-06 ***
+rel_time_factor::4:treated  -2.148864   0.617776 -3.478385 6.1956e-04 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+RMSE: 2.83817     Adj. R2: 0.75997 
+                Within R2: 0.057206</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 可视化事件研究图</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">iplot</span>(es_model,</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"事件研究图（Event Study）"</span>,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">xlab =</span> <span class="st">"相对于干预的时期"</span>,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">ylab =</span> <span class="st">"DiD 估计量"</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 添加参照线</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="fu">abline</span>(<span class="at">h =</span> <span class="dv">0</span>, <span class="at">lty =</span> <span class="dv">2</span>, <span class="at">col =</span> <span class="st">"gray"</span>)</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="fu">abline</span>(<span class="at">v =</span> <span class="sc">-</span><span class="fl">0.5</span>, <span class="at">lty =</span> <span class="dv">2</span>, <span class="at">col =</span> <span class="st">"red"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1028-did_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="自定义事件研究图" class="level3">
+<h3 class="anchored" data-anchor-id="自定义事件研究图">自定义事件研究图</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 提取事件研究系数</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>es_coefs <span class="ot">&lt;-</span> <span class="fu">tidy</span>(es_model, <span class="at">conf.int =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(<span class="fu">str_detect</span>(term, <span class="st">"rel_time"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">rel_time =</span> <span class="fu">as.numeric</span>(<span class="fu">str_extract</span>(term, <span class="st">"-?</span><span class="sc">\\</span><span class="st">d+"</span>)),</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">significant =</span> p.value <span class="sc">&lt;</span> <span class="fl">0.05</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 添加参照期（t-1 = 0）</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>es_coefs <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    es_coefs,</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">tibble</span>(<span class="at">rel_time =</span> <span class="sc">-</span><span class="dv">1</span>, <span class="at">estimate =</span> <span class="dv">0</span>, <span class="at">conf.low =</span> <span class="dv">0</span>, <span class="at">conf.high =</span> <span class="dv">0</span>)</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">arrange</span>(rel_time)</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 高质量可视化</span></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(es_coefs, <span class="fu">aes</span>(<span class="at">x =</span> rel_time, <span class="at">y =</span> estimate)) <span class="sc">+</span></span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 阴影区分干预前后</span></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">annotate</span>(<span class="st">"rect"</span>,</span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">xmin =</span> <span class="sc">-</span><span class="fl">0.5</span>, <span class="at">xmax =</span> <span class="cn">Inf</span>, <span class="at">ymin =</span> <span class="sc">-</span><span class="cn">Inf</span>, <span class="at">ymax =</span> <span class="cn">Inf</span>,</span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a>        <span class="at">fill =</span> <span class="st">"#fee2e2"</span>, <span class="at">alpha =</span> <span class="fl">0.5</span></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 参照线</span></span>
+<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>, <span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">color =</span> <span class="st">"gray50"</span>) <span class="sc">+</span></span>
+<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="sc">-</span><span class="fl">0.5</span>, <span class="at">linetype =</span> <span class="st">"solid"</span>, <span class="at">color =</span> <span class="st">"#ef4444"</span>) <span class="sc">+</span></span>
+<span id="cb24-26"><a href="#cb24-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 置信区间</span></span>
+<span id="cb24-27"><a href="#cb24-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_errorbar</span>(<span class="fu">aes</span>(<span class="at">ymin =</span> conf.low, <span class="at">ymax =</span> conf.high),</span>
+<span id="cb24-28"><a href="#cb24-28" aria-hidden="true" tabindex="-1"></a>        <span class="at">width =</span> <span class="fl">0.2</span>, <span class="at">color =</span> <span class="st">"#4f46e5"</span></span>
+<span id="cb24-29"><a href="#cb24-29" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb24-30"><a href="#cb24-30" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 点估计</span></span>
+<span id="cb24-31"><a href="#cb24-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>, <span class="at">color =</span> <span class="st">"#4f46e5"</span>) <span class="sc">+</span></span>
+<span id="cb24-32"><a href="#cb24-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">color =</span> <span class="st">"#4f46e5"</span>, <span class="at">alpha =</span> <span class="fl">0.5</span>) <span class="sc">+</span></span>
+<span id="cb24-33"><a href="#cb24-33" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 标注干预点</span></span>
+<span id="cb24-34"><a href="#cb24-34" aria-hidden="true" tabindex="-1"></a>    <span class="fu">annotate</span>(<span class="st">"text"</span>,</span>
+<span id="cb24-35"><a href="#cb24-35" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="fl">0.5</span>, <span class="at">y =</span> <span class="fu">max</span>(es_coefs<span class="sc">$</span>estimate, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb24-36"><a href="#cb24-36" aria-hidden="true" tabindex="-1"></a>        <span class="at">label =</span> <span class="st">"干预后"</span>, <span class="at">color =</span> <span class="st">"#ef4444"</span>, <span class="at">fontface =</span> <span class="st">"bold"</span></span>
+<span id="cb24-37"><a href="#cb24-37" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb24-38"><a href="#cb24-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb24-39"><a href="#cb24-39" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"事件研究图：平行趋势检验"</span>,</span>
+<span id="cb24-40"><a href="#cb24-40" aria-hidden="true" tabindex="-1"></a>        <span class="at">subtitle =</span> <span class="st">"干预前系数应接近 0（平行趋势假设）"</span>,</span>
+<span id="cb24-41"><a href="#cb24-41" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="st">"相对于干预的时期"</span>,</span>
+<span id="cb24-42"><a href="#cb24-42" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> <span class="st">"估计效应"</span>,</span>
+<span id="cb24-43"><a href="#cb24-43" aria-hidden="true" tabindex="-1"></a>        <span class="at">caption =</span> <span class="st">"误差棒: 95% 置信区间 | 参照期: t-1"</span></span>
+<span id="cb24-44"><a href="#cb24-44" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb24-45"><a href="#cb24-45" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_minimal</span>(<span class="at">base_size =</span> <span class="dv">12</span>) <span class="sc">+</span></span>
+<span id="cb24-46"><a href="#cb24-46" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(<span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1028-did_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="平行趋势的正式检验" class="level3">
+<h3 class="anchored" data-anchor-id="平行趋势的正式检验">平行趋势的正式检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 联合检验：干预前所有系数是否同时为 0</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>pre_treatment_terms <span class="ot">&lt;-</span> <span class="fu">names</span>(<span class="fu">coef</span>(es_model))[<span class="fu">str_detect</span>(<span class="fu">names</span>(<span class="fu">coef</span>(es_model)), <span class="st">":-[2-9]|:-1[0-9]"</span>)]</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果有干预前的系数，进行 F 检验</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">length</span>(pre_treatment_terms) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    wald_test <span class="ot">&lt;-</span> <span class="fu">wald</span>(es_model, pre_treatment_terms)</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">print</span>(wald_test)</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Wald test, H0: joint nullity of rel_time_factor::-3:treated and rel_time_factor::-2:treated
+ stat = 0.233644, p-value = 0.791675, on 2 and 1,386 DoF, VCOV: Clustered (unit_id).$stat
+[1] 0.2336438
+
+$p
+[1] 0.791675
+
+$df1
+[1] 2
+
+$df2
+[1] 1386
+
+$vcov
+[1] "Clustered (unit_id)"</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="交错处理-did" class="level2">
+<h2 class="anchored" data-anchor-id="交错处理-did">交错处理 DiD</h2>
+<p>当不同单位在不同时间接受处理时：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 模拟交错处理数据</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">42</span>)</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>staggered_data <span class="ot">&lt;-</span> <span class="fu">expand_grid</span>(</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">unit_id =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>,</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 不同单位的处理时点</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">treat_time_unit =</span> <span class="fu">case_when</span>(</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>            unit_id <span class="sc">&lt;=</span> <span class="dv">30</span> <span class="sc">~</span> <span class="dv">4</span>, <span class="co"># 第一组：第4期处理</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>            unit_id <span class="sc">&lt;=</span> <span class="dv">60</span> <span class="sc">~</span> <span class="dv">6</span>, <span class="co"># 第二组：第6期处理</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>            unit_id <span class="sc">&lt;=</span> <span class="dv">80</span> <span class="sc">~</span> <span class="dv">8</span>, <span class="co"># 第三组：第8期处理</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>            <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span> <span class="co"># 对照组：从不处理</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 处理状态</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">treated =</span> <span class="fu">as.integer</span>(<span class="sc">!</span><span class="fu">is.na</span>(treat_time_unit) <span class="sc">&amp;</span> time <span class="sc">&gt;=</span> treat_time_unit),</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 结局变量</span></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>        <span class="at">outcome =</span> <span class="dv">50</span> <span class="sc">+</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), unit_id <span class="sc">/</span> <span class="dv">5</span>, <span class="dv">3</span>) <span class="sc">+</span> <span class="fl">0.5</span> <span class="sc">*</span> time <span class="sc">-</span> <span class="fl">2.5</span> <span class="sc">*</span> treated <span class="sc">+</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), <span class="dv">0</span>, <span class="dv">2</span>),</span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>        <span class="at">unit_id =</span> <span class="fu">factor</span>(unit_id),</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>        <span class="at">year =</span> <span class="fu">factor</span>(<span class="dv">2014</span> <span class="sc">+</span> time),</span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>        <span class="at">cohort =</span> <span class="fu">factor</span>(<span class="fu">case_when</span>(</span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>            treat_time_unit <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="st">"2018"</span>,</span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a>            treat_time_unit <span class="sc">==</span> <span class="dv">6</span> <span class="sc">~</span> <span class="st">"2020"</span>,</span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a>            treat_time_unit <span class="sc">==</span> <span class="dv">8</span> <span class="sc">~</span> <span class="st">"2022"</span>,</span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true" tabindex="-1"></a>            <span class="cn">TRUE</span> <span class="sc">~</span> <span class="st">"从不处理"</span></span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true" tabindex="-1"></a>        ))</span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb27-31"><a href="#cb27-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-32"><a href="#cb27-32" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(staggered_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 6 × 7
+  unit_id  time treat_time_unit treated outcome year  cohort
+  &lt;fct&gt;   &lt;int&gt;           &lt;dbl&gt;   &lt;int&gt;   &lt;dbl&gt; &lt;fct&gt; &lt;fct&gt; 
+1 1           1               4       0    59.5 2015  2018  
+2 1           2               4       0    50.6 2016  2018  
+3 1           3               4       0    54.7 2017  2018  
+4 1           4               4       1    52.4 2018  2018  
+5 1           5               4       1    49.4 2019  2018  
+6 1           6               4       1    49.2 2020  2018  </code></pre>
+</div>
+</div>
+<section id="callaway-santanna-估计器" class="level3">
+<h3 class="anchored" data-anchor-id="callaway-santanna-估计器">Callaway-Sant’Anna 估计器</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 did 包的现代方法</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>staggered_data_num <span class="ot">&lt;-</span> staggered_data <span class="sc">|&gt;</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">unit_id =</span> <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(unit_id)),</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">time =</span> <span class="dv">2014</span> <span class="sc">+</span> <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(year)) <span class="sc">-</span> <span class="dv">2014</span>,</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">first_treat =</span> treat_time_unit <span class="sc">+</span> <span class="dv">2014</span>,</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">first_treat =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(first_treat), <span class="dv">0</span>, first_treat) <span class="co"># 从不处理设为 0</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Callaway-Sant'Anna ATT(g,t)</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>cs_result <span class="ot">&lt;-</span> <span class="fu">att_gt</span>(</span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">yname =</span> <span class="st">"outcome"</span>,</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">tname =</span> <span class="st">"time"</span>,</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">idname =</span> <span class="st">"unit_id"</span>,</span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">gname =</span> <span class="st">"first_treat"</span>,</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> <span class="fu">as.data.frame</span>(staggered_data_num),</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">control_group =</span> <span class="st">"nevertreated"</span> <span class="co"># 使用从不处理组作为对照</span></span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(cs_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Call:
+att_gt(yname = "outcome", tname = "time", idname = "unit_id", 
+    gname = "first_treat", data = as.data.frame(staggered_data_num), 
+    control_group = "nevertreated")
+
+Reference: Callaway, Brantly and Pedro H.C. Sant'Anna.  "Difference-in-Differences with Multiple Time Periods." Journal of Econometrics, Vol. 225, No. 2, pp. 200-230, 2021. &lt;https://doi.org/10.1016/j.jeconom.2020.12.001&gt;, &lt;https://arxiv.org/abs/1803.09015&gt; 
+
+Group-Time Average Treatment Effects:
+ Group Time ATT(g,t) Std. Error [95% Simult.  Conf. Band]  
+  2018 2016  -1.4185     1.4147       -5.5896      2.7527  
+  2018 2017   0.5697     1.2634       -3.1554      4.2947  
+  2018 2018  -0.7454     1.2441       -4.4138      2.9229  
+  2018 2019  -1.8390     1.4593       -6.1417      2.4637  
+  2018 2020  -1.7104     1.5705       -6.3412      2.9204  
+  2018 2021  -1.3518     1.2803       -5.1268      2.4231  
+  2018 2022  -3.5454     1.3629       -7.5640      0.4732  
+  2018 2023  -4.3045     1.5907       -8.9946      0.3857  
+  2018 2024  -2.4410     1.9255       -8.1183      3.2362  
+  2020 2016  -2.8201     1.4833       -7.1935      1.5533  
+  2020 2017   0.4182     1.2621       -3.3033      4.1397  
+  2020 2018   0.5867     1.2960       -3.2346      4.4080  
+  2020 2019   2.9767     1.2955       -0.8431      6.7964  
+  2020 2020  -4.2941     1.6671       -9.2096      0.6213  
+  2020 2021  -4.7660     1.4661       -9.0888     -0.4433 *
+  2020 2022  -6.4106     1.4336      -10.6375     -2.1836 *
+  2020 2023  -5.7517     1.6456      -10.6039     -0.8995 *
+  2020 2024  -6.1822     1.9778      -12.0138     -0.3506 *
+  2022 2016  -1.1763     1.6367       -6.0022      3.6496  
+  2022 2017  -1.2594     1.5486       -5.8254      3.3066  
+  2022 2018   1.9291     1.4074       -2.2208      6.0789  
+  2022 2019   1.5848     1.3592       -2.4228      5.5923  
+  2022 2020  -1.3853     1.7944       -6.6760      3.9055  
+  2022 2021  -1.8428     1.5575       -6.4352      2.7496  
+  2022 2022  -1.4912     1.3927       -5.5977      2.6154  
+  2022 2023  -2.7435     1.6262       -7.5385      2.0515  
+  2022 2024  -1.8666     1.7832       -7.1243      3.3910  
+---
+Signif. codes: `*' confidence band does not cover 0
+
+P-value for pre-test of parallel trends assumption:  0.27625
+Control Group:  Never Treated,  Anticipation Periods:  0
+Estimation Method:  Doubly Robust</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 聚合为整体 ATT</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>cs_agg <span class="ot">&lt;-</span> <span class="fu">aggte</span>(cs_result, <span class="at">type =</span> <span class="st">"simple"</span>)</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(cs_agg)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Call:
+aggte(MP = cs_result, type = "simple")
+
+Reference: Callaway, Brantly and Pedro H.C. Sant'Anna.  "Difference-in-Differences with Multiple Time Periods." Journal of Econometrics, Vol. 225, No. 2, pp. 200-230, 2021. &lt;https://doi.org/10.1016/j.jeconom.2020.12.001&gt;, &lt;https://arxiv.org/abs/1803.09015&gt; 
+
+     ATT    Std. Error     [ 95%  Conf. Int.]  
+ -3.3864        0.7648    -4.8853     -1.8875 *
+
+
+---
+Signif. codes: `*' confidence band does not cover 0
+
+Control Group:  Never Treated,  Anticipation Periods:  0
+Estimation Method:  Doubly Robust</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 事件研究图</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>cs_dynamic <span class="ot">&lt;-</span> <span class="fu">aggte</span>(cs_result, <span class="at">type =</span> <span class="st">"dynamic"</span>)</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdid</span>(cs_dynamic, <span class="at">title =</span> <span class="st">"交错 DiD 事件研究图"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1028-did_files/figure-html/unnamed-chunk-17-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="安慰剂检验" class="level2">
+<h2 class="anchored" data-anchor-id="安慰剂检验">安慰剂检验</h2>
+<section id="时间安慰剂" class="level3">
+<h3 class="anchored" data-anchor-id="时间安慰剂">时间安慰剂</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 假设干预发生在更早的时间</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>panel_data_placebo <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 假装干预在 t=2 时发生</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">fake_post =</span> <span class="fu">as.integer</span>(time <span class="sc">&gt;=</span> <span class="dv">2</span> <span class="sc">&amp;</span> time <span class="sc">&lt;</span> <span class="dv">4</span>),</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">fake_did =</span> treated <span class="sc">*</span> fake_post</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(time <span class="sc">&lt;</span> <span class="dv">4</span>) <span class="co"># 只用干预前数据</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>placebo_model <span class="ot">&lt;-</span> <span class="fu">feols</span>(</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> fake_did <span class="sc">|</span> unit_id <span class="sc">+</span> time,</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> panel_data_placebo,</span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">cluster =</span> <span class="sc">~</span>unit_id</span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(placebo_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>OLS estimation, Dep. Var.: outcome
+Observations: 600
+Fixed-effects: unit_id: 200,  time: 3
+Standard-errors: Clustered (unit_id) 
+          Estimate Std. Error   t value Pr(&gt;|t|) 
+fake_did -0.058577   0.526645 -0.111227  0.91155 
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+RMSE: 2.48101     Adj. R2: 0.749052
+                Within R2: 3.097e-5</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果 fake_did 显著，说明平行趋势假设可能不满足</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="组别安慰剂" class="level3">
+<h3 class="anchored" data-anchor-id="组别安慰剂">组别安慰剂</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 在从未处理的组中随机分配"假处理"</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>never_treated <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(treated <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">|&gt;</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">fake_treated =</span> <span class="fu">as.integer</span>(unit_id <span class="sc">%in%</span> <span class="fu">sample</span>(</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>            <span class="fu">unique</span>(unit_id),</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>            <span class="fu">length</span>(<span class="fu">unique</span>(unit_id)) <span class="sc">/</span> <span class="dv">2</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>        )),</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">fake_did =</span> fake_treated <span class="sc">*</span> post</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>placebo_group <span class="ot">&lt;-</span> <span class="fu">feols</span>(</span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> fake_did <span class="sc">|</span> unit_id <span class="sc">+</span> year,</span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> never_treated,</span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">cluster =</span> <span class="sc">~</span>unit_id</span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(placebo_group)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>OLS estimation, Dep. Var.: outcome
+Observations: 800
+Fixed-effects: unit_id: 100,  year: 8
+Standard-errors: Clustered (unit_id) 
+         Estimate Std. Error  t value Pr(&gt;|t|) 
+fake_did 0.353765   0.442619 0.799253  0.42606 
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+RMSE: 2.78359     Adj. R2: 0.756684
+                Within R2: 9.455e-4</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fake_did 应该不显著</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="结果可视化" class="level2">
+<h2 class="anchored" data-anchor-id="结果可视化">结果可视化</h2>
+<section id="did-图解" class="level3">
+<h3 class="anchored" data-anchor-id="did-图解">DiD 图解</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建直观的 DiD 可视化</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>did_visual <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(treated, post) <span class="sc">|&gt;</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="at">mean_y =</span> <span class="fu">mean</span>(outcome), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">group =</span> <span class="fu">factor</span>(treated, <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"对照组"</span>, <span class="st">"处理组"</span>)),</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">period =</span> <span class="fu">factor</span>(post, <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"干预前"</span>, <span class="st">"干预后"</span>))</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘图</span></span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(did_visual, <span class="fu">aes</span>(<span class="at">x =</span> period, <span class="at">y =</span> mean_y, <span class="at">color =</span> group, <span class="at">group =</span> group)) <span class="sc">+</span></span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="fl">1.5</span>) <span class="sc">+</span></span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 添加反事实线</span></span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_segment</span>(</span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a>        <span class="fu">aes</span>(</span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a>            <span class="at">x =</span> <span class="dv">1</span>, <span class="at">xend =</span> <span class="dv">2</span>,</span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a>            <span class="at">y =</span> did_visual<span class="sc">$</span>mean_y[did_visual<span class="sc">$</span>group <span class="sc">==</span> <span class="st">"处理组"</span> <span class="sc">&amp;</span> did_visual<span class="sc">$</span>period <span class="sc">==</span> <span class="st">"干预前"</span>],</span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a>            <span class="at">yend =</span> did_visual<span class="sc">$</span>mean_y[did_visual<span class="sc">$</span>group <span class="sc">==</span> <span class="st">"处理组"</span> <span class="sc">&amp;</span> did_visual<span class="sc">$</span>period <span class="sc">==</span> <span class="st">"干预前"</span>] <span class="sc">+</span></span>
+<span id="cb40-20"><a href="#cb40-20" aria-hidden="true" tabindex="-1"></a>                <span class="fu">diff</span>(did_visual<span class="sc">$</span>mean_y[did_visual<span class="sc">$</span>group <span class="sc">==</span> <span class="st">"对照组"</span>])</span>
+<span id="cb40-21"><a href="#cb40-21" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb40-22"><a href="#cb40-22" aria-hidden="true" tabindex="-1"></a>        <span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">color =</span> <span class="st">"#ef4444"</span>, <span class="at">alpha =</span> <span class="fl">0.5</span>, <span class="at">linewidth =</span> <span class="dv">1</span></span>
+<span id="cb40-23"><a href="#cb40-23" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb40-24"><a href="#cb40-24" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 标注 DiD</span></span>
+<span id="cb40-25"><a href="#cb40-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">annotate</span>(<span class="st">"segment"</span>,</span>
+<span id="cb40-26"><a href="#cb40-26" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="fl">2.1</span>, <span class="at">xend =</span> <span class="fl">2.1</span>,</span>
+<span id="cb40-27"><a href="#cb40-27" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> did_visual<span class="sc">$</span>mean_y[did_visual<span class="sc">$</span>group <span class="sc">==</span> <span class="st">"处理组"</span> <span class="sc">&amp;</span> did_visual<span class="sc">$</span>period <span class="sc">==</span> <span class="st">"干预后"</span>],</span>
+<span id="cb40-28"><a href="#cb40-28" aria-hidden="true" tabindex="-1"></a>        <span class="at">yend =</span> did_visual<span class="sc">$</span>mean_y[did_visual<span class="sc">$</span>group <span class="sc">==</span> <span class="st">"处理组"</span> <span class="sc">&amp;</span> did_visual<span class="sc">$</span>period <span class="sc">==</span> <span class="st">"干预前"</span>] <span class="sc">+</span></span>
+<span id="cb40-29"><a href="#cb40-29" aria-hidden="true" tabindex="-1"></a>            <span class="fu">diff</span>(did_visual<span class="sc">$</span>mean_y[did_visual<span class="sc">$</span>group <span class="sc">==</span> <span class="st">"对照组"</span>]),</span>
+<span id="cb40-30"><a href="#cb40-30" aria-hidden="true" tabindex="-1"></a>        <span class="at">arrow =</span> <span class="fu">arrow</span>(<span class="at">length =</span> <span class="fu">unit</span>(<span class="fl">0.3</span>, <span class="st">"cm"</span>), <span class="at">ends =</span> <span class="st">"both"</span>),</span>
+<span id="cb40-31"><a href="#cb40-31" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"#22c55e"</span></span>
+<span id="cb40-32"><a href="#cb40-32" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb40-33"><a href="#cb40-33" aria-hidden="true" tabindex="-1"></a>    <span class="fu">annotate</span>(<span class="st">"text"</span>,</span>
+<span id="cb40-34"><a href="#cb40-34" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="fl">2.2</span>, <span class="at">y =</span> <span class="fu">mean</span>(did_visual<span class="sc">$</span>mean_y),</span>
+<span id="cb40-35"><a href="#cb40-35" aria-hidden="true" tabindex="-1"></a>        <span class="at">label =</span> <span class="st">"DiD</span><span class="sc">\n</span><span class="st">效应"</span>, <span class="at">color =</span> <span class="st">"#22c55e"</span>, <span class="at">fontface =</span> <span class="st">"bold"</span></span>
+<span id="cb40-36"><a href="#cb40-36" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb40-37"><a href="#cb40-37" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"#4f46e5"</span>, <span class="st">"#ef4444"</span>)) <span class="sc">+</span></span>
+<span id="cb40-38"><a href="#cb40-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb40-39"><a href="#cb40-39" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"双重差分法图解"</span>,</span>
+<span id="cb40-40"><a href="#cb40-40" aria-hidden="true" tabindex="-1"></a>        <span class="at">subtitle =</span> <span class="st">"虚线: 处理组的反事实趋势（如果未受干预）"</span>,</span>
+<span id="cb40-41"><a href="#cb40-41" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="st">"时期"</span>,</span>
+<span id="cb40-42"><a href="#cb40-42" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> <span class="st">"结局变量"</span>,</span>
+<span id="cb40-43"><a href="#cb40-43" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"组别"</span></span>
+<span id="cb40-44"><a href="#cb40-44" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb40-45"><a href="#cb40-45" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_minimal</span>(<span class="at">base_size =</span> <span class="dv">12</span>) <span class="sc">+</span></span>
+<span id="cb40-46"><a href="#cb40-46" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"bottom"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1028-did_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="异质性分析" class="level2">
+<h2 class="anchored" data-anchor-id="异质性分析">异质性分析</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 按协变量分组估计异质性效应</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>panel_data <span class="ot">&lt;-</span> panel_data <span class="sc">|&gt;</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">income_group =</span> <span class="fu">ifelse</span>(income <span class="sc">&gt;</span> <span class="fu">median</span>(income), <span class="st">"高收入"</span>, <span class="st">"低收入"</span>)</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 分组回归</span></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>het_model <span class="ot">&lt;-</span> <span class="fu">feols</span>(</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> did <span class="sc">|</span> unit_id <span class="sc">+</span> year,</span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> panel_data,</span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">cluster =</span> <span class="sc">~</span>unit_id,</span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">split =</span> <span class="sc">~</span>income_group</span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a><span class="fu">etable</span>(het_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                             het_model.1        het_model.2
+Sample (income_group)          低收入          高收入
+Dependent Var.:                  outcome            outcome
+                                                           
+did                   -3.387*** (0.4936) -2.238*** (0.5974)
+Fixed-Effects:        ------------------ ------------------
+unit_id                              Yes                Yes
+year                                 Yes                Yes
+_____________________ __________________ __________________
+S.E.: Clustered              by: unit_id        by: unit_id
+Observations                         799                798
+R2                               0.83248            0.81211
+Within R2                        0.07877            0.01714
+---
+Signif. codes: 0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="常见问题与陷阱" class="level2">
+<h2 class="anchored" data-anchor-id="常见问题与陷阱">常见问题与陷阱</h2>
+<section id="平行趋势假设" class="level3">
+<h3 class="anchored" data-anchor-id="平行趋势假设">1. 平行趋势假设</h3>
+<div class="sourceCode" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 这是 DiD 的核心假设，无法直接检验</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 解决方案：</span></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="co"># - 事件研究图</span></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="co"># - 安慰剂检验</span></span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="co"># - 收集更多干预前时期</span></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a><span class="co"># - 使用合成控制法作为补充</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="预期效应" class="level3">
+<h3 class="anchored" data-anchor-id="预期效应">2. 预期效应</h3>
+<div class="sourceCode" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果处理组在干预前就开始改变行为</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 干预前系数可能不为 0</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 需要理解政策公布和实施的时间差</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="溢出效应" class="level3">
+<h3 class="anchored" data-anchor-id="溢出效应">3. 溢出效应</h3>
+<div class="sourceCode" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果处理影响了对照组</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="co"># DiD 估计会有偏</span></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 需要选择不受影响的对照组</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="交错处理下的-twfe-问题" class="level3">
+<h3 class="anchored" data-anchor-id="交错处理下的-twfe-问题">4. 交错处理下的 TWFE 问题</h3>
+<div class="sourceCode" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 标准 TWFE 在交错处理下可能有偏</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 推荐使用：</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a><span class="co"># - Callaway-Sant'Anna (2021)</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a><span class="co"># - Sun-Abraham (2021)</span></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a><span class="co"># - de Chaisemartin-D'Haultfœuille (2020)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="标准误聚类" class="level3">
+<h3 class="anchored" data-anchor-id="标准误聚类">5. 标准误聚类</h3>
+<div class="sourceCode" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 面板数据通常需要在处理单位层面聚类</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果处理单位少（&lt; 50），考虑 Wild bootstrap</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<hr>
+</section>
+</section>
+<section id="完整分析模板" class="level2">
+<h2 class="anchored" data-anchor-id="完整分析模板">完整分析模板</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ========== DiD 分析完整流程 ==========</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(fixest)</span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(did)</span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 数据准备</span></span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>data <span class="ot">&lt;-</span> data <span class="sc">|&gt;</span></span>
+<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb48-9"><a href="#cb48-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">did =</span> treated <span class="sc">*</span> post</span>
+<span id="cb48-10"><a href="#cb48-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb48-11"><a href="#cb48-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-12"><a href="#cb48-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 可视化趋势</span></span>
+<span id="cb48-13"><a href="#cb48-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查干预前是否平行</span></span>
+<span id="cb48-14"><a href="#cb48-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-15"><a href="#cb48-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 基础 TWFE 估计</span></span>
+<span id="cb48-16"><a href="#cb48-16" aria-hidden="true" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">feols</span>(y <span class="sc">~</span> did <span class="sc">|</span> unit <span class="sc">+</span> time, data, <span class="at">cluster =</span> <span class="sc">~</span>unit)</span>
+<span id="cb48-17"><a href="#cb48-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-18"><a href="#cb48-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 事件研究</span></span>
+<span id="cb48-19"><a href="#cb48-19" aria-hidden="true" tabindex="-1"></a>es <span class="ot">&lt;-</span> <span class="fu">feols</span>(y <span class="sc">~</span> <span class="fu">i</span>(rel_time, treated, <span class="at">ref =</span> <span class="sc">-</span><span class="dv">1</span>) <span class="sc">|</span> unit <span class="sc">+</span> time, data)</span>
+<span id="cb48-20"><a href="#cb48-20" aria-hidden="true" tabindex="-1"></a><span class="fu">iplot</span>(es)</span>
+<span id="cb48-21"><a href="#cb48-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-22"><a href="#cb48-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 安慰剂检验</span></span>
+<span id="cb48-23"><a href="#cb48-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 时间安慰剂 + 组别安慰剂</span></span>
+<span id="cb48-24"><a href="#cb48-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-25"><a href="#cb48-25" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 稳健性检验</span></span>
+<span id="cb48-26"><a href="#cb48-26" aria-hidden="true" tabindex="-1"></a><span class="co"># - 不同控制组</span></span>
+<span id="cb48-27"><a href="#cb48-27" aria-hidden="true" tabindex="-1"></a><span class="co"># - 不同时间窗口</span></span>
+<span id="cb48-28"><a href="#cb48-28" aria-hidden="true" tabindex="-1"></a><span class="co"># - 添加/移除控制变量</span></span>
+<span id="cb48-29"><a href="#cb48-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-30"><a href="#cb48-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. 交错处理（如适用）</span></span>
+<span id="cb48-31"><a href="#cb48-31" aria-hidden="true" tabindex="-1"></a>cs <span class="ot">&lt;-</span> <span class="fu">att_gt</span>(yname, tname, idname, gname, data)</span>
+<span id="cb48-32"><a href="#cb48-32" aria-hidden="true" tabindex="-1"></a><span class="fu">aggte</span>(cs, <span class="at">type =</span> <span class="st">"simple"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+<section id="总结" class="level2">
+<h2 class="anchored" data-anchor-id="总结">总结</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>步骤</th>
+<th>内容</th>
+<th>R 函数/包</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>数据准备</td>
+<td>创建 DiD 交互项</td>
+<td><code>mutate()</code></td>
+</tr>
+<tr class="even">
+<td>趋势可视化</td>
+<td>检查平行趋势</td>
+<td><code>ggplot2</code></td>
+</tr>
+<tr class="odd">
+<td>TWFE 估计</td>
+<td>双向固定效应</td>
+<td><code>fixest::feols()</code></td>
+</tr>
+<tr class="even">
+<td>事件研究</td>
+<td>平行趋势检验</td>
+<td><code>i()</code> + <code>iplot()</code></td>
+</tr>
+<tr class="odd">
+<td>交错 DiD</td>
+<td>现代估计器</td>
+<td><code>did::att_gt()</code></td>
+</tr>
+<tr class="even">
+<td>安慰剂检验</td>
+<td>稳健性</td>
+<td>手动构造</td>
+</tr>
+</tbody>
+</table>
+<section id="报告-did-分析的-checklist" class="level3">
+<h3 class="anchored" data-anchor-id="报告-did-分析的-checklist">报告 DiD 分析的 Checklist</h3>
+<ul class="task-list">
+<li><label><input type="checkbox">清晰描述干预/政策</label></li>
+<li><label><input type="checkbox">定义处理组和对照组</label></li>
+<li><label><input type="checkbox">提供干预前后的趋势图</label></li>
+<li><label><input type="checkbox">报告事件研究图（检验平行趋势）</label></li>
+<li><label><input type="checkbox">报告 DiD 估计量及置信区间</label></li>
+<li><label><input type="checkbox">说明标准误聚类方式</label></li>
+<li><label><input type="checkbox">进行安慰剂检验</label></li>
+<li><label><input type="checkbox">讨论潜在威胁（预期效应、溢出等）</label></li>
+</ul>
+</section>
+<section id="推荐阅读" class="level3">
+<h3 class="anchored" data-anchor-id="推荐阅读">推荐阅读</h3>
+<ul>
+<li>Cunningham S. Causal Inference: The Mixtape</li>
+<li>Angrist JD, Pischke JS. Mostly Harmless Econometrics</li>
+<li>Callaway B, Sant’Anna PHC (2021). Difference-in-Differences with Multiple Time Periods. <em>J Econometrics</em></li>
+<li><a href="https://lrberge.github.io/fixest/">fixest 包文档</a></li>
+<li><a href="https://bcallaway11.github.io/did/">did 包文档</a></li>
+</ul>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Made with <a href="https://quarto.org/">Quarto</a> | © 2024-2026</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

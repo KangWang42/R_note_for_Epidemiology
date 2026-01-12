@@ -1,0 +1,621 @@
+---
+title: "Logistic 回归完全指南"
+date: "2026-01-12"
+categories: [R语言方法, 统计建模, Logistic回归]
+image: "figure/logistic-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 什么是 Logistic 回归？
+
+**Logistic 回归**是一种用于分析**二分类结局变量**的广义线性模型。它通过 logit 变换将线性预测值映射到 (0, 1) 区间，估计事件发生的概率。
+
+### 适用场景
+
+| 场景 | 示例 |
+|------|------|
+| 疾病诊断 | 是否患病 (是/否) |
+| 风险预测 | 是否发生不良事件 |
+| 分类问题 | 客户是否流失 |
+| 病例对照研究 | 暴露与疾病关联 |
+
+### 核心公式
+
+**Logit 变换**：
+$$\text{logit}(p) = \ln\left(\frac{p}{1-p}\right) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots$$
+
+**概率形式**：
+$$P(Y=1|X) = \frac{e^{\beta_0 + \beta_1 X_1 + \cdots}}{1 + e^{\beta_0 + \beta_1 X_1 + \cdots}}$$
+
+**比值比 (OR)**：
+$$OR = e^{\beta_i}$$
+
+---
+
+## R 包安装与加载
+
+```{r}
+# 核心包
+library(tidyverse)     # 数据处理
+library(broom)         # 模型整理
+library(gtsummary)     # 结果表格
+library(performance)   # 模型诊断
+library(see)           # 可视化支持
+library(pROC)          # ROC 曲线
+library(ResourceSelection)  # Hosmer-Lemeshow 检验
+library(car)           # VIF 检验
+```
+
+---
+
+## 数据准备
+
+我们使用模拟的心血管疾病数据集：
+
+```{r}
+# 模拟数据：心血管疾病风险
+set.seed(2024)
+n <- 800
+
+cvd_data <- tibble(
+  id = 1:n,
+  age = round(rnorm(n, 55, 12)),
+  sex = factor(sample(c("男", "女"), n, replace = TRUE, prob = c(0.55, 0.45))),
+  bmi = round(rnorm(n, 25, 4), 1),
+  smoking = factor(sample(c("从不", "曾经", "现在"), n, replace = TRUE, 
+                          prob = c(0.4, 0.3, 0.3))),
+  hypertension = rbinom(n, 1, 0.35),
+  diabetes = rbinom(n, 1, 0.20),
+  cholesterol = round(rnorm(n, 200, 40))
+) |>
+  mutate(
+    # 生成 CVD 事件（受多个因素影响）
+    logit_p = -6 + 
+      0.05 * age + 
+      0.4 * (sex == "男") +
+      0.08 * bmi + 
+      0.6 * (smoking == "曾经") + 
+      1.0 * (smoking == "现在") +
+      0.8 * hypertension + 
+      0.7 * diabetes +
+      0.01 * cholesterol,
+    prob = plogis(logit_p),
+    cvd = rbinom(n, 1, prob)
+  ) |>
+  select(-logit_p, -prob)
+
+# 查看数据结构
+glimpse(cvd_data)
+
+# 事件率
+mean(cvd_data$cvd)
+```
+
+### 探索性分析
+
+```{r}
+# 基线特征按 CVD 分组
+cvd_data |>
+  tbl_summary(
+    by = cvd,
+    include = c(age, sex, bmi, smoking, hypertension, diabetes, cholesterol),
+    label = list(
+      age ~ "年龄",
+      sex ~ "性别",
+      bmi ~ "BMI",
+      smoking ~ "吸烟状态",
+      hypertension ~ "高血压",
+      diabetes ~ "糖尿病",
+      cholesterol ~ "总胆固醇"
+    ),
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    )
+  ) |>
+  add_p() |>
+  add_overall() |>
+  modify_header(label = "**变量**") |>
+  modify_spanning_header(c("stat_1", "stat_2") ~ "**CVD 事件**")
+```
+
+---
+
+## 模型构建
+
+### 单因素分析
+
+先进行单因素 Logistic 回归筛选变量：
+
+```{r}
+# 单因素分析函数
+univariate_logistic <- function(data, outcome, predictors) {
+  results <- map_dfr(predictors, function(var) {
+    formula <- as.formula(paste(outcome, "~", var))
+    model <- glm(formula, data = data, family = binomial)
+    
+    tidy(model, conf.int = TRUE, exponentiate = TRUE) |>
+      filter(term != "(Intercept)") |>
+      mutate(variable = var) |>
+      select(variable, term, estimate, conf.low, conf.high, p.value)
+  })
+  
+  results |>
+    mutate(
+      OR_CI = paste0(
+        round(estimate, 2), " (",
+        round(conf.low, 2), "-",
+        round(conf.high, 2), ")"
+      )
+    )
+}
+
+# 执行单因素分析
+predictors <- c("age", "sex", "bmi", "smoking", "hypertension", "diabetes", "cholesterol")
+
+univar_results <- univariate_logistic(cvd_data, "cvd", predictors)
+univar_results |>
+  select(variable, term, OR_CI, p.value) |>
+  mutate(p.value = format.pval(p.value, digits = 3))
+```
+
+### 多因素模型
+
+将显著变量纳入多因素模型：
+
+```{r}
+# 多因素 Logistic 回归
+model_full <- glm(
+  cvd ~ age + sex + bmi + smoking + hypertension + diabetes + cholesterol,
+  data = cvd_data,
+  family = binomial(link = "logit")
+)
+
+# 模型摘要
+summary(model_full)
+```
+
+### 整洁输出
+
+```{r}
+# 使用 gtsummary 生成专业表格
+model_full |>
+  tbl_regression(
+    exponentiate = TRUE,
+    label = list(
+      age ~ "年龄",
+      sex ~ "性别",
+      bmi ~ "BMI",
+      smoking ~ "吸烟状态",
+      hypertension ~ "高血压",
+      diabetes ~ "糖尿病",
+      cholesterol ~ "总胆固醇"
+    )
+  ) |>
+  add_global_p() |>
+  bold_p() |>
+  modify_header(label = "**变量**")
+```
+
+---
+
+## 模型诊断
+
+### 多重共线性检验
+
+```{r}
+# 计算 VIF（方差膨胀因子）
+vif_values <- vif(model_full)
+vif_values
+
+# VIF > 5 提示存在共线性问题
+```
+
+### 模型拟合优度
+
+```{r}
+# Hosmer-Lemeshow 检验
+hl_test <- hoslem.test(cvd_data$cvd, fitted(model_full), g = 10)
+hl_test
+
+# p > 0.05 表示模型拟合良好
+```
+
+```{r}
+# 使用 performance 包进行全面诊断
+model_performance(model_full)
+```
+
+### 残差诊断
+
+```{r fig.height=6}
+# 检查异常值和影响点
+check_model(model_full, check = c("binned_residuals", "outliers"))
+```
+
+### 预测效果
+
+```{r}
+# 添加预测概率
+cvd_data <- cvd_data |>
+  mutate(
+    pred_prob = predict(model_full, type = "response"),
+    pred_class = ifelse(pred_prob > 0.5, 1, 0)
+  )
+
+# 混淆矩阵
+table(预测 = cvd_data$pred_class, 实际 = cvd_data$cvd)
+
+# 准确率
+mean(cvd_data$pred_class == cvd_data$cvd)
+```
+
+---
+
+## ROC 曲线与 AUC
+
+ROC 曲线是评估分类模型性能的标准工具。
+
+```{r}
+# 计算 ROC 曲线
+roc_obj <- roc(cvd_data$cvd, cvd_data$pred_prob)
+
+# AUC 值
+auc(roc_obj)
+
+# 最优阈值（Youden 指数）
+coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity"))
+```
+
+```{r fig.height=5}
+# 绑制 ROC 曲线
+ggroc(roc_obj, color = "#4f46e5", size = 1.2) +
+  geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray50") +
+  annotate("text", x = 0.3, y = 0.3, 
+           label = paste0("AUC = ", round(auc(roc_obj), 3)),
+           size = 5, color = "#4f46e5", fontface = "bold") +
+  labs(
+    title = "ROC 曲线",
+    subtitle = "Logistic 回归模型预测 CVD 事件",
+    x = "特异度 (Specificity)",
+    y = "敏感度 (Sensitivity)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+### 多模型 ROC 比较
+
+```{r}
+# 构建简化模型进行比较
+model_simple <- glm(cvd ~ age + sex + smoking, data = cvd_data, family = binomial)
+
+# 计算两个模型的 ROC
+roc_full <- roc(cvd_data$cvd, predict(model_full, type = "response"))
+roc_simple <- roc(cvd_data$cvd, predict(model_simple, type = "response"))
+
+# 比较 AUC
+roc.test(roc_full, roc_simple)
+
+# 可视化比较
+ggroc(list(完整模型 = roc_full, 简化模型 = roc_simple), size = 1) +
+  scale_color_manual(values = c("#4f46e5", "#f59e0b")) +
+  geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray50") +
+  labs(
+    title = "ROC 曲线比较",
+    x = "特异度",
+    y = "敏感度",
+    color = "模型"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "bottom"
+  )
+```
+
+---
+
+## 结果解读
+
+### OR 的临床意义
+
+```{r}
+# 提取 OR 及置信区间
+or_table <- tidy(model_full, conf.int = TRUE, exponentiate = TRUE) |>
+  filter(term != "(Intercept)") |>
+  select(term, estimate, conf.low, conf.high, p.value) |>
+  mutate(
+    interpretation = case_when(
+      estimate > 1 & p.value < 0.05 ~ "风险因素",
+      estimate < 1 & p.value < 0.05 ~ "保护因素",
+      TRUE ~ "无显著关联"
+    )
+  )
+
+or_table
+```
+
+### 森林图可视化
+
+```{r fig.height=5}
+# 绑制森林图
+or_plot_data <- tidy(model_full, conf.int = TRUE, exponentiate = TRUE) |>
+  filter(term != "(Intercept)") |>
+  mutate(
+    term = factor(term, levels = rev(term)),
+    significant = p.value < 0.05
+  )
+
+ggplot(or_plot_data, aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = significant),
+                 height = 0.2, linewidth = 0.8) +
+  geom_point(aes(color = significant), size = 3) +
+  scale_color_manual(values = c("TRUE" = "#4f46e5", "FALSE" = "#9ca3af"),
+                     labels = c("TRUE" = "显著", "FALSE" = "不显著")) +
+  scale_x_log10() +
+  labs(
+    title = "多因素 Logistic 回归森林图",
+    x = "比值比 (OR)",
+    y = "变量",
+    color = "统计显著性"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "bottom"
+  )
+```
+
+---
+
+## 交互作用分析
+
+检验变量间的交互效应：
+
+```{r}
+# 添加交互项：年龄 × 吸烟
+model_interact <- glm(
+  cvd ~ age * smoking + sex + bmi + hypertension + diabetes + cholesterol,
+  data = cvd_data,
+  family = binomial
+)
+
+# 检验交互效应
+anova(model_full, model_interact, test = "LRT")
+```
+
+```{r}
+# 可视化交互效应
+interact_data <- expand.grid(
+  age = seq(30, 80, by = 5),
+  smoking = c("从不", "曾经", "现在"),
+  sex = "男",
+  bmi = mean(cvd_data$bmi),
+  hypertension = 0,
+  diabetes = 0,
+  cholesterol = mean(cvd_data$cholesterol)
+)
+
+interact_data$pred_prob <- predict(model_interact, newdata = interact_data, type = "response")
+
+ggplot(interact_data, aes(x = age, y = pred_prob, color = smoking)) +
+  geom_line(linewidth = 1.2) +
+  scale_color_manual(values = c("#22c55e", "#f59e0b", "#ef4444")) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "年龄与吸烟状态的交互效应",
+    subtitle = "预测 CVD 发生概率（其他变量取均值/参照值）",
+    x = "年龄",
+    y = "预测概率",
+    color = "吸烟状态"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "bottom"
+  )
+```
+
+---
+
+## 模型选择
+
+### 逐步回归
+
+```{r}
+# 向后逐步回归（基于 AIC）
+model_step <- step(model_full, direction = "backward", trace = 0)
+summary(model_step)
+
+# 比较模型
+AIC(model_full, model_step)
+BIC(model_full, model_step)
+```
+
+### 比较模型性能
+
+```{r}
+compare_performance(model_full, model_step, model_simple, rank = TRUE)
+```
+
+---
+
+## 预测应用
+
+### 个体风险预测
+
+```{r}
+# 为新个体预测风险
+new_patient <- tibble(
+  age = 60,
+  sex = factor("男", levels = levels(cvd_data$sex)),
+  bmi = 28,
+  smoking = factor("现在", levels = levels(cvd_data$smoking)),
+  hypertension = 1,
+  diabetes = 0,
+  cholesterol = 220
+)
+
+# 预测概率
+pred <- predict(model_full, newdata = new_patient, type = "response", se.fit = TRUE)
+
+cat("预测 CVD 概率:", round(pred$fit * 100, 1), "%\n")
+cat("95% CI:", 
+    round(plogis(qlogis(pred$fit) - 1.96 * pred$se.fit) * 100, 1), "-",
+    round(plogis(qlogis(pred$fit) + 1.96 * pred$se.fit) * 100, 1), "%\n")
+```
+
+### 风险分层
+
+```{r}
+# 根据预测概率进行风险分层
+cvd_data <- cvd_data |>
+  mutate(
+    risk_group = case_when(
+      pred_prob < 0.1 ~ "低风险",
+      pred_prob < 0.3 ~ "中风险",
+      TRUE ~ "高风险"
+    ),
+    risk_group = factor(risk_group, levels = c("低风险", "中风险", "高风险"))
+  )
+
+# 各风险组的实际事件率
+cvd_data |>
+  group_by(risk_group) |>
+  summarise(
+    n = n(),
+    events = sum(cvd),
+    event_rate = mean(cvd),
+    mean_pred = mean(pred_prob)
+  )
+```
+
+```{r}
+# 校准曲线
+ggplot(cvd_data, aes(x = pred_prob, y = cvd)) +
+  geom_smooth(method = "loess", color = "#4f46e5", fill = "#4f46e5", alpha = 0.2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray50") +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  labs(
+    title = "校准曲线",
+    subtitle = "预测概率 vs 实际事件率",
+    x = "预测概率",
+    y = "实际事件率"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+---
+
+## 常见问题与陷阱
+
+### 1. 完全分离问题
+
+当某个预测变量完美预测结局时，会出现系数无限大的问题。
+
+```{r eval=FALSE}
+# 解决方案：使用 Firth 惩罚 Logistic 回归
+library(logistf)
+logistf(cvd ~ perfect_predictor + ..., data = data)
+```
+
+### 2. 样本量要求
+
+| 情况 | 建议样本量 |
+|------|------------|
+| 每个预测变量 | 至少 10-20 个事件 |
+| 稀有事件 | 考虑精确 Logistic 回归 |
+
+### 3. 类别不平衡
+
+```{r eval=FALSE}
+# 解决方案
+# 1. 调整分类阈值
+# 2. 过采样/欠采样
+# 3. 使用 AUC 而非准确率评估
+```
+
+### 4. 模型过拟合
+
+```{r eval=FALSE}
+# 使用交叉验证评估
+library(caret)
+train_control <- trainControl(method = "cv", number = 10)
+cv_model <- train(cvd ~ ., data = cvd_data, method = "glm", 
+                  family = "binomial", trControl = train_control)
+```
+
+---
+
+## 报告模板
+
+```{r}
+# 完整结果表格
+model_full |>
+  tbl_regression(
+    exponentiate = TRUE,
+    label = list(
+      age ~ "年龄 (每增加1岁)",
+      sex ~ "性别",
+      bmi ~ "BMI (每增加1)",
+      smoking ~ "吸烟状态",
+      hypertension ~ "高血压",
+      diabetes ~ "糖尿病",
+      cholesterol ~ "总胆固醇 (每增加1)"
+    ),
+    pvalue_fun = ~style_pvalue(.x, digits = 3)
+  ) |>
+  add_global_p() |>
+  add_glance_table(
+    include = c(AIC, BIC, nobs)
+  ) |>
+  modify_header(label = "**变量**") |>
+  modify_caption("**表1. 多因素 Logistic 回归分析结果**")
+```
+
+---
+
+## 总结
+
+| 步骤 | 关键操作 | R 函数 |
+|------|----------|--------|
+| 模型构建 | 估计系数 | `glm(..., family = binomial)` |
+| 结果提取 | OR 及 CI | `tidy(..., exponentiate = TRUE)` |
+| 模型诊断 | VIF、H-L 检验 | `vif()`, `hoslem.test()` |
+| 预测评估 | ROC/AUC | `pROC::roc()`, `pROC::auc()` |
+| 结果展示 | 专业表格 | `gtsummary::tbl_regression()` |
+
+### 报告 Logistic 回归的 Checklist
+
+- [ ] 报告样本量和事件数
+- [ ] 报告 OR 及 95% CI
+- [ ] 说明参照组设置
+- [ ] 报告模型拟合度（H-L 检验）
+- [ ] 报告判别能力（AUC）
+- [ ] 检查多重共线性
+- [ ] 进行敏感性分析
+
+### 推荐阅读
+
+- Hosmer DW, Lemeshow S. Applied Logistic Regression (3rd ed.)
+- Harrell FE. Regression Modeling Strategies
+- [UCLA 统计咨询：Logistic 回归](https://stats.oarc.ucla.edu/r/dae/logit-regression/)

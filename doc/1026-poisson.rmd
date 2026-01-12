@@ -1,0 +1,612 @@
+---
+title: "Poisson 与负二项回归完全指南"
+date: "2026-01-12"
+categories: [R语言方法, 统计建模, 计数数据]
+image: "figure/poisson-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是计数数据回归？
+
+**计数数据（Count Data）** 是指取值为非负整数的数据（0, 1, 2, 3, ...）。**Poisson 回归**和**负二项回归**是分析此类数据的核心方法。
+
+### 适用场景
+
+| 场景 | 示例 |
+|------|------|
+| 发病率研究 | 某地区癌症发病人数 |
+| 事故分析 | 交通事故次数 |
+| 生态学 | 样方中物种数量 |
+| 医疗服务 | 就诊次数、住院天数 |
+| 行为研究 | 吸烟支数、缺勤天数 |
+
+### 模型选择决策树
+
+```
+计数数据
+    │
+    ├── 方差 ≈ 均值？ ──Yes──→ Poisson 回归
+    │
+    └── 方差 > 均值？ ──Yes──→ 负二项回归（过离散）
+         │
+         └── 零值过多？ ─Yes─→ 零膨胀模型（ZIP/ZINB）
+```
+
+### 核心公式
+
+**Poisson 回归**：
+$$\log(\mu) = \beta_0 + \beta_1 X_1 + \cdots \quad \text{其中 } Y \sim \text{Poisson}(\mu)$$
+
+**负二项回归**：
+$$\log(\mu) = \beta_0 + \beta_1 X_1 + \cdots \quad \text{其中 } Y \sim \text{NegBin}(\mu, \theta)$$
+
+**回归系数解读**：$e^{\beta_i}$ = 发病率比（IRR, Incidence Rate Ratio）
+
+---
+
+## R 包安装与加载
+
+```{r}
+# 核心包
+library(MASS) # 负二项回归
+library(pscl) # 零膨胀模型
+library(AER) # 过离散检验
+library(performance) # 模型诊断
+library(tidyverse) # 数据处理
+library(broom) # 模型整理
+library(gtsummary) # 结果表格
+library(ggplot2) # 可视化
+```
+
+---
+
+## 数据准备
+
+使用模拟的医疗利用数据：
+
+```{r}
+# 模拟数据：年度就诊次数
+set.seed(2024)
+n <- 800
+
+visit_data <- tibble(
+    id = 1:n,
+    age = round(runif(n, 20, 80)),
+    sex = factor(sample(c("男", "女"), n, replace = TRUE)),
+    chronic = rbinom(n, 3, 0.3), # 慢性病数量
+    insurance = factor(sample(c("无", "基本", "商业"), n,
+        replace = TRUE,
+        prob = c(0.2, 0.5, 0.3)
+    )),
+    income = round(rnorm(n, 50, 20)) # 收入（千元）
+) |>
+    mutate(
+        # 生成就诊次数（Poisson 分布，存在过离散）
+        log_mu = -0.5 +
+            0.02 * age +
+            0.2 * (sex == "女") +
+            0.5 * chronic +
+            0.3 * (insurance == "基本") +
+            0.6 * (insurance == "商业") -
+            0.01 * income,
+
+        # 添加过离散
+        mu = exp(log_mu) * exp(rnorm(n, 0, 0.5)),
+        visits = rpois(n, lambda = mu)
+    ) |>
+    mutate(visits = pmin(visits, 20)) # 限制最大值
+
+# 查看数据
+glimpse(visit_data)
+
+# 结局分布
+table(visit_data$visits)
+```
+
+### 探索性分析
+
+```{r}
+# 就诊次数分布
+ggplot(visit_data, aes(x = visits)) +
+    geom_histogram(binwidth = 1, fill = "#4f46e5", color = "white", alpha = 0.8) +
+    labs(
+        title = "年度就诊次数分布",
+        x = "就诊次数",
+        y = "频数"
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+```{r}
+# 检查均值和方差
+cat("均值:", round(mean(visit_data$visits), 2), "\n")
+cat("方差:", round(var(visit_data$visits), 2), "\n")
+cat("方差/均值比:", round(var(visit_data$visits) / mean(visit_data$visits), 2), "\n")
+
+# 比值 > 1 提示过离散
+```
+
+---
+
+## Poisson 回归
+
+### 模型拟合
+
+```{r}
+# 拟合 Poisson 回归
+pois_model <- glm(
+    visits ~ age + sex + chronic + insurance + income,
+    data = visit_data,
+    family = poisson(link = "log")
+)
+
+summary(pois_model)
+```
+
+### 发病率比 (IRR)
+
+```{r}
+# 提取 IRR 及置信区间
+tidy(pois_model, conf.int = TRUE, exponentiate = TRUE) |>
+    filter(term != "(Intercept)") |>
+    select(term, IRR = estimate, conf.low, conf.high, p.value) |>
+    mutate(across(c(IRR, conf.low, conf.high), ~ round(.x, 3)))
+```
+
+### 整洁输出
+
+```{r}
+pois_model |>
+    tbl_regression(
+        exponentiate = TRUE,
+        label = list(
+            age ~ "年龄",
+            sex ~ "性别",
+            chronic ~ "慢性病数量",
+            insurance ~ "保险类型",
+            income ~ "收入（千元）"
+        )
+    ) |>
+    bold_p() |>
+    modify_header(label = "**变量**", estimate = "**IRR**")
+```
+
+---
+
+## 过离散检验
+
+### 方法 1：残差离散参数
+
+```{r}
+# 计算过离散参数
+n_obs <- nrow(visit_data)
+n_params <- length(coef(pois_model))
+
+# Pearson 残差
+pearson_resid <- residuals(pois_model, type = "pearson")
+dispersion <- sum(pearson_resid^2) / (n_obs - n_params)
+
+cat("离散参数:", round(dispersion, 3), "\n")
+# 显著 > 1 提示过离散
+```
+
+### 方法 2：AER 包检验
+
+```{r}
+# 正式的过离散检验
+dispersiontest(pois_model)
+# p < 0.05 拒绝 "无过离散" 原假设
+```
+
+### 方法 3：可视化检验
+
+```{r}
+# 观察值 vs 模型预测
+visit_data$fitted_pois <- fitted(pois_model)
+
+ggplot(visit_data, aes(x = fitted_pois, y = visits)) +
+    geom_jitter(alpha = 0.4, color = "#4f46e5", width = 0.2, height = 0.2) +
+    geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+    labs(
+        title = "观察值 vs 预测值",
+        x = "Poisson 模型预测值",
+        y = "实际就诊次数"
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+---
+
+## 负二项回归
+
+当存在过离散时，使用负二项分布：
+
+```{r}
+# 拟合负二项回归
+nb_model <- glm.nb(
+    visits ~ age + sex + chronic + insurance + income,
+    data = visit_data
+)
+
+summary(nb_model)
+```
+
+```{r}
+# 查看离散参数 theta
+cat("theta:", nb_model$theta, "\n")
+cat("标准误:", nb_model$SE.theta, "\n")
+# theta 越小，过离散越严重
+```
+
+### 负二项 vs Poisson 比较
+
+```{r}
+# 使用 AIC 比较
+AIC(pois_model, nb_model)
+
+# 似然比检验
+lrtest <- 2 * (logLik(nb_model) - logLik(pois_model))
+p_value <- pchisq(lrtest, df = 1, lower.tail = FALSE)
+cat("似然比检验 p 值:", format.pval(p_value, digits = 3), "\n")
+```
+
+### 负二项回归结果
+
+```{r}
+nb_model |>
+    tbl_regression(
+        exponentiate = TRUE,
+        label = list(
+            age ~ "年龄",
+            sex ~ "性别",
+            chronic ~ "慢性病数量",
+            insurance ~ "保险类型",
+            income ~ "收入（千元）"
+        )
+    ) |>
+    add_significance_stars() |>
+    modify_header(label = "**变量**", estimate = "**IRR**")
+```
+
+---
+
+## 零膨胀模型
+
+当零值过多时（超过 Poisson/负二项预期），使用零膨胀模型。
+
+### 检验零值过多
+
+```{r}
+# 观察零值比例
+zero_observed <- mean(visit_data$visits == 0)
+
+# Poisson 模型预期的零值比例
+zero_expected_pois <- mean(dpois(0, fitted(pois_model)))
+
+# 负二项预期的零值比例
+zero_expected_nb <- mean(dnbinom(0, mu = fitted(nb_model), size = nb_model$theta))
+
+cat("观察零值比例:", round(zero_observed * 100, 1), "%\n")
+cat("Poisson 预期:", round(zero_expected_pois * 100, 1), "%\n")
+cat("负二项预期:", round(zero_expected_nb * 100, 1), "%\n")
+```
+
+### 零膨胀 Poisson (ZIP)
+
+```{r}
+# 零膨胀 Poisson 模型
+zip_model <- zeroinfl(
+    visits ~ age + sex + chronic + insurance + income |
+        chronic + insurance, # 零膨胀部分的预测变量
+    data = visit_data,
+    dist = "poisson"
+)
+
+summary(zip_model)
+```
+
+### 零膨胀负二项 (ZINB)
+
+```{r}
+# 零膨胀负二项模型
+zinb_model <- zeroinfl(
+    visits ~ age + sex + chronic + insurance + income |
+        chronic + insurance,
+    data = visit_data,
+    dist = "negbin"
+)
+
+summary(zinb_model)
+```
+
+### 模型比较
+
+```{r}
+# Vuong 检验：比较零膨胀模型与标准模型
+vuong(zip_model, pois_model)
+vuong(zinb_model, nb_model)
+
+# AIC 比较
+AIC(pois_model, nb_model, zip_model, zinb_model)
+```
+
+---
+
+## 暴露时间调整（Rate 模型）
+
+当观察时间不同时，需要使用偏移量（offset）：
+
+```{r}
+# 添加随访时间
+visit_data <- visit_data |>
+    mutate(
+        followup_years = runif(n, 0.5, 2) # 随访时间（年）
+    )
+
+# 使用 offset 调整暴露时间
+pois_rate <- glm(
+    visits ~ age + sex + chronic + insurance + offset(log(followup_years)),
+    data = visit_data,
+    family = poisson
+)
+
+summary(pois_rate)
+```
+
+```{r}
+# 结果解读为发病率比（每人年）
+tidy(pois_rate, conf.int = TRUE, exponentiate = TRUE) |>
+    filter(term != "(Intercept)") |>
+    select(term, IRR = estimate, conf.low, conf.high, p.value)
+```
+
+---
+
+## 模型诊断
+
+### 残差分析
+
+```{r fig.height=4}
+# Deviance 残差
+visit_data$resid_dev <- residuals(nb_model, type = "deviance")
+
+ggplot(visit_data, aes(x = fitted(nb_model), y = resid_dev)) +
+    geom_point(alpha = 0.4, color = "#4f46e5") +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    geom_smooth(method = "loess", color = "#10b981", se = FALSE) +
+    labs(
+        title = "Deviance 残差 vs 拟合值",
+        x = "拟合值",
+        y = "Deviance 残差"
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+### 综合诊断
+
+```{r fig.height=6}
+check_model(nb_model, check = c("qq", "outliers", "homogeneity"))
+```
+
+### 影响诊断
+
+```{r}
+# Cook's 距离
+visit_data$cooks_d <- cooks.distance(nb_model)
+
+# 识别高影响力观测
+high_influence <- which(visit_data$cooks_d > 4 / nrow(visit_data))
+cat("高影响力观测数量:", length(high_influence), "\n")
+```
+
+---
+
+## 预测
+
+### 个体预测
+
+```{r}
+# 新数据预测
+new_data <- tibble(
+    age = c(40, 60, 80),
+    sex = factor(c("男", "女", "男"), levels = levels(visit_data$sex)),
+    chronic = c(0, 1, 2),
+    insurance = factor(c("无", "基本", "商业"), levels = levels(visit_data$insurance)),
+    income = c(60, 50, 40)
+)
+
+# 预测期望值
+pred <- predict(nb_model, newdata = new_data, type = "response", se.fit = TRUE)
+
+new_data |>
+    mutate(
+        predicted = round(pred$fit, 2),
+        se = round(pred$se.fit, 2),
+        lower = round(pred$fit - 1.96 * pred$se.fit, 2),
+        upper = round(pred$fit + 1.96 * pred$se.fit, 2)
+    )
+```
+
+### 边际效应可视化
+
+```{r}
+# 年龄的边际效应
+library(ggeffects)
+
+pred_age <- ggpredict(nb_model, terms = "age [20:80]")
+
+plot(pred_age) +
+    labs(
+        title = "年龄与预测就诊次数的关系",
+        x = "年龄",
+        y = "预测就诊次数"
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+```{r}
+# 多变量预测图
+pred_chronic <- ggpredict(nb_model, terms = c("chronic [0:3]", "insurance"))
+
+plot(pred_chronic) +
+    labs(
+        title = "慢性病数量与就诊次数（按保险类型）",
+        x = "慢性病数量",
+        y = "预测就诊次数",
+        color = "保险类型"
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+---
+
+## 稳健标准误
+
+```{r}
+library(sandwich)
+library(lmtest)
+
+# 使用稳健标准误
+coeftest(nb_model, vcov = vcovHC(nb_model, type = "HC1"))
+```
+
+---
+
+## 报告格式
+
+```{r}
+# 完整报告表格
+nb_model |>
+    tbl_regression(
+        exponentiate = TRUE,
+        label = list(
+            age ~ "年龄（每增加1岁）",
+            sex ~ "性别",
+            chronic ~ "慢性病数量（每增加1种）",
+            insurance ~ "保险类型",
+            income ~ "收入（每增加1千元）"
+        ),
+        pvalue_fun = ~ style_pvalue(.x, digits = 3)
+    ) |>
+    add_global_p() |>
+    add_glance_table(include = c(AIC, BIC, nobs)) |>
+    modify_header(label = "**变量**", estimate = "**IRR**") |>
+    modify_caption("**表. 负二项回归分析结果**") |>
+    modify_footnote(estimate = "IRR = 发病率比")
+```
+
+---
+
+## 常见问题与陷阱
+
+### 1. Poisson vs 负二项选择
+
+| Poisson | 负二项 |
+|---------|--------|
+| 方差 = 均值 | 方差 > 均值 |
+| 无过离散 | 存在过离散 |
+| 更简洁 | 更灵活 |
+| 计算更快 | 额外估计 θ |
+
+### 2. 零膨胀模型的使用
+
+```r
+# 仅当以下条件满足时使用：
+# 1. 零值比例明显高于模型预期
+# 2. 存在明确的"结构性零"（永远不会发生）
+# 3. 普通模型无法很好拟合
+
+# 例如：从不吸烟者的吸烟量（结构性零）
+```
+
+### 3. 暴露时间差异
+
+```r
+# 必须使用 offset 调整！
+# 错误：glm(events ~ x, family = poisson)
+# 正确：glm(events ~ x + offset(log(time)), family = poisson)
+```
+
+### 4. 相对风险 vs 发病率比
+
+```r
+# Poisson/负二项回归估计的是 IRR，不是 RR
+# 对于罕见事件，IRR ≈ RR
+# 对于常见事件，两者可能差异较大
+```
+
+---
+
+## 完整分析模板
+
+```{r eval=FALSE}
+# ========== 计数数据回归完整流程 ==========
+
+library(MASS)
+library(AER)
+library(pscl)
+
+# 1. 探索数据
+mean(y)
+var(y) # 检查均值/方差
+table(y == 0) # 零值比例
+
+# 2. 拟合 Poisson 模型
+pois <- glm(y ~ x1 + x2, family = poisson, data = data)
+
+# 3. 检验过离散
+dispersiontest(pois)
+
+# 4. 如果过离散，拟合负二项
+nb <- glm.nb(y ~ x1 + x2, data = data)
+AIC(pois, nb)
+
+# 5. 检验零膨胀
+mean(y == 0)
+mean(dpois(0, fitted(pois)))
+
+# 6. 如需要，拟合零膨胀模型
+zinb <- zeroinfl(y ~ x1 + x2 | z1, dist = "negbin", data = data)
+
+# 7. 结果呈现
+tbl_regression(nb, exponentiate = TRUE)
+```
+
+---
+
+## 总结
+
+| 模型 | 适用条件 | R 函数 |
+|------|----------|--------|
+| Poisson | 方差≈均值，无过离散 | `glm(..., family = poisson)` |
+| 负二项 | 方差>均值，存在过离散 | `MASS::glm.nb()` |
+| 零膨胀 Poisson | 零值过多 | `pscl::zeroinfl(..., dist = "poisson")` |
+| 零膨胀负二项 | 零值过多 + 过离散 | `pscl::zeroinfl(..., dist = "negbin")` |
+
+### 报告计数数据回归的 Checklist
+
+- [ ] 描述结局变量分布（均值、方差、零值比例）
+- [ ] 报告过离散检验结果
+- [ ] 明确使用的模型类型及理由
+- [ ] 报告 IRR 及 95% CI
+- [ ] 如有暴露时间差异，说明 offset 使用
+- [ ] 报告模型拟合指标（AIC/BIC）
+- [ ] 进行残差诊断
+
+### 推荐阅读
+
+- Cameron AC, Trivedi PK. Regression Analysis of Count Data (2nd ed.)
+- Hilbe JM. Negative Binomial Regression (2nd ed.)
+- [UCLA: 计数数据回归](https://stats.oarc.ucla.edu/r/dae/poisson-regression/)

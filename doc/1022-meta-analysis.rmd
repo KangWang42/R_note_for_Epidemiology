@@ -1,0 +1,684 @@
+---
+title: "Meta 分析完全指南"
+date: "2026-01-12"
+categories: [R语言方法, 统计建模, Meta分析]
+image: "figure/meta-analysis-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 9,
+  fig.height = 6,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 什么是 Meta 分析？
+
+**Meta 分析（Meta-analysis）** 是一种系统性地合并多个独立研究结果的统计方法，通过综合现有证据来获得更精确的效应估计和更可靠的结论。
+
+### 适用场景
+
+| 场景 | 示例 |
+|------|------|
+| 临床试验综合 | 合并多个 RCT 评估药物疗效 |
+| 观察性研究 | 综合队列研究评估暴露风险 |
+| 诊断准确性 | 合并多个诊断试验的敏感度/特异度 |
+| 效应验证 | 解决单个研究结论不一致问题 |
+
+### 核心概念
+
+| 概念 | 定义 |
+|------|------|
+| **效应量** | 标准化的效应指标（OR, RR, SMD, MD 等） |
+| **权重** | 各研究对合并效应的贡献（通常基于方差倒数） |
+| **异质性** | 各研究效应之间的变异程度 |
+| **固定效应模型** | 假设所有研究估计同一个真实效应 |
+| **随机效应模型** | 假设各研究的真实效应存在变异 |
+
+---
+
+## R 包安装与加载
+
+```{r}
+# 核心包
+library(meta) # Meta 分析主力包
+library(metafor) # 更强大的 Meta 分析包
+library(tidyverse) # 数据处理
+library(ggplot2) # 可视化
+```
+
+---
+
+## 数据准备
+
+### 二分类结局（OR/RR）
+
+```{r}
+# 模拟数据：某药物预防心血管事件的 RCT
+set.seed(2024)
+
+cvd_studies <- tibble(
+  study = paste0("Study ", 1:12),
+  year = sample(2015:2023, 12, replace = TRUE),
+  n_treat = sample(100:500, 12, replace = TRUE),
+  n_control = sample(100:500, 12, replace = TRUE)
+) |>
+  mutate(
+    # 真实效应 OR ≈ 0.7，各研究有随机变异
+    true_or = 0.7 * exp(rnorm(12, 0, 0.15)),
+    p_control = runif(12, 0.10, 0.25),
+    p_treat = p_control * true_or / (1 - p_control + p_control * true_or),
+
+    # 事件数
+    event_treat = rbinom(12, n_treat, p_treat),
+    event_control = rbinom(12, n_control, p_control),
+
+    # 非事件数
+    nonevent_treat = n_treat - event_treat,
+    nonevent_control = n_control - event_control
+  ) |>
+  select(
+    study, year, event_treat, nonevent_treat, event_control, nonevent_control,
+    n_treat, n_control
+  )
+
+cvd_studies
+```
+
+### 连续型结局（MD/SMD）
+
+```{r}
+# 模拟数据：某干预对血压的影响
+bp_studies <- tibble(
+  study = paste0("Trial ", LETTERS[1:10]),
+  year = sample(2018:2024, 10, replace = TRUE),
+  n_treat = sample(30:150, 10, replace = TRUE),
+  n_control = sample(30:150, 10, replace = TRUE)
+) |>
+  mutate(
+    # 真实效应：降压 5 mmHg，SD ≈ 12
+    true_md = 5 + rnorm(10, 0, 1.5),
+    mean_control = 140 + rnorm(10, 0, 3),
+    mean_treat = mean_control - true_md,
+    sd_treat = 10 + runif(10, 0, 5),
+    sd_control = 10 + runif(10, 0, 5)
+  ) |>
+  select(study, year, n_treat, mean_treat, sd_treat, n_control, mean_control, sd_control)
+
+bp_studies
+```
+
+---
+
+## 二分类结局 Meta 分析
+
+### 计算效应量
+
+```{r}
+# 使用 meta 包进行二分类 Meta 分析
+meta_or <- metabin(
+  event.e = event_treat,
+  n.e = n_treat,
+  event.c = event_control,
+  n.c = n_control,
+  studlab = study,
+  data = cvd_studies,
+  sm = "OR", # 效应指标：OR
+  method = "MH", # Mantel-Haenszel 方法
+  random = TRUE, # 随机效应模型
+  fixed = TRUE, # 同时计算固定效应
+  title = "CVD 预防药物疗效 Meta 分析"
+)
+
+# 查看结果
+summary(meta_or)
+```
+
+### 森林图
+
+```{r fig.height=7}
+# 绑制森林图
+forest(meta_or,
+  sortvar = year, # 按年份排序
+  prediction = TRUE, # 预测区间
+  print.tau2 = TRUE, # 显示 τ²
+  leftcols = c("studlab", "event.e", "n.e", "event.c", "n.c"),
+  leftlabs = c("研究", "事件(治疗)", "n(治疗)", "事件(对照)", "n(对照)"),
+  rightcols = c("effect", "ci"),
+  rightlabs = c("OR", "95% CI"),
+  col.diamond = "#4f46e5",
+  col.diamond.lines = "#4f46e5",
+  col.predict = "#10b981"
+)
+```
+
+### 使用 metafor 包
+
+```{r}
+# 使用 metafor 进行更灵活的分析
+library(metafor)
+
+# 计算对数 OR 及其方差
+cvd_es <- escalc(
+  measure = "OR",
+  ai = event_treat, bi = nonevent_treat,
+  ci = event_control, di = nonevent_control,
+  data = cvd_studies
+)
+
+# 随机效应模型（REML 估计）
+res_or <- rma(yi, vi, data = cvd_es, method = "REML")
+summary(res_or)
+```
+
+```{r fig.height=6}
+# metafor 森林图
+forest(res_or,
+  slab = cvd_studies$study,
+  header = c("研究", "OR [95% CI]"),
+  xlab = "比值比 (OR)",
+  atransf = exp, # 转换回 OR 尺度
+  at = log(c(0.25, 0.5, 1, 2)),
+  refline = 0,
+  col = "#4f46e5",
+  border = "#4f46e5"
+)
+```
+
+---
+
+## 连续型结局 Meta 分析
+
+### 均值差 (MD)
+
+```{r}
+# 连续型结局 Meta 分析
+meta_md <- metacont(
+  n.e = n_treat,
+  mean.e = mean_treat,
+  sd.e = sd_treat,
+  n.c = n_control,
+  mean.c = mean_control,
+  sd.c = sd_control,
+  studlab = study,
+  data = bp_studies,
+  sm = "MD", # 均值差
+  random = TRUE,
+  fixed = TRUE,
+  title = "降压干预效果 Meta 分析"
+)
+
+summary(meta_md)
+```
+
+```{r fig.height=6}
+# 森林图
+forest(meta_md,
+  sortvar = year,
+  prediction = TRUE,
+  print.tau2 = TRUE,
+  leftcols = c("studlab", "n.e", "mean.e", "n.c", "mean.c"),
+  leftlabs = c("研究", "n(治疗)", "均值(治疗)", "n(对照)", "均值(对照)"),
+  xlab = "均值差 (mmHg)",
+  smlab = "干预组更优 ← → 对照组更优",
+  col.diamond = "#10b981",
+  col.diamond.lines = "#10b981"
+)
+```
+
+### 标准化均值差 (SMD)
+
+当各研究使用不同测量工具时，使用 SMD：
+
+```{r}
+# SMD 分析
+meta_smd <- metacont(
+  n.e = n_treat,
+  mean.e = mean_treat,
+  sd.e = sd_treat,
+  n.c = n_control,
+  mean.c = mean_control,
+  sd.c = sd_control,
+  studlab = study,
+  data = bp_studies,
+  sm = "SMD", # 标准化均值差（Hedges' g）
+  method.smd = "Hedges",
+  random = TRUE
+)
+
+summary(meta_smd)
+```
+
+---
+
+## 异质性评估
+
+### 异质性指标
+
+| 指标 | 解读 |
+|------|------|
+| **Q 统计量** | 检验异质性是否存在（p < 0.1 提示异质性） |
+| **I²** | 异质性占总变异的比例（25%低, 50%中, 75%高） |
+| **τ²** | 研究间方差（随机效应的方差分量） |
+| **H²** | 总变异/抽样误差变异 |
+
+```{r}
+# 从 meta 对象中提取异质性指标
+cat("Q 统计量:", meta_or$Q, ", df =", meta_or$df.Q, ", p =", meta_or$pval.Q, "\n")
+cat("I² =", round(meta_or$I2 * 100, 1), "%\n")
+cat("τ² =", round(meta_or$tau2, 4), "\n")
+```
+
+### 可视化异质性
+
+```{r}
+# 使用 metafor 绑制 Baujat 图（识别异质性来源）
+baujat(res_or, main = "Baujat 图：识别异质性来源")
+```
+
+---
+
+## 亚组分析
+
+```{r}
+# 添加亚组变量
+cvd_studies <- cvd_studies |>
+  mutate(
+    sample_size = ifelse(n_treat + n_control > 300, "大样本", "小样本"),
+    region = sample(c("亚洲", "欧美"), 12, replace = TRUE)
+  )
+
+# 按样本量分组的亚组分析
+meta_subgroup <- metabin(
+  event.e = event_treat,
+  n.e = n_treat,
+  event.c = event_control,
+  n.c = n_control,
+  studlab = study,
+  data = cvd_studies,
+  sm = "OR",
+  random = TRUE,
+  subgroup = sample_size, # 亚组变量
+  print.subgroup.name = TRUE
+)
+
+summary(meta_subgroup)
+```
+
+```{r fig.height=8}
+# 亚组森林图
+forest(meta_subgroup,
+  sortvar = year,
+  print.subgroup.name = TRUE,
+  subgroup.name = "样本量分组",
+  col.diamond = "#4f46e5",
+  col.diamond.lines = "#4f46e5"
+)
+```
+
+---
+
+## Meta 回归
+
+探索异质性来源的定量方法：
+
+```{r}
+# 使用 metafor 进行 Meta 回归
+cvd_es <- cvd_es |>
+  mutate(
+    year = cvd_studies$year,
+    total_n = cvd_studies$n_treat + cvd_studies$n_control
+  )
+
+# Meta 回归：年份作为调节变量
+res_metareg <- rma(yi, vi, mods = ~year, data = cvd_es, method = "REML")
+summary(res_metareg)
+```
+
+```{r}
+# 可视化 Meta 回归
+regplot(res_metareg,
+  xlab = "发表年份",
+  ylab = "log(OR)",
+  main = "Meta 回归：年份与效应量关系",
+  col = "#4f46e5",
+  lcol = "#ef4444"
+)
+```
+
+```{r}
+# 多变量 Meta 回归
+res_metareg2 <- rma(yi, vi, mods = ~ year + total_n, data = cvd_es, method = "REML")
+summary(res_metareg2)
+```
+
+---
+
+## 发表偏倚评估
+
+### 漏斗图
+
+```{r}
+# 基础漏斗图
+funnel(res_or,
+  main = "漏斗图",
+  xlab = "log(OR)",
+  col = "#4f46e5",
+  pch = 19
+)
+```
+
+```{r}
+# 带等高线的漏斗图
+funnel(res_or,
+  level = c(90, 95, 99),
+  shade = c("white", "gray80", "gray60"),
+  refline = 0,
+  main = "漏斗图（带置信区间）"
+)
+```
+
+### Egger 检验
+
+```{r}
+# Egger 线性回归检验
+regtest(res_or)
+# p < 0.05 提示存在发表偏倚
+```
+
+### Begg 检验
+
+```{r}
+# Begg 秩相关检验
+ranktest(res_or)
+```
+
+### 剪补法 (Trim and Fill)
+
+```{r}
+# 剪补法估计缺失研究
+tf_result <- trimfill(res_or)
+summary(tf_result)
+```
+
+```{r}
+# 剪补后的漏斗图
+funnel(tf_result,
+  main = "剪补法漏斗图",
+  xlab = "log(OR)"
+)
+```
+
+---
+
+## 敏感性分析
+
+### 逐一剔除法
+
+```{r}
+# Leave-one-out 分析
+loo_result <- leave1out(res_or)
+print(loo_result)
+```
+
+```{r fig.height=6, eval=FALSE}
+# 可视化逐一剔除影响（需要手动处理数据）
+# 使用 loo_result 中的数据绑制
+forest(loo_result,
+  xlab = "比值比 (OR)",
+  atransf = exp,
+  refline = exp(coef(res_or))
+)
+```
+
+### 累积 Meta 分析
+
+```{r fig.height=6}
+# 按年份累积 Meta 分析
+cvd_es_sorted <- cvd_es[order(cvd_es$year), ]
+res_sorted <- rma(yi, vi, data = cvd_es_sorted, method = "REML")
+
+cumul_result <- cumul(res_sorted, order = cvd_es_sorted$year)
+
+forest(cumul_result,
+  header = c("累积研究", "OR [95% CI]"),
+  xlab = "比值比 (OR)",
+  atransf = exp,
+  refline = 1,
+  col = "#10b981",
+  main = "累积 Meta 分析"
+)
+```
+
+### 影响分析
+
+```{r fig.height=5}
+# 影响诊断
+inf <- influence(res_or)
+
+plot(inf, layout = c(4, 2))
+```
+
+---
+
+## 效应指标选择
+
+### 二分类结局
+
+| 指标 | 代码 | 适用场景 |
+|------|------|----------|
+| 比值比 OR | `sm = "OR"` | 病例对照研究、横断面 |
+| 相对危险度 RR | `sm = "RR"` | 队列研究、RCT |
+| 风险差 RD | `sm = "RD"` | 需要绝对效应时 |
+
+### 连续型结局
+
+| 指标 | 代码 | 适用场景 |
+|------|------|----------|
+| 均值差 MD | `sm = "MD"` | 相同测量工具 |
+| 标准化均值差 SMD | `sm = "SMD"` | 不同测量工具 |
+| 比率均值 ROM | `sm = "ROM"` | 比例变化 |
+
+---
+
+## 高质量出版森林图
+
+```{r fig.height=8, fig.width=10}
+# 自定义高质量森林图
+forest(meta_or,
+  # 排序
+  sortvar = year,
+
+  # 显示内容
+  prediction = TRUE,
+  print.tau2 = TRUE,
+  print.I2 = TRUE,
+  print.pval.Q = TRUE,
+
+  # 左侧列
+  leftcols = c("studlab", "year", "event.e", "n.e", "event.c", "n.c"),
+  leftlabs = c("研究", "年份", "事件", "n", "事件", "n"),
+
+  # 右侧列
+  rightcols = c("effect", "ci", "w.random"),
+  rightlabs = c("OR", "95% CI", "权重(%)"),
+
+  # 颜色设置
+  col.diamond = "#4f46e5",
+  col.diamond.lines = "#4f46e5",
+  col.predict = "#10b981",
+  col.predict.lines = "#10b981",
+
+  # 标签
+  label.e = "治疗组",
+  label.c = "对照组",
+  label.left = "支持治疗",
+  label.right = "支持对照",
+
+  # 其他设置
+  comb.fixed = FALSE, # 不显示固定效应
+  overall.hetstat = TRUE,
+  test.overall.random = TRUE,
+
+  # 字体
+  fontsize = 9,
+  spacing = 1.2,
+
+  # 标题
+  smlab = "比值比 (OR)"
+)
+```
+
+---
+
+## 常见问题与陷阱
+
+### 1. 固定 vs 随机效应模型选择
+
+| 情况 | 推荐模型 |
+|------|----------|
+| 研究设计/人群高度相似 | 固定效应 |
+| I² > 50% | 随机效应 |
+| 目标是泛化到更广人群 | 随机效应 |
+| 研究数量 < 5 | 固定效应（随机效应估计不稳定） |
+
+### 2. 小研究效应
+
+```{r eval=FALSE}
+# 除 Egger 检验外，还可以比较固定和随机效应结果
+# 若随机效应更极端，可能存在小研究效应
+```
+
+### 3. 零事件处理
+
+```{r}
+# 在 metabin 中处理零事件
+meta_zero <- metabin(
+  event.e = event_treat,
+  n.e = n_treat,
+  event.c = event_control,
+  n.c = n_control,
+  studlab = study,
+  data = cvd_studies,
+  sm = "OR",
+  incr = 0.5, # 连续性校正
+  allincr = FALSE # 只对零事件研究添加
+)
+```
+
+### 4. 质量评估
+
+```r
+# Meta 分析应结合研究质量评估
+# 常用工具：
+# - RCT: Cochrane RoB 2
+# - 观察性研究: Newcastle-Ottawa Scale
+# - 诊断研究: QUADAS-2
+```
+
+---
+
+## PRISMA 流程图
+
+```{r eval=FALSE}
+# 使用 PRISMA2020 包创建流程图
+# install.packages("PRISMA2020")
+library(PRISMA2020)
+
+PRISMA_data(
+  identification = list(
+    records_identified = 1250,
+    records_removed_before = 150,
+    records_screened = 1100
+  ),
+  screening = list(
+    records_excluded = 950,
+    reports_sought = 150,
+    reports_not_retrieved = 10,
+    reports_assessed = 140
+  ),
+  included = list(
+    reports_excluded = 128,
+    new_studies = 12,
+    new_reports = 12
+  )
+) |>
+  PRISMA_flowdiagram()
+```
+
+---
+
+## 完整分析模板
+
+```{r eval=FALSE}
+# ========== Meta 分析完整流程 ==========
+
+library(meta)
+library(metafor)
+
+# 1. 数据准备（二分类结局）
+meta_result <- metabin(
+  event.e = event_treat, n.e = n_treat,
+  event.c = event_control, n.c = n_control,
+  studlab = study, data = data,
+  sm = "OR", random = TRUE
+)
+
+# 2. 查看结果
+summary(meta_result)
+
+# 3. 森林图
+forest(meta_result, prediction = TRUE)
+
+# 4. 异质性评估
+cat("I² =", meta_result$I2, "\n")
+cat("τ² =", meta_result$tau2, "\n")
+
+# 5. 发表偏倚
+funnel(meta_result)
+metabias(meta_result, method = "linreg")
+
+# 6. 敏感性分析
+metainf(meta_result)
+```
+
+---
+
+## 总结
+
+| 步骤 | 内容 | R 函数 |
+|------|------|--------|
+| 效应量计算 | OR/RR/MD/SMD | `metabin()`, `metacont()` |
+| 模型拟合 | 固定/随机效应 | `method`, `random` 参数 |
+| 森林图 | 结果可视化 | `forest()` |
+| 异质性 | I², τ², Q | 模型输出 |
+| 亚组分析 | 探索调节效应 | `subgroup` 参数 |
+| Meta 回归 | 定量调节分析 | `rma(..., mods = )` |
+| 发表偏倚 | 漏斗图、Egger | `funnel()`, `regtest()` |
+| 敏感性分析 | 逐一剔除 | `leave1out()` |
+
+### 报告 Meta 分析的 Checklist (PRISMA)
+
+- [ ] 报告检索策略和数据库
+- [ ] 报告纳入/排除标准
+- [ ] 提供 PRISMA 流程图
+- [ ] 报告各研究的效应量和 95% CI
+- [ ] 报告合并效应及置信区间
+- [ ] 报告异质性指标（I², τ², Q）
+- [ ] 提供森林图
+- [ ] 评估发表偏倚（漏斗图）
+- [ ] 进行敏感性分析
+- [ ] 评估证据质量（如 GRADE）
+
+### 推荐阅读
+
+- Borenstein M et al. Introduction to Meta-Analysis
+- Higgins JPT, Green S. Cochrane Handbook for Systematic Reviews
+- [R metafor 文档](https://www.metafor-project.org/)
+- [R meta 文档](https://cran.r-project.org/web/packages/meta/)

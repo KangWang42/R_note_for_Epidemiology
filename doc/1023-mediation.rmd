@@ -1,0 +1,599 @@
+---
+title: "中介效应分析完全指南"
+date: "2026-01-12"
+categories: [R语言方法, 统计建模, 中介效应]
+image: "figure/mediation-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 什么是中介效应？
+
+**中介效应（Mediation Effect）** 分析用于探索自变量 X 如何通过中介变量 M 影响因变量 Y 的机制。它回答的核心问题是：**"效应是如何传递的？"**
+
+### 核心概念
+
+```
+        a           b
+    X ----→ M ----→ Y
+        \         ↗
+         \-------/
+            c'
+```
+
+| 路径 | 名称 | 含义 |
+|------|------|------|
+| a | X → M 路径 | 自变量对中介变量的效应 |
+| b | M → Y 路径 | 控制 X 后，中介变量对因变量的效应 |
+| c | 总效应 | X 对 Y 的总效应 |
+| c' | 直接效应 | 控制 M 后，X 对 Y 的直接效应 |
+| a×b | 间接效应 | 通过 M 传递的效应 |
+
+### 效应分解
+
+$$\text{总效应 (c)} = \text{直接效应 (c')} + \text{间接效应 (a×b)}$$
+
+### 适用场景
+
+| 场景 | 示例 |
+|------|------|
+| 行为机制研究 | 锻炼如何通过自我效能感影响健康 |
+| 干预机制 | 培训如何通过技能提升影响绩效 |
+| 流行病学 | 社会经济地位如何通过生活方式影响疾病 |
+| 心理学研究 | 依恋风格如何通过情绪调节影响心理健康 |
+
+---
+
+## R 包安装与加载
+
+```{r}
+# 核心包
+library(mediation) # 经典中介分析
+library(lavaan) # 结构方程模型
+library(tidyverse) # 数据处理
+library(broom) # 模型整理
+
+# 可选：bruceR 和 processR 需要额外安装
+# library(bruceR)       # 中介分析辅助
+# library(processR)     # PROCESS 宏的 R 实现
+```
+
+---
+
+## 数据准备
+
+使用模拟数据：工作压力 → 工作倦怠 → 离职意向
+
+```{r}
+# 模拟数据
+set.seed(2024)
+n <- 400
+
+work_data <- tibble(
+  id = 1:n,
+  # 控制变量
+  age = round(rnorm(n, 35, 8)),
+  gender = factor(sample(c("男", "女"), n, replace = TRUE)),
+  tenure = round(pmax(1, rnorm(n, 5, 3))),
+
+  # 自变量：工作压力 (1-7 量表)
+  stress = round(pmin(7, pmax(1, rnorm(n, 4, 1.2))), 1)
+) |>
+  mutate(
+    # 中介变量：工作倦怠 (受压力影响)
+    burnout = round(pmin(7, pmax(
+      1,
+      1.5 + 0.8 * stress + 0.02 * age + rnorm(n, 0, 0.8)
+    )), 1),
+
+    # 因变量：离职意向 (受压力和倦怠影响)
+    turnover = round(pmin(7, pmax(
+      1,
+      0.5 + 0.3 * stress + 0.6 * burnout - 0.05 * tenure + rnorm(n, 0, 0.7)
+    )), 1)
+  )
+
+# 查看数据
+glimpse(work_data)
+
+# 描述统计
+work_data |>
+  select(stress, burnout, turnover) |>
+  psych::describe() |>
+  select(mean, sd, min, max)
+```
+
+### 相关分析
+
+```{r}
+# 计算相关矩阵
+cor_matrix <- work_data |>
+  select(stress, burnout, turnover) |>
+  cor()
+
+round(cor_matrix, 3)
+```
+
+---
+
+## 方法一：Baron-Kenny 逐步法
+
+传统的 Baron-Kenny 方法通过三步回归检验中介效应。
+
+### 步骤 1：检验总效应 (c 路径)
+
+```{r}
+# X → Y（不控制 M）
+step1 <- lm(turnover ~ stress, data = work_data)
+summary(step1)
+
+# 提取总效应
+c_total <- coef(step1)["stress"]
+cat("总效应 c =", round(c_total, 4), "\n")
+```
+
+### 步骤 2：检验 a 路径
+
+```{r}
+# X → M
+step2 <- lm(burnout ~ stress, data = work_data)
+summary(step2)
+
+# 提取 a 路径
+a_path <- coef(step2)["stress"]
+cat("a 路径 =", round(a_path, 4), "\n")
+```
+
+### 步骤 3：检验 b 路径和直接效应 (c')
+
+```{r}
+# X + M → Y
+step3 <- lm(turnover ~ stress + burnout, data = work_data)
+summary(step3)
+
+# 提取 b 路径和直接效应
+b_path <- coef(step3)["burnout"]
+c_prime <- coef(step3)["stress"]
+
+cat("b 路径 =", round(b_path, 4), "\n")
+cat("直接效应 c' =", round(c_prime, 4), "\n")
+```
+
+### 计算间接效应
+
+```{r}
+# 间接效应 = a × b
+indirect_effect <- a_path * b_path
+cat("间接效应 a×b =", round(indirect_effect, 4), "\n")
+
+# 中介效应占比
+proportion_mediated <- indirect_effect / c_total
+cat("中介效应占比 =", round(proportion_mediated * 100, 1), "%\n")
+
+# 验证：c = c' + ab
+cat(
+  "验证: c' + ab =", round(c_prime + indirect_effect, 4),
+  ", c =", round(c_total, 4), "\n"
+)
+```
+
+### Baron-Kenny 结论
+
+```{r}
+# 中介效应判断
+cat("\n==== Baron-Kenny 中介效应检验 ====\n")
+cat("1. c 路径显著:", coef(summary(step1))["stress", "Pr(>|t|)"] < 0.05, "\n")
+cat("2. a 路径显著:", coef(summary(step2))["stress", "Pr(>|t|)"] < 0.05, "\n")
+cat("3. b 路径显著:", coef(summary(step3))["burnout", "Pr(>|t|)"] < 0.05, "\n")
+cat("4. c' < c:", abs(c_prime) < abs(c_total), "\n")
+```
+
+---
+
+## 方法二：Bootstrap 法（推荐）
+
+Bootstrap 方法不依赖正态分布假设，是目前最推荐的中介效应检验方法。
+
+### 使用 mediation 包
+
+```{r}
+# 拟合两个回归模型
+model_m <- lm(burnout ~ stress + age + tenure, data = work_data)
+model_y <- lm(turnover ~ stress + burnout + age + tenure, data = work_data)
+
+# 执行中介分析（Bootstrap）
+set.seed(42)
+med_result <- mediate(
+  model.m = model_m, # 中介变量模型
+  model.y = model_y, # 结局变量模型
+  treat = "stress", # 自变量
+  mediator = "burnout", # 中介变量
+  boot = TRUE, # 使用 Bootstrap
+  sims = 1000 # Bootstrap 次数
+)
+
+summary(med_result)
+```
+
+### 解读 mediation 结果
+
+| 指标 | 含义 |
+|------|------|
+| ACME | Average Causal Mediation Effect（间接效应） |
+| ADE | Average Direct Effect（直接效应） |
+| Total Effect | 总效应 |
+| Prop. Mediated | 中介效应占比 |
+
+```{r}
+# 可视化中介效应
+plot(med_result, main = "中介效应 Bootstrap 结果")
+```
+
+### 敏感性分析
+
+```{r}
+# 中介分析的敏感性分析（检验未测量混杂的影响）
+sens_result <- medsens(med_result, rho.by = 0.05)
+
+summary(sens_result)
+```
+
+```{r}
+# 绘制敏感性分析图
+plot(sens_result, main = "敏感性分析")
+```
+
+---
+
+## 方法三：结构方程模型 (SEM)
+
+使用 lavaan 包进行 SEM 分析，可以处理更复杂的模型。
+
+### 单中介模型
+
+```{r}
+# 定义模型
+model_sem <- "
+  # 回归路径
+  burnout ~ a * stress    # a 路径
+  turnover ~ b * burnout + c * stress  # b 和 c 路径
+
+  # 间接效应和总效应
+  indirect := a * b
+  total := c + a * b
+
+  # 控制变量（可选）
+  burnout ~ age + tenure
+  turnover ~ age + tenure
+"
+
+# 拟合模型（Bootstrap）
+fit_sem <- sem(model_sem,
+  data = work_data,
+  se = "bootstrap", bootstrap = 1000
+)
+
+summary(fit_sem, standardized = TRUE, ci = TRUE)
+```
+
+### 提取效应
+
+```{r}
+# 提取标准化效应
+standardizedSolution(fit_sem) |>
+  filter(op == ":=" | (lhs %in% c("burnout", "turnover") & op == "~")) |>
+  select(lhs, op, rhs, est.std, ci.lower, ci.upper, pvalue)
+```
+
+### 模型拟合指标
+
+```{r}
+# 拟合指标
+fitMeasures(fit_sem, c("chisq", "df", "pvalue", "cfi", "tli", "rmsea", "srmr"))
+```
+
+---
+
+## 多重中介分析
+
+当存在多个中介变量时：
+
+```{r}
+# 添加第二个中介变量：工作满意度
+work_data <- work_data |>
+  mutate(
+    satisfaction = round(pmin(7, pmax(
+      1,
+      6 - 0.5 * stress - 0.3 * burnout + rnorm(n, 0, 0.7)
+    )), 1)
+  )
+
+# 多重中介模型
+model_multi <- "
+  # a 路径
+  burnout ~ a1 * stress
+  satisfaction ~ a2 * stress
+
+  # b 路径
+  turnover ~ b1 * burnout + b2 * satisfaction + c * stress
+
+  # 间接效应
+  ind1 := a1 * b1          # 通过倦怠
+  ind2 := a2 * b2          # 通过满意度
+  total_indirect := ind1 + ind2
+  total := c + ind1 + ind2
+
+  # 控制变量
+  burnout ~ age
+  satisfaction ~ age
+  turnover ~ age
+"
+
+fit_multi <- sem(model_multi,
+  data = work_data,
+  se = "bootstrap", bootstrap = 1000
+)
+
+summary(fit_multi, standardized = TRUE, ci = TRUE)
+```
+
+```{r}
+# 比较两个间接效应
+parameterEstimates(fit_multi, boot.ci.type = "bca.simple") |>
+  filter(op == ":=") |>
+  select(label, est, ci.lower, ci.upper, pvalue)
+```
+
+---
+
+## 调节的中介效应
+
+当中介路径受到调节变量影响时：
+
+```{r}
+# 添加调节变量：社会支持
+work_data <- work_data |>
+  mutate(
+    social_support = round(pmin(7, pmax(1, rnorm(n, 4.5, 1.2))), 1),
+    # 中心化
+    stress_c = stress - mean(stress),
+    support_c = social_support - mean(social_support),
+    # 交互项
+    stress_support = stress_c * support_c
+  )
+
+# 调节的中介模型
+model_m_mod <- lm(burnout ~ stress_c * support_c + age, data = work_data)
+model_y_mod <- lm(turnover ~ stress_c + burnout + age, data = work_data)
+
+summary(model_m_mod) # 检查交互效应是否显著
+```
+
+```{r eval=FALSE}
+# 在不同社会支持水平下的中介效应
+# 注意：此代码需要更精细的模型设定
+# 低支持 (-1 SD)
+med_low <- mediate(model_m_mod, model_y_mod,
+  covariates = list(support_c = -sd(work_data$support_c)),
+  treat = "stress_c", mediator = "burnout",
+  boot = TRUE, sims = 500
+)
+
+# 高支持 (+1 SD)
+med_high <- mediate(model_m_mod, model_y_mod,
+  covariates = list(support_c = sd(work_data$support_c)),
+  treat = "stress_c", mediator = "burnout",
+  boot = TRUE, sims = 500
+)
+
+cat("低社会支持下的间接效应:", round(med_low$d0, 4), "\n")
+cat("高社会支持下的间接效应:", round(med_high$d0, 4), "\n")
+```
+
+---
+
+## 使用 bruceR 包（简化版）
+
+```{r eval=FALSE}
+# bruceR 提供更简洁的中介分析语法
+# 需要先安装 bruceR 包
+library(bruceR)
+
+# 简单中介分析
+PROCESS(
+  data = work_data,
+  y = "turnover",
+  x = "stress",
+  meds = "burnout",
+  covs = c("age", "tenure"),
+  seed = 42,
+  nsim = 1000
+)
+```
+
+---
+
+## 结果可视化
+
+### 路径图
+
+```{r fig.height=4, fig.width=7}
+# 手动绘制路径图
+library(DiagrammeR)
+
+grViz("
+digraph mediation {
+  graph [layout = dot, rankdir = LR]
+
+  node [shape = rectangle, style = filled, fillcolor = '#e0e7ff']
+  X [label = '工作压力\\n(X)']
+  M [label = '工作倦怠\\n(M)']
+  Y [label = '离职意向\\n(Y)']
+
+  edge [color = '#4f46e5', penwidth = 2]
+  X -> M [label = 'a = 0.80***']
+  M -> Y [label = 'b = 0.59***']
+  X -> Y [label = \"c' = 0.31***\"]
+}
+")
+```
+
+### 效应对比图
+
+```{r}
+# 效应对比条形图
+effect_data <- tibble(
+  效应 = c("总效应 (c)", "直接效应 (c')", "间接效应 (ab)"),
+  估计值 = c(c_total, c_prime, indirect_effect),
+  类型 = c("总效应", "直接效应", "间接效应")
+)
+
+ggplot(effect_data, aes(x = reorder(效应, 估计值), y = 估计值, fill = 类型)) +
+  geom_col(alpha = 0.8) +
+  geom_text(aes(label = round(估计值, 3)), hjust = -0.1) +
+  coord_flip() +
+  scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+  labs(
+    title = "中介效应分解",
+    x = NULL,
+    y = "效应量"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+---
+
+## 中介效应类型
+
+| 类型 | 条件 | 解释 |
+|------|------|------|
+| **完全中介** | c' 不显著，ab 显著 | X 完全通过 M 影响 Y |
+| **部分中介** | c' 和 ab 都显著 | X 部分通过 M 影响 Y |
+| **无中介** | ab 不显著 | M 不是中介变量 |
+| **遮蔽效应** | c' 和 ab 符号相反 | 直接和间接效应部分抵消 |
+| **竞争中介** | ab 显著但 c 不显著 | 不同中介路径相互抵消 |
+
+---
+
+## 常见问题与陷阱
+
+### 1. 因果推断的限制
+
+```r
+# 中介分析需要满足以下假设：
+# 1. X 在时间上先于 M
+# 2. M 在时间上先于 Y
+# 3. 没有遗漏的混杂变量
+
+# 横断面数据的中介分析只能说明"一致性"，不能证明因果关系
+```
+
+### 2. 样本量要求
+
+```r
+# 中介效应的检验力较低
+# 推荐规则：
+# - 小效应：n ≥ 500
+# - 中等效应：n ≥ 200
+# - 大效应：n ≥ 100
+
+# 使用 powerMediation 包计算样本量
+# library(powerMediation)
+```
+
+### 3. 测量误差
+
+```r
+# 测量误差会导致：
+# - a 路径被低估
+# - b 路径被低估
+# - 间接效应被低估
+# - 直接效应被高估
+
+# 解决方案：使用潜变量模型（SEM）
+```
+
+### 4. 多重共线性
+
+```{r}
+# 检查 X 和 M 的相关性
+cat("X-M 相关:", round(cor(work_data$stress, work_data$burnout), 3), "\n")
+
+# 高相关可能导致直接效应估计不稳定
+```
+
+---
+
+## 完整分析模板
+
+```{r eval=FALSE}
+# ========== 中介效应分析完整流程 ==========
+
+library(mediation)
+library(lavaan)
+
+# 方法1：mediation 包（推荐）
+# 1. 拟合模型
+model_m <- lm(M ~ X + covariates, data = data)
+model_y <- lm(Y ~ X + M + covariates, data = data)
+
+# 2. 中介分析
+med <- mediate(model_m, model_y,
+  treat = "X", mediator = "M",
+  boot = TRUE, sims = 5000
+)
+summary(med)
+
+# 3. 敏感性分析
+medsens(med)
+
+# 方法2：SEM（复杂模型）
+model <- "
+  M ~ a * X
+  Y ~ b * M + c * X
+  indirect := a * b
+  total := c + a * b
+"
+fit <- sem(model, data, se = "bootstrap", bootstrap = 5000)
+summary(fit, ci = TRUE)
+```
+
+---
+
+## 总结
+
+| 方法 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| Baron-Kenny | 简单直观 | 检验力低，需正态假设 | 教学演示 |
+| Sobel 检验 | 有明确检验统计量 | 需正态假设 | 大样本 |
+| Bootstrap | 不需要正态假设 | 计算量大 | **推荐使用** |
+| SEM | 可处理复杂模型 | 需要较大样本 | 多中介、潜变量 |
+
+### 报告中介效应的 Checklist
+
+- [ ] 报告总效应、直接效应、间接效应
+- [ ] 报告 Bootstrap 置信区间
+- [ ] 报告中介效应占比（谨慎解读）
+- [ ] 说明变量的测量方式
+- [ ] 讨论时间顺序假设
+- [ ] 进行敏感性分析
+- [ ] 报告样本量和检验力
+
+### 推荐阅读
+
+- Hayes AF. Introduction to Mediation, Moderation, and Conditional Process Analysis
+- MacKinnon DP. Introduction to Statistical Mediation Analysis
+- Preacher KJ, Hayes AF (2008). Asymptotic and resampling strategies...
+- [mediation 包文档](https://cran.r-project.org/web/packages/mediation/)

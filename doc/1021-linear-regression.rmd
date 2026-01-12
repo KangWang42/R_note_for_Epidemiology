@@ -1,0 +1,734 @@
+---
+title: "多元线性回归完全指南"
+date: "2026-01-12"
+categories: [R语言方法, 统计建模, 线性回归]
+image: "figure/linear-regression-cover.png"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 什么是多元线性回归？
+
+**多元线性回归（Multiple Linear Regression）** 是一种用于分析**连续型结局变量**与多个解释变量之间关系的统计方法。它是最基础也是最重要的回归分析方法之一。
+
+### 适用场景
+
+| 场景 | 示例 |
+|------|------|
+| 预测建模 | 预测房价、销售额 |
+| 效应估计 | 控制混杂后估计暴露效应 |
+| 变量筛选 | 识别重要预测因子 |
+| 趋势分析 | 定量评估剂量-效应关系 |
+
+### 核心公式
+
+$$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_p X_p + \epsilon$$
+
+其中：
+- $\beta_0$：截距
+- $\beta_i$：第 i 个预测变量的回归系数
+- $\epsilon \sim N(0, \sigma^2)$：随机误差
+
+### 回归系数解读
+
+$\beta_i$ 表示：**在控制其他变量不变的情况下，$X_i$ 每增加 1 个单位，Y 的平均变化量**。
+
+---
+
+## R 包安装与加载
+
+```{r}
+# 核心包
+library(tidyverse) # 数据处理
+library(broom) # 模型整理
+library(gtsummary) # 结果表格
+library(performance) # 模型诊断
+library(see) # 可视化支持
+library(car) # VIF 检验
+library(lmtest) # 诊断检验
+library(sandwich) # 稳健标准误
+library(interactions) # 交互效应可视化
+```
+
+---
+
+## 数据准备
+
+使用模拟的健康数据集：
+
+```{r}
+# 模拟数据：收缩压影响因素
+set.seed(2024)
+n <- 500
+
+bp_data <- tibble(
+  id = 1:n,
+  age = round(runif(n, 25, 75)),
+  sex = factor(sample(c("男", "女"), n, replace = TRUE, prob = c(0.48, 0.52))),
+  bmi = round(rnorm(n, 25, 4), 1),
+  smoking = factor(sample(c("从不", "曾经", "现在"), n,
+    replace = TRUE,
+    prob = c(0.45, 0.30, 0.25)
+  )),
+  exercise = round(pmax(0, rnorm(n, 150, 60))), # 每周运动分钟数
+  sodium_intake = round(rnorm(n, 2300, 500)), # 每日钠摄入 (mg)
+  alcohol = round(pmax(0, rnorm(n, 10, 8))) # 每周酒精摄入 (g)
+) |>
+  mutate(
+    # 生成收缩压（受多因素影响）
+    sbp = 90 +
+      0.5 * age +
+      3 * (sex == "男") +
+      1.2 * bmi +
+      3 * (smoking == "曾经") +
+      8 * (smoking == "现在") +
+      -0.03 * exercise +
+      0.005 * sodium_intake +
+      0.2 * alcohol +
+      rnorm(n, 0, 10)
+  ) |>
+  mutate(sbp = round(sbp))
+
+# 查看数据
+glimpse(bp_data)
+
+# 结局变量分布
+summary(bp_data$sbp)
+```
+
+### 探索性分析
+
+```{r fig.height=6}
+# 连续变量与结局的散点图
+bp_data |>
+  select(sbp, age, bmi, exercise, sodium_intake, alcohol) |>
+  pivot_longer(-sbp, names_to = "variable", values_to = "value") |>
+  ggplot(aes(x = value, y = sbp)) +
+  geom_point(alpha = 0.3, color = "#4f46e5") +
+  geom_smooth(method = "lm", color = "#ef4444") +
+  facet_wrap(~variable, scales = "free_x", ncol = 3) +
+  labs(
+    title = "收缩压与各预测变量的关系",
+    x = "预测变量值",
+    y = "收缩压 (mmHg)"
+  ) +
+  theme_minimal(base_size = 11)
+```
+
+```{r}
+# 相关矩阵
+bp_data |>
+  select(sbp, age, bmi, exercise, sodium_intake, alcohol) |>
+  cor() |>
+  round(2)
+```
+
+---
+
+## 模型构建
+
+### 简单线性回归
+
+```{r}
+# 单变量：年龄 vs 收缩压
+model_simple <- lm(sbp ~ age, data = bp_data)
+summary(model_simple)
+```
+
+```{r}
+# 可视化简单回归
+ggplot(bp_data, aes(x = age, y = sbp)) +
+  geom_point(alpha = 0.4, color = "#4f46e5") +
+  geom_smooth(method = "lm", color = "#ef4444", fill = "#ef4444", alpha = 0.2) +
+  labs(
+    title = "年龄与收缩压的线性关系",
+    x = "年龄 (岁)",
+    y = "收缩压 (mmHg)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### 多元线性回归
+
+```{r}
+# 多元模型
+model_full <- lm(
+  sbp ~ age + sex + bmi + smoking + exercise + sodium_intake + alcohol,
+  data = bp_data
+)
+
+summary(model_full)
+```
+
+### 整洁输出
+
+```{r}
+# 使用 gtsummary 生成专业表格
+model_full |>
+  tbl_regression(
+    label = list(
+      age ~ "年龄 (每增加1岁)",
+      sex ~ "性别",
+      bmi ~ "BMI (每增加1)",
+      smoking ~ "吸烟状态",
+      exercise ~ "每周运动 (每增加1分钟)",
+      sodium_intake ~ "钠摄入 (每增加1mg/天)",
+      alcohol ~ "酒精摄入 (每增加1g/周)"
+    )
+  ) |>
+  add_global_p() |>
+  add_glance_table(include = c(r.squared, adj.r.squared, AIC, nobs)) |>
+  bold_p() |>
+  modify_header(label = "**变量**") |>
+  modify_caption("**表. 多元线性回归分析结果**")
+```
+
+---
+
+## 模型假设检验
+
+线性回归有四个核心假设（LINE）：
+
+| 假设 | 检验方法 |
+|------|----------|
+| **L**inearity（线性） | 残差 vs 拟合值图 |
+| **I**ndependence（独立） | Durbin-Watson 检验 |
+| **N**ormality（正态性） | Q-Q 图、Shapiro 检验 |
+| **E**qual variance（方差齐性） | 残差图、Breusch-Pagan 检验 |
+
+### 综合诊断
+
+```{r fig.height=8, fig.width=10}
+# 使用 performance 包一键诊断
+check_model(model_full)
+```
+
+### 线性关系检验
+
+```{r}
+# 残差 vs 拟合值
+bp_data$fitted <- fitted(model_full)
+bp_data$residuals <- residuals(model_full)
+
+ggplot(bp_data, aes(x = fitted, y = residuals)) +
+  geom_point(alpha = 0.4, color = "#4f46e5") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(method = "loess", color = "#10b981", se = FALSE) +
+  labs(
+    title = "残差 vs 拟合值",
+    subtitle = "检验线性假设和方差齐性",
+    x = "拟合值",
+    y = "残差"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### 正态性检验
+
+```{r}
+# Q-Q 图
+ggplot(bp_data, aes(sample = residuals)) +
+  stat_qq(color = "#4f46e5", alpha = 0.6) +
+  stat_qq_line(color = "red") +
+  labs(
+    title = "残差的 Q-Q 图",
+    subtitle = "检验正态性假设",
+    x = "理论分位数",
+    y = "样本分位数"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+```{r}
+# Shapiro-Wilk 检验（样本量 < 5000）
+if (nrow(bp_data) <= 5000) {
+  shapiro.test(residuals(model_full))
+}
+```
+
+### 方差齐性检验
+
+```{r}
+# Breusch-Pagan 检验
+bptest(model_full)
+# p < 0.05 表示存在异方差
+```
+
+### 独立性检验
+
+```{r}
+# Durbin-Watson 检验（针对时序数据）
+dwtest(model_full)
+# p < 0.05 表示存在自相关
+```
+
+---
+
+## 多重共线性检验
+
+多重共线性会导致系数估计不稳定。
+
+```{r}
+# 方差膨胀因子 (VIF)
+vif_values <- vif(model_full)
+vif_values
+
+# VIF > 5 提示存在共线性问题
+# VIF > 10 表示严重共线性
+```
+
+```{r}
+# 可视化 VIF（GVIF 针对分类变量）
+# vif() 对于分类变量返回 GVIF，需要特别处理
+vif_result <- vif(model_full)
+
+# 转换为数据框格式
+if (is.matrix(vif_result)) {
+  # 对于含有分类变量的模型，使用 GVIF^(1/(2*Df))
+  vif_df <- data.frame(
+    variable = rownames(vif_result),
+    vif = vif_result[, "GVIF^(1/(2*Df))"]
+  )
+} else {
+  vif_df <- data.frame(
+    variable = names(vif_result),
+    vif = as.numeric(vif_result)
+  )
+}
+
+ggplot(vif_df, aes(x = reorder(variable, vif), y = vif)) +
+  geom_col(fill = "#4f46e5", alpha = 0.8) +
+  geom_hline(yintercept = sqrt(5), linetype = "dashed", color = "red") +
+  coord_flip() +
+  labs(
+    title = "广义方差膨胀因子 (GVIF)",
+    subtitle = "红线: 阈值 ≈ 2.24 (对应 VIF=5)",
+    x = "变量",
+    y = "GVIF^(1/2Df)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+---
+
+## 异常值与影响点检测
+
+### Cook's 距离
+
+```{r}
+# 计算 Cook's 距离
+bp_data$cooks_d <- cooks.distance(model_full)
+
+# 可视化
+ggplot(bp_data, aes(x = seq_along(cooks_d), y = cooks_d)) +
+  geom_point(alpha = 0.5, color = "#4f46e5") +
+  geom_hline(yintercept = 4 / nrow(bp_data), linetype = "dashed", color = "red") +
+  labs(
+    title = "Cook's 距离",
+    subtitle = paste0("红线: 阈值 = ", round(4 / nrow(bp_data), 4)),
+    x = "观测序号",
+    y = "Cook's D"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### 杠杆值
+
+```{r}
+# 杠杆值
+bp_data$leverage <- hatvalues(model_full)
+p <- length(coef(model_full))
+
+# 高杠杆点
+high_leverage <- bp_data |>
+  filter(leverage > 2 * p / nrow(bp_data))
+
+cat("高杠杆点数量:", nrow(high_leverage), "\n")
+```
+
+### 标准化残差
+
+```{r}
+# 标准化残差
+bp_data$std_resid <- rstandard(model_full)
+
+# 异常值（|标准化残差| > 3）
+outliers <- bp_data |>
+  filter(abs(std_resid) > 3)
+
+cat("异常值数量:", nrow(outliers), "\n")
+```
+
+---
+
+## 处理异常假设
+
+### 稳健标准误
+
+当存在异方差时，使用稳健标准误：
+
+```{r}
+# HC3 稳健标准误（推荐）
+coeftest(model_full, vcov = vcovHC(model_full, type = "HC3"))
+```
+
+### 变量变换
+
+```{r}
+# Box-Cox 变换
+library(MASS)
+
+# 找最优 lambda
+boxcox_result <- boxcox(model_full, lambda = seq(-2, 2, by = 0.1))
+optimal_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
+cat("最优 lambda:", optimal_lambda, "\n")
+
+# 常见变换
+# lambda = 0: 对数变换
+# lambda = 0.5: 平方根变换
+# lambda = -1: 倒数变换
+```
+
+### 加权最小二乘
+
+```{r eval=FALSE}
+# 当异方差模式已知时
+# 例如：方差与某变量成比例
+weights <- 1 / bp_data$age # 示例权重
+model_wls <- lm(sbp ~ age + sex + bmi, data = bp_data, weights = weights)
+```
+
+---
+
+## 交互作用分析
+
+### 检验交互效应
+
+```{r}
+# 添加交互项
+model_interact <- lm(
+  sbp ~ age * sex + bmi + smoking + exercise,
+  data = bp_data
+)
+
+summary(model_interact)
+```
+
+```{r}
+# 模型比较
+anova(model_full, model_interact)
+```
+
+### 可视化交互效应
+
+```{r}
+# 使用 interactions 包
+interact_plot(
+  model_interact,
+  pred = age,
+  modx = sex,
+  interval = TRUE,
+  plot.points = TRUE,
+  point.alpha = 0.2
+) +
+  labs(
+    title = "年龄与性别的交互效应",
+    x = "年龄",
+    y = "预测收缩压 (mmHg)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+```{r}
+# 简单斜率分析
+sim_slopes(model_interact, pred = age, modx = sex)
+```
+
+---
+
+## 非线性关系处理
+
+### 多项式回归
+
+```{r}
+# 二次项
+model_poly <- lm(sbp ~ age + I(age^2) + sex + bmi + smoking, data = bp_data)
+summary(model_poly)
+
+# 检验非线性项是否显著
+anova(lm(sbp ~ age + sex + bmi + smoking, data = bp_data), model_poly)
+```
+
+### 分段线性回归
+
+```{r}
+# 分段回归（假设 50 岁为拐点）
+bp_data <- bp_data |>
+  mutate(
+    age_under50 = pmin(age, 50),
+    age_over50 = pmax(age - 50, 0)
+  )
+
+model_piecewise <- lm(sbp ~ age_under50 + age_over50 + sex + bmi, data = bp_data)
+summary(model_piecewise)
+```
+
+---
+
+## 模型选择
+
+### 逐步回归
+
+```{r}
+# 向后逐步回归（基于 AIC）
+model_step <- step(model_full, direction = "backward", trace = 0)
+summary(model_step)
+```
+
+```{r}
+# 比较模型
+AIC(model_full, model_step)
+BIC(model_full, model_step)
+```
+
+### 模型比较
+
+```{r}
+# 使用 performance 包
+compare_performance(model_full, model_step, rank = TRUE)
+```
+
+### 变量选择方法比较
+
+| 方法 | 优点 | 缺点 |
+|------|------|------|
+| 向前选择 | 计算量小 | 可能遗漏重要变量 |
+| 向后消除 | 考虑所有变量 | 初始模型可能不稳定 |
+| 双向逐步 | 综合两者优点 | 可能不稳定 |
+| LASSO | 自动选择+正则化 | 系数有偏 |
+| 最优子集 | 找全局最优 | 计算量大 |
+
+---
+
+## 预测与推断
+
+### 预测新数据
+
+```{r}
+# 新观测值
+new_patient <- tibble(
+  age = 55,
+  sex = factor("男", levels = levels(bp_data$sex)),
+  bmi = 27,
+  smoking = factor("曾经", levels = levels(bp_data$smoking)),
+  exercise = 120,
+  sodium_intake = 2500,
+  alcohol = 15
+)
+
+# 点预测
+predict(model_full, newdata = new_patient)
+
+# 置信区间（均值）
+predict(model_full, newdata = new_patient, interval = "confidence")
+
+# 预测区间（个体）
+predict(model_full, newdata = new_patient, interval = "prediction")
+```
+
+### 标准化回归系数
+
+```{r}
+# 标准化系数（β系数）
+# 方法1：手动标准化
+bp_scaled <- bp_data |>
+  mutate(across(where(is.numeric) & !id, scale))
+
+model_std <- lm(
+  sbp ~ age + bmi + exercise + sodium_intake + alcohol,
+  data = bp_scaled
+)
+
+tidy(model_std) |>
+  dplyr::filter(term != "(Intercept)") |>
+  dplyr::select(term, estimate) |>
+  dplyr::arrange(desc(abs(estimate)))
+```
+
+### 边际效应
+
+```{r}
+# 使用 marginaleffects 包
+library(marginaleffects)
+
+# 平均边际效应
+avg_slopes(model_full) |>
+  as.data.frame() |>
+  dplyr::select(term, estimate, std.error, p.value)
+```
+
+---
+
+## 结果可视化
+
+### 系数图
+
+```{r fig.height=5}
+# 森林图风格的系数可视化
+coef_data <- tidy(model_full, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
+  mutate(
+    significant = p.value < 0.05,
+    term = factor(term, levels = rev(term))
+  )
+
+ggplot(coef_data, aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = significant),
+    height = 0.2, linewidth = 0.8
+  ) +
+  geom_point(aes(color = significant), size = 3) +
+  scale_color_manual(
+    values = c("TRUE" = "#4f46e5", "FALSE" = "#9ca3af"),
+    labels = c("TRUE" = "显著", "FALSE" = "不显著")
+  ) +
+  labs(
+    title = "回归系数及95%置信区间",
+    x = "回归系数 (β)",
+    y = NULL,
+    color = "统计显著性"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "bottom"
+  )
+```
+
+### 预测值 vs 实际值
+
+```{r}
+ggplot(bp_data, aes(x = fitted, y = sbp)) +
+  geom_point(alpha = 0.4, color = "#4f46e5") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    title = "预测值 vs 实际值",
+    x = "预测收缩压 (mmHg)",
+    y = "实际收缩压 (mmHg)"
+  ) +
+  theme_minimal(base_size = 12) +
+  coord_equal()
+```
+
+---
+
+## 常见问题与陷阱
+
+### 1. 解释相关性 vs 因果性
+
+```r
+# 回归系数描述的是关联，不是因果
+# 因果推断需要：
+# - 随机对照试验
+# - 或使用因果推断方法（如 PSM、IV、DiD）
+```
+
+### 2. 类别变量编码
+
+```{r}
+# R 默认使用 dummy coding
+contrasts(bp_data$sex)
+contrasts(bp_data$smoking)
+
+# 修改参照组
+bp_data$smoking_relevel <- relevel(bp_data$smoking, ref = "现在")
+```
+
+### 3. 缺失值处理
+
+```{r}
+# 默认：完全案例分析
+# 推荐：多重插补
+# library(mice)
+# imputed_data <- mice(bp_data, m = 5)
+# fit <- with(imputed_data, lm(sbp ~ age + sex + bmi))
+# pooled <- pool(fit)
+```
+
+### 4. 外推风险
+
+```r
+# 不要将模型外推到超出训练数据范围的区域
+# 例如：模型基于 25-75 岁数据，不应预测 90 岁
+```
+
+---
+
+## 完整分析模板
+
+```{r eval=FALSE}
+# ========== 多元线性回归完整流程 ==========
+
+library(tidyverse)
+library(performance)
+library(car)
+library(gtsummary)
+
+# 1. 拟合模型
+model <- lm(y ~ x1 + x2 + x3, data = data)
+
+# 2. 查看结果
+summary(model)
+
+# 3. 模型诊断
+check_model(model) # 综合诊断
+vif(model) # 多重共线性
+shapiro.test(residuals(model)) # 正态性
+
+# 4. 结果表格
+tbl_regression(model)
+
+# 5. 预测
+predict(model, newdata = new_data, interval = "confidence")
+```
+
+---
+
+## 总结
+
+| 步骤 | 内容 | R 函数 |
+|------|------|--------|
+| 模型拟合 | 估计系数 | `lm()` |
+| 诊断检验 | 假设检验 | `check_model()`, `vif()` |
+| 异常值检测 | Cook's D, 杠杆值 | `cooks.distance()`, `hatvalues()` |
+| 模型选择 | 逐步回归 | `step()` |
+| 结果展示 | 专业表格 | `tbl_regression()` |
+| 预测 | 置信/预测区间 | `predict(..., interval = )` |
+
+### 报告线性回归的 Checklist
+
+- [ ] 报告样本量
+- [ ] 报告 R² 和调整 R²
+- [ ] 报告 F 统计量和 p 值
+- [ ] 报告各系数、SE、95% CI、p 值
+- [ ] 明确参照组
+- [ ] 报告 VIF（多重共线性）
+- [ ] 提供残差诊断图
+- [ ] 必要时使用稳健标准误
+
+### 推荐阅读
+
+- Kutner MH et al. Applied Linear Statistical Models (5th ed.)
+- Fox J. Applied Regression Analysis and Generalized Linear Models
+- [UCLA 统计咨询：回归分析](https://stats.oarc.ucla.edu/r/dae/)
