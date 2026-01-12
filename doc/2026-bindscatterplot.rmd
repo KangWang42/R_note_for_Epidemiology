@@ -1,0 +1,519 @@
+---
+title: "散点图与趋势线完全指南"
+date: "2026-01-13"
+categories: [可视化, ggplot2, 散点图]
+image: "images/2026_cover.svg"
+description: "使用 ggplot2 绑制散点图、气泡图、添加回归线与置信区间，探索变量间关系。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+散点图是展示两个连续变量关系的基础图表，可以揭示：
+
+- **相关性**：正相关、负相关或无相关
+- **趋势**：线性或非线性关系
+- **聚类**：数据的自然分组
+- **异常值**：偏离主体的数据点
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ggsci)
+
+# 使用 mtcars 数据集
+data(mtcars)
+head(mtcars)
+```
+
+## 基础散点图
+
+### 最简单的散点图
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point() +
+    labs(
+        title = "汽车重量与油耗的关系",
+        x = "重量 (1000 磅)",
+        y = "油耗 (英里/加仑)"
+    )
+```
+
+### 自定义点样式
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(
+        color = "#4f46e5", # 颜色
+        size = 3, # 大小
+        alpha = 0.7, # 透明度
+        shape = 16 # 形状（实心圆）
+    ) +
+    labs(title = "自定义点样式") +
+    theme_minimal()
+```
+
+### 点形状参考
+
+```{r}
+# R 内置的 25 种点形状
+shapes_df <- data.frame(
+    x = rep(1:5, 5),
+    y = rep(5:1, each = 5),
+    shape = 0:24
+)
+
+ggplot(shapes_df, aes(x, y)) +
+    geom_point(aes(shape = factor(shape)), size = 5, fill = "#4f46e5") +
+    geom_text(aes(label = shape), vjust = -1.5, size = 3) +
+    scale_shape_manual(values = 0:24) +
+    labs(title = "R 内置点形状 (0-24)", shape = "Shape") +
+    theme_void() +
+    theme(legend.position = "none")
+```
+
+## 按分组着色
+
+### 离散变量分组
+
+```{r}
+mtcars$cyl_factor <- factor(mtcars$cyl)
+
+ggplot(mtcars, aes(x = wt, y = mpg, color = cyl_factor)) +
+    geom_point(size = 3) +
+    scale_color_brewer(palette = "Set1") +
+    labs(
+        title = "按气缸数分组",
+        color = "气缸数"
+    ) +
+    theme_minimal()
+```
+
+### 连续变量着色
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg, color = hp)) +
+    geom_point(size = 3) +
+    scale_color_viridis_c(option = "plasma") + # 渐变色
+    labs(
+        title = "按马力着色",
+        color = "马力 (hp)"
+    ) +
+    theme_minimal()
+```
+
+### 使用科学期刊配色
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg, color = cyl_factor)) +
+    geom_point(size = 3) +
+    scale_color_lancet() +
+    labs(title = "Lancet 配色风格", color = "气缸数") +
+    theme_minimal()
+```
+
+## 添加回归线
+
+### 简单线性回归
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(color = "#4f46e5", size = 2) +
+    geom_smooth(method = "lm", se = TRUE, color = "#ef4444") +
+    labs(
+        title = "散点图 + 线性回归线",
+        subtitle = "灰色区域为 95% 置信区间"
+    ) +
+    theme_minimal()
+```
+
+### 不显示置信区间
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(size = 2, alpha = 0.7) +
+    geom_smooth(method = "lm", se = FALSE, color = "#22c55e", linewidth = 1.2) +
+    labs(title = "仅显示回归线") +
+    theme_minimal()
+```
+
+### 分组回归线
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg, color = cyl_factor)) +
+    geom_point(size = 2) +
+    geom_smooth(method = "lm", se = FALSE) +
+    scale_color_brewer(palette = "Set1") +
+    labs(
+        title = "分组回归线",
+        color = "气缸数"
+    ) +
+    theme_minimal()
+```
+
+### LOESS 平滑曲线
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(size = 2, alpha = 0.6) +
+    geom_smooth(method = "loess", span = 0.75, color = "#8b5cf6") +
+    labs(
+        title = "LOESS 局部多项式回归",
+        subtitle = "适用于非线性关系"
+    ) +
+    theme_minimal()
+```
+
+### 多项式回归
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(size = 2, alpha = 0.6) +
+    geom_smooth(
+        method = "lm",
+        formula = y ~ poly(x, 2), # 二次多项式
+        color = "#f59e0b"
+    ) +
+    labs(title = "二次多项式回归") +
+    theme_minimal()
+```
+
+## 添加标签
+
+### 标注所有点
+
+```{r}
+# 使用 ggrepel 避免标签重叠
+# install.packages("ggrepel")
+library(ggrepel)
+
+# 添加行名作为标签
+mtcars$car_name <- rownames(mtcars)
+
+ggplot(mtcars[1:15, ], aes(x = wt, y = mpg, label = car_name)) +
+    geom_point(color = "#4f46e5", size = 2) +
+    geom_text_repel(size = 3, max.overlaps = 15) +
+    labs(title = "散点图 + 数据标签") +
+    theme_minimal()
+```
+
+### 仅标注重要点
+
+```{r}
+# 标注极值点
+mtcars_labeled <- mtcars %>%
+    mutate(
+        label = ifelse(mpg == max(mpg) | mpg == min(mpg) |
+            wt == max(wt) | wt == min(wt),
+        car_name, ""
+        )
+    )
+
+ggplot(mtcars_labeled, aes(x = wt, y = mpg)) +
+    geom_point(color = "#4f46e5", size = 2) +
+    geom_text_repel(
+        aes(label = label),
+        size = 3,
+        color = "#ef4444",
+        fontface = "bold"
+    ) +
+    labs(title = "仅标注极值点") +
+    theme_minimal()
+```
+
+## 气泡图
+
+气泡图通过点的大小表示第三个变量。
+
+### 基础气泡图
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
+    geom_point(alpha = 0.6, color = "#4f46e5") +
+    scale_size_continuous(range = c(2, 12)) + # 控制大小范围
+    labs(
+        title = "气泡图：马力作为气泡大小",
+        size = "马力"
+    ) +
+    theme_minimal()
+```
+
+### 颜色 + 大小双编码
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg, size = hp, color = cyl_factor)) +
+    geom_point(alpha = 0.7) +
+    scale_size_continuous(range = c(2, 10)) +
+    scale_color_brewer(palette = "Set2") +
+    labs(
+        title = "双编码气泡图",
+        subtitle = "颜色表示气缸数，大小表示马力",
+        size = "马力",
+        color = "气缸数"
+    ) +
+    theme_minimal()
+```
+
+### 打包气泡图 (Packed Bubble)
+
+```{r eval=FALSE}
+# 使用 packcircles 包
+# install.packages("packcircles")
+library(packcircles)
+
+# 按气缸数统计
+cyl_summary <- mtcars %>%
+    group_by(cyl) %>%
+    summarise(count = n(), mean_mpg = mean(mpg))
+
+# 计算圆的位置
+packing <- circleProgressiveLayout(cyl_summary$count, sizetype = "area")
+cyl_summary <- cbind(cyl_summary, packing)
+circles <- circleLayoutVertices(packing, npoints = 50)
+
+ggplot() +
+    geom_polygon(
+        data = circles,
+        aes(x, y, group = id, fill = factor(id)),
+        color = "white",
+        alpha = 0.8
+    ) +
+    geom_text(
+        data = cyl_summary,
+        aes(x, y, label = paste0(cyl, "缸\nn=", count)),
+        size = 5
+    ) +
+    scale_fill_brewer(palette = "Set2") +
+    coord_equal() +
+    theme_void() +
+    theme(legend.position = "none") +
+    labs(title = "打包气泡图：各气缸数车型数量")
+```
+
+## 边际分布图
+
+结合散点图和边际直方图/密度图。
+
+```{r eval=FALSE}
+# 使用 ggExtra 包
+# install.packages("ggExtra")
+library(ggExtra)
+
+p <- ggplot(mtcars, aes(x = wt, y = mpg, color = cyl_factor)) +
+    geom_point(size = 2) +
+    scale_color_brewer(palette = "Set1") +
+    labs(color = "气缸数") +
+    theme_minimal()
+
+# 添加边际直方图
+ggMarginal(p, type = "histogram", groupColour = TRUE, groupFill = TRUE)
+```
+
+```{r eval=FALSE}
+# 添加边际密度图
+ggMarginal(p, type = "density", groupColour = TRUE, groupFill = TRUE)
+```
+
+```{r eval=FALSE}
+# 添加边际箱线图
+ggMarginal(p, type = "boxplot", groupColour = TRUE, groupFill = TRUE)
+```
+
+## 密度散点图
+
+处理大量数据点重叠问题。
+
+### 透明度处理
+
+```{r}
+# 模拟大数据
+set.seed(42)
+big_data <- data.frame(
+    x = rnorm(5000),
+    y = rnorm(5000)
+)
+
+ggplot(big_data, aes(x, y)) +
+    geom_point(alpha = 0.1) + # 低透明度
+    labs(title = "使用透明度处理重叠") +
+    theme_minimal()
+```
+
+### 2D 密度等高线
+
+```{r}
+ggplot(big_data, aes(x, y)) +
+    geom_point(alpha = 0.05) +
+    geom_density_2d(color = "#ef4444") +
+    labs(title = "2D 密度等高线") +
+    theme_minimal()
+```
+
+### 2D 密度填充
+
+```{r}
+ggplot(big_data, aes(x, y)) +
+    stat_density_2d(
+        aes(fill = after_stat(level)),
+        geom = "polygon"
+    ) +
+    scale_fill_viridis_c() +
+    labs(title = "2D 密度填充图") +
+    theme_minimal()
+```
+
+### 六边形分箱
+
+```{r}
+ggplot(big_data, aes(x, y)) +
+    geom_hex(bins = 30) +
+    scale_fill_viridis_c() +
+    labs(title = "六边形分箱图") +
+    theme_minimal()
+```
+
+## 分面散点图
+
+### facet_wrap
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(color = "#4f46e5", size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "#ef4444") +
+    facet_wrap(~cyl, labeller = labeller(cyl = c(
+        "4" = "4缸", "6" = "6缸", "8" = "8缸"
+    ))) +
+    labs(title = "按气缸数分面") +
+    theme_minimal()
+```
+
+### facet_grid
+
+```{r}
+mtcars$am_label <- ifelse(mtcars$am == 0, "自动挡", "手动挡")
+
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(size = 2) +
+    facet_grid(am_label ~ cyl, labeller = labeller(cyl = c(
+        "4" = "4缸", "6" = "6缸", "8" = "8缸"
+    ))) +
+    labs(title = "双变量分面网格") +
+    theme_minimal()
+```
+
+## 相关系数标注
+
+```{r}
+# 使用 ggpubr
+library(ggpubr)
+
+ggscatter(mtcars,
+    x = "wt", y = "mpg",
+    add = "reg.line",
+    conf.int = TRUE,
+    color = "#4f46e5",
+    add.params = list(color = "#ef4444")
+) +
+    stat_cor(method = "pearson", label.x = 4, label.y = 33) +
+    labs(
+        title = "散点图 + 相关系数",
+        x = "重量",
+        y = "油耗"
+    )
+```
+
+### 分组相关系数
+
+```{r}
+ggscatter(mtcars,
+    x = "wt", y = "mpg",
+    color = "cyl_factor",
+    palette = "Set1",
+    add = "reg.line",
+    conf.int = TRUE
+) +
+    stat_cor(aes(color = cyl_factor), label.y = c(32, 30, 28)) +
+    labs(title = "分组相关系数", color = "气缸数")
+```
+
+## 添加参考线
+
+```{r}
+# 计算均值
+mean_wt <- mean(mtcars$wt)
+mean_mpg <- mean(mtcars$mpg)
+
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(size = 2, color = "#4f46e5") +
+    geom_hline(yintercept = mean_mpg, linetype = "dashed", color = "#ef4444") +
+    geom_vline(xintercept = mean_wt, linetype = "dashed", color = "#22c55e") +
+    annotate("text", x = 5, y = mean_mpg + 1, label = "平均油耗", color = "#ef4444") +
+    annotate("text", x = mean_wt + 0.2, y = 35, label = "平均重量", color = "#22c55e", angle = 90) +
+    labs(title = "添加均值参考线") +
+    theme_minimal()
+```
+
+## 专业图表示例
+
+```{r}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+    geom_point(
+        aes(color = cyl_factor, size = hp),
+        alpha = 0.7
+    ) +
+    geom_smooth(
+        method = "lm",
+        color = "#1e293b",
+        fill = "#e2e8f0",
+        linewidth = 1
+    ) +
+    scale_color_manual(
+        values = c("#3b82f6", "#22c55e", "#ef4444"),
+        labels = c("4缸", "6缸", "8缸")
+    ) +
+    scale_size_continuous(range = c(2, 8)) +
+    labs(
+        title = "汽车重量与油耗关系分析",
+        subtitle = "点大小表示马力，颜色表示气缸数",
+        x = "重量 (×1000 磅)",
+        y = "油耗 (英里/加仑)",
+        color = "气缸数",
+        size = "马力",
+        caption = "数据来源：1974 Motor Trend US magazine"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        plot.subtitle = element_text(color = "gray50"),
+        legend.position = "right"
+    )
+```
+
+## 总结
+
+| 场景 | 推荐方法 |
+|------|----------|
+| 两变量关系 | 基础散点图 + 回归线 |
+| 分组比较 | 颜色/形状分组 |
+| 三变量 | 气泡图 |
+| 大数据 | 透明度/密度图/六边形分箱 |
+| 分布展示 | 边际分布图 |
+| 相关分析 | 添加相关系数标注 |
+
+> [!TIP]
+> **最佳实践**：
+> 1. 数据量大时使用透明度或密度图
+> 2. 添加回归线时记得显示 R² 值
+> 3. 气泡图的大小映射应选择有意义的变量
+> 4. 使用 ggrepel 避免标签重叠

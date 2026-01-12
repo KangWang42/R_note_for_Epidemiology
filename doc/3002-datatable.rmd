@@ -1,0 +1,603 @@
+---
+title: "data.table 完全指南：高性能数据处理"
+date: "2026-01-13"
+categories: [R包, 数据处理, data.table]
+image: "images/3002_cover.svg"
+description: "data.table、tibble、data.frame 三大数据结构对比，语法差异与性能基准测试。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    dpi = 150
+)
+```
+
+## 简介
+
+在 R 语言中处理数据时，我们有三种主要的数据框结构可以选择：
+
+| 数据结构 | 来源 | 特点 | 适用场景 |
+|----------|------|------|----------|
+| `data.frame` | Base R | 原生支持，兼容性最好 | 小数据、兼容性要求高 |
+| `tibble` | tidyverse | 语法友好，打印美观 | 日常分析、tidyverse生态 |
+| `data.table` | data.table包 | 速度最快，内存效率高 | 大数据、高性能需求 |
+
+本文将全面介绍 `data.table` 的使用方法，并与其他两种结构进行对比。
+
+## 安装与加载
+
+```{r}
+# 安装（如未安装）
+# install.packages("data.table")
+# install.packages("tibble")
+# install.packages("dplyr")
+# install.packages("microbenchmark")
+
+library(data.table)
+library(tibble)
+library(dplyr)
+```
+
+## 创建数据结构
+
+### 三种方式对比
+
+```{r}
+# 1. data.frame (Base R)
+df <- data.frame(
+    id = 1:5,
+    name = c("Alice", "Bob", "Carol", "David", "Eve"),
+    score = c(85, 92, 78, 95, 88)
+)
+
+# 2. tibble (tidyverse)
+tbl <- tibble(
+    id = 1:5,
+    name = c("Alice", "Bob", "Carol", "David", "Eve"),
+    score = c(85, 92, 78, 95, 88)
+)
+
+# 3. data.table
+dt <- data.table(
+    id = 1:5,
+    name = c("Alice", "Bob", "Carol", "David", "Eve"),
+    score = c(85, 92, 78, 95, 88)
+)
+```
+
+### 打印差异
+
+```{r}
+# data.frame 打印
+print(df)
+```
+
+```{r}
+# tibble 打印 - 更简洁，显示类型
+print(tbl)
+```
+
+```{r}
+# data.table 打印 - 显示行号
+print(dt)
+```
+
+### 相互转换
+
+```{r}
+# data.frame -> data.table
+dt_from_df <- as.data.table(df)
+
+# data.table -> data.frame
+df_from_dt <- as.data.frame(dt)
+
+# tibble -> data.table
+dt_from_tbl <- as.data.table(tbl)
+
+# data.table -> tibble
+tbl_from_dt <- as_tibble(dt)
+```
+
+## data.table 核心语法
+
+data.table 的核心语法是 `DT[i, j, by]`：
+
+- **i**: 行筛选 (WHERE)
+- **j**: 列操作 (SELECT)
+- **by**: 分组 (GROUP BY)
+
+```{r}
+# 创建示例数据
+set.seed(42)
+dt <- data.table(
+    id = 1:1000,
+    group = sample(LETTERS[1:5], 1000, replace = TRUE),
+    value1 = rnorm(1000, 100, 15),
+    value2 = rnorm(1000, 50, 10)
+)
+head(dt)
+```
+
+### 行筛选 (i)
+
+```{r}
+# 筛选 group == "A" 的行
+dt[group == "A"]
+```
+
+```{r}
+# 筛选 value1 > 110 的行
+dt[value1 > 110]
+```
+
+```{r}
+# 多条件筛选
+dt[group == "A" & value1 > 100]
+```
+
+```{r}
+# 按行号筛选
+dt[1:5] # 前5行
+```
+
+### 列选择与计算 (j)
+
+```{r}
+# 选择单列（返回向量）
+dt[, value1]
+```
+```{r}
+# 选择单列（返回 data.table）
+dt[, .(value1)]
+```
+
+```{r}
+# 选择多列
+dt[, .(group, value1)]
+```
+
+```{r}
+# 列计算
+dt[, .(mean_v1 = mean(value1), sd_v1 = sd(value1))]
+```
+
+```{r}
+# 使用 .() 是 list() 的简写
+dt[, list(total = sum(value1), count = .N)]
+```
+
+### 分组操作 (by)
+
+```{r}
+# 按 group 分组计算均值
+dt[, .(mean_v1 = mean(value1)), by = group]
+```
+
+```{r}
+# 多个分组变量
+dt[, .(mean_v1 = mean(value1)), by = .(group, high = value2 > 50)]
+```
+
+```{r}
+# 分组计数
+dt[, .N, by = group]
+```
+
+### 组合使用
+
+```{r}
+# 筛选 + 计算 + 分组
+dt[value1 > 90, .(mean_v2 = mean(value2), count = .N), by = group]
+```
+
+## 数据修改
+
+### 添加/修改列 (:=)
+
+`:=` 操作符是 data.table 最强大的特性之一，它可以**原地修改**数据，无需复制。
+
+```{r}
+# 添加新列
+dt[, ratio := value1 / value2]
+head(dt)
+```
+
+```{r}
+# 同时添加多列
+dt[, `:=`(
+    v1_centered = value1 - mean(value1),
+    v2_log = log(value2)
+)]
+head(dt)
+```
+
+```{r}
+# 按条件修改列
+dt[group == "A", flag := "特殊组"]
+dt[is.na(flag), flag := "普通组"]
+table(dt$flag)
+```
+
+### 删除列
+
+```{r}
+# 删除单列
+dt[, ratio := NULL]
+
+# 删除多列
+dt[, c("v1_centered", "v2_log", "flag") := NULL]
+head(dt)
+```
+
+## 键 (Key) 与索引
+
+### 设置键
+
+设置键可以大幅提升筛选和连接操作的速度。
+
+```{r}
+# 设置单个键
+setkey(dt, group)
+
+# 查看当前键
+key(dt)
+```
+
+```{r}
+# 使用键筛选（更快）
+dt["A"] # 等价于 dt[group == "A"]
+```
+
+```{r}
+# 设置多个键
+setkey(dt, group, id)
+```
+
+### 二级索引
+
+```{r}
+# 创建二级索引（不改变物理排序）
+setindex(dt, value1)
+
+# 查看索引
+indices(dt)
+```
+
+## 链式操作
+
+data.table 支持链式操作，类似于 dplyr 的管道。
+
+```{r}
+# 链式操作
+result <- dt[value1 > 100][, .(mean_v2 = mean(value2)), by = group][order(-mean_v2)]
+result
+```
+
+## 连接操作
+
+### 准备测试数据
+
+```{r}
+# 主表
+orders <- data.table(
+    order_id = 1:5,
+    customer_id = c(101, 102, 101, 103, 104),
+    amount = c(100, 200, 150, 300, 250)
+)
+
+# 客户表
+customers <- data.table(
+    customer_id = c(101, 102, 103, 105),
+    name = c("Alice", "Bob", "Carol", "Dave")
+)
+```
+
+### 内连接
+
+```{r}
+# 方法1: merge
+merge(orders, customers, by = "customer_id")
+```
+
+```{r}
+# 方法2: 设置键后使用 []
+setkey(orders, customer_id)
+setkey(customers, customer_id)
+customers[orders, nomatch = 0]
+```
+
+### 左连接
+
+```{r}
+# 保留 orders 的所有行
+merge(orders, customers, by = "customer_id", all.x = TRUE)
+```
+
+```{r}
+# 或者
+customers[orders]
+```
+
+### 右连接与全连接
+
+```{r}
+# 右连接
+merge(orders, customers, by = "customer_id", all.y = TRUE)
+
+# 全连接
+merge(orders, customers, by = "customer_id", all = TRUE)
+```
+
+## 特殊符号
+
+data.table 提供了一些特殊符号来简化代码：
+
+| 符号 | 含义 | 示例 |
+|------|------|------|
+| `.N` | 行数 | `dt[, .N]` |
+| `.SD` | 子数据表 | `dt[, lapply(.SD, mean), by = group]` |
+| `.SDcols` | 指定 .SD 的列 | `dt[, lapply(.SD, mean), .SDcols = c("value1", "value2")]` |
+| `.I` | 行索引 | `dt[, .I[which.max(value1)], by = group]` |
+| `.GRP` | 组编号 | `dt[, .GRP, by = group]` |
+| `.BY` | 当前分组值 | `dt[, print(.BY), by = group]` |
+
+### .SD 使用示例
+
+```{r}
+# 对所有数值列计算均值
+dt[, lapply(.SD, mean), by = group, .SDcols = c("value1", "value2")]
+```
+
+```{r}
+# 每组取前2行
+dt[, head(.SD, 2), by = group]
+```
+
+## 语法对比：data.table vs dplyr
+
+### 筛选行
+
+```{r}
+# data.table
+dt[value1 > 100]
+
+# dplyr
+tbl <- as_tibble(dt)
+filter(tbl, value1 > 100)
+```
+
+### 选择列
+
+```{r}
+# data.table
+dt[, .(group, value1)]
+
+# dplyr
+select(tbl, group, value1)
+```
+
+### 添加列
+
+```{r}
+# data.table (原地修改)
+dt_copy <- copy(dt)
+dt_copy[, new_col := value1 * 2]
+
+# dplyr (返回新数据)
+tbl <- mutate(tbl, new_col = value1 * 2)
+```
+
+### 分组汇总
+
+```{r}
+# data.table
+dt[, .(mean_v1 = mean(value1)), by = group]
+
+# dplyr
+tbl |>
+    group_by(group) |>
+    summarise(mean_v1 = mean(value1))
+```
+
+### 排序
+
+```{r}
+# data.table
+dt[order(-value1)]
+
+# dplyr
+arrange(tbl, desc(value1))
+```
+
+## 性能对比
+
+### 大数据测试
+
+```{r}
+# 创建大数据集
+set.seed(123)
+n <- 1e6
+big_df <- data.frame(
+    id = 1:n,
+    group = sample(LETTERS, n, replace = TRUE),
+    value = rnorm(n)
+)
+big_tbl <- as_tibble(big_df)
+big_dt <- as.data.table(big_df)
+```
+
+### 分组聚合性能
+
+```{r}
+library(microbenchmark)
+
+# 性能对比
+benchmark_result <- microbenchmark(
+    data.frame = aggregate(value ~ group, data = big_df, FUN = mean),
+    dplyr = big_tbl |> group_by(group) |> summarise(mean = mean(value)),
+    data.table = big_dt[, .(mean = mean(value)), by = group],
+    times = 5
+)
+print(benchmark_result)
+```
+
+### 筛选性能 (设置键后)
+
+```{r}
+# 设置键
+setkey(big_dt, group)
+
+benchmark_filter <- microbenchmark(
+    data.frame = big_df[big_df$group == "A", ],
+    dplyr = filter(big_tbl, group == "A"),
+    data.table = big_dt["A"],
+    times = 5
+)
+print(benchmark_filter)
+```
+
+## 读写文件
+
+`fread` 和 `fwrite` 是 data.table 提供的高性能读写函数。
+
+### fread - 快速读取
+
+```{r eval=FALSE}
+# 基本读取
+dt <- fread("data.csv")
+
+# 指定列类型
+dt <- fread("data.csv", colClasses = c("integer", "character", "numeric"))
+
+# 选择特定列
+dt <- fread("data.csv", select = c("col1", "col2"))
+
+# 跳过行
+dt <- fread("data.csv", skip = 5)
+
+# 指定编码
+dt <- fread("data.csv", encoding = "UTF-8")
+```
+
+### fwrite - 快速写入
+
+```{r eval=FALSE}
+# 基本写入
+fwrite(dt, "output.csv")
+
+# 压缩写入
+fwrite(dt, "output.csv.gz")
+
+# 不写入行名
+fwrite(dt, "output.csv", row.names = FALSE)
+```
+
+## 实战案例
+
+### 案例：销售数据分析
+
+```{r}
+# 创建销售数据
+set.seed(42)
+sales <- data.table(
+    date = rep(seq(as.Date("2024-01-01"), by = "day", length.out = 365), each = 10),
+    product = sample(c("A", "B", "C", "D", "E"), 3650, replace = TRUE),
+    region = sample(c("东部", "西部", "南部", "北部"), 3650, replace = TRUE),
+    quantity = sample(1:100, 3650, replace = TRUE),
+    price = round(runif(3650, 10, 100), 2)
+)
+sales[, revenue := quantity * price]
+head(sales)
+```
+
+```{r}
+# 1. 按产品统计总销售额
+sales[, .(total_revenue = sum(revenue)), by = product][order(-total_revenue)]
+```
+
+```{r}
+# 2. 每月每产品销售趋势
+sales[, month := format(date, "%Y-%m")]
+monthly_sales <- sales[, .(
+    total_qty = sum(quantity),
+    total_revenue = sum(revenue),
+    avg_price = mean(price)
+), by = .(month, product)]
+head(monthly_sales, 10)
+```
+
+```{r}
+# 3. 各地区销售排名
+region_rank <- sales[, .(revenue = sum(revenue)), by = region][order(-revenue)]
+region_rank[, rank := .I]
+region_rank
+```
+
+```{r}
+# 4. 找出每个产品销售最好的一天
+best_days <- sales[, .SD[which.max(revenue)], by = product]
+best_days[, .(product, date, revenue)]
+```
+
+## 常见问题
+
+### 1. 避免意外修改
+
+```{r}
+# 错误：直接赋值会创建引用
+dt1 <- data.table(a = 1:3)
+dt2 <- dt1 # dt2 和 dt1 指向同一数据！
+dt2[, b := 4:6]
+print(dt1) # dt1 也被修改了！
+```
+
+```{r}
+# 正确：使用 copy() 创建副本
+dt1 <- data.table(a = 1:3)
+dt2 <- copy(dt1)
+dt2[, b := 4:6]
+print(dt1) # dt1 未被修改
+```
+
+### 2. 变量作为列名
+
+```{r}
+# 使用变量作为列名
+col_name <- "value1"
+
+# 方法1: 使用 get()
+dt[, mean(get(col_name)), by = group]
+
+# 方法2: 使用 env 参数 (data.table >= 1.15.0)
+# dt[, mean(col), by = group, env = list(col = col_name)]
+
+# 方法3: 使用 .SDcols
+dt[, lapply(.SD, mean), by = group, .SDcols = col_name]
+```
+
+## 总结
+
+| 特性 | data.frame | tibble | data.table |
+|------|------------|--------|------------|
+| **速度** | 慢 | 中等 | 最快 |
+| **内存** | 一般 | 一般 | 最优 |
+| **语法** | 基础R | tidyverse | 独特语法 |
+| **学习曲线** | 低 | 中 | 较高 |
+| **适用场景** | 小数据 | 日常分析 | 大数据 |
+
+> [!TIP]
+> **选择建议**：
+> - 数据量 < 100万行：tibble + dplyr 语法更友好
+> - 数据量 > 100万行：data.table 速度优势明显
+> - 追求极致性能：data.table 是最佳选择
+
+## 参考资料
+
+- [data.table 官方文档](https://rdatatable.gitlab.io/data.table/)
+- [data.table Cheat Sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/main/datatable.pdf)
+- Dowle, M., & Srinivasan, A. (2021). data.table: Extension of `data.frame`. R package.

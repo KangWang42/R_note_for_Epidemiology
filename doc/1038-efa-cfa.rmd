@@ -1,0 +1,565 @@
+---
+title: "探索性与验证性因子分析完全指南"
+date: "2026-01-13"
+categories: [R包, 统计模型, 因子分析]
+image: "images/1038_cover.svg"
+description: "使用 psych 和 lavaan 包进行 EFA 和 CFA，包括因子数确定、模型拟合与结果解读。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+因子分析是心理学、教育学和社会科学中最常用的统计方法之一，用于揭示观测变量背后的潜在结构。
+
+### EFA vs CFA
+
+| 特性 | EFA (探索性因子分析) | CFA (验证性因子分析) |
+|------|---------------------|---------------------|
+| **目的** | 探索潜在结构 | 验证理论假设 |
+| **假设** | 不预设因子结构 | 预设因子结构 |
+| **适用阶段** | 量表开发初期 | 量表验证、理论检验 |
+| **因子数** | 数据驱动确定 | 理论预先确定 |
+| **交叉载荷** | 允许所有载荷自由估计 | 限制交叉载荷为0 |
+| **拟合指数** | 较少关注 | 核心评估指标 |
+
+### 分析流程
+
+```mermaid
+graph LR
+    A[理论构建] --> B[量表开发]
+    B --> C[样本1: EFA]
+    C --> D[确定因子结构]
+    D --> E[样本2: CFA]
+    E --> F[验证因子结构]
+    F --> G[修正/发表]
+```
+
+## 安装与加载
+
+```{r}
+# install.packages("psych")      # EFA
+# install.packages("lavaan")     # CFA
+# install.packages("semPlot")    # 路径图
+
+library(psych)
+library(lavaan)
+library(semPlot)
+library(dplyr)
+```
+
+## 示例数据
+
+使用 `psych` 包自带的 `bfi` 数据集（大五人格问卷）。
+
+```{r}
+data(bfi)
+# 选取 25 个题目（5 个因子，每个 5 题）
+items <- bfi[, 1:25]
+head(items)
+```
+
+**变量说明**：
+- A1-A5: 宜人性 (Agreeableness)
+- C1-C5: 尽责性 (Conscientiousness)
+- E1-E5: 外向性 (Extraversion)
+- N1-N5: 神经质 (Neuroticism)
+- O1-O5: 开放性 (Openness)
+
+## 数据预处理
+
+### 缺失值处理
+
+```{r}
+# 检查缺失值
+colSums(is.na(items))
+
+# 删除含缺失的行（简单处理）
+items_complete <- na.omit(items)
+cat("完整案例数:", nrow(items_complete), "\n")
+```
+
+### 描述统计
+
+```{r}
+describe(items_complete)[, c("n", "mean", "sd", "min", "max")]
+```
+
+---
+
+# 第一部分：探索性因子分析 (EFA)
+
+## 适用性检验
+
+### KMO 检验
+
+Kaiser-Meyer-Olkin 检验评估数据是否适合因子分析。
+
+```{r}
+KMO(items_complete)
+```
+
+**KMO 解释**：
+- > 0.9：极好
+- 0.8-0.9：好
+- 0.7-0.8：中等
+- 0.6-0.7：一般
+- < 0.6：不适合因子分析
+
+### Bartlett 球形检验
+
+检验相关矩阵是否为单位矩阵。
+
+```{r}
+cortest.bartlett(items_complete)
+```
+
+**解释**：p < 0.05 表示相关矩阵不是单位矩阵，适合因子分析。
+
+## 因子数确定
+
+### 方法1：特征值 > 1 准则 (Kaiser 准则)
+
+```{r}
+# 计算相关矩阵
+cor_matrix <- cor(items_complete)
+
+# 特征值分解
+eigen_values <- eigen(cor_matrix)$values
+print(eigen_values)
+
+# 特征值 > 1 的因子数
+sum(eigen_values > 1)
+```
+
+### 方法2：碎石图 (Scree Plot)
+
+```{r}
+scree(items_complete, factors = FALSE)
+```
+
+**解释**：找到"拐点"，即曲线变平的位置。
+
+### 方法3：平行分析 (推荐)
+
+```{r}
+fa.parallel(items_complete, fa = "fa", n.iter = 100)
+```
+
+**解释**：实际特征值超过随机模拟特征值的因子数。
+
+### 方法4：MAP 检验
+
+```{r}
+VSS(items_complete, n = 8, rotate = "promax")
+```
+
+**综合判断**：多种方法的结果应该综合考虑，选择最合理的因子数。
+
+## 因子提取
+
+### 主轴因子法 (推荐)
+
+```{r}
+# 提取 5 个因子，使用 promax 斜交旋转
+fa_result <- fa(items_complete,
+    nfactors = 5,
+    rotate = "promax", # 斜交旋转
+    fm = "pa"
+) # 主轴因子法
+
+print(fa_result, cut = 0.3) # 只显示 > 0.3 的载荷
+```
+
+### 最大似然法
+
+```{r}
+fa_ml <- fa(items_complete,
+    nfactors = 5,
+    rotate = "promax",
+    fm = "ml"
+) # 最大似然法
+
+# 比较拟合
+cat("PA 法 RMSEA:", fa_result$RMSEA[1], "\n")
+cat("ML 法 RMSEA:", fa_ml$RMSEA[1], "\n")
+```
+
+## 旋转方法
+
+### 正交旋转 vs 斜交旋转
+
+```{r}
+# 正交旋转（因子不相关）
+fa_varimax <- fa(items_complete, nfactors = 5, rotate = "varimax")
+
+# 斜交旋转（因子可相关）
+fa_promax <- fa(items_complete, nfactors = 5, rotate = "promax")
+
+# 比较因子相关
+cat("Varimax 因子相关:\n")
+print(fa_varimax$Phi)
+
+cat("\nPromax 因子相关:\n")
+print(round(fa_promax$Phi, 3))
+```
+
+**选择建议**：
+- 理论上因子应相关 → 斜交旋转 (promax, oblimin)
+- 需要因子正交 → 正交旋转 (varimax)
+
+## 结果解读
+
+### 因子载荷矩阵
+
+```{r}
+# 查看因子载荷
+loadings <- fa_result$loadings
+print(loadings, cut = 0.3)
+```
+
+**载荷解释**：
+- > 0.7：优秀
+- 0.6-0.7：良好
+- 0.4-0.6：可接受
+- < 0.4：考虑删除
+
+### 共同度
+
+```{r}
+# 每个变量被因子解释的方差比例
+fa_result$communalities
+```
+
+**标准**：共同度 < 0.2 的变量考虑删除。
+
+### 因子得分
+
+```{r}
+# 计算因子得分
+factor_scores <- factor.scores(items_complete, fa_result)$scores
+head(factor_scores)
+```
+
+## EFA 可视化
+
+### 因子载荷图
+
+```{r}
+fa.diagram(fa_result, simple = FALSE, cut = 0.3)
+```
+
+### 热图展示
+
+```{r}
+# 提取载荷矩阵
+load_mat <- unclass(fa_result$loadings)
+
+# 使用 ggplot2 绘制
+library(ggplot2)
+library(tidyr)
+
+load_df <- as.data.frame(load_mat) %>%
+    mutate(item = rownames(load_mat)) %>%
+    pivot_longer(-item, names_to = "Factor", values_to = "Loading")
+
+ggplot(load_df, aes(x = Factor, y = item, fill = Loading)) +
+    geom_tile() +
+    geom_text(aes(label = round(Loading, 2)), size = 3) +
+    scale_fill_gradient2(
+        low = "#457b9d", mid = "white", high = "#e63946",
+        midpoint = 0, limits = c(-1, 1)
+    ) +
+    labs(title = "因子载荷热图") +
+    theme_minimal()
+```
+
+---
+
+# 第二部分：验证性因子分析 (CFA)
+
+## 模型设定
+
+基于 EFA 结果或理论假设，设定 CFA 模型。
+
+```{r}
+# 定义 CFA 模型
+cfa_model <- "
+  # 测量模型
+  Agreeableness =~ A1 + A2 + A3 + A4 + A5
+  Conscientiousness =~ C1 + C2 + C3 + C4 + C5
+  Extraversion =~ E1 + E2 + E3 + E4 + E5
+  Neuroticism =~ N1 + N2 + N3 + N4 + N5
+  Openness =~ O1 + O2 + O3 + O4 + O5
+"
+```
+
+## 模型拟合
+
+```{r}
+# 拟合 CFA 模型
+cfa_fit <- cfa(cfa_model, data = items_complete)
+
+# 查看结果摘要
+summary(cfa_fit, fit.measures = TRUE, standardized = TRUE)
+```
+
+## 拟合指数解读
+
+### 提取拟合指数
+
+```{r}
+# 提取常用拟合指数
+fit_indices <- fitMeasures(cfa_fit, c(
+    "chisq", "df", "pvalue",
+    "cfi", "tli", "rmsea",
+    "rmsea.ci.lower", "rmsea.ci.upper",
+    "srmr"
+))
+round(fit_indices, 3)
+```
+
+### 拟合标准
+
+| 指标 | 优秀 | 可接受 | 说明 |
+|------|------|--------|------|
+| **χ²/df** | < 2 | < 3 | 卡方/自由度比 |
+| **CFI** | > 0.95 | > 0.90 | 比较拟合指数 |
+| **TLI** | > 0.95 | > 0.90 | Tucker-Lewis 指数 |
+| **RMSEA** | < 0.05 | < 0.08 | 近似误差均方根 |
+| **SRMR** | < 0.05 | < 0.08 | 标准化残差均方根 |
+
+## 因子载荷
+
+```{r}
+# 标准化因子载荷
+std_loadings <- standardizedSolution(cfa_fit)
+std_loadings[std_loadings$op == "=~", c("lhs", "rhs", "est.std", "pvalue")]
+```
+
+**标准**：标准化载荷 > 0.5（最低 0.4）。
+
+## 信效度评估
+
+### 组合信度 (CR)
+
+```{r}
+# 计算组合信度
+calc_CR <- function(fit, factor_name) {
+    params <- parameterEstimates(fit, standardized = TRUE)
+    loadings <- params[params$op == "=~" & params$lhs == factor_name, "std.all"]
+    sum_loadings <- sum(loadings)
+    sum_errors <- sum(1 - loadings^2)
+    CR <- sum_loadings^2 / (sum_loadings^2 + sum_errors)
+    return(CR)
+}
+
+factors <- c(
+    "Agreeableness", "Conscientiousness", "Extraversion",
+    "Neuroticism", "Openness"
+)
+CR_values <- sapply(factors, function(f) calc_CR(cfa_fit, f))
+print(round(CR_values, 3))
+```
+
+**标准**：CR > 0.7
+
+### 平均方差萃取量 (AVE)
+
+```{r}
+# 计算 AVE
+calc_AVE <- function(fit, factor_name) {
+    params <- parameterEstimates(fit, standardized = TRUE)
+    loadings <- params[params$op == "=~" & params$lhs == factor_name, "std.all"]
+    AVE <- mean(loadings^2)
+    return(AVE)
+}
+
+AVE_values <- sapply(factors, function(f) calc_AVE(cfa_fit, f))
+print(round(AVE_values, 3))
+```
+
+**标准**：
+- AVE > 0.5：收敛效度良好
+- AVE 的平方根 > 因子间相关：区分效度良好
+
+### 因子相关矩阵
+
+```{r}
+# 因子相关
+factor_cor <- lavInspect(cfa_fit, "cor.lv")
+print(round(factor_cor, 3))
+```
+
+### 区分效度检验
+
+```{r}
+# 比较 AVE 平方根与因子相关
+AVE_sqrt <- sqrt(AVE_values)
+cat("AVE 平方根:\n")
+print(round(AVE_sqrt, 3))
+
+cat("\n最大因子相关:\n")
+# 获取最大相关（排除对角线）
+factor_cor_nodiag <- factor_cor
+diag(factor_cor_nodiag) <- 0
+print(round(apply(abs(factor_cor_nodiag), 1, max), 3))
+```
+
+## CFA 可视化
+
+### 路径图
+
+```{r}
+semPaths(cfa_fit,
+    what = "std", # 标准化系数
+    layout = "tree2",
+    edge.label.cex = 0.8,
+    curvePivot = TRUE,
+    fade = FALSE,
+    style = "lisrel",
+    sizeLat = 8,
+    sizeMan = 6,
+    nCharNodes = 0,
+    residuals = FALSE
+)
+```
+
+## 模型修正
+
+### 修正指数
+
+```{r}
+# 查看修正指数
+mi <- modindices(cfa_fit, sort = TRUE, minimum.value = 10)
+head(mi, 10)
+```
+
+> [!WARNING]
+> 修正指数应谨慎使用！仅在有理论支持时添加路径，避免过度拟合。
+
+### 添加残差相关
+
+```{r}
+# 修正模型示例
+cfa_model_modified <- "
+  Agreeableness =~ A1 + A2 + A3 + A4 + A5
+  Conscientiousness =~ C1 + C2 + C3 + C4 + C5
+  Extraversion =~ E1 + E2 + E3 + E4 + E5
+  Neuroticism =~ N1 + N2 + N3 + N4 + N5
+  Openness =~ O1 + O2 + O3 + O4 + O5
+
+  # 根据理论添加残差相关
+  # E1 ~~ E2
+"
+
+cfa_fit_mod <- cfa(cfa_model_modified, data = items_complete)
+```
+
+### 模型比较
+
+```{r}
+# 比较原始模型和修正模型
+# anova(cfa_fit, cfa_fit_mod)  # 若模型嵌套
+```
+
+## 多组 CFA
+
+检验因子结构在不同组别是否等值。
+
+```{r}
+# 添加性别变量
+items_with_gender <- cbind(items_complete, gender = bfi$gender[complete.cases(bfi[, 1:25])])
+items_with_gender <- items_with_gender[!is.na(items_with_gender$gender), ]
+
+# 型态等值（因子结构相同）
+fit_config <- cfa(cfa_model, data = items_with_gender, group = "gender")
+
+# 弱等值（载荷相等）
+fit_metric <- cfa(cfa_model,
+    data = items_with_gender, group = "gender",
+    group.equal = "loadings"
+)
+
+# 比较
+anova(fit_config, fit_metric)
+```
+
+## 报告模板
+
+```{r}
+#| echo: false
+
+cat(
+    "
+## CFA 结果报告
+
+### 模型拟合
+使用最大似然法估计五因子模型。模型拟合指数如下：
+χ²(", fit_indices["df"], ") = ", round(fit_indices["chisq"], 2), ", p < .001,
+CFI = ", round(fit_indices["cfi"], 3), ",
+TLI = ", round(fit_indices["tli"], 3), ",
+RMSEA = ", round(fit_indices["rmsea"], 3),
+    " (90% CI [", round(fit_indices["rmsea.ci.lower"], 3), ", ",
+    round(fit_indices["rmsea.ci.upper"], 3), "]),
+SRMR = ", round(fit_indices["srmr"], 3), "。
+
+### 信效度
+所有因子的组合信度 (CR) 均大于 0.7，AVE 均大于 0.4。
+"
+)
+```
+
+## EFA vs CFA 选择指南
+
+```{r}
+#| echo: false
+
+cat("
+┌─────────────────────────────────────────────────┐
+│                  选择决策树                      │
+├─────────────────────────────────────────────────┤
+│ 1. 是否有先验的因子结构假设？                    │
+│    ├─ 否 → EFA（探索结构）                       │
+│    └─ 是 → CFA（验证结构）                       │
+│                                                 │
+│ 2. 量表开发阶段？                               │
+│    ├─ 初期开发 → EFA                            │
+│    └─ 验证修订 → CFA                            │
+│                                                 │
+│ 3. 是否需要跨组比较？                           │
+│    └─ 是 → 多组 CFA                              │
+└─────────────────────────────────────────────────┘
+")
+```
+
+## 总结
+
+| 阶段 | 方法 | 目的 |
+|------|------|------|
+| 量表开发 | EFA | 探索因子结构 |
+| 量表验证 | CFA | 验证因子结构 |
+| 跨文化研究 | 多组CFA | 检验测量等值 |
+| 理论检验 | CFA | 验证测量模型 |
+
+> [!TIP]
+> **最佳实践**：
+> 1. EFA 和 CFA 应使用**不同样本**
+> 2. 因子数确定综合多种方法
+> 3. 拟合不佳时先检查数据质量
+> 4. 模型修正需有理论支持
+
+## 参考文献
+
+- Brown, T. A. (2015). *Confirmatory Factor Analysis for Applied Research* (2nd ed.). Guilford Press.
+- Fabrigar, L. R., & Wegener, D. T. (2012). *Exploratory Factor Analysis*. Oxford University Press.
+- Revelle, W. (2023). psych: Procedures for Psychological, Psychometric, and Personality Research. R package.

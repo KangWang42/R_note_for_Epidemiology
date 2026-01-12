@@ -1,0 +1,504 @@
+---
+title: "PLS-PM 偏最小二乘路径模型完全指南"
+date: "2026-01-13"
+categories: [R包, 统计模型, 路径分析]
+image: "images/1037_cover.svg"
+description: "使用 seminr 包构建偏最小二乘路径模型，适用于小样本和探索性研究的结构方程建模替代方案。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 9,
+    fig.height = 7,
+    dpi = 150
+)
+```
+
+## 简介
+
+**偏最小二乘路径模型 (PLS-PM, Partial Least Squares Path Modeling)** 是一种基于方差的结构方程建模技术，与传统的基于协方差的 SEM（如 lavaan）相比，具有独特优势。
+
+### PLS-PM vs CB-SEM
+
+| 特性 | PLS-PM | CB-SEM (lavaan) |
+|------|--------|-----------------|
+| **样本量要求** | 小样本即可 (n ≥ 30) | 需要较大样本 (n ≥ 200) |
+| **分布假设** | 无需正态假设 | 通常假设多元正态 |
+| **模型目标** | 预测导向 | 理论验证 |
+| **形成性指标** | 天然支持 | 需要特殊处理 |
+| **复杂模型** | 处理更好 | 可能不收敛 |
+| **适用场景** | 探索性研究 | 验证性研究 |
+
+### 何时选择 PLS-PM
+
+1. **样本量小**：临床研究、问卷调查等难以获得大样本
+2. **探索性研究**：理论尚未成熟，需要探索变量关系
+3. **形成性指标**：指标构成潜变量而非反映潜变量
+4. **预测为主**：关注预测能力而非模型拟合
+5. **复杂模型**：大量潜变量和指标
+
+## 安装与加载
+
+```{r}
+# 安装（如未安装）
+# install.packages("seminr")
+
+library(seminr)
+library(dplyr)
+```
+
+## 核心概念
+
+### 测量模型类型
+
+PLS-PM 区分两种测量模型：
+
+**反映性指标 (Reflective)**：
+- 潜变量 → 指标（潜变量"反映"为指标）
+- 指标间高相关，可互换
+- 例如：满意度量表的各题目
+
+**形成性指标 (Formative)**：
+- 指标 → 潜变量（指标"形成"潜变量）
+- 指标间不一定相关
+- 例如：社会经济地位（由收入、教育、职业组成）
+
+```{r}
+#| echo: false
+#| fig-height: 4
+
+library(DiagrammeR)
+grViz("
+digraph {
+  graph [rankdir=LR]
+  node [shape=ellipse]
+
+  subgraph cluster_0 {
+    label='反映性测量'
+    LV1 [label='潜变量']
+    X1 [shape=box, label='X1']
+    X2 [shape=box, label='X2']
+    X3 [shape=box, label='X3']
+    LV1 -> X1
+    LV1 -> X2
+    LV1 -> X3
+  }
+
+  subgraph cluster_1 {
+    label='形成性测量'
+    LV2 [label='潜变量']
+    Y1 [shape=box, label='Y1']
+    Y2 [shape=box, label='Y2']
+    Y3 [shape=box, label='Y3']
+    Y1 -> LV2
+    Y2 -> LV2
+    Y3 -> LV2
+  }
+}
+")
+```
+
+## 示例数据
+
+我们使用 `seminr` 自带的 `mobi` 数据集，该数据包含移动电话服务满意度调查数据。
+
+```{r}
+# 加载数据
+data(mobi)
+head(mobi)
+```
+
+**变量说明**：
+
+| 潜变量 | 指标 | 描述 |
+|--------|------|------|
+| 期望 (EXPE) | CUEX1-3 | 客户期望 |
+| 质量 (QUAL) | PERQ1-7 | 感知质量 |
+| 价值 (VAL) | PERV1-2 | 感知价值 |
+| 满意度 (SAT) | CUSA1-3 | 客户满意度 |
+| 抱怨 (COMP) | CUSCO | 客户抱怨 |
+| 忠诚 (LOY) | CUSL1-3 | 客户忠诚度 |
+
+## 模型设定
+
+### 1. 定义测量模型
+
+```{r}
+# 定义测量模型（反映性指标）
+measurements <- constructs(
+    # 反映性构念：使用 reflective()
+    reflective("期望", multi_items("CUEX", 1:3)),
+    reflective("质量", multi_items("PERQ", 1:7)),
+    reflective("价值", multi_items("PERV", 1:2)),
+    reflective("满意度", multi_items("CUSA", 1:3)),
+    reflective("忠诚", multi_items("CUSL", 1:3)),
+
+    # 单指标构念
+    reflective("抱怨", single_item("CUSCO"))
+)
+```
+
+### 2. 定义结构模型
+
+```{r}
+# 定义结构模型（路径关系）
+structure <- relationships(
+    paths(from = "期望", to = c("质量", "价值", "满意度")),
+    paths(from = "质量", to = c("价值", "满意度")),
+    paths(from = "价值", to = "满意度"),
+    paths(from = "满意度", to = c("抱怨", "忠诚")),
+    paths(from = "抱怨", to = "忠诚")
+)
+```
+
+## 模型估计
+
+```{r}
+# 估计 PLS-PM 模型
+pls_model <- estimate_pls(
+    data = mobi,
+    measurement_model = measurements,
+    structural_model = structure,
+    inner_weights = path_weighting # 路径加权方案
+)
+
+# 查看模型摘要
+summary(pls_model)
+```
+
+## Bootstrap 检验
+
+PLS-PM 使用 Bootstrap 方法进行显著性检验。
+
+```{r}
+# Bootstrap 估计（通常 5000 次，这里为演示用 500 次）
+set.seed(123)
+boot_model <- bootstrap_model(
+    seminr_model = pls_model,
+    nboot = 500,
+    cores = 1 # 并行核心数
+)
+
+# 查看 Bootstrap 结果
+summary(boot_model)
+```
+
+## 结果解读
+
+### 测量模型评估
+
+#### 1. 指标载荷
+
+```{r}
+# 查看指标载荷
+pls_model$outer_loadings
+```
+
+**评估标准**：
+- 载荷 > 0.708（或 > 0.7）表示指标可靠
+- 若载荷在 0.4-0.7 之间，需检查删除后对 AVE 的影响
+- 载荷 < 0.4 应考虑删除
+
+#### 2. 信度检验
+
+```{r}
+# 提取信度指标
+summary(pls_model)$reliability
+```
+
+**评估标准**：
+
+| 指标 | 阈值 | 说明 |
+|------|------|------|
+| Cronbach's α | > 0.7 | 传统信度指标 |
+| rho_A | > 0.7 | 更稳健的信度估计 |
+| 组合信度 (CR) | > 0.7 | 推荐使用 |
+| AVE | > 0.5 | 收敛效度 |
+
+#### 3. 区分效度
+
+```{r}
+# Fornell-Larcker 准则
+summary(pls_model)$validity$fl_criteria
+```
+
+**Fornell-Larcker 准则**：每个构念的 AVE 平方根（对角线）应大于其与其他构念的相关（非对角线）。
+
+```{r}
+# HTMT 比率（更严格的区分效度检验）
+summary(pls_model)$validity$htmt
+```
+
+**HTMT 阈值**：
+- 保守值：< 0.85
+- 宽松值：< 0.90
+
+### 结构模型评估
+
+#### 1. 路径系数
+
+```{r}
+# 查看路径系数
+pls_model$path_coef
+```
+
+#### 2. 显著性检验
+
+```{r}
+# Bootstrap 置信区间
+summary(boot_model)$bootstrapped_paths
+```
+
+**解释**：
+- 若 95% CI 不包含 0，则路径显著
+- T 值 > 1.96 (p < 0.05) 表示显著
+
+#### 3. R² 解释力
+
+```{r}
+# 查看 R²
+pls_model$rSquared
+```
+
+**R² 标准**（Cohen, 1988）：
+- 0.75：强
+- 0.50：中等
+- 0.25：弱
+
+#### 4. 效应量 f²
+
+```{r}
+# 计算 f²
+summary(pls_model)$fSquare
+```
+
+**f² 标准**：
+- 0.02：弱效应
+- 0.15：中等效应
+- 0.35：强效应
+
+## 路径图可视化
+
+```{r}
+# 使用 seminr 内置绑图
+plot(pls_model)
+```
+
+### 自定义可视化
+
+```{r}
+# 提取路径系数用于自定义绘图
+path_coefs <- as.data.frame(pls_model$path_coef)
+path_coefs$from <- rownames(path_coefs)
+
+# 转为长格式
+library(tidyr)
+paths_long <- path_coefs %>%
+    pivot_longer(-from, names_to = "to", values_to = "coef") %>%
+    filter(coef != 0)
+
+print(paths_long)
+```
+
+## 中介效应分析
+
+### 计算间接效应
+
+```{r}
+# 定义特定间接效应
+specific_effects <- specific_effect_significance(
+    boot_model,
+    from = "质量",
+    through = "满意度",
+    to = "忠诚",
+    alpha = 0.05
+)
+print(specific_effects)
+```
+
+### 总效应分析
+
+```{r}
+# 从 summary 中提取总效应信息
+# 总效应 = 直接效应 + 间接效应
+# 可以通过路径系数矩阵计算
+path_coef_mat <- pls_model$path_coef
+
+# 直接查看路径系数即为直接效应
+print(path_coef_mat)
+```
+
+## 预测能力评估
+
+### Q² 预测相关性
+
+```{r}
+# 使用 PLSpredict 进行预测评估
+predict_result <- predict_pls(
+    model = pls_model,
+    technique = predict_DA, # 直接法
+    noFolds = 10 # 10折交叉验证
+)
+
+# 查看 Q² 值
+summary(predict_result)
+```
+
+**Q² 解释**：
+- Q² > 0：模型有预测相关性
+- Q² < 0：模型预测能力不如均值
+
+## 形成性指标模型
+
+### 定义形成性测量
+
+```{r}
+# 假设 "价值" 由形成性指标组成
+measurements_formative <- constructs(
+    reflective("期望", multi_items("CUEX", 1:3)),
+    reflective("质量", multi_items("PERQ", 1:7)),
+
+    # 形成性构念：使用 composite()
+    composite("价值", multi_items("PERV", 1:2), weights = mode_B),
+    reflective("满意度", multi_items("CUSA", 1:3)),
+    reflective("忠诚", multi_items("CUSL", 1:3)),
+    reflective("抱怨", single_item("CUSCO"))
+)
+
+# 估计模型
+pls_formative <- estimate_pls(
+    data = mobi,
+    measurement_model = measurements_formative,
+    structural_model = structure
+)
+```
+
+### 形成性指标评估
+
+```{r}
+# 查看权重（而非载荷）
+pls_formative$outer_weights
+
+# 检查 VIF（共线性）
+summary(pls_formative)$validity$vif_items
+```
+
+**VIF 标准**：
+- VIF < 3：可接受
+- VIF < 5：需关注
+- VIF > 5：存在严重共线性问题
+
+## 多组分析
+
+```{r}
+# 假设按某变量分组（此处创建模拟分组）
+mobi_grouped <- mobi %>%
+    mutate(group = ifelse(row_number() <= 125, "Group_A", "Group_B"))
+
+# 分别估计两组
+pls_a <- estimate_pls(
+    data = mobi_grouped %>% filter(group == "Group_A"),
+    measurement_model = measurements,
+    structural_model = structure
+)
+
+pls_b <- estimate_pls(
+    data = mobi_grouped %>% filter(group == "Group_B"),
+    measurement_model = measurements,
+    structural_model = structure
+)
+
+# 比较路径系数
+cat("Group A 路径系数:\n")
+print(pls_a$path_coef)
+cat("\nGroup B 路径系数:\n")
+print(pls_b$path_coef)
+```
+
+## 报告模板
+
+### 学术论文报告格式
+
+```{r}
+#| echo: false
+
+# 提取关键结果
+reliability <- summary(pls_model)$reliability
+rsq <- pls_model$rSquared
+
+cat("
+## 测量模型评估
+
+所有构念的组合信度 (CR) 均大于 0.7，平均方差萃取量 (AVE) 均大于 0.5，
+表明测量模型具有良好的信度和收敛效度。
+
+## 结构模型评估
+
+模型解释力：
+- 满意度 R² = ", round(rsq["满意度"], 3), "
+- 忠诚 R² = ", round(rsq["忠诚"], 3), "
+
+Bootstrap 检验（n = 500）显示关键路径均达到统计显著。
+")
+```
+
+## 常见问题
+
+| 问题 | 解决方案 |
+|------|----------|
+| 载荷过低 | 检查指标是否属于该构念，考虑删除 |
+| AVE < 0.5 | 删除载荷最低的指标 |
+| HTMT > 0.9 | 考虑合并构念或重新定义 |
+| R² 过低 | 检查是否遗漏重要前因变量 |
+| VIF 过高 | 删除共线性指标或使用降维 |
+
+## 参考文献
+
+- Hair, J. F., Hult, G. T. M., Ringle, C. M., & Sarstedt, M. (2022). *A Primer on Partial Least Squares Structural Equation Modeling (PLS-SEM)* (3rd ed.). Sage.
+- Henseler, J., Ringle, C. M., & Sarstedt, M. (2015). A new criterion for assessing discriminant validity in variance-based structural equation modeling. *Journal of the Academy of Marketing Science*, 43(1), 115-135.
+- Ray, S., Danks, N., & Calero Valdez, A. (2022). SEMinR: Domain-Specific Language for Building and Estimating Structural Equation Models. R package.
+
+## 附录：完整代码
+
+```{r eval=FALSE}
+# 完整分析流程
+library(seminr)
+
+# 1. 加载数据
+data(mobi)
+
+# 2. 定义测量模型
+measurements <- constructs(
+    reflective("期望", multi_items("CUEX", 1:3)),
+    reflective("质量", multi_items("PERQ", 1:7)),
+    reflective("价值", multi_items("PERV", 1:2)),
+    reflective("满意度", multi_items("CUSA", 1:3)),
+    reflective("忠诚", multi_items("CUSL", 1:3)),
+    reflective("抱怨", single_item("CUSCO"))
+)
+
+# 3. 定义结构模型
+structure <- relationships(
+    paths(from = "期望", to = c("质量", "价值", "满意度")),
+    paths(from = "质量", to = c("价值", "满意度")),
+    paths(from = "价值", to = "满意度"),
+    paths(from = "满意度", to = c("抱怨", "忠诚")),
+    paths(from = "抱怨", to = "忠诚")
+)
+
+# 4. 估计模型
+pls_model <- estimate_pls(data = mobi, measurements, structure)
+
+# 5. Bootstrap 检验
+boot_model <- bootstrap_model(pls_model, nboot = 5000)
+
+# 6. 查看结果
+summary(pls_model)
+summary(boot_model)
+
+# 7. 可视化
+plot(pls_model)
+```

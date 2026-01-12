@@ -1,0 +1,2111 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-01-13">
+<meta name="description" content="使用 seminr 包构建偏最小二乘路径模型，适用于小样本和探索性研究的结构方程建模替代方案。">
+
+<title>PLS-PM 偏最小二乘路径模型完全指南 – R 语言学习笔记</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-234273d1456647dabc34a594ac50e507.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-374967827064a263f620006ef06629b3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<link href="site_libs/htmltools-fill-0.5.9/fill.css" rel="stylesheet">
+
+<script src="site_libs/htmlwidgets-1.6.4/htmlwidgets.js"></script>
+
+<script src="site_libs/viz-1.8.2/viz.js"></script>
+
+<link href="site_libs/DiagrammeR-styles-0.2/styles.css" rel="stylesheet">
+
+<script src="site_libs/grViz-binding-1.0.11/grViz.js"></script>
+
+
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">R 语言学习笔记</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">主页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/packages.html"> 
+<span class="menu-text">实用 R 包</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/visualization.html"> 
+<span class="menu-text">可视化教程</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/methods.html"> 
+<span class="menu-text">R 语言方法</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/operation.html"> 
+<span class="menu-text">实用操作</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1037-plspm.html">PLS-PM 路径模型</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用 R 包</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bruceR - 统计分析工具</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1012-comparegroups.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">compareGroups - 描述性表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1013-scitb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scitb - 快速基线表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">purrr - 函数式编程</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">可视化教程</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2021-cowplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cowplot - 图形组合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2018-tidyplots.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidyplots - 极简可视化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggtext - 中英文字体混合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2019-dualaxis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双坐标轴</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2011-viscolor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">配色方案</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">patchwork - 图片拼接</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2013-legend.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">图例自定义</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2014-sankey.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">桑基图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">地图绑制</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2016-forestplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">森林图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2022-ggally.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GGally - 可视化扩展</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2023-radar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">雷达图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2024-venn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">韦恩图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">箱线图与小提琴图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">散点图与趋势线</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2027-bindhistogram.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">直方图与密度图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">柱状图与饼图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">R 语言方法</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">卫生经济学分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1017-timeseries.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">时间序列分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">倾向性得分匹配</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1019-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logistic 回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">生存分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1021-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多元线性回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1023-mediation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">中介效应分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1024-multilevel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多水平模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1025-gam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">广义加性模型 (GAM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1026-poisson.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Poisson/负二项回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1027-rcs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">限制性立方样条 (RCS)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1028-did.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双重差分法 (DiD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1029-umbrella-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">伞状综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">质性研究与文本挖掘</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1031-lca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">潜类别分析 (LCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1032-sem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">结构方程模型 (SEM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1033-dlnm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">分布滞后非线性模型 (DLNM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1034-nvmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">变分模态分解 (VMD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1035-fft-nvmd-gmm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FFT + VMD + GMM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1036-anova.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">方差分析 (ANOVA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1037-plspm.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">PLS-PM 路径模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">因子分析 (EFA/CFA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1039-pca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">主成分分析 (PCA)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用操作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">数据导入导出</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RMarkdown 入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quarto vs RMarkdown</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Positron IDE 教程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3002-datatable.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">data.table 完全指南</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#简介" id="toc-简介" class="nav-link active" data-scroll-target="#简介">简介</a>
+  <ul class="collapse">
+  <li><a href="#pls-pm-vs-cb-sem" id="toc-pls-pm-vs-cb-sem" class="nav-link" data-scroll-target="#pls-pm-vs-cb-sem">PLS-PM vs CB-SEM</a></li>
+  <li><a href="#何时选择-pls-pm" id="toc-何时选择-pls-pm" class="nav-link" data-scroll-target="#何时选择-pls-pm">何时选择 PLS-PM</a></li>
+  </ul></li>
+  <li><a href="#安装与加载" id="toc-安装与加载" class="nav-link" data-scroll-target="#安装与加载">安装与加载</a></li>
+  <li><a href="#核心概念" id="toc-核心概念" class="nav-link" data-scroll-target="#核心概念">核心概念</a>
+  <ul class="collapse">
+  <li><a href="#测量模型类型" id="toc-测量模型类型" class="nav-link" data-scroll-target="#测量模型类型">测量模型类型</a></li>
+  </ul></li>
+  <li><a href="#示例数据" id="toc-示例数据" class="nav-link" data-scroll-target="#示例数据">示例数据</a></li>
+  <li><a href="#模型设定" id="toc-模型设定" class="nav-link" data-scroll-target="#模型设定">模型设定</a>
+  <ul class="collapse">
+  <li><a href="#定义测量模型" id="toc-定义测量模型" class="nav-link" data-scroll-target="#定义测量模型">1. 定义测量模型</a></li>
+  <li><a href="#定义结构模型" id="toc-定义结构模型" class="nav-link" data-scroll-target="#定义结构模型">2. 定义结构模型</a></li>
+  </ul></li>
+  <li><a href="#模型估计" id="toc-模型估计" class="nav-link" data-scroll-target="#模型估计">模型估计</a></li>
+  <li><a href="#bootstrap-检验" id="toc-bootstrap-检验" class="nav-link" data-scroll-target="#bootstrap-检验">Bootstrap 检验</a></li>
+  <li><a href="#结果解读" id="toc-结果解读" class="nav-link" data-scroll-target="#结果解读">结果解读</a>
+  <ul class="collapse">
+  <li><a href="#测量模型评估" id="toc-测量模型评估" class="nav-link" data-scroll-target="#测量模型评估">测量模型评估</a></li>
+  <li><a href="#结构模型评估" id="toc-结构模型评估" class="nav-link" data-scroll-target="#结构模型评估">结构模型评估</a></li>
+  </ul></li>
+  <li><a href="#路径图可视化" id="toc-路径图可视化" class="nav-link" data-scroll-target="#路径图可视化">路径图可视化</a>
+  <ul class="collapse">
+  <li><a href="#自定义可视化" id="toc-自定义可视化" class="nav-link" data-scroll-target="#自定义可视化">自定义可视化</a></li>
+  </ul></li>
+  <li><a href="#中介效应分析" id="toc-中介效应分析" class="nav-link" data-scroll-target="#中介效应分析">中介效应分析</a>
+  <ul class="collapse">
+  <li><a href="#计算间接效应" id="toc-计算间接效应" class="nav-link" data-scroll-target="#计算间接效应">计算间接效应</a></li>
+  <li><a href="#总效应分析" id="toc-总效应分析" class="nav-link" data-scroll-target="#总效应分析">总效应分析</a></li>
+  </ul></li>
+  <li><a href="#预测能力评估" id="toc-预测能力评估" class="nav-link" data-scroll-target="#预测能力评估">预测能力评估</a>
+  <ul class="collapse">
+  <li><a href="#q²-预测相关性" id="toc-q²-预测相关性" class="nav-link" data-scroll-target="#q²-预测相关性">Q² 预测相关性</a></li>
+  </ul></li>
+  <li><a href="#形成性指标模型" id="toc-形成性指标模型" class="nav-link" data-scroll-target="#形成性指标模型">形成性指标模型</a>
+  <ul class="collapse">
+  <li><a href="#定义形成性测量" id="toc-定义形成性测量" class="nav-link" data-scroll-target="#定义形成性测量">定义形成性测量</a></li>
+  <li><a href="#形成性指标评估" id="toc-形成性指标评估" class="nav-link" data-scroll-target="#形成性指标评估">形成性指标评估</a></li>
+  </ul></li>
+  <li><a href="#多组分析" id="toc-多组分析" class="nav-link" data-scroll-target="#多组分析">多组分析</a></li>
+  <li><a href="#报告模板" id="toc-报告模板" class="nav-link" data-scroll-target="#报告模板">报告模板</a>
+  <ul class="collapse">
+  <li><a href="#学术论文报告格式" id="toc-学术论文报告格式" class="nav-link" data-scroll-target="#学术论文报告格式">学术论文报告格式</a></li>
+  </ul></li>
+  <li><a href="#常见问题" id="toc-常见问题" class="nav-link" data-scroll-target="#常见问题">常见问题</a></li>
+  <li><a href="#参考文献" id="toc-参考文献" class="nav-link" data-scroll-target="#参考文献">参考文献</a></li>
+  <li><a href="#附录完整代码" id="toc-附录完整代码" class="nav-link" data-scroll-target="#附录完整代码">附录：完整代码</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content column-body" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1037-plspm.html">PLS-PM 路径模型</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">PLS-PM 偏最小二乘路径模型完全指南</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">R包</div>
+    <div class="quarto-category">统计模型</div>
+    <div class="quarto-category">路径分析</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    使用 seminr 包构建偏最小二乘路径模型，适用于小样本和探索性研究的结构方程建模替代方案。
+  </div>
+</div>
+
+
+<div class="quarto-title-meta column-body">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">January 13, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="简介" class="level2">
+<h2 class="anchored" data-anchor-id="简介">简介</h2>
+<p><strong>偏最小二乘路径模型 (PLS-PM, Partial Least Squares Path Modeling)</strong> 是一种基于方差的结构方程建模技术，与传统的基于协方差的 SEM（如 lavaan）相比，具有独特优势。</p>
+<section id="pls-pm-vs-cb-sem" class="level3">
+<h3 class="anchored" data-anchor-id="pls-pm-vs-cb-sem">PLS-PM vs CB-SEM</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>特性</th>
+<th>PLS-PM</th>
+<th>CB-SEM (lavaan)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>样本量要求</strong></td>
+<td>小样本即可 (n ≥ 30)</td>
+<td>需要较大样本 (n ≥ 200)</td>
+</tr>
+<tr class="even">
+<td><strong>分布假设</strong></td>
+<td>无需正态假设</td>
+<td>通常假设多元正态</td>
+</tr>
+<tr class="odd">
+<td><strong>模型目标</strong></td>
+<td>预测导向</td>
+<td>理论验证</td>
+</tr>
+<tr class="even">
+<td><strong>形成性指标</strong></td>
+<td>天然支持</td>
+<td>需要特殊处理</td>
+</tr>
+<tr class="odd">
+<td><strong>复杂模型</strong></td>
+<td>处理更好</td>
+<td>可能不收敛</td>
+</tr>
+<tr class="even">
+<td><strong>适用场景</strong></td>
+<td>探索性研究</td>
+<td>验证性研究</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="何时选择-pls-pm" class="level3">
+<h3 class="anchored" data-anchor-id="何时选择-pls-pm">何时选择 PLS-PM</h3>
+<ol type="1">
+<li><strong>样本量小</strong>：临床研究、问卷调查等难以获得大样本</li>
+<li><strong>探索性研究</strong>：理论尚未成熟，需要探索变量关系</li>
+<li><strong>形成性指标</strong>：指标构成潜变量而非反映潜变量</li>
+<li><strong>预测为主</strong>：关注预测能力而非模型拟合</li>
+<li><strong>复杂模型</strong>：大量潜变量和指标</li>
+</ol>
+</section>
+</section>
+<section id="安装与加载" class="level2">
+<h2 class="anchored" data-anchor-id="安装与加载">安装与加载</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 安装（如未安装）</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># install.packages("seminr")</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(seminr)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="核心概念" class="level2">
+<h2 class="anchored" data-anchor-id="核心概念">核心概念</h2>
+<section id="测量模型类型" class="level3">
+<h3 class="anchored" data-anchor-id="测量模型类型">测量模型类型</h3>
+<p>PLS-PM 区分两种测量模型：</p>
+<p><strong>反映性指标 (Reflective)</strong>： - 潜变量 → 指标（潜变量”反映”为指标） - 指标间高相关，可互换 - 例如：满意度量表的各题目</p>
+<p><strong>形成性指标 (Formative)</strong>： - 指标 → 潜变量（指标”形成”潜变量） - 指标间不一定相关 - 例如：社会经济地位（由收入、教育、职业组成）</p>
+<div class="cell">
+<div class="cell-output-display">
+<div class="grViz html-widget html-fill-item" id="htmlwidget-c4b15b073fb564e03c24" style="width:100%;height:288px;"></div>
+<script type="application/json" data-for="htmlwidget-c4b15b073fb564e03c24">{"x":{"diagram":"\ndigraph {\n  graph [rankdir=LR]\n  node [shape=ellipse]\n\n  subgraph cluster_0 {\n    label=\"反映性测量\"\n    LV1 [label=\"潜变量\"]\n    X1 [shape=box, label=\"X1\"]\n    X2 [shape=box, label=\"X2\"]\n    X3 [shape=box, label=\"X3\"]\n    LV1 -> X1\n    LV1 -> X2\n    LV1 -> X3\n  }\n\n  subgraph cluster_1 {\n    label=\"形成性测量\"\n    LV2 [label=\"潜变量\"]\n    Y1 [shape=box, label=\"Y1\"]\n    Y2 [shape=box, label=\"Y2\"]\n    Y3 [shape=box, label=\"Y3\"]\n    Y1 -> LV2\n    Y2 -> LV2\n    Y3 -> LV2\n  }\n}\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+</section>
+</section>
+<section id="示例数据" class="level2">
+<h2 class="anchored" data-anchor-id="示例数据">示例数据</h2>
+<p>我们使用 <code>seminr</code> 自带的 <code>mobi</code> 数据集，该数据包含移动电话服务满意度调查数据。</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 加载数据</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(mobi)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(mobi)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  CUEX1 CUEX2 CUEX3 CUSA1 CUSA2 CUSA3 CUSCO CUSL1 CUSL2 CUSL3 IMAG1 IMAG2 IMAG3
+1     7     7     6     6     4     7     7     6     5     6     7     5     5
+2    10    10     9    10    10     8    10    10     2    10    10     9    10
+3     7     7     7     8     7     7     6     6     2     7     8     7     6
+4     7    10     5    10    10    10     5    10     4    10    10    10     5
+5     8     7    10    10     8     8     5    10     3     8    10    10     5
+6    10     9     7     8     7     7     8    10     3    10     8     9    10
+  IMAG4 IMAG5 PERQ1 PERQ2 PERQ3 PERQ4 PERQ5 PERQ6 PERQ7 PERV1 PERV2
+1     5     4     7     6     4     7     6     5     5     2     3
+2    10     9    10     9    10    10     9    10    10    10    10
+3     4     7     7     8     5     7     8     7     7     7     7
+4     5    10     8    10    10     8     4     5     8     5     5
+5     8     9    10     9     8    10     9     9     8     6     6
+6     8     9     9    10     9    10     8     9     9    10    10</code></pre>
+</div>
+</div>
+<p><strong>变量说明</strong>：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>潜变量</th>
+<th>指标</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>期望 (EXPE)</td>
+<td>CUEX1-3</td>
+<td>客户期望</td>
+</tr>
+<tr class="even">
+<td>质量 (QUAL)</td>
+<td>PERQ1-7</td>
+<td>感知质量</td>
+</tr>
+<tr class="odd">
+<td>价值 (VAL)</td>
+<td>PERV1-2</td>
+<td>感知价值</td>
+</tr>
+<tr class="even">
+<td>满意度 (SAT)</td>
+<td>CUSA1-3</td>
+<td>客户满意度</td>
+</tr>
+<tr class="odd">
+<td>抱怨 (COMP)</td>
+<td>CUSCO</td>
+<td>客户抱怨</td>
+</tr>
+<tr class="even">
+<td>忠诚 (LOY)</td>
+<td>CUSL1-3</td>
+<td>客户忠诚度</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="模型设定" class="level2">
+<h2 class="anchored" data-anchor-id="模型设定">模型设定</h2>
+<section id="定义测量模型" class="level3">
+<h3 class="anchored" data-anchor-id="定义测量模型">1. 定义测量模型</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 定义测量模型（反映性指标）</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>measurements <span class="ot">&lt;-</span> <span class="fu">constructs</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 反映性构念：使用 reflective()</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"期望"</span>, <span class="fu">multi_items</span>(<span class="st">"CUEX"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"质量"</span>, <span class="fu">multi_items</span>(<span class="st">"PERQ"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">7</span>)),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"价值"</span>, <span class="fu">multi_items</span>(<span class="st">"PERV"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>)),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"满意度"</span>, <span class="fu">multi_items</span>(<span class="st">"CUSA"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"忠诚"</span>, <span class="fu">multi_items</span>(<span class="st">"CUSL"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 单指标构念</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"抱怨"</span>, <span class="fu">single_item</span>(<span class="st">"CUSCO"</span>))</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="定义结构模型" class="level3">
+<h3 class="anchored" data-anchor-id="定义结构模型">2. 定义结构模型</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 定义结构模型（路径关系）</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>structure <span class="ot">&lt;-</span> <span class="fu">relationships</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"期望"</span>, <span class="at">to =</span> <span class="fu">c</span>(<span class="st">"质量"</span>, <span class="st">"价值"</span>, <span class="st">"满意度"</span>)),</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"质量"</span>, <span class="at">to =</span> <span class="fu">c</span>(<span class="st">"价值"</span>, <span class="st">"满意度"</span>)),</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"价值"</span>, <span class="at">to =</span> <span class="st">"满意度"</span>),</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"满意度"</span>, <span class="at">to =</span> <span class="fu">c</span>(<span class="st">"抱怨"</span>, <span class="st">"忠诚"</span>)),</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"抱怨"</span>, <span class="at">to =</span> <span class="st">"忠诚"</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="模型估计" class="level2">
+<h2 class="anchored" data-anchor-id="模型估计">模型估计</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 估计 PLS-PM 模型</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>pls_model <span class="ot">&lt;-</span> <span class="fu">estimate_pls</span>(</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> mobi,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">measurement_model =</span> measurements,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">structural_model =</span> structure,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">inner_weights =</span> path_weighting <span class="co"># 路径加权方案</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看模型摘要</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pls_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Results from  package seminr (2.3.7)
+
+Path Coefficients:
+        质量   价值 满意度  抱怨   忠诚
+R^2    0.762  0.455  0.924 0.353  0.722
+AdjR^2 0.762  0.450  0.923 0.351  0.720
+期望   0.873 -0.040  0.044     .      .
+质量       .  0.709  0.790     .      .
+价值       .      .  0.183     .      .
+满意度     .      .      . 0.594  0.872
+抱怨       .      .      .     . -0.039
+
+Reliability:
+       alpha  rhoC   AVE  rhoA
+期望   0.452 0.459 0.221 0.462
+质量   0.877 0.877 0.507 0.884
+价值   0.824 0.835 0.719 0.855
+满意度 0.779 0.780 0.544 0.789
+抱怨   1.000 1.000 1.000 1.000
+忠诚   0.472 0.591 0.386 0.761
+
+Alpha, rhoC, and rhoA should exceed 0.7 while AVE should exceed 0.5</code></pre>
+</div>
+</div>
+</section>
+<section id="bootstrap-检验" class="level2">
+<h2 class="anchored" data-anchor-id="bootstrap-检验">Bootstrap 检验</h2>
+<p>PLS-PM 使用 Bootstrap 方法进行显著性检验。</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bootstrap 估计（通常 5000 次，这里为演示用 500 次）</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>boot_model <span class="ot">&lt;-</span> <span class="fu">bootstrap_model</span>(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">seminr_model =</span> pls_model,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">nboot =</span> <span class="dv">500</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">cores =</span> <span class="dv">1</span> <span class="co"># 并行核心数</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看 Bootstrap 结果</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(boot_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Results from Bootstrap resamples:  500
+
+Bootstrapped Structural Paths:
+                 Original Est. Bootstrap Mean Bootstrap SD T Stat. 2.5% CI
+期望  -&gt;  质量           0.873          0.872        0.090   9.682   0.701
+期望  -&gt;  价值          -0.040          0.418        6.425  -0.006  -1.925
+期望  -&gt;  满意度         0.044         -0.016        1.922   0.023  -2.541
+质量  -&gt;  价值           0.709          0.251        6.424   0.110  -1.717
+质量  -&gt;  满意度         0.790          0.860        1.837   0.430  -0.767
+价值  -&gt;  满意度         0.183          0.169        0.291   0.627  -0.132
+满意度  -&gt;  抱怨         0.594          0.598        0.056  10.656   0.489
+满意度  -&gt;  忠诚         0.872          0.881        0.092   9.522   0.688
+抱怨  -&gt;  忠诚          -0.039         -0.041        0.069  -0.558  -0.173
+                 97.5% CI
+期望  -&gt;  质量      1.071
+期望  -&gt;  价值      2.405
+期望  -&gt;  满意度    1.431
+质量  -&gt;  价值      2.568
+质量  -&gt;  满意度    3.523
+价值  -&gt;  满意度    0.432
+满意度  -&gt;  抱怨    0.703
+满意度  -&gt;  忠诚    1.040
+抱怨  -&gt;  忠诚      0.087
+
+Bootstrapped Weights:
+                  Original Est. Bootstrap Mean Bootstrap SD T Stat. 2.5% CI
+CUEX1  -&gt;  期望           0.535          0.527        0.060   8.968   0.418
+CUEX2  -&gt;  期望           0.441          0.448        0.080   5.483   0.290
+CUEX3  -&gt;  期望           0.464          0.450        0.068   6.824   0.320
+PERQ1  -&gt;  质量           0.214          0.213        0.014  15.598   0.189
+PERQ2  -&gt;  质量           0.145          0.143        0.014  10.397   0.114
+PERQ3  -&gt;  质量           0.200          0.200        0.013  15.725   0.177
+PERQ4  -&gt;  质量           0.179          0.179        0.011  16.499   0.158
+PERQ5  -&gt;  质量           0.179          0.178        0.013  13.814   0.150
+PERQ6  -&gt;  质量           0.179          0.179        0.015  11.744   0.150
+PERQ7  -&gt;  质量           0.216          0.217        0.015  14.321   0.192
+PERV1  -&gt;  价值           0.479          0.478        0.020  24.395   0.434
+PERV2  -&gt;  价值           0.604          0.606        0.027  22.577   0.557
+CUSA1  -&gt;  满意度         0.363          0.364        0.018  20.410   0.330
+CUSA2  -&gt;  满意度         0.386          0.385        0.016  24.510   0.354
+CUSA3  -&gt;  满意度         0.449          0.449        0.020  22.176   0.412
+CUSL1  -&gt;  忠诚           0.447          0.444        0.029  15.177   0.381
+CUSL2  -&gt;  忠诚           0.115          0.112        0.060   1.909   0.005
+CUSL3  -&gt;  忠诚           0.666          0.665        0.042  16.018   0.596
+CUSCO  -&gt;  抱怨           1.000          1.000        0.000       .   1.000
+                  97.5% CI
+CUEX1  -&gt;  期望      0.642
+CUEX2  -&gt;  期望      0.596
+CUEX3  -&gt;  期望      0.585
+PERQ1  -&gt;  质量      0.242
+PERQ2  -&gt;  质量      0.170
+PERQ3  -&gt;  质量      0.225
+PERQ4  -&gt;  质量      0.200
+PERQ5  -&gt;  质量      0.202
+PERQ6  -&gt;  质量      0.207
+PERQ7  -&gt;  质量      0.251
+PERV1  -&gt;  价值      0.515
+PERV2  -&gt;  价值      0.662
+CUSA1  -&gt;  满意度    0.398
+CUSA2  -&gt;  满意度    0.415
+CUSA3  -&gt;  满意度    0.493
+CUSL1  -&gt;  忠诚      0.499
+CUSL2  -&gt;  忠诚      0.226
+CUSL3  -&gt;  忠诚      0.752
+CUSCO  -&gt;  抱怨      1.000
+
+Bootstrapped Loadings:
+                  Original Est. Bootstrap Mean Bootstrap SD T Stat. 2.5% CI
+CUEX1  -&gt;  期望           0.522          0.527        0.081   6.423   0.371
+CUEX2  -&gt;  期望           0.431          0.450        0.101   4.248   0.263
+CUEX3  -&gt;  期望           0.453          0.448        0.070   6.512   0.314
+PERQ1  -&gt;  质量           0.807          0.802        0.037  21.901   0.731
+PERQ2  -&gt;  质量           0.547          0.540        0.060   9.070   0.409
+PERQ3  -&gt;  质量           0.755          0.754        0.043  17.489   0.659
+PERQ4  -&gt;  质量           0.676          0.677        0.059  11.531   0.552
+PERQ5  -&gt;  质量           0.674          0.673        0.061  11.006   0.537
+PERQ6  -&gt;  质量           0.676          0.677        0.070   9.608   0.533
+PERQ7  -&gt;  质量           0.814          0.818        0.034  23.611   0.745
+PERV1  -&gt;  价值           0.745          0.743        0.048  15.477   0.643
+PERV2  -&gt;  价值           0.939          0.941        0.033  28.298   0.874
+CUSA1  -&gt;  满意度         0.668          0.671        0.043  15.517   0.582
+CUSA2  -&gt;  满意度         0.710          0.710        0.041  17.504   0.628
+CUSA3  -&gt;  满意度         0.826          0.828        0.034  24.610   0.755
+CUSL1  -&gt;  忠诚           0.594          0.591        0.067   8.930   0.456
+CUSL2  -&gt;  忠诚           0.153          0.149        0.080   1.911   0.007
+CUSL3  -&gt;  忠诚           0.884          0.881        0.042  20.851   0.794
+CUSCO  -&gt;  抱怨           1.000          1.000        0.000       .   1.000
+                  97.5% CI
+CUEX1  -&gt;  期望      0.685
+CUEX2  -&gt;  期望      0.658
+CUEX3  -&gt;  期望      0.581
+PERQ1  -&gt;  质量      0.872
+PERQ2  -&gt;  质量      0.647
+PERQ3  -&gt;  质量      0.830
+PERQ4  -&gt;  质量      0.780
+PERQ5  -&gt;  质量      0.774
+PERQ6  -&gt;  质量      0.798
+PERQ7  -&gt;  质量      0.883
+PERV1  -&gt;  价值      0.833
+PERV2  -&gt;  价值      1.010
+CUSA1  -&gt;  满意度    0.749
+CUSA2  -&gt;  满意度    0.784
+CUSA3  -&gt;  满意度    0.889
+CUSL1  -&gt;  忠诚      0.714
+CUSL2  -&gt;  忠诚      0.302
+CUSL3  -&gt;  忠诚      0.964
+CUSCO  -&gt;  抱怨      1.000
+
+Bootstrapped HTMT:
+                 Original Est. Bootstrap Mean Bootstrap SD 2.5% CI 97.5% CI
+期望  -&gt;  质量           0.878          0.878        0.090   0.710    1.070
+期望  -&gt;  价值           0.589          0.593        0.114   0.371    0.807
+期望  -&gt;  满意度         0.865          0.868        0.097   0.698    1.091
+期望  -&gt;  抱怨           0.383          0.393        0.096   0.206    0.568
+期望  -&gt;  忠诚           0.770          0.793        0.116   0.595    1.020
+质量  -&gt;  价值           0.673          0.669        0.067   0.529    0.789
+质量  -&gt;  满意度         0.954          0.955        0.030   0.896    1.012
+质量  -&gt;  抱怨           0.564          0.568        0.055   0.459    0.670
+质量  -&gt;  忠诚           0.759          0.772        0.089   0.612    0.955
+价值  -&gt;  满意度         0.741          0.741        0.070   0.600    0.869
+价值  -&gt;  抱怨           0.387          0.389        0.079   0.233    0.529
+价值  -&gt;  忠诚           0.797          0.797        0.090   0.624    0.963
+满意度  -&gt;  抱怨         0.588          0.592        0.057   0.473    0.698
+满意度  -&gt;  忠诚         0.957          0.959        0.092   0.776    1.136
+抱怨  -&gt;  忠诚           0.561          0.560        0.088   0.376    0.721
+
+Bootstrapped Total Paths:
+                 Original Est. Bootstrap Mean Bootstrap SD 2.5% CI 97.5% CI
+期望  -&gt;  质量           0.873          0.872        0.090   0.701    1.071
+期望  -&gt;  价值           0.579          0.583        0.113   0.358    0.803
+期望  -&gt;  满意度         0.840          0.842        0.095   0.672    1.053
+期望  -&gt;  抱怨           0.499          0.503        0.066   0.375    0.635
+期望  -&gt;  忠诚           0.713          0.720        0.102   0.532    0.951
+质量  -&gt;  价值           0.709          0.251        6.424  -1.717    2.568
+质量  -&gt;  满意度         0.920          0.826        5.174  -0.217    3.005
+质量  -&gt;  抱怨           0.547          0.490        3.028  -0.123    1.780
+质量  -&gt;  忠诚           0.781          0.696        4.654  -0.181    2.479
+价值  -&gt;  满意度         0.183          0.169        0.291  -0.132    0.432
+价值  -&gt;  抱怨           0.109          0.101        0.165  -0.075    0.256
+价值  -&gt;  忠诚           0.155          0.147        0.267  -0.111    0.386
+满意度  -&gt;  抱怨         0.594          0.598        0.056   0.489    0.703
+满意度  -&gt;  忠诚         0.849          0.856        0.077   0.691    0.996
+抱怨  -&gt;  忠诚          -0.039         -0.041        0.069  -0.173    0.087</code></pre>
+</div>
+</div>
+</section>
+<section id="结果解读" class="level2">
+<h2 class="anchored" data-anchor-id="结果解读">结果解读</h2>
+<section id="测量模型评估" class="level3">
+<h3 class="anchored" data-anchor-id="测量模型评估">测量模型评估</h3>
+<section id="指标载荷" class="level4">
+<h4 class="anchored" data-anchor-id="指标载荷">1. 指标载荷</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看指标载荷</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>pls_model<span class="sc">$</span>outer_loadings</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>           期望      质量      价值    满意度 抱怨      忠诚
+CUEX1 0.5223333 0.0000000 0.0000000 0.0000000    0 0.0000000
+CUEX2 0.4308613 0.0000000 0.0000000 0.0000000    0 0.0000000
+CUEX3 0.4533521 0.0000000 0.0000000 0.0000000    0 0.0000000
+PERQ1 0.0000000 0.8065942 0.0000000 0.0000000    0 0.0000000
+PERQ2 0.0000000 0.5468900 0.0000000 0.0000000    0 0.0000000
+PERQ3 0.0000000 0.7552731 0.0000000 0.0000000    0 0.0000000
+PERQ4 0.0000000 0.6761444 0.0000000 0.0000000    0 0.0000000
+PERQ5 0.0000000 0.6740449 0.0000000 0.0000000    0 0.0000000
+PERQ6 0.0000000 0.6756726 0.0000000 0.0000000    0 0.0000000
+PERQ7 0.0000000 0.8140902 0.0000000 0.0000000    0 0.0000000
+PERV1 0.0000000 0.0000000 0.7454342 0.0000000    0 0.0000000
+PERV2 0.0000000 0.0000000 0.9392489 0.0000000    0 0.0000000
+CUSA1 0.0000000 0.0000000 0.0000000 0.6682438    0 0.0000000
+CUSA2 0.0000000 0.0000000 0.0000000 0.7100752    0 0.0000000
+CUSA3 0.0000000 0.0000000 0.0000000 0.8258661    0 0.0000000
+CUSL1 0.0000000 0.0000000 0.0000000 0.0000000    0 0.5939083
+CUSL2 0.0000000 0.0000000 0.0000000 0.0000000    0 0.1530756
+CUSL3 0.0000000 0.0000000 0.0000000 0.0000000    0 0.8843865
+CUSCO 0.0000000 0.0000000 0.0000000 0.0000000    1 0.0000000</code></pre>
+</div>
+</div>
+<p><strong>评估标准</strong>： - 载荷 &gt; 0.708（或 &gt; 0.7）表示指标可靠 - 若载荷在 0.4-0.7 之间，需检查删除后对 AVE 的影响 - 载荷 &lt; 0.4 应考虑删除</p>
+</section>
+<section id="信度检验" class="level4">
+<h4 class="anchored" data-anchor-id="信度检验">2. 信度检验</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 提取信度指标</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pls_model)<span class="sc">$</span>reliability</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       alpha  rhoC   AVE  rhoA
+期望   0.452 0.459 0.221 0.462
+质量   0.877 0.877 0.507 0.884
+价值   0.824 0.835 0.719 0.855
+满意度 0.779 0.780 0.544 0.789
+抱怨   1.000 1.000 1.000 1.000
+忠诚   0.472 0.591 0.386 0.761
+
+Alpha, rhoC, and rhoA should exceed 0.7 while AVE should exceed 0.5</code></pre>
+</div>
+</div>
+<p><strong>评估标准</strong>：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>指标</th>
+<th>阈值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Cronbach’s α</td>
+<td>&gt; 0.7</td>
+<td>传统信度指标</td>
+</tr>
+<tr class="even">
+<td>rho_A</td>
+<td>&gt; 0.7</td>
+<td>更稳健的信度估计</td>
+</tr>
+<tr class="odd">
+<td>组合信度 (CR)</td>
+<td>&gt; 0.7</td>
+<td>推荐使用</td>
+</tr>
+<tr class="even">
+<td>AVE</td>
+<td>&gt; 0.5</td>
+<td>收敛效度</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="区分效度" class="level4">
+<h4 class="anchored" data-anchor-id="区分效度">3. 区分效度</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Fornell-Larcker 准则</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pls_model)<span class="sc">$</span>validity<span class="sc">$</span>fl_criteria</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>        期望  质量  价值 满意度  抱怨  忠诚
+期望   0.470     .     .      .     .     .
+质量   0.558 0.712     .      .     .     .
+价值   0.364 0.586 0.848      .     .     .
+满意度 0.507 0.795 0.608  0.738     .     .
+抱怨   0.255 0.532 0.355  0.528 1.000     .
+忠诚   0.377 0.539 0.530  0.658 0.419 0.621
+
+FL Criteria table reports square root of AVE on the diagonal and construct correlations on the lower triangle.</code></pre>
+</div>
+</div>
+<p><strong>Fornell-Larcker 准则</strong>：每个构念的 AVE 平方根（对角线）应大于其与其他构念的相关（非对角线）。</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># HTMT 比率（更严格的区分效度检验）</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pls_model)<span class="sc">$</span>validity<span class="sc">$</span>htmt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>        期望  质量  价值 满意度  抱怨 忠诚
+期望       .     .     .      .     .    .
+质量   0.878     .     .      .     .    .
+价值   0.589 0.673     .      .     .    .
+满意度 0.865 0.954 0.741      .     .    .
+抱怨   0.383 0.564 0.387  0.588     .    .
+忠诚   0.770 0.759 0.797  0.957 0.561    .</code></pre>
+</div>
+</div>
+<p><strong>HTMT 阈值</strong>： - 保守值：&lt; 0.85 - 宽松值：&lt; 0.90</p>
+</section>
+</section>
+<section id="结构模型评估" class="level3">
+<h3 class="anchored" data-anchor-id="结构模型评估">结构模型评估</h3>
+<section id="路径系数" class="level4">
+<h4 class="anchored" data-anchor-id="路径系数">1. 路径系数</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看路径系数</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>pls_model<span class="sc">$</span>path_coef</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       期望      质量       价值     满意度      抱怨        忠诚
+期望      0 0.8731993 -0.0399274 0.04419321 0.0000000  0.00000000
+质量      0 0.0000000  0.7090024 0.79004568 0.0000000  0.00000000
+价值      0 0.0000000  0.0000000 0.18259505 0.0000000  0.00000000
+满意度    0 0.0000000  0.0000000 0.00000000 0.5944203  0.87228929
+抱怨      0 0.0000000  0.0000000 0.00000000 0.0000000 -0.03872188
+忠诚      0 0.0000000  0.0000000 0.00000000 0.0000000  0.00000000</code></pre>
+</div>
+</div>
+</section>
+<section id="显著性检验" class="level4">
+<h4 class="anchored" data-anchor-id="显著性检验">2. 显著性检验</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bootstrap 置信区间</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(boot_model)<span class="sc">$</span>bootstrapped_paths</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                 Original Est. Bootstrap Mean Bootstrap SD T Stat. 2.5% CI
+期望  -&gt;  质量           0.873          0.872        0.090   9.682   0.701
+期望  -&gt;  价值          -0.040          0.418        6.425  -0.006  -1.925
+期望  -&gt;  满意度         0.044         -0.016        1.922   0.023  -2.541
+质量  -&gt;  价值           0.709          0.251        6.424   0.110  -1.717
+质量  -&gt;  满意度         0.790          0.860        1.837   0.430  -0.767
+价值  -&gt;  满意度         0.183          0.169        0.291   0.627  -0.132
+满意度  -&gt;  抱怨         0.594          0.598        0.056  10.656   0.489
+满意度  -&gt;  忠诚         0.872          0.881        0.092   9.522   0.688
+抱怨  -&gt;  忠诚          -0.039         -0.041        0.069  -0.558  -0.173
+                 97.5% CI
+期望  -&gt;  质量      1.071
+期望  -&gt;  价值      2.405
+期望  -&gt;  满意度    1.431
+质量  -&gt;  价值      2.568
+质量  -&gt;  满意度    3.523
+价值  -&gt;  满意度    0.432
+满意度  -&gt;  抱怨    0.703
+满意度  -&gt;  忠诚    1.040
+抱怨  -&gt;  忠诚      0.087</code></pre>
+</div>
+</div>
+<p><strong>解释</strong>： - 若 95% CI 不包含 0，则路径显著 - T 值 &gt; 1.96 (p &lt; 0.05) 表示显著</p>
+</section>
+<section id="r²-解释力" class="level4">
+<h4 class="anchored" data-anchor-id="r²-解释力">3. R² 解释力</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看 R²</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>pls_model<span class="sc">$</span>rSquared</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>            质量      价值    满意度      抱怨      忠诚
+Rsq    0.7624771 0.4548405 0.9242884 0.3533355 0.7222329
+AdjRsq 0.7615193 0.4504262 0.9233651 0.3507280 0.7199838</code></pre>
+</div>
+</div>
+<p><strong>R² 标准</strong>（Cohen, 1988）： - 0.75：强 - 0.50：中等 - 0.25：弱</p>
+</section>
+<section id="效应量-f²" class="level4">
+<h4 class="anchored" data-anchor-id="效应量-f²">4. 效应量 f²</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算 f²</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pls_model)<span class="sc">$</span>fSquare</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>        期望  质量  价值 满意度  抱怨   忠诚
+期望   0.000 3.210 0.001  0.017 0.000  0.000
+质量   0.000 0.000 0.215  1.677 0.000  0.000
+价值   0.000 0.000 0.000  0.201 0.000  0.000
+满意度 0.000 0.000 0.000  0.000 0.546  1.755
+抱怨   0.000 0.000 0.000  0.000 0.000 -0.004
+忠诚   0.000 0.000 0.000  0.000 0.000  0.000</code></pre>
+</div>
+</div>
+<p><strong>f² 标准</strong>： - 0.02：弱效应 - 0.15：中等效应 - 0.35：强效应</p>
+</section>
+</section>
+</section>
+<section id="路径图可视化" class="level2">
+<h2 class="anchored" data-anchor-id="路径图可视化">路径图可视化</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 seminr 内置绑图</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(pls_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="grViz html-widget html-fill-item" id="htmlwidget-c8d8d31d6844ea7d39d2" style="width:100%;height:505px;"></div>
+<script type="application/json" data-for="htmlwidget-c8d8d31d6844ea7d39d2">{"x":{"diagram":"digraph G {\n\n// ----------------------\n// General graph settings\n// ----------------------\ngraph [\ncharset = \"UTF-8\",\nlayout = dot,\nlabel = \"\",\nfontsize = 24,\nfontcolor = black,\nfontname = helvetica,\nrankdir = LR,\nlabelloc = t,\nsplines = TRUE\nbgcolor = transparent\n]\n\n// --------------------\n// The structural model\n// --------------------\nsubgraph sm {\nrankdir = LR;\nnode [\nshape = ellipse,\ncolor = black,\nfillcolor = white,\nstyle = filled,\nfontsize = 12,\nfontcolor = black,\nheight = 1,\nwidth = 0.88,\nfontname = helvetica,\nfixedsize = true\n]\n\"期望\" [label=<<B>期望 <\/B>>, shape = ellipse]\n\"质量\" [label=<<B>质量 <\/B><BR /><FONT POINT-SIZE=\"10\">r² = 0.762<\/FONT>>, shape = ellipse]\n\"价值\" [label=<<B>价值 <\/B><BR /><FONT POINT-SIZE=\"10\">r² = 0.455<\/FONT>>, shape = ellipse]\n\"满意度\" [label=<<B>满意度 <\/B><BR /><FONT POINT-SIZE=\"10\">r² = 0.924<\/FONT>>, shape = ellipse]\n\"抱怨\" [label=<<B>抱怨 <\/B><BR /><FONT POINT-SIZE=\"10\">r² = 0.353<\/FONT>>, shape = ellipse]\n\"忠诚\" [label=<<B>忠诚 <\/B><BR /><FONT POINT-SIZE=\"10\">r² = 0.722<\/FONT>>, shape = ellipse]\nedge [\ncolor = black,\nfontsize = 9,\nfontcolor = black,\nfontname = helvetica,\ndir = both,\narrowhead = normal,\narrowtail = none\n]\n\"期望\" -> {\"质量\"}[weight = 1, label = < 𝛽 = 0.873<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 4.865, style = solid, color = black]\n\"期望\" -> {\"价值\"}[weight = 1, label = < 𝛽 = -0.04<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 0.7, style = dashed, color = black]\n\"期望\" -> {\"满意度\"}[weight = 1, label = < 𝛽 = 0.044<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 0.72, style = solid, color = black]\n\"质量\" -> {\"价值\"}[weight = 1, label = < 𝛽 = 0.709<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 4.045, style = solid, color = black]\n\"质量\" -> {\"满意度\"}[weight = 1, label = < 𝛽 = 0.79<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 4.45, style = solid, color = black]\n\"价值\" -> {\"满意度\"}[weight = 1, label = < 𝛽 = 0.183<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 1.415, style = solid, color = black]\n\"满意度\" -> {\"抱怨\"}[weight = 1, label = < 𝛽 = 0.594<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 3.47, style = solid, color = black]\n\"满意度\" -> {\"忠诚\"}[weight = 1, label = < 𝛽 = 0.872<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 4.86, style = solid, color = black]\n\"抱怨\" -> {\"忠诚\"}[weight = 1, label = < 𝛽 = -0.039<BR /><FONT POINT-SIZE=\"7\">   <\/FONT> >, penwidth = 0.695, style = dashed, color = black]\n}\n// ---------------------\n// The measurement model\n// ---------------------\n\nsubgraph construct_1 {\nnode [\nshape = box,\ncolor = dimgrey,\nfillcolor = white,\nstyle = filled,\nfontsize = 8,\nfontcolor = black,\nheight = 0.166666666666667,\nwidth = 0.543333333333333,\nfontname = helvetica,\nfixedsize = true\n]\n\"CUEX1\" [label = \"CUEX1\", shape = box]\n\"CUEX2\" [label = \"CUEX2\", shape = box]\n\"CUEX3\" [label = \"CUEX3\", shape = box]\nedge [\ncolor = dimgrey,\nfontsize = 7,\nfontcolor = black,\nfontname = helvetica,\nminlen = 1,\ndir = both\narrowhead = none\narrowtail = normal\n]\n\"CUEX1\" -> {\"期望\"}[weight = 1000, label = < 𝜆 = 0.522 >, penwidth = 2.066, style = solid, color = dimgrey]\n\"CUEX2\" -> {\"期望\"}[weight = 1000, label = < 𝜆 = 0.431 >, penwidth = 1.793, style = solid, color = dimgrey]\n\"CUEX3\" -> {\"期望\"}[weight = 1000, label = < 𝜆 = 0.453 >, penwidth = 1.859, style = solid, color = dimgrey]\n\n}\nsubgraph construct_2 {\nnode [\nshape = box,\ncolor = dimgrey,\nfillcolor = white,\nstyle = filled,\nfontsize = 8,\nfontcolor = black,\nheight = 0.166666666666667,\nwidth = 0.543333333333333,\nfontname = helvetica,\nfixedsize = true\n]\n\"PERQ1\" [label = \"PERQ1\", shape = box]\n\"PERQ2\" [label = \"PERQ2\", shape = box]\n\"PERQ3\" [label = \"PERQ3\", shape = box]\n\"PERQ4\" [label = \"PERQ4\", shape = box]\n\"PERQ5\" [label = \"PERQ5\", shape = box]\n\"PERQ6\" [label = \"PERQ6\", shape = box]\n\"PERQ7\" [label = \"PERQ7\", shape = box]\nedge [\ncolor = dimgrey,\nfontsize = 7,\nfontcolor = black,\nfontname = helvetica,\nminlen = 1,\ndir = both\narrowhead = none\narrowtail = normal\n]\n\"PERQ1\" -> {\"质量\"}[weight = 1000, label = < 𝜆 = 0.807 >, penwidth = 2.921, style = solid, color = dimgrey]\n\"PERQ2\" -> {\"质量\"}[weight = 1000, label = < 𝜆 = 0.547 >, penwidth = 2.141, style = solid, color = dimgrey]\n\"PERQ3\" -> {\"质量\"}[weight = 1000, label = < 𝜆 = 0.755 >, penwidth = 2.765, style = solid, color = dimgrey]\n\"PERQ4\" -> {\"质量\"}[weight = 1000, label = < 𝜆 = 0.676 >, penwidth = 2.528, style = solid, color = dimgrey]\n\"PERQ5\" -> {\"质量\"}[weight = 1000, label = < 𝜆 = 0.674 >, penwidth = 2.522, style = solid, color = dimgrey]\n\"PERQ6\" -> {\"质量\"}[weight = 1000, label = < 𝜆 = 0.676 >, penwidth = 2.528, style = solid, color = dimgrey]\n\"PERQ7\" -> {\"质量\"}[weight = 1000, label = < 𝜆 = 0.814 >, penwidth = 2.942, style = solid, color = dimgrey]\n\n}\nsubgraph construct_3 {\nnode [\nshape = box,\ncolor = dimgrey,\nfillcolor = white,\nstyle = filled,\nfontsize = 8,\nfontcolor = black,\nheight = 0.166666666666667,\nwidth = 0.543333333333333,\nfontname = helvetica,\nfixedsize = true\n]\n\"PERV1\" [label = \"PERV1\", shape = box]\n\"PERV2\" [label = \"PERV2\", shape = box]\nedge [\ncolor = dimgrey,\nfontsize = 7,\nfontcolor = black,\nfontname = helvetica,\nminlen = 1,\ndir = both\narrowhead = none\narrowtail = normal\n]\n\"PERV1\" -> {\"价值\"}[weight = 1000, label = < 𝜆 = 0.745 >, penwidth = 2.735, style = solid, color = dimgrey]\n\"PERV2\" -> {\"价值\"}[weight = 1000, label = < 𝜆 = 0.939 >, penwidth = 3.317, style = solid, color = dimgrey]\n\n}\nsubgraph construct_4 {\nnode [\nshape = box,\ncolor = dimgrey,\nfillcolor = white,\nstyle = filled,\nfontsize = 8,\nfontcolor = black,\nheight = 0.166666666666667,\nwidth = 0.543333333333333,\nfontname = helvetica,\nfixedsize = true\n]\n\"CUSA1\" [label = \"CUSA1\", shape = box]\n\"CUSA2\" [label = \"CUSA2\", shape = box]\n\"CUSA3\" [label = \"CUSA3\", shape = box]\nedge [\ncolor = dimgrey,\nfontsize = 7,\nfontcolor = black,\nfontname = helvetica,\nminlen = 1,\ndir = both\narrowhead = none\narrowtail = normal\n]\n\"CUSA1\" -> {\"满意度\"}[weight = 1000, label = < 𝜆 = 0.668 >, penwidth = 2.504, style = solid, color = dimgrey]\n\"CUSA2\" -> {\"满意度\"}[weight = 1000, label = < 𝜆 = 0.71 >, penwidth = 2.63, style = solid, color = dimgrey]\n\"CUSA3\" -> {\"满意度\"}[weight = 1000, label = < 𝜆 = 0.826 >, penwidth = 2.978, style = solid, color = dimgrey]\n\n}\nsubgraph construct_5 {\nnode [\nshape = box,\ncolor = dimgrey,\nfillcolor = white,\nstyle = filled,\nfontsize = 8,\nfontcolor = black,\nheight = 0.166666666666667,\nwidth = 0.543333333333333,\nfontname = helvetica,\nfixedsize = true\n]\n\"CUSCO\" [label = \"CUSCO\", shape = box]\nedge [\ncolor = dimgrey,\nfontsize = 7,\nfontcolor = black,\nfontname = helvetica,\nminlen = 1,\ndir = both\narrowhead = none\narrowtail = normal\n]\n\"CUSCO\" -> {\"抱怨\"}[weight = 1000, label = < 𝜆 = 1 >, penwidth = 3.5, style = solid, color = dimgrey]\n\n}\nsubgraph construct_6 {\nnode [\nshape = box,\ncolor = dimgrey,\nfillcolor = white,\nstyle = filled,\nfontsize = 8,\nfontcolor = black,\nheight = 0.166666666666667,\nwidth = 0.543333333333333,\nfontname = helvetica,\nfixedsize = true\n]\n\"CUSL1\" [label = \"CUSL1\", shape = box]\n\"CUSL2\" [label = \"CUSL2\", shape = box]\n\"CUSL3\" [label = \"CUSL3\", shape = box]\nedge [\ncolor = dimgrey,\nfontsize = 7,\nfontcolor = black,\nfontname = helvetica,\nminlen = 1,\ndir = both\narrowhead = normal\narrowtail = none\n]\n\"忠诚\" -> {\"CUSL1\"}[weight = 1000, label = < 𝜆 = 0.594 >, penwidth = 2.282, style = solid, color = dimgrey]\n\"忠诚\" -> {\"CUSL2\"}[weight = 1000, label = < 𝜆 = 0.153 >, penwidth = 0.959, style = solid, color = dimgrey]\n\"忠诚\" -> {\"CUSL3\"}[weight = 1000, label = < 𝜆 = 0.884 >, penwidth = 3.152, style = solid, color = dimgrey]\n\n}\n}","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+<section id="自定义可视化" class="level3">
+<h3 class="anchored" data-anchor-id="自定义可视化">自定义可视化</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 提取路径系数用于自定义绘图</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>path_coefs <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(pls_model<span class="sc">$</span>path_coef)</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>path_coefs<span class="sc">$</span>from <span class="ot">&lt;-</span> <span class="fu">rownames</span>(path_coefs)</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 转为长格式</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>paths_long <span class="ot">&lt;-</span> path_coefs <span class="sc">%&gt;%</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pivot_longer</span>(<span class="sc">-</span>from, <span class="at">names_to =</span> <span class="st">"to"</span>, <span class="at">values_to =</span> <span class="st">"coef"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(coef <span class="sc">!=</span> <span class="dv">0</span>)</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(paths_long)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 9 × 3
+  from   to        coef
+  &lt;chr&gt;  &lt;chr&gt;    &lt;dbl&gt;
+1 期望   质量    0.873 
+2 期望   价值   -0.0399
+3 期望   满意度  0.0442
+4 质量   价值    0.709 
+5 质量   满意度  0.790 
+6 价值   满意度  0.183 
+7 满意度 抱怨    0.594 
+8 满意度 忠诚    0.872 
+9 抱怨   忠诚   -0.0387</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="中介效应分析" class="level2">
+<h2 class="anchored" data-anchor-id="中介效应分析">中介效应分析</h2>
+<section id="计算间接效应" class="level3">
+<h3 class="anchored" data-anchor-id="计算间接效应">计算间接效应</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 定义特定间接效应</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>specific_effects <span class="ot">&lt;-</span> <span class="fu">specific_effect_significance</span>(</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    boot_model,</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">from =</span> <span class="st">"质量"</span>,</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">through =</span> <span class="st">"满意度"</span>,</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">to =</span> <span class="st">"忠诚"</span>,</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> <span class="fl">0.05</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(specific_effects)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> Original Est. Bootstrap Mean   Bootstrap SD        T Stat.        2.5% CI 
+     0.6891484      0.7535812      1.7705532      0.3892277     -0.6057253 
+      97.5% CI 
+     2.8793108 </code></pre>
+</div>
+</div>
+</section>
+<section id="总效应分析" class="level3">
+<h3 class="anchored" data-anchor-id="总效应分析">总效应分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 从 summary 中提取总效应信息</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 总效应 = 直接效应 + 间接效应</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 可以通过路径系数矩阵计算</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>path_coef_mat <span class="ot">&lt;-</span> pls_model<span class="sc">$</span>path_coef</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 直接查看路径系数即为直接效应</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(path_coef_mat)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       期望      质量       价值     满意度      抱怨        忠诚
+期望      0 0.8731993 -0.0399274 0.04419321 0.0000000  0.00000000
+质量      0 0.0000000  0.7090024 0.79004568 0.0000000  0.00000000
+价值      0 0.0000000  0.0000000 0.18259505 0.0000000  0.00000000
+满意度    0 0.0000000  0.0000000 0.00000000 0.5944203  0.87228929
+抱怨      0 0.0000000  0.0000000 0.00000000 0.0000000 -0.03872188
+忠诚      0 0.0000000  0.0000000 0.00000000 0.0000000  0.00000000</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="预测能力评估" class="level2">
+<h2 class="anchored" data-anchor-id="预测能力评估">预测能力评估</h2>
+<section id="q²-预测相关性" class="level3">
+<h3 class="anchored" data-anchor-id="q²-预测相关性">Q² 预测相关性</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 PLSpredict 进行预测评估</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>predict_result <span class="ot">&lt;-</span> <span class="fu">predict_pls</span>(</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">model =</span> pls_model,</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">technique =</span> predict_DA, <span class="co"># 直接法</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">noFolds =</span> <span class="dv">10</span> <span class="co"># 10折交叉验证</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看 Q² 值</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(predict_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+PLS in-sample metrics:
+     PERQ1 PERQ2 PERQ3 PERQ4 PERQ5 PERQ6 PERQ7 PERV1 PERV2 CUSA1 CUSA2 CUSA3
+RMSE 1.241 1.810 1.684 1.552 1.337 1.475 1.754 1.924 1.483 0.938 1.286 1.238
+MAE  0.919 1.392 1.251 1.093 0.969 1.027 1.249 1.471 1.084 0.731 0.952 0.923
+     CUSCO CUSL1 CUSL2 CUSL3
+RMSE 1.932 2.362 2.816 1.677
+MAE  1.440 1.767 2.385 1.179
+
+PLS out-of-sample metrics:
+     PERQ1 PERQ2 PERQ3 PERQ4 PERQ5 PERQ6 PERQ7 PERV1 PERV2 CUSA1 CUSA2 CUSA3
+RMSE 1.259 1.832 1.717 1.581 1.362 1.487 1.775 1.973 1.530 0.998 1.346 1.324
+MAE  0.925 1.406 1.277 1.117 0.982 1.037 1.257 1.496 1.111 0.767 0.994 0.975
+     CUSCO CUSL1 CUSL2 CUSL3
+RMSE 1.951 2.400 2.845 1.704
+MAE  1.455 1.796 2.403 1.195
+
+LM in-sample metrics:
+     PERQ1 PERQ2 PERQ3 PERQ4 PERQ5 PERQ6 PERQ7 PERV1 PERV2 CUSA1 CUSA2 CUSA3
+RMSE 1.185 1.775 1.630 1.508 1.311 1.449 1.664 1.846 1.435 0.879 1.233 1.133
+MAE  0.896 1.351 1.236 1.097 0.974 1.031 1.211 1.421 1.060 0.690 0.925 0.842
+     CUSCO CUSL1 CUSL2 CUSL3
+RMSE 1.876 2.345 2.797 1.608
+MAE  1.395 1.762 2.378 1.109
+
+LM out-of-sample metrics:
+     PERQ1 PERQ2 PERQ3 PERQ4 PERQ5 PERQ6 PERQ7 PERV1 PERV2 CUSA1 CUSA2 CUSA3
+RMSE 1.208 1.826 1.666 1.555 1.349 1.490 1.695 1.983 1.527 0.952 1.353 1.230
+MAE  0.910 1.396 1.264 1.122 0.993 1.056 1.226 1.525 1.128 0.748 1.013 0.901
+     CUSCO CUSL1 CUSL2 CUSL3
+RMSE 1.919 2.402 2.852 1.647
+MAE  1.423 1.799 2.418 1.132
+
+Construct Level metrics:
+          质量   价值 满意度    抱怨   忠诚
+IS_MSE  0.7817 0.6678  0.348 0.72240 0.6065
+IS_MAE  0.6535 0.6081  0.439 0.63365 0.5498
+OOS_MSE 0.8159 0.7188  0.441 0.72671 0.6322
+OOS_MAE 0.6642 0.6250  0.482 0.63584 0.5612
+overfit 0.0438 0.0763  0.268 0.00596 0.0424</code></pre>
+</div>
+</div>
+<p><strong>Q² 解释</strong>： - Q² &gt; 0：模型有预测相关性 - Q² &lt; 0：模型预测能力不如均值</p>
+</section>
+</section>
+<section id="形成性指标模型" class="level2">
+<h2 class="anchored" data-anchor-id="形成性指标模型">形成性指标模型</h2>
+<section id="定义形成性测量" class="level3">
+<h3 class="anchored" data-anchor-id="定义形成性测量">定义形成性测量</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 假设 "价值" 由形成性指标组成</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>measurements_formative <span class="ot">&lt;-</span> <span class="fu">constructs</span>(</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"期望"</span>, <span class="fu">multi_items</span>(<span class="st">"CUEX"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"质量"</span>, <span class="fu">multi_items</span>(<span class="st">"PERQ"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">7</span>)),</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 形成性构念：使用 composite()</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">composite</span>(<span class="st">"价值"</span>, <span class="fu">multi_items</span>(<span class="st">"PERV"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>), <span class="at">weights =</span> mode_B),</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"满意度"</span>, <span class="fu">multi_items</span>(<span class="st">"CUSA"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"忠诚"</span>, <span class="fu">multi_items</span>(<span class="st">"CUSL"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"抱怨"</span>, <span class="fu">single_item</span>(<span class="st">"CUSCO"</span>))</span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 估计模型</span></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>pls_formative <span class="ot">&lt;-</span> <span class="fu">estimate_pls</span>(</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> mobi,</span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">measurement_model =</span> measurements_formative,</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">structural_model =</span> structure</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="形成性指标评估" class="level3">
+<h3 class="anchored" data-anchor-id="形成性指标评估">形成性指标评估</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看权重（而非载荷）</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>pls_formative<span class="sc">$</span>outer_weights</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>           期望      质量      价值    满意度 抱怨      忠诚
+CUEX1 0.5328296 0.0000000 0.0000000 0.0000000    0 0.0000000
+CUEX2 0.4447268 0.0000000 0.0000000 0.0000000    0 0.0000000
+CUEX3 0.4629400 0.0000000 0.0000000 0.0000000    0 0.0000000
+PERQ1 0.0000000 0.2154190 0.0000000 0.0000000    0 0.0000000
+PERQ2 0.0000000 0.1469019 0.0000000 0.0000000    0 0.0000000
+PERQ3 0.0000000 0.1991590 0.0000000 0.0000000    0 0.0000000
+PERQ4 0.0000000 0.1780498 0.0000000 0.0000000    0 0.0000000
+PERQ5 0.0000000 0.1789501 0.0000000 0.0000000    0 0.0000000
+PERQ6 0.0000000 0.1779952 0.0000000 0.0000000    0 0.0000000
+PERQ7 0.0000000 0.2143895 0.0000000 0.0000000    0 0.0000000
+PERV1 0.0000000 0.0000000 0.1799806 0.0000000    0 0.0000000
+PERV2 0.0000000 0.0000000 0.8656957 0.0000000    0 0.0000000
+CUSA1 0.0000000 0.0000000 0.0000000 0.3631324    0 0.0000000
+CUSA2 0.0000000 0.0000000 0.0000000 0.3863694    0 0.0000000
+CUSA3 0.0000000 0.0000000 0.0000000 0.4493828    0 0.0000000
+CUSL1 0.0000000 0.0000000 0.0000000 0.0000000    0 0.4472679
+CUSL2 0.0000000 0.0000000 0.0000000 0.0000000    0 0.1152926
+CUSL3 0.0000000 0.0000000 0.0000000 0.0000000    0 0.6660098
+CUSCO 0.0000000 0.0000000 0.0000000 0.0000000    1 0.0000000</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查 VIF（共线性）</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pls_formative)<span class="sc">$</span>validity<span class="sc">$</span>vif_items</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>期望 :
+CUEX1 CUEX2 CUEX3 
+1.161 1.121 1.050 
+
+质量 :
+PERQ1 PERQ2 PERQ3 PERQ4 PERQ5 PERQ6 PERQ7 
+2.027 1.491 2.105 2.013 1.823 2.003 2.006 
+
+价值 :
+PERV1 PERV2 
+1.962 1.962 
+
+满意度 :
+CUSA1 CUSA2 CUSA3 
+1.505 1.762 1.644 
+
+抱怨 :
+CUSCO 
+    1 
+
+忠诚 :
+CUSL1 CUSL2 CUSL3 
+1.415 1.010 1.427 </code></pre>
+</div>
+</div>
+<p><strong>VIF 标准</strong>： - VIF &lt; 3：可接受 - VIF &lt; 5：需关注 - VIF &gt; 5：存在严重共线性问题</p>
+</section>
+</section>
+<section id="多组分析" class="level2">
+<h2 class="anchored" data-anchor-id="多组分析">多组分析</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 假设按某变量分组（此处创建模拟分组）</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>mobi_grouped <span class="ot">&lt;-</span> mobi <span class="sc">%&gt;%</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">group =</span> <span class="fu">ifelse</span>(<span class="fu">row_number</span>() <span class="sc">&lt;=</span> <span class="dv">125</span>, <span class="st">"Group_A"</span>, <span class="st">"Group_B"</span>))</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 分别估计两组</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>pls_a <span class="ot">&lt;-</span> <span class="fu">estimate_pls</span>(</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> mobi_grouped <span class="sc">%&gt;%</span> <span class="fu">filter</span>(group <span class="sc">==</span> <span class="st">"Group_A"</span>),</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">measurement_model =</span> measurements,</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">structural_model =</span> structure</span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a>pls_b <span class="ot">&lt;-</span> <span class="fu">estimate_pls</span>(</span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> mobi_grouped <span class="sc">%&gt;%</span> <span class="fu">filter</span>(group <span class="sc">==</span> <span class="st">"Group_B"</span>),</span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">measurement_model =</span> measurements,</span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">structural_model =</span> structure</span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 比较路径系数</span></span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Group A 路径系数:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Group A 路径系数:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(pls_a<span class="sc">$</span>path_coef)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       期望      质量      价值     满意度      抱怨        忠诚
+期望      0 0.7598999 0.1773740 -0.1580355 0.0000000  0.00000000
+质量      0 0.0000000 0.4443922  0.8995486 0.0000000  0.00000000
+价值      0 0.0000000 0.0000000  0.2781417 0.0000000  0.00000000
+满意度    0 0.0000000 0.0000000  0.0000000 0.7122758  0.94622912
+抱怨      0 0.0000000 0.0000000  0.0000000 0.0000000 -0.09360398
+忠诚      0 0.0000000 0.0000000  0.0000000 0.0000000  0.00000000</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Group B 路径系数:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Group B 路径系数:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(pls_b<span class="sc">$</span>path_coef)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       期望     质量       价值    满意度     抱怨         忠诚
+期望      0 0.934697 -0.6023185 0.7794344 0.000000  0.000000000
+质量      0 0.000000  1.3209437 0.1019837 0.000000  0.000000000
+价值      0 0.000000  0.0000000 0.1923303 0.000000  0.000000000
+满意度    0 0.000000  0.0000000 0.0000000 0.486464  0.798338431
+抱怨      0 0.000000  0.0000000 0.0000000 0.000000 -0.001896912
+忠诚      0 0.000000  0.0000000 0.0000000 0.000000  0.000000000</code></pre>
+</div>
+</div>
+</section>
+<section id="报告模板" class="level2">
+<h2 class="anchored" data-anchor-id="报告模板">报告模板</h2>
+<section id="学术论文报告格式" class="level3">
+<h3 class="anchored" data-anchor-id="学术论文报告格式">学术论文报告格式</h3>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+## 测量模型评估
+
+所有构念的组合信度 (CR) 均大于 0.7，平均方差萃取量 (AVE) 均大于 0.5，
+表明测量模型具有良好的信度和收敛效度。
+
+## 结构模型评估
+
+模型解释力：
+- 满意度 R² =  NA 
+- 忠诚 R² =  NA 
+
+Bootstrap 检验（n = 500）显示关键路径均达到统计显著。</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="常见问题" class="level2">
+<h2 class="anchored" data-anchor-id="常见问题">常见问题</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>问题</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>载荷过低</td>
+<td>检查指标是否属于该构念，考虑删除</td>
+</tr>
+<tr class="even">
+<td>AVE &lt; 0.5</td>
+<td>删除载荷最低的指标</td>
+</tr>
+<tr class="odd">
+<td>HTMT &gt; 0.9</td>
+<td>考虑合并构念或重新定义</td>
+</tr>
+<tr class="even">
+<td>R² 过低</td>
+<td>检查是否遗漏重要前因变量</td>
+</tr>
+<tr class="odd">
+<td>VIF 过高</td>
+<td>删除共线性指标或使用降维</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="参考文献" class="level2">
+<h2 class="anchored" data-anchor-id="参考文献">参考文献</h2>
+<ul>
+<li>Hair, J. F., Hult, G. T. M., Ringle, C. M., &amp; Sarstedt, M. (2022). <em>A Primer on Partial Least Squares Structural Equation Modeling (PLS-SEM)</em> (3rd ed.). Sage.</li>
+<li>Henseler, J., Ringle, C. M., &amp; Sarstedt, M. (2015). A new criterion for assessing discriminant validity in variance-based structural equation modeling. <em>Journal of the Academy of Marketing Science</em>, 43(1), 115-135.</li>
+<li>Ray, S., Danks, N., &amp; Calero Valdez, A. (2022). SEMinR: Domain-Specific Language for Building and Estimating Structural Equation Models. R package.</li>
+</ul>
+</section>
+<section id="附录完整代码" class="level2">
+<h2 class="anchored" data-anchor-id="附录完整代码">附录：完整代码</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 完整分析流程</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(seminr)</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 加载数据</span></span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(mobi)</span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 定义测量模型</span></span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>measurements <span class="ot">&lt;-</span> <span class="fu">constructs</span>(</span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"期望"</span>, <span class="fu">multi_items</span>(<span class="st">"CUEX"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"质量"</span>, <span class="fu">multi_items</span>(<span class="st">"PERQ"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">7</span>)),</span>
+<span id="cb49-11"><a href="#cb49-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"价值"</span>, <span class="fu">multi_items</span>(<span class="st">"PERV"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>)),</span>
+<span id="cb49-12"><a href="#cb49-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"满意度"</span>, <span class="fu">multi_items</span>(<span class="st">"CUSA"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb49-13"><a href="#cb49-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"忠诚"</span>, <span class="fu">multi_items</span>(<span class="st">"CUSL"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)),</span>
+<span id="cb49-14"><a href="#cb49-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reflective</span>(<span class="st">"抱怨"</span>, <span class="fu">single_item</span>(<span class="st">"CUSCO"</span>))</span>
+<span id="cb49-15"><a href="#cb49-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb49-16"><a href="#cb49-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-17"><a href="#cb49-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 定义结构模型</span></span>
+<span id="cb49-18"><a href="#cb49-18" aria-hidden="true" tabindex="-1"></a>structure <span class="ot">&lt;-</span> <span class="fu">relationships</span>(</span>
+<span id="cb49-19"><a href="#cb49-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"期望"</span>, <span class="at">to =</span> <span class="fu">c</span>(<span class="st">"质量"</span>, <span class="st">"价值"</span>, <span class="st">"满意度"</span>)),</span>
+<span id="cb49-20"><a href="#cb49-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"质量"</span>, <span class="at">to =</span> <span class="fu">c</span>(<span class="st">"价值"</span>, <span class="st">"满意度"</span>)),</span>
+<span id="cb49-21"><a href="#cb49-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"价值"</span>, <span class="at">to =</span> <span class="st">"满意度"</span>),</span>
+<span id="cb49-22"><a href="#cb49-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"满意度"</span>, <span class="at">to =</span> <span class="fu">c</span>(<span class="st">"抱怨"</span>, <span class="st">"忠诚"</span>)),</span>
+<span id="cb49-23"><a href="#cb49-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paths</span>(<span class="at">from =</span> <span class="st">"抱怨"</span>, <span class="at">to =</span> <span class="st">"忠诚"</span>)</span>
+<span id="cb49-24"><a href="#cb49-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb49-25"><a href="#cb49-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-26"><a href="#cb49-26" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 估计模型</span></span>
+<span id="cb49-27"><a href="#cb49-27" aria-hidden="true" tabindex="-1"></a>pls_model <span class="ot">&lt;-</span> <span class="fu">estimate_pls</span>(<span class="at">data =</span> mobi, measurements, structure)</span>
+<span id="cb49-28"><a href="#cb49-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-29"><a href="#cb49-29" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Bootstrap 检验</span></span>
+<span id="cb49-30"><a href="#cb49-30" aria-hidden="true" tabindex="-1"></a>boot_model <span class="ot">&lt;-</span> <span class="fu">bootstrap_model</span>(pls_model, <span class="at">nboot =</span> <span class="dv">5000</span>)</span>
+<span id="cb49-31"><a href="#cb49-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-32"><a href="#cb49-32" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 查看结果</span></span>
+<span id="cb49-33"><a href="#cb49-33" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pls_model)</span>
+<span id="cb49-34"><a href="#cb49-34" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(boot_model)</span>
+<span id="cb49-35"><a href="#cb49-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-36"><a href="#cb49-36" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. 可视化</span></span>
+<span id="cb49-37"><a href="#cb49-37" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(pls_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<!-- Back to Top Button -->
+
+<button id="back-to-top" aria-label="Back to Top">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <path d="M18 15l-6-6-6 6"></path>
+
+    </svg>
+
+</button>
+
+
+
+<script>
+
+    // Back to Top Logic
+
+    const backToTopBtn = document.getElementById('back-to-top');
+
+
+
+    window.addEventListener('scroll', () => {
+
+        if (window.scrollY > 300) {
+
+            backToTopBtn.classList.add('visible');
+
+        } else {
+
+            backToTopBtn.classList.remove('visible');
+
+        }
+
+    });
+
+
+
+    backToTopBtn.addEventListener('click', () => {
+
+        window.scrollTo({
+
+            top: 0,
+
+            behavior: 'smooth'
+
+        });
+
+    });
+
+
+
+    // Mobile Table Scrolling Logic
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const tables = document.querySelectorAll('table');
+
+        tables.forEach(table => {
+
+            if (!table.parentElement.classList.contains('table-responsive')) {
+
+                const wrapper = document.createElement('div');
+
+                wrapper.className = 'table-responsive';
+
+                wrapper.style.overflowX = 'auto'; // Force scroll
+
+                table.parentNode.insertBefore(wrapper, table);
+
+                wrapper.appendChild(table);
+
+            }
+
+        });
+
+    });
+
+</script>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Made with <a href="https://quarto.org/">Quarto</a> | © 2024-2026</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

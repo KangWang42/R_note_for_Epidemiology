@@ -1,0 +1,531 @@
+---
+title: "直方图与密度图完全指南"
+date: "2026-01-13"
+categories: [可视化, ggplot2, 分布图]
+image: "images/2027_cover.svg"
+description: "使用 ggplot2 绑制直方图、密度曲线、岭线图，探索数据分布特征。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    dpi = 150
+)
+```
+
+## 简介
+
+直方图和密度图是探索连续变量分布特征的核心工具：
+
+| 图表类型 | 特点 | 适用场景 |
+|----------|------|----------|
+| **直方图** | 离散分箱，直观易懂 | 数据探索、分布形态 |
+| **密度图** | 平滑曲线，便于比较 | 多组比较、分布叠加 |
+| **岭线图** | 多分布堆叠展示 | 多类别分布比较 |
+| **频率多边形** | 折线连接频率 | 多组分布叠加 |
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ggsci)
+
+# 使用钻石数据集
+data(diamonds)
+# 取子集加快运行
+set.seed(42)
+diamonds_sample <- diamonds[sample(nrow(diamonds), 5000), ]
+```
+
+## 基础直方图
+
+### 最简单的直方图
+
+```{r}
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram() +
+    labs(
+        title = "钻石价格分布",
+        x = "价格 (美元)",
+        y = "频数"
+    )
+```
+
+### 调整分箱数
+
+分箱数（bins）或分箱宽度（binwidth）是直方图最重要的参数。
+
+```{r}
+# 指定分箱数
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(bins = 50, fill = "#4f46e5", color = "white") +
+    labs(title = "50 个分箱") +
+    theme_minimal()
+```
+
+```{r}
+# 指定分箱宽度
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(binwidth = 500, fill = "#22c55e", color = "white") +
+    labs(title = "分箱宽度 = $500") +
+    theme_minimal()
+```
+
+### 选择合适的分箱数
+
+```{r}
+# 对比不同分箱数的效果
+library(patchwork)
+
+p1 <- ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(bins = 10, fill = "#f59e0b") +
+    labs(title = "bins = 10") +
+    theme_minimal()
+
+p2 <- ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(bins = 30, fill = "#3b82f6") +
+    labs(title = "bins = 30") +
+    theme_minimal()
+
+p3 <- ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(bins = 100, fill = "#22c55e") +
+    labs(title = "bins = 100") +
+    theme_minimal()
+
+p1 + p2 + p3
+```
+
+> [!TIP]
+> **分箱选择建议**：
+> - 太少：丢失分布细节
+> - 太多：噪声过大
+> - 经验法则：√n 或 Sturges 公式
+
+## 分组直方图
+
+### 按组填充颜色
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, fill = cut)) +
+    geom_histogram(bins = 30, position = "stack") +
+    scale_fill_brewer(palette = "Set2") +
+    labs(
+        title = "按切工分组的价格分布",
+        fill = "切工等级"
+    ) +
+    theme_minimal()
+```
+
+### 分组位置选项
+
+```{r}
+# 堆叠 (stack) - 默认
+p1 <- ggplot(diamonds_sample, aes(x = price, fill = cut)) +
+    geom_histogram(bins = 30, position = "stack") +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "堆叠 (stack)") +
+    theme_minimal() +
+    theme(legend.position = "none")
+
+# 重叠透明 (identity)
+p2 <- ggplot(diamonds_sample, aes(x = price, fill = cut)) +
+    geom_histogram(bins = 30, position = "identity", alpha = 0.5) +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "重叠透明 (identity)") +
+    theme_minimal() +
+    theme(legend.position = "none")
+
+# 并列 (dodge)
+p3 <- ggplot(diamonds_sample, aes(x = price, fill = cut)) +
+    geom_histogram(bins = 20, position = "dodge") +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "并列 (dodge)") +
+    theme_minimal() +
+    theme(legend.position = "none")
+
+p1 + p2 + p3
+```
+
+### 分面直方图
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, fill = cut)) +
+    geom_histogram(bins = 30, color = "white") +
+    facet_wrap(~cut, ncol = 1, scales = "free_y") +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "分面直方图") +
+    theme_minimal() +
+    theme(legend.position = "none")
+```
+
+## 密度图
+
+### 基础密度图
+
+```{r}
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_density(fill = "#4f46e5", alpha = 0.5) +
+    labs(
+        title = "钻石价格密度分布",
+        x = "价格",
+        y = "密度"
+    ) +
+    theme_minimal()
+```
+
+### 调整带宽 (bandwidth)
+
+带宽控制密度曲线的平滑程度。
+
+```{r}
+p1 <- ggplot(diamonds_sample, aes(x = price)) +
+    geom_density(fill = "#ef4444", alpha = 0.5, bw = 100) +
+    labs(title = "bw = 100 (欠平滑)") +
+    theme_minimal()
+
+p2 <- ggplot(diamonds_sample, aes(x = price)) +
+    geom_density(fill = "#22c55e", alpha = 0.5, bw = 500) +
+    labs(title = "bw = 500 (适中)") +
+    theme_minimal()
+
+p3 <- ggplot(diamonds_sample, aes(x = price)) +
+    geom_density(fill = "#3b82f6", alpha = 0.5, bw = 2000) +
+    labs(title = "bw = 2000 (过平滑)") +
+    theme_minimal()
+
+p1 + p2 + p3
+```
+
+### 分组密度图
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, fill = cut)) +
+    geom_density(alpha = 0.5) +
+    scale_fill_brewer(palette = "Set2") +
+    labs(
+        title = "按切工分组的价格密度分布",
+        fill = "切工等级"
+    ) +
+    theme_minimal()
+```
+
+### 仅显示轮廓线
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, color = cut)) +
+    geom_density(linewidth = 1) +
+    scale_color_lancet() +
+    labs(
+        title = "密度曲线比较",
+        color = "切工等级"
+    ) +
+    theme_minimal()
+```
+
+## 直方图 + 密度曲线
+
+### 叠加显示
+
+```{r}
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(
+        aes(y = after_stat(density)), # 转换为密度
+        bins = 50,
+        fill = "#94a3b8",
+        color = "white"
+    ) +
+    geom_density(color = "#ef4444", linewidth = 1.2) +
+    labs(
+        title = "直方图 + 密度曲线",
+        x = "价格",
+        y = "密度"
+    ) +
+    theme_minimal()
+```
+
+### 分组叠加
+
+```{r}
+diamonds_subset <- diamonds_sample %>%
+    filter(cut %in% c("Fair", "Ideal"))
+
+ggplot(diamonds_subset, aes(x = price, fill = cut)) +
+    geom_histogram(
+        aes(y = after_stat(density)),
+        bins = 30,
+        position = "identity",
+        alpha = 0.4
+    ) +
+    geom_density(aes(color = cut), linewidth = 1) +
+    scale_fill_manual(values = c("#ef4444", "#3b82f6")) +
+    scale_color_manual(values = c("#b91c1c", "#1d4ed8")) +
+    labs(
+        title = "两组分布对比",
+        fill = "切工",
+        color = "切工"
+    ) +
+    theme_minimal()
+```
+
+## 频率多边形
+
+频率多边形使用折线连接各分箱的频率，适合多组比较。
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, color = cut)) +
+    geom_freqpoly(bins = 30, linewidth = 1) +
+    scale_color_brewer(palette = "Set1") +
+    labs(
+        title = "频率多边形",
+        color = "切工等级"
+    ) +
+    theme_minimal()
+```
+
+## 岭线图 (Ridgeline Plot)
+
+岭线图是展示多组分布的优雅方式。
+
+```{r}
+# install.packages("ggridges")
+library(ggridges)
+
+ggplot(diamonds_sample, aes(x = price, y = cut, fill = cut)) +
+    geom_density_ridges(alpha = 0.7) +
+    scale_fill_brewer(palette = "Set2") +
+    labs(
+        title = "岭线图：各切工等级的价格分布",
+        x = "价格",
+        y = "切工等级"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "none")
+```
+
+### 渐变填充岭线图
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, y = cut, fill = after_stat(x))) +
+    geom_density_ridges_gradient(scale = 2) +
+    scale_fill_viridis_c(option = "plasma") +
+    labs(
+        title = "渐变填充岭线图",
+        x = "价格",
+        y = "切工等级"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "none")
+```
+
+### 分位数岭线图
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, y = cut, fill = factor(after_stat(quantile)))) +
+    stat_density_ridges(
+        geom = "density_ridges_gradient",
+        calc_ecdf = TRUE,
+        quantiles = 4,
+        quantile_lines = TRUE
+    ) +
+    scale_fill_viridis_d(name = "四分位", option = "plasma") +
+    labs(
+        title = "分位数岭线图",
+        subtitle = "展示各组的四分位分布"
+    ) +
+    theme_minimal()
+```
+
+## 累积分布函数 (ECDF)
+
+```{r}
+ggplot(diamonds_sample, aes(x = price, color = cut)) +
+    stat_ecdf(linewidth = 1) +
+    scale_color_brewer(palette = "Set1") +
+    labs(
+        title = "经验累积分布函数 (ECDF)",
+        x = "价格",
+        y = "累积概率",
+        color = "切工"
+    ) +
+    theme_minimal()
+```
+
+## QQ 图
+
+用于检验数据是否符合正态分布。
+
+```{r}
+# 取单一组数据
+ideal_prices <- diamonds_sample$price[diamonds_sample$cut == "Ideal"]
+
+ggplot(data.frame(x = ideal_prices), aes(sample = x)) +
+    stat_qq(color = "#4f46e5") +
+    stat_qq_line(color = "#ef4444") +
+    labs(
+        title = "QQ 图：检验正态性",
+        subtitle = "点偏离线表示非正态",
+        x = "理论分位数",
+        y = "样本分位数"
+    ) +
+    theme_minimal()
+```
+
+### 分组 QQ 图
+
+```{r}
+ggplot(diamonds_sample, aes(sample = price, color = cut)) +
+    stat_qq(alpha = 0.5) +
+    stat_qq_line() +
+    scale_color_brewer(palette = "Set1") +
+    facet_wrap(~cut) +
+    labs(title = "分组 QQ 图") +
+    theme_minimal() +
+    theme(legend.position = "none")
+```
+
+## 添加统计信息
+
+### 添加均值线
+
+```{r}
+mean_price <- mean(diamonds_sample$price)
+median_price <- median(diamonds_sample$price)
+
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(bins = 50, fill = "#94a3b8", color = "white") +
+    geom_vline(xintercept = mean_price, color = "#ef4444", linetype = "dashed", linewidth = 1) +
+    geom_vline(xintercept = median_price, color = "#3b82f6", linetype = "dashed", linewidth = 1) +
+    annotate("text", x = mean_price + 500, y = 300, label = paste0("均值: $", round(mean_price)), color = "#ef4444") +
+    annotate("text", x = median_price - 500, y = 280, label = paste0("中位数: $", round(median_price)), color = "#3b82f6") +
+    labs(title = "添加均值和中位数标注") +
+    theme_minimal()
+```
+
+### 添加正态曲线参考
+
+```{r}
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(
+        aes(y = after_stat(density)),
+        bins = 50,
+        fill = "#94a3b8",
+        color = "white"
+    ) +
+    stat_function(
+        fun = dnorm,
+        args = list(mean = mean(diamonds_sample$price), sd = sd(diamonds_sample$price)),
+        color = "#ef4444",
+        linewidth = 1.2
+    ) +
+    labs(
+        title = "与正态分布比较",
+        subtitle = "红线为同均值标准差的正态分布"
+    ) +
+    theme_minimal()
+```
+
+## 美化与专业图表
+
+### 专业样式直方图
+
+```{r}
+ggplot(diamonds_sample, aes(x = price)) +
+    geom_histogram(
+        bins = 40,
+        fill = "#4f46e5",
+        color = "white",
+        alpha = 0.8
+    ) +
+    geom_density(
+        aes(y = after_stat(count) * 500), # 缩放密度曲线
+        color = "#f59e0b",
+        linewidth = 1.2
+    ) +
+    scale_x_continuous(labels = scales::dollar_format()) +
+    labs(
+        title = "钻石价格分布分析",
+        subtitle = "基于 5,000 颗钻石样本",
+        x = "价格",
+        y = "频数",
+        caption = "数据来源：ggplot2 diamonds 数据集"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        plot.subtitle = element_text(color = "gray50"),
+        panel.grid.minor = element_blank()
+    )
+```
+
+### 镜像直方图（对比两组）
+
+```{r}
+# 准备数据
+fair_diamonds <- diamonds_sample %>%
+    filter(cut == "Fair") %>%
+    mutate(y = 1)
+ideal_diamonds <- diamonds_sample %>%
+    filter(cut == "Ideal") %>%
+    mutate(y = -1)
+
+ggplot() +
+    geom_histogram(
+        data = fair_diamonds,
+        aes(x = price, y = after_stat(count)),
+        bins = 30,
+        fill = "#ef4444",
+        alpha = 0.7
+    ) +
+    geom_histogram(
+        data = ideal_diamonds,
+        aes(x = price, y = -after_stat(count)),
+        bins = 30,
+        fill = "#3b82f6",
+        alpha = 0.7
+    ) +
+    geom_hline(yintercept = 0, color = "black") +
+    scale_y_continuous(labels = abs) +
+    annotate("text", x = 15000, y = 100, label = "Fair", color = "#ef4444", size = 5, fontface = "bold") +
+    annotate("text", x = 15000, y = -100, label = "Ideal", color = "#3b82f6", size = 5, fontface = "bold") +
+    labs(
+        title = "镜像直方图：Fair vs Ideal 切工比较",
+        x = "价格",
+        y = "频数"
+    ) +
+    theme_minimal()
+```
+
+## 保存图片
+
+```{r eval=FALSE}
+p <- ggplot(diamonds_sample, aes(x = price, fill = cut)) +
+    geom_density(alpha = 0.5) +
+    scale_fill_brewer(palette = "Set2") +
+    theme_minimal()
+
+# PNG
+ggsave("density_plot.png", p, width = 10, height = 6, dpi = 300)
+
+# PDF
+ggsave("density_plot.pdf", p, width = 10, height = 6)
+```
+
+## 总结
+
+| 场景 | 推荐图表 |
+|------|----------|
+| 单变量分布探索 | 直方图 |
+| 多组分布比较 | 密度图/频率多边形 |
+| 多类别分布展示 | 岭线图 |
+| 正态性检验 | QQ 图 |
+| 分布形态详解 | 直方图 + 密度曲线 |
+
+> [!TIP]
+> **最佳实践**：
+> 1. 合理选择分箱数/带宽
+> 2. 多组比较时使用透明度
+> 3. 添加均值/中位数参考线
+> 4. 考虑使用岭线图展示多组分布

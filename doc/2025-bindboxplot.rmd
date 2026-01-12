@@ -1,0 +1,560 @@
+---
+title: "箱线图与小提琴图完全指南"
+date: "2026-01-13"
+categories: [可视化, ggplot2, 箱线图]
+image: "images/2025_cover.svg"
+description: "使用 ggplot2 绑制专业的箱线图、小提琴图、抖动点图，展示数据分布特征。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    dpi = 150
+)
+```
+
+## 简介
+
+箱线图（Box Plot）和小提琴图（Violin Plot）是展示数据分布特征的重要可视化工具：
+
+| 图表类型 | 展示信息 | 优点 | 缺点 |
+|----------|----------|------|------|
+| **箱线图** | 中位数、四分位数、异常值 | 简洁、易解读 | 无法看到分布形态 |
+| **小提琴图** | 完整的密度分布 | 分布形态清晰 | 不直观、需要解释 |
+| **抖动点图** | 每个数据点 | 可见样本量和分布 | 数据量大时混乱 |
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ggsci) # 科学期刊配色
+
+# 使用 iris 数据集
+data(iris)
+head(iris)
+```
+
+## 基础箱线图
+
+### 最简单的箱线图
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+    geom_boxplot() +
+    labs(
+        title = "不同鸢尾花品种的花萼长度分布",
+        x = "品种",
+        y = "花萼长度 (cm)"
+    )
+```
+
+### 箱线图结构解读
+
+箱线图的各个部分含义：
+
+- **箱体**：从 Q1（下四分位数）到 Q3（上四分位数）
+- **中线**：中位数
+- **须（whisker）**：延伸到 1.5 × IQR 范围内的最远数据点
+- **点**：异常值（超出须范围的数据点）
+
+```{r}
+# 展示箱线图各部分
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+    geom_boxplot(
+        fill = "#4f46e5",
+        color = "#1e1b4b",
+        alpha = 0.7,
+        outlier.color = "#ef4444",
+        outlier.shape = 16,
+        outlier.size = 2
+    ) +
+    labs(title = "自定义箱线图样式") +
+    theme_minimal()
+```
+
+### 水平箱线图
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+    geom_boxplot(fill = "#06b6d4") +
+    coord_flip() + # 翻转坐标轴
+    labs(title = "水平箱线图") +
+    theme_minimal()
+```
+
+## 填充颜色
+
+### 按组填色
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot() +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "按品种填充颜色") +
+    theme_minimal() +
+    theme(legend.position = "none") # 隐藏图例（因为x轴已显示）
+```
+
+### 使用 ggsci 科学期刊配色
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot() +
+    scale_fill_lancet() + # 柳叶刀配色
+    labs(title = "Lancet 期刊配色风格") +
+    theme_minimal()
+```
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot() +
+    scale_fill_nejm() + # NEJM 配色
+    labs(title = "NEJM 期刊配色风格") +
+    theme_minimal()
+```
+
+## 添加统计信息
+
+### 添加均值点
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot() +
+    stat_summary(
+        fun = mean,
+        geom = "point",
+        shape = 18, # 菱形
+        size = 3,
+        color = "#ef4444"
+    ) +
+    scale_fill_brewer(palette = "Pastel1") +
+    labs(title = "箱线图 + 均值点（红色菱形）") +
+    theme_minimal()
+```
+
+### 显示样本量
+
+```{r}
+# 计算每组样本量
+sample_sizes <- iris %>%
+    group_by(Species) %>%
+    summarise(n = n(), y_pos = max(Sepal.Length) + 0.2)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot() +
+    geom_text(
+        data = sample_sizes,
+        aes(x = Species, y = y_pos, label = paste0("n=", n)),
+        inherit.aes = FALSE,
+        size = 4
+    ) +
+    scale_fill_brewer(palette = "Set3") +
+    labs(title = "箱线图 + 样本量标注") +
+    theme_minimal()
+```
+
+## 箱线图 + 抖动点
+
+### jitter 抖动点
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.7) + # 隐藏异常值（因为要显示所有点）
+    geom_jitter(
+        width = 0.2, # 水平抖动范围
+        alpha = 0.5,
+        size = 1.5
+    ) +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "箱线图 + 抖动点") +
+    theme_minimal()
+```
+
+### 自定义点样式
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.6, width = 0.5) +
+    geom_jitter(
+        aes(color = Species),
+        width = 0.15,
+        alpha = 0.8,
+        size = 2
+    ) +
+    scale_fill_manual(values = c("#fee2e2", "#dbeafe", "#dcfce7")) +
+    scale_color_manual(values = c("#ef4444", "#3b82f6", "#22c55e")) +
+    labs(title = "箱线图 + 彩色抖动点") +
+    theme_minimal()
+```
+
+## 分组箱线图
+
+### 双分组
+
+```{r}
+# 创建分组数据
+set.seed(42)
+grouped_data <- data.frame(
+    treatment = rep(c("对照组", "实验组"), each = 150),
+    time = rep(rep(c("基线", "4周", "8周"), each = 50), 2),
+    value = c(
+        rnorm(50, 50, 10), rnorm(50, 52, 10), rnorm(50, 51, 10), # 对照组
+        rnorm(50, 50, 10), rnorm(50, 60, 10), rnorm(50, 70, 10) # 实验组
+    )
+)
+grouped_data$time <- factor(grouped_data$time, levels = c("基线", "4周", "8周"))
+
+ggplot(grouped_data, aes(x = time, y = value, fill = treatment)) +
+    geom_boxplot(position = position_dodge(0.8), width = 0.6) +
+    scale_fill_manual(values = c("#94a3b8", "#4f46e5")) +
+    labs(
+        title = "两组患者在不同时间点的指标变化",
+        x = "时间点",
+        y = "指标值",
+        fill = "分组"
+    ) +
+    theme_minimal()
+```
+
+### 分面展示
+
+```{r}
+ggplot(grouped_data, aes(x = treatment, y = value, fill = treatment)) +
+    geom_boxplot() +
+    facet_wrap(~time, nrow = 1) +
+    scale_fill_brewer(palette = "Set1") +
+    labs(title = "按时间点分面展示") +
+    theme_minimal() +
+    theme(legend.position = "none")
+```
+
+## 缺口箱线图
+
+缺口（notch）用于比较中位数差异：如果两组的缺口不重叠，则中位数存在显著差异（约 95% 置信度）。
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot(notch = TRUE) + # 添加缺口
+    scale_fill_brewer(palette = "Pastel2") +
+    labs(
+        title = "缺口箱线图",
+        subtitle = "缺口不重叠表示中位数差异显著"
+    ) +
+    theme_minimal()
+```
+
+## 小提琴图
+
+### 基础小提琴图
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_violin() +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "基础小提琴图") +
+    theme_minimal()
+```
+
+### 小提琴图 + 箱线图
+
+最常用的组合，兼具两者优点。
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_violin(trim = FALSE, alpha = 0.7) + # trim=FALSE 保留完整形状
+    geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
+    scale_fill_lancet() +
+    labs(title = "小提琴图 + 内嵌箱线图") +
+    theme_minimal()
+```
+
+### 小提琴图 + 均值/中位数
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_violin(trim = FALSE, alpha = 0.7) +
+    stat_summary(
+        fun = median,
+        geom = "crossbar",
+        width = 0.2,
+        color = "black"
+    ) +
+    stat_summary(
+        fun = mean,
+        geom = "point",
+        shape = 18,
+        size = 3,
+        color = "#ef4444"
+    ) +
+    scale_fill_brewer(palette = "Pastel1") +
+    labs(
+        title = "小提琴图 + 中位数（横线）+ 均值（红点）"
+    ) +
+    theme_minimal()
+```
+
+### 分半小提琴图
+
+展示两组对比时非常有效。
+
+```{r eval=FALSE}
+# 需要 see 包
+# install.packages("see")
+library(see)
+
+two_groups <- iris %>%
+    filter(Species != "virginica") %>%
+    mutate(Species = droplevels(Species))
+
+ggplot(two_groups, aes(x = 1, y = Sepal.Length, fill = Species)) +
+    geom_violinhalf(flip = c(1, 2), position = position_identity()) +
+    scale_fill_manual(values = c("#4f46e5", "#ef4444")) +
+    labs(title = "分半小提琴图：两组对比") +
+    theme_minimal() +
+    theme(
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank()
+    )
+```
+
+## 雨云图 (Raincloud Plot)
+
+雨云图结合了小提琴图、箱线图和抖动点的优点。
+
+```{r eval=FALSE}
+# 使用 ggdist 包创建雨云图
+# install.packages("ggdist")
+library(ggdist)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    # 半小提琴（云）
+    stat_halfeye(
+        adjust = 0.5,
+        width = 0.6,
+        .width = 0,
+        justification = -0.2,
+        point_colour = NA
+    ) +
+    # 箱线图
+    geom_boxplot(
+        width = 0.15,
+        outlier.shape = NA,
+        alpha = 0.5
+    ) +
+    # 抖动点（雨）
+    stat_dots(
+        side = "left",
+        justification = 1.1,
+        binwidth = 0.1
+    ) +
+    scale_fill_brewer(palette = "Set2") +
+    labs(
+        title = "雨云图 (Raincloud Plot)",
+        subtitle = "结合密度分布、箱线图和数据点"
+    ) +
+    coord_flip() +
+    theme_minimal()
+```
+
+## 显著性标注
+
+### 使用 ggpubr 添加统计检验
+
+```{r}
+# install.packages("ggpubr")
+library(ggpubr)
+
+ggboxplot(iris,
+    x = "Species", y = "Sepal.Length",
+    fill = "Species", palette = "Set2"
+) +
+    stat_compare_means(method = "anova", label.y = 8.5) + # 总体检验
+    stat_compare_means(
+        comparisons = list(
+            c("setosa", "versicolor"),
+            c("versicolor", "virginica"),
+            c("setosa", "virginica")
+        ),
+        method = "t.test",
+        label = "p.signif" # 显示星号
+    ) +
+    labs(title = "带显著性标注的箱线图")
+```
+
+### 手动添加显著性标注
+
+```{r}
+# 使用 ggsignif 包
+# install.packages("ggsignif")
+library(ggsignif)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot() +
+    geom_signif(
+        comparisons = list(c("setosa", "versicolor")),
+        annotations = "***",
+        y_position = 7.8
+    ) +
+    geom_signif(
+        comparisons = list(c("versicolor", "virginica")),
+        annotations = "**",
+        y_position = 8.2
+    ) +
+    geom_signif(
+        comparisons = list(c("setosa", "virginica")),
+        annotations = "****",
+        y_position = 8.8
+    ) +
+    scale_fill_brewer(palette = "Pastel1") +
+    labs(title = "手动添加显著性标注") +
+    theme_minimal()
+```
+
+## 主题与美化
+
+### 专业图表样式
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_boxplot(
+        width = 0.5,
+        outlier.shape = 21,
+        outlier.fill = "white",
+        outlier.size = 2
+    ) +
+    scale_fill_manual(values = c("#1e40af", "#047857", "#b91c1c")) +
+    labs(
+        title = "花萼长度分布比较",
+        subtitle = "三种鸢尾花的差异分析",
+        x = NULL,
+        y = "花萼长度 (cm)",
+        caption = "数据来源：Fisher's Iris Dataset"
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(
+        plot.title = element_text(face = "bold", size = 16),
+        plot.subtitle = element_text(color = "gray50"),
+        legend.position = "none",
+        panel.grid.major.x = element_blank(),
+        axis.text = element_text(size = 12)
+    )
+```
+
+### 极简风格
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+    geom_boxplot(
+        fill = "#f8fafc",
+        color = "#334155",
+        width = 0.4
+    ) +
+    geom_jitter(
+        color = "#4f46e5",
+        alpha = 0.4,
+        width = 0.1,
+        size = 1
+    ) +
+    labs(
+        title = "极简风格箱线图",
+        x = NULL,
+        y = "花萼长度"
+    ) +
+    theme_classic() +
+    theme(
+        plot.title = element_text(hjust = 0.5),
+        axis.line = element_line(color = "#94a3b8")
+    )
+```
+
+## 保存图片
+
+```{r eval=FALSE}
+# 创建图表
+p <- ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+    geom_violin(alpha = 0.7) +
+    geom_boxplot(width = 0.1, fill = "white") +
+    scale_fill_lancet() +
+    theme_minimal()
+
+# 保存为 PNG（适合网页）
+ggsave("boxplot.png", p, width = 8, height = 6, dpi = 300)
+
+# 保存为 PDF（适合论文）
+ggsave("boxplot.pdf", p, width = 8, height = 6)
+
+# 保存为 SVG（矢量图）
+ggsave("boxplot.svg", p, width = 8, height = 6)
+```
+
+## 实战案例
+
+### 临床试验数据可视化
+
+```{r}
+# 模拟临床试验数据
+set.seed(123)
+clinical_data <- data.frame(
+    patient_id = 1:200,
+    group = rep(c("安慰剂", "低剂量", "中剂量", "高剂量"), each = 50),
+    baseline = rnorm(200, 100, 15),
+    week4 = c(
+        rnorm(50, 100, 15), # 安慰剂
+        rnorm(50, 95, 14), # 低剂量
+        rnorm(50, 88, 13), # 中剂量
+        rnorm(50, 80, 12) # 高剂量
+    )
+)
+clinical_data$change <- clinical_data$week4 - clinical_data$baseline
+clinical_data$group <- factor(clinical_data$group,
+    levels = c("安慰剂", "低剂量", "中剂量", "高剂量")
+)
+
+# 绑制专业图表
+ggplot(clinical_data, aes(x = group, y = change, fill = group)) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+    geom_violin(alpha = 0.6, trim = FALSE) +
+    geom_boxplot(width = 0.15, fill = "white", outlier.shape = NA) +
+    stat_summary(
+        fun = mean,
+        geom = "point",
+        shape = 18,
+        size = 3,
+        color = "#ef4444"
+    ) +
+    scale_fill_manual(values = c("#94a3b8", "#86efac", "#4ade80", "#22c55e")) +
+    labs(
+        title = "不同剂量组的指标变化",
+        subtitle = "4周治疗后与基线的差值比较",
+        x = "治疗组",
+        y = "指标变化值 (第4周 - 基线)",
+        caption = "红色菱形表示均值"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "none",
+        plot.title = element_text(face = "bold", size = 14),
+        panel.grid.major.x = element_blank()
+    )
+```
+
+## 总结
+
+| 场景 | 推荐图表 |
+|------|----------|
+| 快速查看分布 | 基础箱线图 |
+| 展示分布形态 | 小提琴图 |
+| 小样本数据 | 箱线图 + 抖动点 |
+| 两组对比 | 分半小提琴图 |
+| 综合展示 | 雨云图 |
+| 论文发表 | 小提琴图 + 内嵌箱线图 |
+
+> [!TIP]
+> **最佳实践**：
+> 1. 样本量小（n < 30）时，务必添加抖动点
+> 2. 比较组间差异时，添加显著性标注
+> 3. 使用科学期刊配色（ggsci包）提升专业度
+> 4. 标注均值和样本量增加信息量

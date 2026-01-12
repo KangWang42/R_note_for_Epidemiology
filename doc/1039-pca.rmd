@@ -1,0 +1,487 @@
+---
+title: "主成分分析 (PCA) 完全指南"
+date: "2026-01-13"
+categories: [R包, 统计模型, 降维]
+image: "images/1039_cover.svg"
+description: "使用 prcomp 和 FactoMineR 进行主成分分析，碎石图、载荷图、得分图可视化。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 简介
+
+**主成分分析 (Principal Component Analysis, PCA)** 是一种常用的降维和数据探索技术，通过线性变换将原始变量转换为一组不相关的新变量（主成分），按方差解释量排序。
+
+### PCA 的应用场景
+
+1. **降维**：减少变量数量，保留主要信息
+2. **可视化**：高维数据的二维/三维可视化
+3. **去除多重共线性**：将相关变量转换为正交成分
+4. **特征提取**：识别数据的主要变异模式
+5. **预处理**：机器学习模型的输入特征降维
+
+### PCA vs 因子分析
+
+| 特性 | PCA | 因子分析 |
+|------|-----|----------|
+| **目标** | 解释方差 | 解释相关 |
+| **假设** | 无潜变量假设 | 假设存在潜变量 |
+| **成分/因子** | 观测变量的线性组合 | 潜变量 |
+| **适用** | 降维、探索 | 量表开发、结构发现 |
+
+## 安装与加载
+
+```{r}
+# install.packages("FactoMineR")   # 高级PCA
+# install.packages("factoextra")   # PCA可视化
+# install.packages("ggfortify")    # ggplot2 扩展
+
+library(FactoMineR)
+library(factoextra)
+library(ggplot2)
+library(dplyr)
+```
+
+## 示例数据
+
+使用 `decathlon2` 数据集（十项全能运动员成绩）。
+
+```{r}
+data("decathlon2")
+head(decathlon2)
+```
+
+**变量说明**：
+- 10个运动项目成绩 + 总分排名 + 比赛类型
+
+```{r}
+# 提取活动变量（10个运动项目）
+active_vars <- decathlon2[, 1:10]
+head(active_vars)
+```
+
+## 数据预处理
+
+### 检查数据
+
+```{r}
+# 描述统计
+summary(active_vars)
+
+# 检查缺失值
+sum(is.na(active_vars))
+```
+
+### 标准化
+
+PCA 对数据尺度敏感，不同量纲的变量需要标准化。
+
+```{r}
+# 手动标准化
+scaled_data <- scale(active_vars)
+
+# 或在 PCA 函数中设置 scale = TRUE
+```
+
+## 基础 PCA (prcomp)
+
+### 执行 PCA
+
+```{r}
+# 使用 prcomp 进行 PCA
+pca_result <- prcomp(active_vars, scale. = TRUE)
+
+# 查看结果结构
+names(pca_result)
+```
+
+**输出解释**：
+- `sdev`: 各主成分的标准差
+- `rotation`: 载荷矩阵（变量与主成分的关系）
+- `x`: 主成分得分（个体在各主成分上的值）
+- `center`: 中心化值
+- `scale`: 标准化值
+
+### 方差解释
+
+```{r}
+# 方差和方差比例
+summary(pca_result)
+```
+
+### 提取方差信息
+
+```{r}
+# 计算方差解释
+var_explained <- pca_result$sdev^2
+var_percent <- var_explained / sum(var_explained) * 100
+cumsum_percent <- cumsum(var_percent)
+
+data.frame(
+    PC = paste0("PC", 1:length(var_explained)),
+    Variance = round(var_explained, 3),
+    Percent = round(var_percent, 2),
+    Cumulative = round(cumsum_percent, 2)
+)
+```
+
+## 确定主成分数量
+
+### 方法1：碎石图 (Scree Plot)
+
+```{r}
+# 使用 factoextra 绑制
+fviz_screeplot(pca_result, addlabels = TRUE) +
+    labs(title = "碎石图", x = "主成分", y = "方差解释百分比") +
+    theme_minimal()
+```
+
+**解释**：找到曲线的"拐点"，通常选择拐点之前的成分。
+
+### 方法2：累积解释 > 80%
+
+```{r}
+# 累积方差达到 80% 的成分数
+which(cumsum_percent >= 80)[1]
+```
+
+### 方法3：特征值 > 1 (Kaiser 准则)
+
+```{r}
+# 特征值 > 1
+sum(var_explained > 1)
+```
+
+### 方法4：平行分析
+
+```{r}
+library(psych)
+fa.parallel(active_vars, fa = "pc", n.iter = 100)
+```
+
+## 载荷解读
+
+### 载荷矩阵
+
+```{r}
+# 查看载荷
+loadings <- pca_result$rotation
+print(round(loadings[, 1:4], 3))
+```
+
+**解释**：
+- 载荷表示原始变量与主成分的相关程度
+- 载荷的符号表示方向
+- 载荷的绝对值越大，变量对该成分的贡献越大
+
+### 载荷可视化
+
+```{r}
+# 使用 factoextra
+fviz_pca_var(pca_result,
+    col.var = "contrib", # 按贡献度着色
+    gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+    repel = TRUE
+) +
+    labs(title = "变量载荷图 (PC1 vs PC2)") +
+    theme_minimal()
+```
+
+### 变量贡献度
+
+```{r}
+# 各变量对 PC1 和 PC2 的贡献
+fviz_contrib(pca_result, choice = "var", axes = 1, top = 10) +
+    labs(title = "对 PC1 的贡献度") +
+    theme_minimal()
+```
+
+```{r}
+fviz_contrib(pca_result, choice = "var", axes = 2, top = 10) +
+    labs(title = "对 PC2 的贡献度") +
+    theme_minimal()
+```
+
+## 得分解读
+
+### 个体得分
+
+```{r}
+# 查看主成分得分
+scores <- pca_result$x
+head(scores[, 1:4])
+```
+
+### 得分可视化
+
+```{r}
+# 使用 factoextra
+fviz_pca_ind(pca_result,
+    col.ind = "cos2", # 按表示质量着色
+    gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+    repel = TRUE
+) +
+    labs(title = "个体得分图 (PC1 vs PC2)") +
+    theme_minimal()
+```
+
+### 按组别着色
+
+```{r}
+# 添加比赛类型作为分组
+fviz_pca_ind(pca_result,
+    geom.ind = "point",
+    col.ind = decathlon2$Competition,
+    palette = c("#00AFBB", "#FC4E07"),
+    addEllipses = TRUE,
+    ellipse.type = "confidence",
+    legend.title = "比赛"
+) +
+    labs(title = "按比赛类型分组") +
+    theme_minimal()
+```
+
+## 双标图 (Biplot)
+
+双标图同时展示变量和个体。
+
+```{r}
+fviz_pca_biplot(pca_result,
+    col.var = "#2E9FDF", # 变量颜色
+    col.ind = "#696969", # 个体颜色
+    repel = TRUE
+) +
+    labs(title = "PCA 双标图") +
+    theme_minimal()
+```
+
+### 分组双标图
+
+```{r}
+fviz_pca_biplot(pca_result,
+    col.ind = decathlon2$Competition,
+    palette = c("#00AFBB", "#FC4E07"),
+    addEllipses = TRUE,
+    label = "var",
+    col.var = "black",
+    repel = TRUE,
+    legend.title = "比赛"
+) +
+    labs(title = "分组双标图") +
+    theme_minimal()
+```
+
+## 高级 PCA (FactoMineR)
+
+`FactoMineR` 提供更丰富的 PCA 功能。
+
+```{r}
+# 使用 PCA 函数
+pca_fm <- PCA(decathlon2,
+    quanti.sup = 11:12, # 补充定量变量
+    quali.sup = 13, # 补充定性变量
+    graph = FALSE
+)
+
+# 查看结果
+summary(pca_fm)
+```
+
+### 变量结果
+
+```{r}
+# 变量坐标、贡献、表示质量
+var_result <- get_pca_var(pca_fm)
+print(var_result$coord[, 1:3]) # 坐标
+```
+
+```{r}
+# 表示质量 (cos2)
+print(round(var_result$cos2[, 1:3], 3))
+```
+
+### 个体结果
+
+```{r}
+# 个体坐标和贡献
+ind_result <- get_pca_ind(pca_fm)
+head(ind_result$coord[, 1:3])
+```
+
+## 3D PCA 可视化
+
+```{r eval=FALSE}
+# 使用 plotly 进行 3D 可视化
+# install.packages("plotly")
+library(plotly)
+
+# 准备数据
+plot_data <- data.frame(
+    PC1 = pca_result$x[, 1],
+    PC2 = pca_result$x[, 2],
+    PC3 = pca_result$x[, 3],
+    Name = rownames(pca_result$x),
+    Competition = decathlon2$Competition
+)
+
+# 3D 散点图
+plot_ly(plot_data,
+    x = ~PC1, y = ~PC2, z = ~PC3,
+    color = ~Competition,
+    text = ~Name,
+    type = "scatter3d",
+    mode = "markers"
+) %>%
+    layout(title = "3D PCA 可视化")
+```
+
+## PCA 用于降维
+
+### 用于回归
+
+```{r}
+# 使用前几个主成分作为预测变量
+# 示例：预测总分
+decathlon2$Points <- as.numeric(decathlon2$Points)
+
+# 添加 PC 得分
+pca_scores <- as.data.frame(pca_result$x)
+data_with_pc <- cbind(pca_scores, Points = decathlon2$Points)
+
+# 使用前 4 个 PC 进行回归
+model_pc <- lm(Points ~ PC1 + PC2 + PC3 + PC4, data = data_with_pc)
+summary(model_pc)
+```
+
+### 用于聚类
+
+```{r}
+# 使用 PC 得分进行聚类
+set.seed(42)
+clusters <- kmeans(pca_result$x[, 1:2], centers = 3)
+
+# 可视化
+fviz_cluster(list(data = pca_result$x[, 1:2], cluster = clusters$cluster),
+    geom = "point",
+    ellipse.type = "convex",
+    palette = "jco"
+) +
+    labs(title = "基于 PCA 的聚类结果") +
+    theme_minimal()
+```
+
+## 特殊情况处理
+
+### 缺失值处理
+
+```{r}
+# 使用 missMDA 包处理缺失值
+# install.packages("missMDA")
+# library(missMDA)
+
+# 估计缺失值
+# completed_data <- imputePCA(data_with_na, ncp = 2)$completeObs
+```
+
+### 稀疏 PCA
+
+对于高维数据，可以使用稀疏 PCA。
+
+```{r}
+# install.packages("elasticnet")
+# library(elasticnet)
+#
+# sparse_pca <- spca(scale(active_vars), K = 4, type = "predictor",
+#                    sparse = "varnum", para = c(5, 5, 5, 5))
+```
+
+## 结果报告
+
+### 学术报告模板
+
+```{r}
+#| echo: false
+
+cat("
+## PCA 结果
+
+对 10 个运动项目成绩进行主成分分析。结果显示，
+前 4 个主成分解释了总方差的 ", round(cumsum_percent[4], 1), "%。
+
+### 主成分解释
+
+- PC1 (", round(var_percent[1], 1), "%): 主要反映整体运动能力
+- PC2 (", round(var_percent[2], 1), "%): 区分速度型和力量型运动员
+- PC3 (", round(var_percent[3], 1), "%): ...
+- PC4 (", round(var_percent[4], 1), "%): ...
+
+### 变量载荷
+
+各变量在主成分上的载荷见表 X。
+")
+```
+
+### 导出结果
+
+```{r eval=FALSE}
+# 导出载荷矩阵
+write.csv(pca_result$rotation, "pca_loadings.csv")
+
+# 导出得分
+write.csv(pca_result$x, "pca_scores.csv")
+
+# 保存图片
+p <- fviz_pca_biplot(pca_result, repel = TRUE)
+ggsave("pca_biplot.pdf", p, width = 10, height = 8)
+```
+
+## 最佳实践
+
+### 检查清单
+
+- [ ] 数据是否标准化（不同量纲时必须）
+- [ ] 样本量是否足够（n > p 或至少 n > 5p）
+- [ ] KMO 检验 > 0.6
+- [ ] 综合多种方法确定成分数
+- [ ] 检查载荷的可解释性
+- [ ] 验证结果的稳定性
+
+### 常见错误
+
+| 错误 | 解决方案 |
+|------|----------|
+| 未标准化 | 设置 scale = TRUE |
+| 成分数选择不当 | 使用多种准则综合判断 |
+| 过度解释 | 只解释载荷 > 0.4 的变量 |
+| 忽略表示质量 | 检查 cos2 值 |
+
+## 总结
+
+| 任务 | 推荐工具 |
+|------|----------|
+| 快速 PCA | `prcomp()` |
+| 丰富输出 | `FactoMineR::PCA()` |
+| 可视化 | `factoextra` |
+| 3D 展示 | `plotly` |
+
+> [!TIP]
+> **最佳实践**：
+> 1. 标准化数据后再进行 PCA
+> 2. 综合多种方法确定主成分数
+> 3. 解释主成分时关注高载荷变量
+> 4. 使用双标图展示变量和个体关系
+
+## 参考文献
+
+- Jolliffe, I. T. (2002). *Principal Component Analysis* (2nd ed.). Springer.
+- Husson, F., Lê, S., & Pagès, J. (2017). *Exploratory Multivariate Analysis by Example Using R*. CRC Press.
+- Kassambara, A. (2017). *Practical Guide to Principal Component Methods in R*. STHDA.
