@@ -1,7 +1,9 @@
 ---
-title: "分布滞后非线性模型 (DLNM)"
-date: "2025-01-12"
-categories: [R包, 时间序列, 环境流行病学]
+title: "分布滞后非线性模型 (DLNM) 完全指南"
+date: "2026-01-13"
+categories: [R包, 环境流行病学, 时间序列]
+
+description: "环境流行病学研究的黄金标准：如何量化温度、污染的滞后非线性健康效应。"
 ---
 
 ```{r setup, include=FALSE}
@@ -9,49 +11,52 @@ knitr::opts_chunk$set(
     echo = TRUE,
     warning = FALSE,
     message = FALSE,
-    fig.width = 8,
-    fig.height = 6,
-    dpi = 150
+    fig.width = 9,
+    fig.height = 7,
+    dpi = 300
 )
 ```
 
-## 简介
+## 1. 为什么需要 DLNM？
 
-**分布滞后非线性模型 (Distributed Lag Non-linear Models, DLNM)** 是环境流行病学中用于研究暴露（如温度、空气污染）与健康结局（如死亡、发病）之间复杂关系的经典方法。它可以同时模拟暴露-反应 (Exposure-Response) 的非线性关系和滞后-反应 (Lag-Response) 的非线性关系。
+在环境健康研究中，暴露（如高温）对健康（如死亡）的影响往往具有两个特征：
+1.  **非线性 (Non-linear)**：高温有害，低温也有害（U型或J型曲线）。
+2.  **滞后性 (Lagged)**：今天的高温可能导致3天后的死亡。
 
-R 语言中的 `dlnm` 包提供了实现这一模型的完整框架。
+**DLNM (Distributed Lag Non-linear Models)** 正是为解决这两个问题而生。它引入了“交叉基 (Cross-Basis)”的概念，构建了一个**暴露-滞后-反应**的三维表面。
 
-## 安装
+## 2. 安装与加载
 
 ```{r eval=FALSE}
 install.packages("dlnm")
+install.packages("splines")
 ```
 
 ```{r}
 library(dlnm)
+library(splines) # 必须加载，用于样条函数 ns()
 library(ggplot2)
 ```
 
-## 实例数据
+## 3. 数据探索
 
-我们将使用 `dlnm` 包自带的 `chicagoNMMAPS` 数据集，该数据集包含了 1987-2000 年芝加哥的每日死亡率、天气和污染数据。
+我们使用经典的芝加哥 NMMAPS 数据集 (`chicagoNMMAPS`)。
 
 ```{r}
 data(chicagoNMMAPS)
-head(chicagoNMMAPS)
+head(chicagoNMMAPS[, c("date", "death", "temp", "pm10")])
 ```
 
-## 建立交叉基 (Cross-Basis)
+## 4. 构建交叉基 (Cross-Basis)
 
-DLNM 的核心是建立“交叉基”，它是由暴露维度和滞后维度的基函数组成的张量积。
-
-我们以温度 (`temp`) 对死亡 (`death`) 的影响为例。
-
-1.  **暴露反应关系**: 假设为二次样条 (Quadratic Spline)。
-2.  **滞后反应关系**: 假设最大滞后 30 天，也使用自然样条。
+这是最难理解但最核心的一步。我们需要定义两个维度的基函数：
+-   **argvar**: 暴露维度的形状（例如，温度对死亡的影响形状）。我们通常用“自然样条 (Natural Cubic Spline)”允许曲线弯曲。
+-   **arglag**: 滞后维度的形状（例如，影响随时间衰减的形状）。
 
 ```{r}
-# 定义交叉基
+# 设定交叉基
+# 1. 暴露维度：温度，使用二次 B 样条，节点设在分位数处
+# 2. 滞后维度：最大滞后 30 天，使用 4 个自由度的自然样条
 cb <- crossbasis(
     chicagoNMMAPS$temp,
     lag = 30,
@@ -62,73 +67,83 @@ cb <- crossbasis(
 summary(cb)
 ```
 
-## 模型拟合
+## 5. 拟合 GLM 模型
 
-将建立好的交叉基 `cb` 放入广义线性模型 (GLM) 中。通常死亡数据服从泊松分布或拟泊松分布。我们需要控制长期趋势、星期几效应等混杂因素。
+将交叉基矩阵 `cb` 作为一个预测项放入准泊松回归模型中。同时我们要控制混杂因素：
+-   **长期趋势与季节性**: `ns(time, 7*14)` (每年 7 个自由度是惯例)。
+-   **星期几效应**: `dow`。
 
 ```{r}
-# 建立模型
+# 拟合模型
 model <- glm(
     death ~ cb + ns(time, 7 * 14) + dow,
     family = quasipoisson(),
     data = chicagoNMMAPS
 )
-
-# ns(time, 7*14) 用于控制长期趋势和季节性，每年约 7 个自由度
 ```
 
-## 预测与可视化
+## 6. 预测与效应估计
 
-使用 `crosspred()` 函数进行预测。我们需要指定一个参考值 (cen)，通常选择中位数或最小死亡温度 (MMT)。
+使用 `crosspred()` 进行预测。必须选定一个**参考值 (Centering Value)**。对于温度，我们通常选择“最适宜温度”或中位数。RR 值是相对于这个参考值的风险比。
 
 ```{r}
-# 预测
-# 设定参考温度为 21 度 (假设的适宜温度)
+# 以 21 度 (假设的舒适温度) 为参考
 pred <- crosspred(cb, model, cen = 21, by = 1)
 ```
 
-### 1. 3D 表面图
+## 7. 结果可视化
 
-展示暴露、滞后和相对风险 (RR) 的整体关系。
+图示是 DLNM 的灵魂。
+
+### (1) 3D 暴露-滞后-反应曲面
+
+这张图展示了全貌：
+-   X轴：温度
+-   Y轴：滞后天数
+-   Z轴：相对风险 (RR)
 
 ```{r}
 plot(pred, "3d",
-    xlab = "Temperature", ylab = "Lag", zlab = "RR",
-    main = "3D Association Surface"
+    xlab = "Temperature (C)", ylab = "Lag (Days)", zlab = "RR",
+    main = "3D View of Temperature-Death Association",
+    theta = 40, phi = 30, ltheta = -120 # 调整视角
 )
 ```
 
-### 2. 总体累积效应 (Overall Cumulative Effect)
+### (2) 总体累积效应 (Overall Cumulative Effect)
 
-展示考虑了所有滞后天数后的总体暴露-反应关系。
+这是最常汇报的结果。它把所有滞后天数的效应加总，回答“某天暴露于某温度，未来30天的总风险是多少？”
 
 ```{r}
 plot(pred, "overall",
-    xlab = "Temperature", ylab = "RR",
-    main = "Overall Cumulative Association"
+    xlab = "Temperature (C)", ylab = "RR",
+    main = "Overall Cumulative Effect (30 days)",
+    lwd = 2, col = "red"
 )
+abline(v = 21, lty = 2) # 参考线
 ```
 
-### 3. 特定滞后日的效应
+### (3) 切片图 (Slices): 特定维度效应
 
-查看特定滞后天数（如第 0 天、第 5 天）的暴露-反应曲线。
+我们可以切片看特定温度的滞后形态。例如，看 **30°C (高温)** 和 **-10°C (低温)** 的风险随时间的变化。
 
 ```{r}
+# 绘制特定温度的滞后曲线
 plot(pred, "slices",
-    var = 25, ci = "bars", type = "p", col = 2, pch = 19,
-    main = "Lag-Response at Temp = 25"
+    var = c(-10, 30),
+    col = c("blue", "red"),
+    type = "b", pch = 19,
+    main = "Lag-Response at Low (-10) vs High (30) Temp",
+    ylab = "RR", xlab = "Lag Days"
 )
+legend("topright", legend = c("-10 C", "30 C"), col = c("blue", "red"), lty = 1, pch = 19)
 ```
 
-在上面的代码中，我们也可以画出特定温度的滞后曲线：
-
-```{r}
-plot(pred, "slices",
-    var = c(-10, 30), lag = 0:30,
-    main = "Lag-Response Curves at -10C and 30C"
-)
-```
+**解读**：
+-   **高温 (30°C, 红色)**：效应出现得非常快（当天或第1天），但也消失得快（"收获效应", Harvesting Effect）。
+-   **低温 (-10°C, 蓝色)**：效应出现得晚，但持续时间长（可能持续2-3周）。
 
 ## 参考文献
 
--   Gasparrini, A. (2011). Distributed Lag Linear and Non-Linear Models in R: The Package dlnm. *Journal of Statistical Software*, 43(8), 1-20.
+-   Gasparrini, A. (2011). Distributed Lag Linear and Non-Linear Models in R: The Package dlnm. *Journal of Statistical Software*.
+-   Gasparrini, A., et al. (2010). Time-series analysis on the health effects of temperature: advancements and limitations.

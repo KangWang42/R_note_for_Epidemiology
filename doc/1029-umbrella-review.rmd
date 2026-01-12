@@ -1,7 +1,9 @@
 ---
-title: "伞状综述 (Umbrella Review)"
-date: "2025-01-12"
-categories: [R包, Meta分析, 循证医学]
+title: "伞状综述 (Umbrella Review) 完全指南"
+date: "2026-01-13"
+categories: [R包, Meta分析, 综述方法]
+
+description: "从数据准备到证据分级，使用 R 语言 metaumbrella 包进行伞状综述的全流程教学。"
 ---
 
 ```{r setup, include=FALSE}
@@ -9,22 +11,37 @@ knitr::opts_chunk$set(
     echo = TRUE,
     warning = FALSE,
     message = FALSE,
-    fig.width = 8,
-    fig.height = 6,
-    dpi = 150
+    fig.width = 10,
+    fig.height = 8,
+    dpi = 300
 )
 ```
 
-## 简介
+## 1. 什么是伞状综述？
 
-**伞状综述 (Umbrella Review)**，也称为系统评价的系统评价 (Review of Reviews)，旨在整合针对特定主题的多个系统评价或 Meta 分析的结果。它提供了比单一 Meta 分析更顶层的证据汇总。
+**伞状综述 (Umbrella Review)**，也称为系统评价的系统评价 (Review of Reviews)，处于循证医学证据金字塔的顶端。
 
-在 R 语言中，`metaumbrella` 是一个专门用于执行伞状综述的强大包，它可以帮助我们进行证据分层、可视化和统计分析。
+传统的 **Meta 分析** 整合了多个独立研究的结果，而 **伞状综述** 则整合了针对同一主题（或广泛主题）的多个 Meta 分析结果。
 
-## 安装
+### 为什么需要它？
+-   **解决矛盾**：当不同的 Meta 分析得出不一致的结论时。
+-   **全面概览**：提供比单一 Meta 分析更广阔的视野（例如，“体育锻炼对**所有**健康结局的影响”）。
+-   **证据分级**：不仅关注是否显著，更关注证据的**可信度**和**强度**。
+
+## 2. 工具介绍：metaumbrella
+
+在 R 语言中，`metaumbrella` 是目前最全面的伞状综述自动化工具。它能够：
+-   自动计算效应量（OR, RR, HR, Mean Difference 等）。
+-   进行异质性检验 (I^2^)。
+-   检测小样本效应 (Egger's test)。
+-   计算超额显著性偏差 (Excess Significance Bias)。
+-   **基于 Ioannidis 等标准自动进行证据分级**。
+
+### 安装
 
 ```{r eval=FALSE}
 install.packages("metaumbrella")
+install.packages("ggplot2")
 ```
 
 ```{r}
@@ -32,74 +49,100 @@ library(metaumbrella)
 library(ggplot2)
 ```
 
-## 核心流程
+## 3. 数据准备
 
-使用 `metaumbrella` 进行分析主要包含以下步骤：
+进行伞状综述，数据通常来源于已发表的 Meta 分析文章。我们需要整理出一个标准的数据框。
 
-1.  **数据准备**：整理各个 Meta 分析的数据。
-2.  **执行分析**：使用 `umbrella()` 函数进行计算。
-3.  **证据分层**：根据 Ioannidis 等人的标准或其他标准对证据强度进行分级。
-4.  **可视化**：绘制森林图等图形。
-
-## 实例演示
-
-我们使用包中自带的数据集 `df.proteomics` 作为示例。
-
-### 1. 自动执行 Umbrella Review
-
-`umbrella()` 函数不仅进行 Meta 分析，还自动计算用于证据分级的各种统计量（如 Egger 检验、I2、ESB 等）。
+我们使用包中自带的数据集 `df.OR` 作为示例。这是一个关于**基因多态性与疾病风险**的 Meta 分析集合。
 
 ```{r}
-# 加载数据
-data("df.proteomics")
-
-# 进行伞状综述分析
-umb.results <- umbrella(df.proteomics)
-
-# 查看摘要
-summary(umb.results)
+data("df.OR")
+# 查看数据结构的前几行
+head(df.OR)
 ```
 
-### 2. 证据分层 (Evidence Stratification)
+### 数据字段说明
+通常需要以下关键列：
+-   `meta_review`:  所属的 Meta 分析或因素名称（如 "Gene A vs Disease"）。
+-   `author`: 纳入的原始研究第一作者。
+-   `year`: 发表年份。
+-   `n_cases_exp`, `n_cases_nexp`: 病例组的暴露/非暴露人数。
+-   `n_controls_exp`, `n_controls_nexp`: 对照组的暴露/非暴露人数。
 
-我们可以使用 `add.evidence()` 函数根据特定标准对关联进行分级。这里使用标准的 Ioannidis 分级标准。
+> [!TIP]
+> 如果你的数据是连续变量（均值差），则需要 `n_group1`, `mean_group1`, `sd_group1` 等列。
+
+## 4. 核心分析：umbrella()
+
+`umbrella()` 函数是该包的核心，它一次性完成所有统计工作。
 
 ```{r}
-# 添加证据分级
+# 执行伞状综述分析
+# method.var = "REML" 推荐使用限制性极大似然法估计异质性
+umb.results <- umbrella(df.OR, method.var = "REML")
+```
+
+这个对象包含了大量信息，包括每个因素的汇总效应量、95% 置信区间、p 值、I2 统计量、Egger 检验结果等。
+
+## 5. 证据分级 (Evidence Stratification)
+
+这是伞状综述最关键的一步。我们不仅仅看 P 值是否小于 0.05，还要看证据是否“稳健”。通常使用 Ioannidis (2011) 的标准。
+
+**Ioannidis 分级标准通常包括：**
+-   **Class I (Convincing)**: P < 10^-6^, I2 < 50%, 无小样本效应, 样本量充足 (>1000例或>10%研究), 95%预测区间不包含无效值。
+-   **Class II (Highly Suggestive)**: P < 10^-6^, 最大研究显著, 但可能存在一定异质性。
+-   **Class III (Suggestive)**: P < 10^-3^.
+-   **Class IV (Weak)**: P < 0.05.
+-   **ns**: P > 0.05.
+
+```{r}
+# 依据 "Ioannidis" 标准进行分级
 evid.res <- add.evidence(umb.results, criteria = "Ioannidis")
 
-# 查看分级结果摘要
+# 查看针对每个因素的分级结果
 summary(evid.res)
 ```
 
-### 3. 可视化结果
+## 6. 结果可视化
 
-`forest()` 函数可以生成展示所有因素结果及其证据等级的森林图。
+一张清晰的森林图可以展示所有因素的证据等级。
 
-```{r fig.height=10, fig.width=10}
-# 绘制森林图
-forest(evid.res)
+```{r fig.height=12, fig.width=10}
+# 绘制分层证据图
+# print_score = TRUE 显示具体证据得分（可选）
+chart <- forest(evid.res,
+    print_score = FALSE,
+    layout = "JAMA"
+) # 使用 JAMA 风格布局
 ```
 
-## 结果解读
+**图形解读：**
+-   纵轴列出了所有分析的因素。
+-   点的颜色或形状代表了证据等级（Class I - IV）。
+-   横轴通常是效应量（如 OR 值）。
+-   你可以一眼看出哪些因素具有**确凿 (Convincing)** 的证据支持。
 
--   **Class I (Convincing)**: 证据最强，通常要求 P < 10^-6^，I2 < 50%，无小样本效应等。
--   **Class II (Highly Suggestive)**: 证据较强，P < 10^-6^，最大研究显著等。
--   **Class III (Suggestive)**: 提示性证据，P < 10^-3^。
--   **Class IV (Weak)**: 弱证据，P < 0.05。
--   **ns (Not Significant)**: 无统计学意义。
+## 7. 导出结果
 
-## 导出结果
+分析完成后，我们通常需要将详细的统计指标导出到 Excel 或 CSV 中制作表格。
 
-可以将结果导出为 CSV 文件以便后续整理。
+```{r}
+# 提取汇总表
+results_table <- summary(evid.res)
 
-```{r eval=FALSE}
-# 提取详细结果
-results_df <- summary(evid.res)
-write.csv(results_df, "umbrella_results.csv")
+# 仅展示前几列重要信息
+knitr::kable(head(results_table[, c("Factor", "Class", "eOR", "p_value", "egger_p", "I2")]))
 ```
+
+## 8. 总结
+
+通过 `metaumbrella`，我们可以快速完成复杂的证据整合工作。一个高质量的伞状综述应该：
+1.  **全面检索**：确保没有遗漏重要的 Meta 分析。
+2.  **严格清洗**：数据提取必须准确。
+3.  **多维评估**：不仅看效应量，更要看异质性和发表偏倚。
+4.  **清晰呈现**：使用分级图展示证据强度。
 
 ## 参考文献
 
--   Fusar-Poli, P., & Radua, J. (2018). Ten simple rules for conducting umbrella reviews. *Evidence-Based Mental Health*.
+-   Ioannidis, J. P. (2009). Integration of evidence from multiple meta-analyses: a primer on umbrella reviews, treatment networks and multiple treatments meta-analyses. *CMAJ*.
 -   Balduzzi, S., et al. (2023). metaumbrella: An R Package for Conducting Umbrella Reviews.
