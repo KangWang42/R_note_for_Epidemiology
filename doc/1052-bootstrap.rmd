@@ -1,0 +1,360 @@
+---
+title: "Bootstrap与置换检验"
+date: "2026-01-13"
+categories: [统计方法, 非参数方法]
+image: "images/bootstrap-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    message = FALSE,
+    warning = FALSE,
+    fig.width = 10,
+    fig.height = 6
+)
+```
+
+> 当样本量较小或数据不满足参数假设时，**Bootstrap（自助法）**和**置换检验**是两种强大的非参数统计方法。它们通过重抽样技术来估计统计量的分布，无需对总体分布做强假设。
+
+## 为什么需要重抽样方法？
+
+### 传统方法的局限
+
+1. **正态假设**：很多参数检验假设数据服从正态分布
+2. **大样本理论**：置信区间依赖于中心极限定理
+3. **复杂统计量**：某些统计量没有解析公式
+4. **异常值敏感**：传统方法对离群点不稳健
+
+### 重抽样方法的优势
+
+| 特点 | Bootstrap | 置换检验 |
+|------|-----------|---------|
+| **主要用途** | 估计标准误/置信区间 | 假设检验 |
+| **原理** | 有放回重抽样 | 打乱标签，无放回 |
+| **假设** | 样本代表总体 | H0下组别可交换 |
+| **适用** | 几乎所有统计量 | 两组/多组比较 |
+
+## R包安装
+
+```{r}
+# 安装必要包
+packages <- c("boot", "tidyverse")
+
+for (pkg in packages) {
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+        install.packages(pkg)
+        library(pkg, character.only = TRUE)
+    }
+}
+```
+
+## Bootstrap 自助法
+
+### 基本原理
+
+Bootstrap的核心思想：
+1. 从原样本（n个观测）中**有放回**地抽取n个观测
+2. 计算感兴趣的统计量
+3. 重复B次（通常B = 1000~10000）
+4. 用这B个统计量的分布估计真实的抽样分布
+
+```{r}
+library(tidyverse)
+
+# 模拟数据
+set.seed(42)
+data <- rnorm(30, mean = 10, sd = 3)
+
+# 手动实现Bootstrap
+B <- 1000
+boot_means <- numeric(B)
+
+for (i in 1:B) {
+    boot_sample <- sample(data, size = length(data), replace = TRUE)
+    boot_means[i] <- mean(boot_sample)
+}
+
+# 可视化Bootstrap分布
+data.frame(boot_mean = boot_means) %>%
+    ggplot(aes(x = boot_mean)) +
+    geom_histogram(aes(y = after_stat(density)),
+        bins = 30,
+        fill = "#4f46e5", alpha = 0.7
+    ) +
+    geom_density(color = "#dc2626", linewidth = 1) +
+    geom_vline(
+        xintercept = mean(data), color = "#059669",
+        linewidth = 1.5, linetype = "dashed"
+    ) +
+    labs(
+        title = "Bootstrap 均值分布",
+        subtitle = paste0("原始样本均值: ", round(mean(data), 2)),
+        x = "Bootstrap均值",
+        y = "密度"
+    ) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+### Bootstrap标准误和置信区间
+
+```{r}
+# Bootstrap标准误
+boot_se <- sd(boot_means)
+cat("Bootstrap标准误:", round(boot_se, 3), "\n")
+
+# 百分位法置信区间
+ci_percentile <- quantile(boot_means, c(0.025, 0.975))
+cat("95% 百分位置信区间:", round(ci_percentile, 3), "\n")
+
+# 与理论值比较
+theoretical_se <- sd(data) / sqrt(length(data))
+cat("\n理论标准误:", round(theoretical_se, 3), "\n")
+```
+
+### 使用boot包
+
+```{r}
+library(boot)
+
+# 定义统计函数
+mean_func <- function(data, indices) {
+    return(mean(data[indices]))
+}
+
+# Bootstrap
+boot_result <- boot(
+    data = data,
+    statistic = mean_func,
+    R = 1000
+)
+
+print(boot_result)
+```
+
+### Bootstrap置信区间
+
+```{r}
+# 获取不同类型的置信区间
+boot_ci <- boot.ci(boot_result, type = c("norm", "basic", "perc", "bca"))
+print(boot_ci)
+```
+
+置信区间类型说明：
+
+| 方法 | 说明 | 推荐度 |
+|------|------|--------|
+| **正态法** | 假设Bootstrap分布正态 | ⭐⭐ |
+| **基本法** | 使用分位数，对称调整 | ⭐⭐⭐ |
+| **百分位法** | 直接使用Bootstrap分位数 | ⭐⭐⭐ |
+| **BCa法** | 偏差校正加速法 | ⭐⭐⭐⭐⭐ |
+
+> **推荐使用BCa法**，它校正了偏差和偏斜，在小样本中表现更好。
+
+### 回归系数的Bootstrap
+
+```{r}
+# 使用mtcars数据
+data(mtcars)
+
+# 定义回归系数提取函数
+reg_coef <- function(data, indices) {
+    d <- data[indices, ]
+    fit <- lm(mpg ~ wt + hp, data = d)
+    return(coef(fit))
+}
+
+# Bootstrap回归
+boot_reg <- boot(data = mtcars, statistic = reg_coef, R = 1000)
+
+# 查看结果
+print(boot_reg)
+```
+
+```{r}
+# wt系数的置信区间
+boot.ci(boot_reg, type = "bca", index = 2) # index=2 表示wt系数
+```
+
+## 置换检验 (Permutation Test)
+
+### 基本原理
+
+置换检验用于假设检验，核心思想：
+1. 在原假设H0下，组别标签对结果没有影响
+2. 打乱组别标签，重新计算统计量
+3. 重复多次，得到H0下的分布
+4. 比较观测统计量与该分布，计算p值
+
+```{r}
+# 两组比较的置换检验
+group_A <- c(12.5, 14.2, 15.8, 13.1, 16.2, 11.9)
+group_B <- c(18.3, 17.1, 19.5, 16.8, 20.2, 17.9)
+
+# 观测到的差异
+obs_diff <- mean(group_B) - mean(group_A)
+cat("观测到的均值差:", round(obs_diff, 2), "\n")
+
+# 置换检验
+set.seed(42)
+n_perm <- 10000
+perm_diffs <- numeric(n_perm)
+combined <- c(group_A, group_B)
+n_A <- length(group_A)
+
+for (i in 1:n_perm) {
+    shuffled <- sample(combined)
+    perm_diffs[i] <- mean(shuffled[(n_A + 1):length(combined)]) -
+        mean(shuffled[1:n_A])
+}
+
+# 计算p值（双侧）
+p_value <- mean(abs(perm_diffs) >= abs(obs_diff))
+cat("置换检验 p值:", p_value, "\n")
+```
+
+```{r}
+# 可视化
+data.frame(diff = perm_diffs) %>%
+    ggplot(aes(x = diff)) +
+    geom_histogram(bins = 50, fill = "#6366f1", alpha = 0.7) +
+    geom_vline(
+        xintercept = obs_diff, color = "#dc2626",
+        linewidth = 1.5, linetype = "dashed"
+    ) +
+    geom_vline(
+        xintercept = -obs_diff, color = "#dc2626",
+        linewidth = 1.5, linetype = "dashed"
+    ) +
+    labs(
+        title = "置换检验：H0下的均值差分布",
+        subtitle = paste0(
+            "观测差值: ", round(obs_diff, 2),
+            ", p值: ", round(p_value, 4)
+        ),
+        x = "置换后的均值差",
+        y = "频数"
+    ) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+### 配对样本的置换检验
+
+```{r}
+# 配对数据
+before <- c(25, 30, 28, 35, 32, 27, 29, 31)
+after <- c(23, 28, 24, 30, 29, 25, 26, 28)
+diff <- after - before
+
+# 配对置换检验（符号置换）
+set.seed(42)
+n_perm <- 10000
+n <- length(diff)
+obs_mean_diff <- mean(diff)
+
+perm_means <- numeric(n_perm)
+for (i in 1:n_perm) {
+    signs <- sample(c(-1, 1), n, replace = TRUE)
+    perm_means[i] <- mean(diff * signs)
+}
+
+p_value_paired <- mean(abs(perm_means) >= abs(obs_mean_diff))
+cat("配对置换检验 p值:", p_value_paired, "\n")
+```
+
+## 实际应用案例
+
+### 案例1：中位数的Bootstrap置信区间
+
+```{r}
+# 偏态数据
+set.seed(42)
+skewed_data <- rexp(50, rate = 0.1)
+
+# 中位数的Bootstrap
+median_func <- function(data, indices) {
+    return(median(data[indices]))
+}
+
+boot_median <- boot(skewed_data, median_func, R = 2000)
+boot.ci(boot_median, type = "bca")
+```
+
+### 案例2：相关系数的Bootstrap
+
+```{r}
+# 相关系数Bootstrap
+cor_func <- function(data, indices) {
+    d <- data[indices, ]
+    return(cor(d$mpg, d$wt))
+}
+
+boot_cor <- boot(mtcars[, c("mpg", "wt")], cor_func, R = 2000)
+boot.ci(boot_cor, type = "bca")
+```
+
+## 报告撰写模板
+
+### 方法部分（Bootstrap）
+
+> 使用非参数Bootstrap方法估计统计量的标准误和置信区间。从原始样本中有放回地抽取10000个Bootstrap样本，每个样本大小与原始样本相同。采用偏差校正加速（BCa）方法计算95%置信区间。分析使用R软件的boot包完成。
+
+### 方法部分（置换检验）
+
+> 采用置换检验比较两组间的差异。在原假设（两组无差异）下，通过随机重排组别标签生成10000个置换样本，构建统计量的零分布。双侧p值定义为零分布中绝对值大于等于观测统计量的比例。
+
+### 结果部分
+
+> Bootstrap分析显示，样本中位数为XX（BCa 95% CI: XX至XX）。置换检验结果表明，两组均值差异具有统计学意义（观测差值 = XX，置换检验 p = XX）。
+
+## 实用技巧
+
+### 1. 选择重抽样次数
+
+- 标准误估计：R = 1000 通常足够
+- 置信区间（BCa）：R = 2000-5000
+- 置换检验p值：R = 10000（精确到4位小数）
+
+### 2. 检查稳定性
+
+```{r}
+# 检查Bootstrap结果是否稳定
+stability <- numeric(5)
+for (j in 1:5) {
+    boot_temp <- boot(data, mean_func, R = 1000)
+    stability[j] <- sd(boot_temp$t)
+}
+cat("5次Bootstrap标准误:", round(stability, 3), "\n")
+cat("变异系数:", round(sd(stability) / mean(stability), 4), "\n")
+```
+
+## 方法选择指南
+
+| 场景 | 推荐方法 |
+|------|---------|
+| **估计标准误** | Bootstrap |
+| **置信区间（小样本）** | Bootstrap BCa |
+| **两组比较** | 置换检验 |
+| **配对比较** | 符号置换检验 |
+| **相关性显著性** | 置换检验 |
+| **复杂统计量** | Bootstrap |
+| **非正态数据** | Bootstrap或置换检验 |
+
+## 常见陷阱
+
+1. **样本量太小**：Bootstrap需要样本能代表总体，n < 20时谨慎使用
+2. **相依数据**：时间序列需要块状Bootstrap
+3. **有界参数**：如比例接近0或1时，需要特殊处理
+4. **计算密集**：复杂模型可能需要很长时间
+
+## 总结
+
+| 要点 | 说明 |
+|-----|------|
+| **Bootstrap** | 通过有放回重抽样估计抽样分布 |
+| **置换检验** | 通过打乱标签检验H0 |
+| **置信区间** | 推荐使用BCa方法 |
+| **重抽样次数** | 标准误1000次，CI和p值需更多 |
+| **优势** | 分布自由，适用于复杂统计量 |

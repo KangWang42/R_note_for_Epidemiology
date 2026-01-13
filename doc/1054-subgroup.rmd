@@ -1,0 +1,322 @@
+---
+title: "亚组分析与交互作用检验"
+date: "2026-01-13"
+categories: [统计方法, 临床研究]
+image: "images/subgroup-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    message = FALSE,
+    warning = FALSE,
+    fig.width = 10,
+    fig.height = 6
+)
+```
+
+> **亚组分析**（Subgroup Analysis）是临床研究中评估治疗效果异质性的重要方法。通过探索不同人群特征下的治疗效果差异，可以为个体化治疗提供依据。
+
+## 什么是亚组分析？
+
+### 定义与目的
+
+亚组分析是将研究人群按某些特征（如年龄、性别、疾病严重程度）**分层**，分别评估各亚组中干预的效果。
+
+主要目的：
+1. **探索效果修饰**：某些人群是否获益更多/更少？
+2. **验证结果一致性**：主要结果是否在各亚组中一致？
+3. **生成假设**：为后续研究提供方向
+4. **指导临床决策**：个体化治疗
+
+### 亚组分析 vs 交互作用
+
+| 概念 | 含义 | 检验方法 |
+|------|------|---------|
+| **亚组效应** | 各亚组内的治疗效果 | 分层分析 |
+| **交互作用** | 亚组间效果差异是否显著 | 交互项检验 |
+
+> ⚠️ **关键点**：仅当**交互作用P值 < 0.05**（或预设阈值）时，才能认为亚组间存在真正的效果修饰。
+
+## R包安装
+
+```{r}
+# 安装必要包
+packages <- c("survival", "tidyverse", "broom", "gtsummary")
+
+for (pkg in packages) {
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+        install.packages(pkg)
+        library(pkg, character.only = TRUE)
+    }
+}
+```
+
+## 数据准备
+
+```{r}
+library(tidyverse)
+library(survival)
+
+# 使用gtsummary的trial数据
+data(trial, package = "gtsummary")
+
+# 查看数据
+head(trial)
+
+# 创建亚组变量
+trial <- trial %>%
+    mutate(
+        age_group = ifelse(age > 60, ">60岁", "≤60岁"),
+        marker_high = ifelse(marker > median(marker, na.rm = TRUE), "高表达", "低表达")
+    )
+```
+
+## 基本亚组分析
+
+### 计算各亚组OR
+
+```{r}
+library(broom)
+
+# 函数：计算亚组内的OR
+calc_subgroup_or <- function(data, subgroup_var, subgroup_level) {
+    subdata <- data %>%
+        filter(!!sym(subgroup_var) == subgroup_level, !is.na(response))
+
+    if (nrow(subdata) < 10) {
+        return(NULL)
+    }
+
+    model <- glm(response ~ trt, data = subdata, family = binomial)
+
+    result <- tidy(model, conf.int = TRUE, exponentiate = TRUE) %>%
+        filter(term == "trtDrug B") %>%
+        mutate(
+            subgroup = subgroup_var,
+            level = subgroup_level,
+            n = nrow(subdata)
+        )
+
+    return(result)
+}
+
+# 计算年龄亚组OR
+or_age_young <- calc_subgroup_or(trial, "age_group", "≤60岁")
+or_age_old <- calc_subgroup_or(trial, "age_group", ">60岁")
+
+# 合并结果
+age_results <- bind_rows(or_age_young, or_age_old)
+print(age_results %>% select(subgroup, level, n, estimate, conf.low, conf.high, p.value))
+```
+
+### 计算肿瘤分级亚组
+
+```{r}
+# 计算grade亚组
+grade_results <- map_dfr(c("I", "II", "III"), ~ calc_subgroup_or(trial, "grade", .x))
+print(grade_results %>% select(subgroup, level, n, estimate, conf.low, conf.high, p.value))
+```
+
+## 交互作用检验
+
+### 方法1：交互项法
+
+```{r}
+# 在模型中加入交互项
+model_interaction <- glm(
+    response ~ trt * age_group + grade,
+    data = trial,
+    family = binomial
+)
+
+summary(model_interaction)
+
+# 提取交互项p值
+interaction_p <- tidy(model_interaction) %>%
+    filter(str_detect(term, ":")) %>%
+    select(term, estimate, p.value)
+
+print(interaction_p)
+```
+
+### 方法2：似然比检验
+
+```{r}
+# 无交互模型
+model_main <- glm(
+    response ~ trt + age_group + grade,
+    data = trial,
+    family = binomial
+)
+
+# 有交互模型
+model_inter <- glm(
+    response ~ trt * age_group + grade,
+    data = trial,
+    family = binomial
+)
+
+# 似然比检验
+lr_test <- anova(model_main, model_inter, test = "Chisq")
+print(lr_test)
+
+cat("\n交互作用 P值:", lr_test$`Pr(>Chi)`[2], "\n")
+```
+
+### 多个亚组变量的交互检验
+
+```{r}
+# 检验多个变量的交互作用
+test_interaction <- function(data, outcome, treatment, subgroup) {
+    formula_main <- as.formula(paste(outcome, "~", treatment, "+", subgroup))
+    formula_inter <- as.formula(paste(outcome, "~", treatment, "*", subgroup))
+
+    model_main <- glm(formula_main, data = data, family = binomial)
+    model_inter <- glm(formula_inter, data = data, family = binomial)
+
+    lr <- anova(model_main, model_inter, test = "Chisq")
+
+    return(data.frame(
+        subgroup = subgroup,
+        p_interaction = lr$`Pr(>Chi)`[2]
+    ))
+}
+
+# 检验所有亚组的交互作用
+interaction_results <- map_dfr(
+    c("age_group", "grade", "stage"),
+    ~ test_interaction(trial, "response", "trt", .x)
+)
+
+print(interaction_results)
+```
+
+## 简单森林图可视化
+
+```{r}
+# 合并所有亚组结果
+all_results <- bind_rows(age_results, grade_results) %>%
+    mutate(
+        label = paste(subgroup, level, sep = ": "),
+        or_ci = sprintf("%.2f (%.2f-%.2f)", estimate, conf.low, conf.high)
+    )
+
+# 使用ggplot2绑制简单森林图
+ggplot(all_results, aes(x = estimate, y = reorder(label, estimate))) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") +
+    geom_point(aes(size = n), color = "#4f46e5") +
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, color = "#4f46e5") +
+    geom_text(aes(x = max(conf.high) * 1.2, label = or_ci), hjust = 0, size = 3) +
+    scale_x_log10() +
+    scale_size_continuous(range = c(3, 6)) +
+    labs(
+        title = "亚组分析森林图",
+        subtitle = "Drug B vs Drug A - 治疗反应",
+        x = "比值比 OR (95% CI)",
+        y = NULL,
+        size = "样本量"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        legend.position = "bottom"
+    )
+```
+
+## 生存分析中的亚组分析
+
+```{r}
+# Cox回归亚组分析
+calc_subgroup_hr <- function(data, subgroup_var, subgroup_level) {
+    subdata <- data %>%
+        filter(!!sym(subgroup_var) == subgroup_level)
+
+    if (nrow(subdata) < 10) {
+        return(NULL)
+    }
+
+    model <- coxph(Surv(ttdeath, death) ~ trt, data = subdata)
+
+    result <- tidy(model, conf.int = TRUE, exponentiate = TRUE) %>%
+        mutate(
+            subgroup = subgroup_var,
+            level = subgroup_level,
+            n = nrow(subdata),
+            events = sum(subdata$death)
+        )
+
+    return(result)
+}
+
+# 计算年龄亚组HR
+hr_age <- map_dfr(c("≤60岁", ">60岁"), ~ calc_subgroup_hr(trial, "age_group", .x))
+print(hr_age %>% select(subgroup, level, n, events, estimate, conf.low, conf.high))
+
+# 交互作用检验（Cox模型）
+cox_inter <- coxph(Surv(ttdeath, death) ~ trt * age_group, data = trial)
+summary(cox_inter)
+```
+
+## 方法论注意事项
+
+### 预设 vs 探索性亚组分析
+
+| 类型 | 预设亚组分析 | 探索性亚组分析 |
+|------|-------------|---------------|
+| **时机** | 研究设计阶段确定 | 数据分析阶段确定 |
+| **证据等级** | 较高 | 较低 |
+| **多重比较校正** | 可能需要 | 需要谨慎解读 |
+| **报告要求** | FDA/EMA要求报告 | 应明确标注为探索性 |
+
+### 避免常见错误
+
+1. **不要过度解读亚组内P值**
+   - 亚组内显著 ≠ 亚组间有差异
+   - 必须检验交互作用
+
+2. **警惕多重比较**
+   - 检验越多，假阳性越多
+   - 考虑使用Bonferroni或FDR校正
+
+3. **考虑统计功效**
+   - 亚组样本量可能不足
+   - 交互作用检验需要更大样本
+
+```{r}
+# 多重比较校正示例
+interaction_results <- interaction_results %>%
+    mutate(
+        p_bonferroni = p.adjust(p_interaction, method = "bonferroni"),
+        p_fdr = p.adjust(p_interaction, method = "fdr")
+    )
+
+print(interaction_results)
+```
+
+## 报告撰写模板
+
+### 方法部分
+
+> 进行预设的亚组分析以评估治疗效果在不同人群特征中的一致性。亚组变量包括年龄（≤60岁 vs >60岁）、肿瘤分级（I/II/III级）和临床分期（T1-T4）。使用Logistic回归计算各亚组内的比值比（OR）及95%置信区间。通过在模型中加入治疗×亚组变量的交互项检验效果修饰（交互作用P值），交互作用的显著性水平设为α = 0.10。结果以森林图形式呈现。
+
+### 结果部分
+
+> 亚组分析显示，治疗效果在各预设亚组中总体一致（图X）。年龄亚组中，≤60岁患者OR = 1.XX (95% CI: X.XX-X.XX)，>60岁患者OR = 1.XX (95% CI: X.XX-X.XX)，交互作用P = 0.XX。所有亚组的交互作用检验均未达到统计学显著性（P交互均 > 0.10），提示治疗效果未受这些因素的显著修饰。
+
+## 总结
+
+| 要点 | 说明 |
+|-----|------|
+| **核心** | 亚组效果 + 交互作用检验 |
+| **交互P值** | 判断亚组差异是否真实的关键 |
+| **森林图** | 标准可视化方式 |
+| **预设分析** | 证据等级更高 |
+| **多重比较** | 注意假阳性控制 |
+| **样本量** | 对交互作用检验尤为重要 |
+
+## 参考文献
+
+1. Sun X, et al. How to use a subgroup analysis: users' guide to the medical literature. *JAMA*. 2014;311(4):405-411.
+2. Wang R, et al. Statistics in medicine—reporting of subgroup analyses in clinical trials. *NEJM*. 2007;357(21):2189-2194.
+3. Brookes ST, et al. Subgroup analyses in randomized trials: risks of subgroup-specific analyses. *J Clin Epidemiol*. 2004;57(3):229-236.

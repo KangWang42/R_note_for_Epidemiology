@@ -1,0 +1,558 @@
+---
+title: "gtsummary - 发表级统计表格"
+date: "2026-01-13"
+categories: [R包, 表格]
+image: "images/gtsummary-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    message = FALSE,
+    warning = FALSE,
+    fig.width = 10,
+    fig.height = 6
+)
+```
+
+> **gtsummary**是制作发表级统计表格的R包神器。它能够快速生成描述性统计表、回归结果表、生存分析表等，格式规范、美观，可直接导出到Word、PDF或HTML，极大提高科研论文写作效率。
+
+## 为什么选择gtsummary？
+
+### 与其他表格包对比
+
+| 特性 | gtsummary | tableone | compareGroups |
+|------|-----------|----------|---------------|
+| **语法简洁** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+| **自动选择统计方法** | ✅ | ✅ | ✅ |
+| **回归模型支持** | ⭐⭐⭐⭐⭐ | ✅ (有限) | ⭐⭐⭐ |
+| **生存分析支持** | ⭐⭐⭐⭐⭐ | ❌ | ⭐⭐⭐ |
+| **表格合并** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
+| **输出格式** | Word/PDF/HTML/LaTeX | Word/CSV | Word/PDF |
+| **与tidyverse集成** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
+
+## R包安装
+
+```{r}
+# 安装gtsummary及相关包
+packages <- c(
+    "gtsummary", "gt", "flextable", "survival",
+    "tidyverse", "labelled"
+)
+
+for (pkg in packages) {
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+        install.packages(pkg)
+        library(pkg, character.only = TRUE)
+    }
+}
+```
+
+## 描述性统计表（Table 1）
+
+### 基本用法
+
+```{r}
+library(gtsummary)
+
+# 使用内置trial数据集
+data(trial)
+
+# 快速生成表1
+tbl1 <- trial %>%
+    select(age, grade, stage, trt) %>%
+    tbl_summary()
+
+tbl1
+```
+
+### 按组分层
+
+```{r}
+# 按治疗组分层
+tbl1_by <- trial %>%
+    select(age, grade, stage, marker, trt) %>%
+    tbl_summary(
+        by = trt,
+        statistic = list(
+            all_continuous() ~ "{mean} ± {sd}",
+            all_categorical() ~ "{n} ({p}%)"
+        ),
+        digits = all_continuous() ~ 1,
+        missing = "ifany",
+        missing_text = "缺失"
+    ) %>%
+    add_p() %>%
+    add_overall() %>%
+    add_n() %>%
+    modify_header(label = "**变量**") %>%
+    modify_spanning_header(c("stat_1", "stat_2") ~ "**治疗组**") %>%
+    bold_labels() %>%
+    italicize_levels()
+
+tbl1_by
+```
+
+### 自定义统计量
+
+```{r}
+# 使用中位数和四分位数
+tbl1_custom <- trial %>%
+    select(age, marker, grade, stage, trt) %>%
+    tbl_summary(
+        by = trt,
+        statistic = list(
+            all_continuous() ~ "{median} ({p25}, {p75})",
+            all_categorical() ~ "{n} ({p}%)"
+        ),
+        label = list(
+            age ~ "年龄 (岁)",
+            marker ~ "肿瘤标志物",
+            grade ~ "肿瘤分级",
+            stage ~ "临床分期"
+        )
+    ) %>%
+    add_p(
+        test = list(
+            all_continuous() ~ "wilcox.test",
+            all_categorical() ~ "chisq.test"
+        )
+    ) %>%
+    add_overall(col_label = "**总计 (N={N})**")
+
+tbl1_custom
+```
+
+## 回归分析表格
+
+### 单变量回归
+
+```{r}
+# 单变量逻辑回归
+tbl_uv <- trial %>%
+    select(response, age, grade, stage, marker) %>%
+    tbl_uvregression(
+        method = glm,
+        y = response,
+        method.args = list(family = binomial),
+        exponentiate = TRUE,
+        pvalue_fun = ~ style_pvalue(.x, digits = 3)
+    ) %>%
+    add_global_p() %>%
+    modify_header(
+        estimate = "**OR**",
+        ci = "**95% CI**"
+    ) %>%
+    bold_p() %>%
+    bold_labels()
+
+tbl_uv
+```
+
+### 多变量回归
+
+```{r}
+# 构建多变量逻辑回归模型
+mv_model <- glm(
+    response ~ age + grade + stage + marker,
+    data = trial,
+    family = binomial
+)
+
+# 制作表格
+tbl_mv <- tbl_regression(
+    mv_model,
+    exponentiate = TRUE,
+    label = list(
+        age ~ "年龄",
+        grade ~ "肿瘤分级",
+        stage ~ "临床分期",
+        marker ~ "肿瘤标志物"
+    ),
+    pvalue_fun = ~ style_pvalue(.x, digits = 3)
+) %>%
+    add_global_p() %>%
+    bold_p() %>%
+    bold_labels() %>%
+    modify_header(
+        estimate = "**aOR**",
+        ci = "**95% CI**"
+    ) %>%
+    modify_caption("**多因素Logistic回归分析**")
+
+tbl_mv
+```
+
+### 合并单变量和多变量
+
+```{r}
+# 合并表格（常见于论文）
+tbl_merge(
+    list(tbl_uv, tbl_mv),
+    tab_spanner = c("**单因素分析**", "**多因素分析**")
+)
+```
+
+## 生存分析表格
+
+### Cox回归
+
+```{r}
+# Cox比例风险模型
+cox_model <- coxph(
+    Surv(ttdeath, death) ~ age + grade + stage + trt,
+    data = trial
+)
+
+# 制作表格
+tbl_cox <- tbl_regression(
+    cox_model,
+    exponentiate = TRUE,
+    label = list(
+        age ~ "年龄",
+        grade ~ "肿瘤分级",
+        stage ~ "临床分期",
+        trt ~ "治疗组"
+    )
+) %>%
+    add_global_p() %>%
+    bold_p() %>%
+    bold_labels() %>%
+    modify_header(
+        estimate = "**HR**",
+        ci = "**95% CI**"
+    ) %>%
+    modify_caption("**Cox回归分析结果**")
+
+tbl_cox
+```
+
+### 累积发生率表
+
+```{r}
+# 使用survfit生成生存率表
+surv_fit <- survfit(Surv(ttdeath, death) ~ trt, data = trial)
+
+tbl_survfit(
+    surv_fit,
+    times = c(6, 12, 18, 24),
+    label_header = "**{time}个月生存率**"
+) %>%
+    add_p() %>%
+    modify_caption("**Kaplan-Meier生存率估计**")
+```
+
+## 表格合并与堆叠
+
+### 横向合并
+
+```{r}
+# 不同结局的分析
+model_death <- coxph(Surv(ttdeath, death) ~ age + grade, data = trial)
+model_response <- glm(response ~ age + grade, data = trial, family = binomial)
+
+tbl_death <- tbl_regression(model_death, exponentiate = TRUE) %>%
+    modify_header(estimate = "**HR**")
+
+tbl_response <- tbl_regression(model_response, exponentiate = TRUE) %>%
+    modify_header(estimate = "**OR**")
+
+# 合并
+tbl_merge(
+    list(tbl_death, tbl_response),
+    tab_spanner = c("**死亡风险**", "**治疗反应**")
+)
+```
+
+### 纵向堆叠
+
+```{r}
+# 不同亚组的分析
+tbl_male <- trial %>%
+    filter(!is.na(response)) %>%
+    tbl_summary(
+        include = c(age, grade, response),
+        by = response
+    ) %>%
+    modify_header(label = "**变量**")
+
+tbl_stacked <- tbl_stack(
+    list(tbl1, tbl_male),
+    group_header = c("**全部患者**", "**有反应数据的患者**")
+)
+
+tbl_stacked
+```
+
+## 亚组分析表格
+
+```{r}
+# 创建亚组分析表格
+tbl_forest <- trial %>%
+    mutate(
+        age_group = ifelse(age > 60, ">60岁", "≤60岁")
+    ) %>%
+    select(response, trt, age_group, grade, stage) %>%
+    filter(!is.na(response)) %>%
+    tbl_strata(
+        strata = c(age_group, grade),
+        .tbl_fun = ~ .x %>%
+            tbl_summary(by = trt, include = response) %>%
+            add_p()
+    )
+
+tbl_forest
+```
+
+## 自定义表格外观
+
+### 使用modify系列函数
+
+```{r}
+# 高度自定义的表格
+tbl_custom_style <- trial %>%
+    select(age, grade, stage, trt) %>%
+    tbl_summary(by = trt) %>%
+    add_p() %>%
+    add_overall() %>%
+    # 修改表头
+    modify_header(
+        label = "**特征**",
+        all_stat_cols() ~ "**{level}**<br>N = {n}",
+        p.value = "**P值**"
+    ) %>%
+    # 添加脚注
+    modify_footnote(
+        all_stat_cols() ~ "连续变量: 均值 (标准差); 分类变量: n (%)",
+        p.value ~ "连续变量: Wilcoxon检验; 分类变量: 卡方检验"
+    ) %>%
+    # 添加标题
+    modify_caption("**表1. 基线特征比较**") %>%
+    # 粗体标签
+    bold_labels()
+
+tbl_custom_style
+```
+
+### 使用主题
+
+```{r}
+# 设置中文主题
+theme_gtsummary_language("zh-cn", decimal.mark = ".", big.mark = ",")
+
+# 期刊风格主题
+theme_gtsummary_journal("jama")
+
+# 或者紧凑主题
+theme_gtsummary_compact()
+
+# 重新生成表格
+trial %>%
+    select(age, grade, trt) %>%
+    tbl_summary(by = trt) %>%
+    add_p()
+```
+
+```{r}
+# 重置为默认主题
+reset_gtsummary_theme()
+```
+
+## 导出表格
+
+### 导出到Word
+
+```{r eval=FALSE}
+# 方法1：使用flextable
+library(flextable)
+
+tbl1_by %>%
+    as_flex_table() %>%
+    save_as_docx(path = "table1.docx")
+
+# 方法2：使用gt（更多格式选项）
+library(gt)
+
+tbl1_by %>%
+    as_gt() %>%
+    gtsave("table1.docx")
+```
+
+### 导出到PDF/HTML
+
+```{r eval=FALSE}
+# 导出为HTML
+tbl1_by %>%
+    as_gt() %>%
+    gtsave("table1.html")
+
+# 导出为PDF（需要LaTeX）
+tbl1_by %>%
+    as_gt() %>%
+    gtsave("table1.pdf")
+```
+
+### 在RMarkdown中使用
+
+```{r eval=FALSE}
+# 直接在RMarkdown中打印即可
+# 会自动选择合适的输出格式
+tbl1_by
+```
+
+## 高级技巧
+
+### 1. 添加效应值
+
+```{r}
+# 计算并添加Cohen's d等效应值
+trial %>%
+    select(age, marker, trt) %>%
+    tbl_summary(by = trt) %>%
+    add_difference(
+        test = list(all_continuous() ~ "t.test")
+    )
+```
+
+### 2. 分层表格
+
+```{r}
+# 按性别分层的表格
+trial %>%
+    mutate(
+        gender = sample(c("男", "女"), n(), replace = TRUE)
+    ) %>%
+    select(age, grade, trt, gender) %>%
+    tbl_strata(
+        strata = gender,
+        .tbl_fun = ~ .x %>%
+            tbl_summary(by = trt) %>%
+            add_p()
+    )
+```
+
+### 3. 自定义检验方法
+
+```{r}
+# 使用自定义检验
+trial %>%
+    select(age, grade, trt) %>%
+    tbl_summary(by = trt) %>%
+    add_p(
+        test = list(
+            age ~ "t.test", # t检验
+            grade ~ "fisher.test" # Fisher精确检验
+        ),
+        pvalue_fun = ~ style_pvalue(.x, digits = 3)
+    )
+```
+
+### 4. 内联统计量
+
+```{r}
+# 在文章正文中引用统计量
+tbl <- trial %>%
+    select(age, trt) %>%
+    tbl_summary(by = trt)
+
+# 获取统计量用于行内引用
+inline_text(tbl, variable = age, column = "Drug A")
+```
+
+## 完整工作流示例
+
+```{r}
+# 临床研究完整表格制作流程
+
+# 1. 数据准备
+analysis_data <- trial %>%
+    select(
+        age, grade, stage, marker,
+        response, death, ttdeath, trt
+    ) %>%
+    mutate(
+        age_group = cut(age,
+            breaks = c(0, 50, 65, Inf),
+            labels = c("<50岁", "50-65岁", ">65岁")
+        )
+    )
+
+# 2. 表1：基线特征
+table1 <- analysis_data %>%
+    select(age, age_group, grade, stage, marker, trt) %>%
+    tbl_summary(
+        by = trt,
+        statistic = list(
+            all_continuous() ~ "{mean} ± {sd}",
+            all_categorical() ~ "{n} ({p}%)"
+        ),
+        label = list(
+            age ~ "年龄 (岁)",
+            age_group ~ "年龄分组",
+            grade ~ "肿瘤分级",
+            stage ~ "临床分期",
+            marker ~ "肿瘤标志物"
+        ),
+        missing_text = "缺失"
+    ) %>%
+    add_overall() %>%
+    add_p() %>%
+    bold_labels() %>%
+    modify_caption("**表1. 患者基线特征**")
+
+# 3. 表2：Cox回归
+cox_full <- coxph(
+    Surv(ttdeath, death) ~ age + grade + stage + marker + trt,
+    data = analysis_data
+)
+
+table2 <- tbl_regression(
+    cox_full,
+    exponentiate = TRUE,
+    label = list(
+        age ~ "年龄",
+        grade ~ "肿瘤分级",
+        stage ~ "临床分期",
+        marker ~ "肿瘤标志物",
+        trt ~ "治疗组"
+    )
+) %>%
+    add_global_p() %>%
+    bold_p() %>%
+    bold_labels() %>%
+    modify_caption("**表2. Cox回归分析 - 死亡风险因素**")
+
+# 4. 输出
+table1
+table2
+```
+
+## 常用函数速查
+
+| 函数 | 用途 |
+|------|------|
+| `tbl_summary()` | 描述性统计表 |
+| `tbl_regression()` | 回归模型表格 |
+| `tbl_uvregression()` | 单变量回归 |
+| `tbl_survfit()` | 生存率表 |
+| `tbl_cross()` | 交叉表 |
+| `tbl_merge()` | 横向合并表格 |
+| `tbl_stack()` | 纵向堆叠表格 |
+| `tbl_strata()` | 分层表格 |
+| `add_p()` | 添加p值 |
+| `add_overall()` | 添加总计列 |
+| `add_n()` | 添加样本量 |
+| `add_global_p()` | 添加整体p值 |
+| `bold_p()` | 加粗显著p值 |
+| `bold_labels()` | 加粗变量标签 |
+
+## 总结
+
+| 要点 | 说明 |
+|-----|------|
+| **核心优势** | 自动化、规范化、可重复 |
+| **Table 1** | `tbl_summary()` + `add_p()` |
+| **回归表格** | `tbl_regression()` |
+| **合并表格** | `tbl_merge()` / `tbl_stack()` |
+| **导出** | 支持Word/PDF/HTML |
+| **自定义** | 使用`modify_*`系列函数 |

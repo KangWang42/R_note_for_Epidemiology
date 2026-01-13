@@ -1,0 +1,362 @@
+---
+title: "贝叶斯统计入门 (Bayesian Statistics)"
+date: "2026-01-13"
+categories: [统计方法, 高级分析]
+image: "images/bayesian-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+```
+
+> 贝叶斯统计是一种基于**贝叶斯定理**的统计推断方法。与传统频率学派不同，贝叶斯方法允许我们**结合先验知识和观测数据**来更新对参数的信念，在小样本、复杂模型和不确定性量化方面具有独特优势。
+
+## 为什么学习贝叶斯统计？
+
+### 贝叶斯 vs 频率学派
+
+| 特征 | 频率学派 | 贝叶斯学派 |
+|------|---------|-----------|
+| **参数本质** | 固定未知常数 | 具有概率分布的随机变量 |
+| **概率含义** | 长期频率 | 主观信念程度 |
+| **不确定性** | 置信区间 | 可信区间(直接概率) |
+| **先验信息** | 不使用 | 可以纳入 |
+| **小样本** | 可能不可靠 | 更稳健 |
+| **结果解释** | "95%CI包含真实值的概率是95%" | "参数有95%概率在此区间内" |
+
+### 贝叶斯方法的优势
+
+1. **直观的概率解释**：P(参数|数据) 而非 P(数据|参数)
+2. **纳入先验知识**：利用历史研究或专家意见
+3. **小样本表现好**：借助先验稳定估计
+4. **复杂模型灵活**：层次模型、混合模型等
+5. **不确定性完整量化**：提供完整后验分布
+
+## 贝叶斯定理基础
+
+### 核心公式
+
+$$P(\theta|D) = \frac{P(D|\theta) \cdot P(\theta)}{P(D)}$$
+
+其中：
+- $P(\theta|D)$：**后验概率**（更新后的信念）
+- $P(D|\theta)$：**似然函数**（数据的可能性）
+- $P(\theta)$：**先验概率**（初始信念）
+- $P(D)$：**边际似然**（归一化常数）
+
+简化记忆：**后验 ∝ 似然 × 先验**
+
+### 直观理解 - 掷硬币例子
+
+```{r}
+library(tidyverse)
+
+# 模拟掷硬币的贝叶斯更新
+# 设置先验：假设硬币公平 Beta(2,2)
+alpha_prior <- 2
+beta_prior <- 2
+
+# 观测数据：10次中7次正面
+n_trials <- 10
+n_heads <- 7
+
+# 后验分布 Beta(alpha + heads, beta + tails)
+alpha_post <- alpha_prior + n_heads
+beta_post <- beta_prior + (n_trials - n_heads)
+
+# 可视化
+theta <- seq(0, 1, length.out = 100)
+
+df <- data.frame(
+  theta = theta,
+  prior = dbeta(theta, alpha_prior, beta_prior),
+  likelihood = dbeta(theta, n_heads + 1, n_trials - n_heads + 1),
+  posterior = dbeta(theta, alpha_post, beta_post)
+) %>%
+  pivot_longer(-theta, names_to = "distribution", values_to = "density")
+
+ggplot(df, aes(x = theta, y = density, color = distribution)) +
+  geom_line(linewidth = 1.2) +
+  scale_color_manual(
+    values = c("prior" = "#2563eb", "likelihood" = "#dc2626", "posterior" = "#7c3aed"),
+    labels = c("先验", "似然", "后验")
+  ) +
+  labs(
+    title = "贝叶斯更新示意图",
+    subtitle = "观测10次掷硬币，7次正面",
+    x = "硬币正面概率 (θ)",
+    y = "概率密度",
+    color = "分布类型"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom"
+  )
+```
+
+### 后验估计
+
+```{r}
+# 后验均值
+post_mean <- alpha_post / (alpha_post + beta_post)
+cat("后验均值:", round(post_mean, 3), "\n")
+
+# 95%可信区间
+ci_lower <- qbeta(0.025, alpha_post, beta_post)
+ci_upper <- qbeta(0.975, alpha_post, beta_post)
+cat("95%可信区间: [", round(ci_lower, 3), ",", round(ci_upper, 3), "]\n")
+
+# P(theta > 0.5) - 硬币偏向正面的概率
+p_biased <- 1 - pbeta(0.5, alpha_post, beta_post)
+cat("P(theta > 0.5):", round(p_biased, 3), "\n")
+```
+
+## 贝叶斯线性回归（手动实现）
+
+### 简单示例
+
+```{r}
+# 使用mtcars数据
+data(mtcars)
+
+# 标准线性回归
+lm_fit <- lm(mpg ~ wt, data = mtcars)
+summary(lm_fit)
+
+# 频率学派置信区间
+confint(lm_fit)
+```
+
+### 贝叶斯方法（使用MCMCpack）
+
+```{r}
+# 安装MCMCpack（轻量级贝叶斯包）
+if (!require("MCMCpack", quietly = TRUE)) {
+  install.packages("MCMCpack")
+  library(MCMCpack)
+}
+
+# 贝叶斯线性回归
+bayes_lm <- MCMCregress(
+  mpg ~ wt + hp,
+  data = mtcars,
+  burnin = 1000,
+  mcmc = 5000,
+  thin = 1,
+  seed = 42
+)
+
+# 查看后验摘要
+summary(bayes_lm)
+```
+
+### 后验分布可视化
+
+```{r}
+# 提取后验样本
+post_samples <- as.data.frame(bayes_lm)
+
+# 绑制wt系数的后验分布
+ggplot(post_samples, aes(x = wt)) +
+  geom_histogram(aes(y = after_stat(density)),
+    bins = 30,
+    fill = "#4f46e5", alpha = 0.7
+  ) +
+  geom_density(color = "#dc2626", linewidth = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
+  labs(
+    title = "wt系数的后验分布",
+    subtitle = "贝叶斯线性回归",
+    x = "回归系数",
+    y = "密度"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+### 95%可信区间
+
+```{r}
+# 计算HPD区间（最高后验密度区间）
+library(coda)
+HPDinterval(bayes_lm, prob = 0.95)
+```
+
+## 贝叶斯逻辑回归
+
+```{r}
+# 创建二分类变量
+mtcars$high_mpg <- ifelse(mtcars$mpg > median(mtcars$mpg), 1, 0)
+
+# 贝叶斯逻辑回归
+bayes_logit <- MCMClogit(
+  high_mpg ~ wt + hp,
+  data = mtcars,
+  burnin = 1000,
+  mcmc = 5000,
+  seed = 42
+)
+
+summary(bayes_logit)
+
+# 转换为OR
+post_logit <- as.data.frame(bayes_logit)
+or_summary <- data.frame(
+  Variable = colnames(post_logit)[-1],
+  OR = round(exp(colMeans(post_logit[, -1])), 3),
+  CI_Lower = round(exp(apply(post_logit[, -1], 2, quantile, 0.025)), 3),
+  CI_Upper = round(exp(apply(post_logit[, -1], 2, quantile, 0.975)), 3)
+)
+print(or_summary)
+```
+
+## 先验选择指南
+
+### 常用先验类型
+
+| 先验类型 | 适用场景 | 描述 |
+|---------|---------|----------|
+| **无信息先验** | 数据充足，不想影响结果 | 均匀分布或很平的正态 |
+| **弱信息先验** | 推荐使用，防止极端值 | Normal(0, 10)之类 |
+| **信息先验** | 有历史研究或专家知识 | 基于已有数据的分布 |
+| **正则化先验** | 变量选择/防过拟合 | Horseshoe、LASSO先验 |
+
+### 先验敏感性分析
+
+```{r}
+# 比较不同先验的影响
+# 强先验 vs 弱先验
+cat("先验敏感性：比较不同先验设置下的结果\n")
+cat("建议：总是进行敏感性分析，确保结论稳健\n")
+```
+
+## 模型诊断
+
+### MCMC收敛诊断
+
+```{r}
+# 轨迹图
+plot(bayes_lm, trace = TRUE, density = FALSE)
+```
+
+```{r}
+# 有效样本量
+effectiveSize(bayes_lm)
+```
+
+### Geweke诊断
+
+```{r}
+# Geweke诊断检验收敛性
+geweke.diag(bayes_lm)
+```
+
+## 结果报告与解释
+
+### 方法部分模板
+
+> 本研究采用贝叶斯统计方法进行数据分析。线性回归模型使用MCMCpack包实现。我们采用弱信息先验以减少对后验估计的影响。模型运行5000次马尔可夫链蒙特卡洛迭代（前1000次作为预热期丢弃）。收敛性通过轨迹图和Geweke诊断评估。使用95%可信区间（CrI）报告参数估计的不确定性。
+
+### 结果部分模板
+
+> 贝叶斯回归分析显示，体重每增加1000磅，油耗平均降低X.X mpg（95% CrI: X.X至X.X）。后验概率分析表明，体重对油耗有负向影响的概率为XX%。
+
+## 贝叶斯 vs 频率学派对比
+
+```{r}
+# 对比结果
+cat("=== 频率学派结果 ===\n")
+print(summary(lm(mpg ~ wt + hp, data = mtcars))$coefficients)
+
+cat("\n=== 贝叶斯结果 ===\n")
+print(summary(bayes_lm)$statistics)
+```
+
+## 实用案例：临床试验分析
+
+```{r}
+# 模拟临床试验数据
+set.seed(123)
+n <- 100
+trial_data <- data.frame(
+  treatment = rep(c(0, 1), each = n / 2),
+  age = rnorm(n, 50, 10),
+  response = c(
+    rbinom(n / 2, 1, 0.3), # 安慰剂组
+    rbinom(n / 2, 1, 0.5) # 治疗组
+  )
+)
+
+# 贝叶斯逻辑回归
+bayes_trial <- MCMClogit(
+  response ~ treatment + age,
+  data = trial_data,
+  burnin = 1000,
+  mcmc = 5000,
+  seed = 42
+)
+
+# 提取治疗效果
+post_trial <- as.data.frame(bayes_trial)
+
+# P(治疗有效) = P(OR > 1) = P(beta_treatment > 0)
+prob_effective <- mean(post_trial$treatment > 0)
+cat("治疗有效的后验概率:", round(prob_effective, 3), "\n")
+
+# OR的后验估计
+or_treatment <- exp(post_trial$treatment)
+cat("OR中位数:", round(median(or_treatment), 2), "\n")
+cat("OR 95%可信区间:", round(quantile(or_treatment, c(0.025, 0.975)), 2), "\n")
+```
+
+## 常见问题解答
+
+### Q1: 如何选择先验？
+
+推荐的通用策略：
+1. 从弱信息先验开始
+2. 进行先验敏感性分析
+3. 如有历史数据，可使用信息先验
+
+### Q2: 样本量多少才够？
+
+贝叶斯方法在小样本中也能工作，但仍建议：
+- 简单模型：每个参数至少20-30个观测
+- 复杂模型：进行模拟研究确定
+- 始终检查有效样本量
+
+### Q3: 如何处理不收敛？
+
+1. 增加MCMC迭代次数
+2. 增加预热期
+3. 使用更强的先验
+4. 检查模型设定是否合理
+
+## 学习资源
+
+1. **书籍**
+   - Statistical Rethinking (Richard McElreath)
+   - Bayesian Data Analysis (Gelman et al.)
+   - Doing Bayesian Data Analysis (Kruschke)
+
+2. **R包推荐**
+   - MCMCpack: 轻量级，适合入门
+   - rstanarm: 与lm/glm语法兼容
+   - brms: 最灵活，支持复杂模型
+
+## 总结
+
+| 关键点 | 说明 |
+|-------|------|
+| **核心思想** | 后验 ∝ 似然 × 先验 |
+| **常用R包** | MCMCpack（简单）, rstanarm/brms（高级）|
+| **先验选择** | 从弱信息先验开始 |
+| **收敛检查** | 轨迹图 + Geweke诊断 |
+| **结果报告** | 使用可信区间(CrI)和后验概率 |
