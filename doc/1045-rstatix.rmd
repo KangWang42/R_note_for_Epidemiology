@@ -1,0 +1,533 @@
+---
+title: "rstatix 管道式统计分析"
+date: "2026-01-13"
+categories: [R语言方法, 统计分析, rstatix]
+image: "images/rstatix-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## rstatix 简介
+
+**rstatix** 是一个与 tidyverse 无缝集成的统计分析包，提供管道友好（pipe-friendly）的统计检验函数。它的最大特点是将统计检验结果自动转换为整洁的数据框格式，便于后续分析和可视化。
+
+### 核心优势
+
+| 特点 | 说明 |
+|------|------|
+| **管道友好** | 完美兼容 `%>%` 操作符 |
+| **整洁输出** | 结果自动转为 tidy data frame |
+| **效应量** | 内置效应量计算函数 |
+| **假设检验** | 正态性、方差齐性等检验一站式完成 |
+| **可视化友好** | 结果可直接用于 ggplot2 标注 |
+
+### 主要功能
+
+```{r echo=FALSE}
+func_table <- data.frame(
+    类别 = c("描述统计", "t检验", "方差分析", "非参数检验", "相关分析", "效应量", "假设检验"),
+    函数 = c(
+        "get_summary_stats()", "t_test(), pairwise_t_test()",
+        "anova_test(), welch_anova_test()", "wilcox_test(), kruskal_test()",
+        "cor_test(), cor_mat()", "cohens_d(), eta_squared()",
+        "shapiro_test(), levene_test()"
+    )
+)
+knitr::kable(func_table, align = "ll")
+```
+
+
+## 安装与加载
+
+```{r eval=FALSE}
+# 安装
+install.packages("rstatix")
+```
+
+```{r}
+library(rstatix)
+library(dplyr)
+library(ggplot2)
+library(ggpubr) # 配合可视化
+
+# 设置主题
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：描述统计
+
+### get_summary_stats() - 汇总统计
+
+```{r}
+# 使用 ToothGrowth 数据集
+data("ToothGrowth")
+df <- ToothGrowth
+df$dose <- as.factor(df$dose)
+
+# 整体汇总
+df %>%
+    get_summary_stats(len, type = "mean_sd")
+```
+
+```{r}
+# 按组汇总
+df %>%
+    group_by(supp, dose) %>%
+    get_summary_stats(len, type = "mean_sd")
+```
+
+### 汇总类型选项
+
+| type | 输出内容 |
+|------|----------|
+| `"full"` | 完整统计（n, min, max, mean, sd, se, ci...） |
+| `"mean_sd"` | 均值和标准差 |
+| `"mean_se"` | 均值和标准误 |
+| `"mean_ci"` | 均值和95%置信区间 |
+| `"median_iqr"` | 中位数和四分位距 |
+| `"five_number"` | 五数概括 |
+
+```{r}
+# 完整统计
+df %>%
+    group_by(dose) %>%
+    get_summary_stats(len, type = "full")
+```
+
+
+## 第二部分：正态性和方差齐检验
+
+### shapiro_test() - 正态性检验
+
+```{r}
+# 整体正态性检验
+df %>%
+    shapiro_test(len)
+```
+
+```{r}
+# 分组正态性检验
+df %>%
+    group_by(dose) %>%
+    shapiro_test(len)
+```
+
+### levene_test() - 方差齐性检验
+
+```{r}
+# Levene 检验
+df %>%
+    levene_test(len ~ dose)
+```
+
+### identify_outliers() - 异常值检测
+
+```{r}
+# 基于 IQR 的异常值检测
+df %>%
+    group_by(dose) %>%
+    identify_outliers(len)
+```
+
+
+## 第三部分：t 检验
+
+### 单样本 t 检验
+
+```{r}
+# 检验均值是否等于 20
+df %>%
+    t_test(len ~ 1, mu = 20)
+```
+
+### 独立样本 t 检验
+
+```{r}
+# 比较两组
+df %>%
+    t_test(len ~ supp)
+```
+
+```{r}
+# 添加效应量
+df %>%
+    t_test(len ~ supp) %>%
+    add_significance()
+```
+
+### 配对样本 t 检验
+
+```{r}
+# 模拟配对数据
+paired_data <- data.frame(
+    id = rep(1:10, 2),
+    time = rep(c("before", "after"), each = 10),
+    score = c(rnorm(10, 50, 10), rnorm(10, 55, 10))
+)
+
+paired_data %>%
+    t_test(score ~ time, paired = TRUE)
+```
+
+### pairwise_t_test() - 多组两两比较
+
+```{r}
+# 多组两两比较
+df %>%
+    pairwise_t_test(len ~ dose, p.adjust.method = "bonferroni")
+```
+
+
+## 第四部分：方差分析（ANOVA）
+
+### 单因素 ANOVA
+
+```{r}
+# 单因素方差分析
+df %>%
+    anova_test(len ~ dose)
+```
+
+```{r}
+# 获取详细信息（含效应量）
+res_aov <- df %>%
+    anova_test(len ~ dose, detailed = TRUE)
+res_aov
+```
+
+### 事后多重比较
+
+```{r}
+# Tukey HSD 事后检验
+df %>%
+    tukey_hsd(len ~ dose)
+```
+
+### 双因素 ANOVA
+
+```{r}
+# 双因素方差分析
+df %>%
+    anova_test(len ~ supp * dose)
+```
+
+```{r}
+# 简单效应分析（按 supp 分组比较 dose）
+df %>%
+    group_by(supp) %>%
+    anova_test(len ~ dose)
+```
+
+### Welch ANOVA（方差不齐时）
+
+```{r}
+# Welch ANOVA
+df %>%
+    welch_anova_test(len ~ dose)
+
+# Games-Howell 事后检验
+df %>%
+    games_howell_test(len ~ dose)
+```
+
+
+## 第五部分：非参数检验
+
+### Wilcoxon 检验
+
+```{r}
+# 两组比较（Mann-Whitney U）
+df %>%
+    wilcox_test(len ~ supp)
+```
+
+```{r}
+# 添加效应量
+df %>%
+    wilcox_effsize(len ~ supp)
+```
+
+### Kruskal-Wallis 检验
+
+```{r}
+# 多组比较
+df %>%
+    kruskal_test(len ~ dose)
+```
+
+```{r}
+# Dunn 事后检验
+df %>%
+    dunn_test(len ~ dose, p.adjust.method = "bonferroni")
+```
+
+### Friedman 检验（配对非参数）
+
+```{r}
+# 模拟重复测量数据
+rm_data <- data.frame(
+    id = rep(1:10, 3),
+    time = rep(c("T1", "T2", "T3"), each = 10),
+    score = c(rnorm(10, 50, 5), rnorm(10, 55, 5), rnorm(10, 60, 5))
+)
+
+# Friedman 检验
+rm_data %>%
+    friedman_test(score ~ time | id)
+
+# 事后检验
+rm_data %>%
+    wilcox_test(score ~ time, paired = TRUE, p.adjust.method = "bonferroni")
+```
+
+
+## 第六部分：相关分析
+
+### cor_test() - 相关检验
+
+```{r}
+# Pearson 相关
+mtcars %>%
+    cor_test(mpg, wt, method = "pearson")
+```
+
+```{r}
+# 多变量相关
+mtcars %>%
+    cor_test(mpg, disp, hp, wt, method = "pearson")
+```
+
+### cor_mat() - 相关矩阵
+
+```{r}
+# 相关矩阵
+cor_matrix <- mtcars %>%
+    select(mpg, disp, hp, wt, qsec) %>%
+    cor_mat()
+
+cor_matrix
+```
+
+```{r}
+# 添加显著性标记
+cor_matrix %>%
+    cor_mark_significant()
+```
+
+```{r}
+# 获取 p 值矩阵
+pval_matrix <- cor_matrix %>%
+    cor_get_pval()
+
+# 转为普通数据框显示
+as.data.frame(pval_matrix)
+```
+
+
+## 第七部分：效应量计算
+
+### Cohen's d（t检验效应量）
+
+```{r}
+# 计算 Cohen's d
+df %>%
+    cohens_d(len ~ supp)
+```
+
+### 效应量解释
+
+| 效应量 | 小 | 中 | 大 |
+|--------|----|----|-----|
+| Cohen's d | 0.2 | 0.5 | 0.8 |
+| η² (eta squared) | 0.01 | 0.06 | 0.14 |
+| r (Wilcoxon) | 0.1 | 0.3 | 0.5 |
+
+```{r}
+# ANOVA 效应量（自动包含在 anova_test 中）
+df %>%
+    anova_test(len ~ dose, effect.size = "pes") # partial eta squared
+```
+
+
+## 第八部分：与 ggpubr 可视化集成
+
+### 添加统计比较到图表
+
+```{r}
+# 基础箱线图
+p <- ggboxplot(df,
+    x = "dose", y = "len", fill = "dose",
+    palette = c("#4f46e5", "#10b981", "#f59e0b")
+)
+
+# 获取统计结果（两两比较）
+stat_result <- df %>%
+    pairwise_t_test(len ~ dose) %>%
+    add_significance()
+
+# 手动设置 y 位置
+stat_result$y.position <- c(35, 38, 41)
+
+# 添加 p 值标注
+p + stat_pvalue_manual(stat_result, label = "p.signif", tip.length = 0.01)
+```
+
+### 多组比较可视化
+
+```{r}
+# 使用 compare_means 作为替代
+compare_result <- compare_means(len ~ dose, data = df, method = "t.test")
+compare_result
+```
+
+```{r}
+# 使用 ggpubr 内置的统计标注
+ggboxplot(df,
+    x = "dose", y = "len", fill = "dose",
+    palette = c("#4f46e5", "#10b981", "#f59e0b")
+) +
+    stat_compare_means(method = "anova", label.y = 40) +
+    labs(title = "剂量对牙齿生长的影响", y = "牙齿长度", x = "剂量")
+```
+
+### 分面比较
+
+```{r}
+# 按 supp 分面显示
+ggboxplot(df,
+    x = "dose", y = "len", fill = "dose",
+    facet.by = "supp",
+    palette = c("#4f46e5", "#10b981", "#f59e0b")
+) +
+    stat_compare_means(method = "anova", label.y = 38)
+```
+
+
+## 第九部分：完整分析流程
+
+### 案例：组间差异分析
+
+```{r}
+# 1. 描述统计
+desc_stats <- df %>%
+    group_by(dose) %>%
+    get_summary_stats(len, type = "mean_sd")
+
+desc_stats
+```
+
+```{r}
+# 2. 正态性检验
+normality <- df %>%
+    group_by(dose) %>%
+    shapiro_test(len)
+
+normality
+```
+
+```{r}
+# 3. 方差齐性检验
+homogeneity <- df %>%
+    levene_test(len ~ dose)
+
+homogeneity
+```
+
+```{r}
+# 4. 选择合适的检验方法
+# 正态 + 方差齐：ANOVA
+# 正态 + 方差不齐：Welch ANOVA
+# 非正态：Kruskal-Wallis
+
+# 这里假设正态且方差齐
+anova_result <- df %>%
+    anova_test(len ~ dose)
+
+anova_result
+```
+
+```{r}
+# 5. 事后比较
+posthoc <- df %>%
+    tukey_hsd(len ~ dose)
+
+posthoc
+```
+
+```{r}
+# 6. 效应量
+effect_size <- df %>%
+    cohens_d(len ~ dose, ref.group = "0.5")
+
+effect_size
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 描述统计
+df %>% get_summary_stats(var, type = "mean_sd")
+df %>%
+    group_by(group) %>%
+    get_summary_stats(var, type = "full")
+
+# 假设检验
+df %>% shapiro_test(var) # 正态性
+df %>% levene_test(var ~ group) # 方差齐性
+
+# t 检验
+df %>% t_test(var ~ group) # 独立样本
+df %>% t_test(var ~ time, paired = TRUE) # 配对样本
+df %>% pairwise_t_test(var ~ group) # 多组两两
+
+# ANOVA
+df %>% anova_test(var ~ group) # 单因素
+df %>% anova_test(var ~ A * B) # 双因素
+df %>% tukey_hsd(var ~ group) # Tukey 事后
+
+# 非参数
+df %>% wilcox_test(var ~ group) # 两组
+df %>% kruskal_test(var ~ group) # 多组
+df %>% dunn_test(var ~ group) # Dunn 事后
+
+# 相关
+df %>% cor_test(x, y) # 两变量
+df %>% cor_mat() # 相关矩阵
+
+# 效应量
+df %>% cohens_d(var ~ group) # Cohen's d
+df %>% wilcox_effsize(var ~ group) # Wilcoxon r
+```
+
+
+## 小结
+
+rstatix 的核心价值：
+
+1. **管道语法**：与 tidyverse 无缝衔接
+2. **整洁输出**：结果即 data frame，便于后续处理
+3. **一站式检验**：正态性、方差齐性、统计检验一气呵成
+4. **效应量内置**：不需要额外包计算效应量
+5. **可视化友好**：与 ggpubr 配合进行统计标注
+
+> **适用场景**：当你需要进行常规统计检验，并希望结果能直接用于报告或可视化时，rstatix 是最佳选择。
+
+
+## 参考资源
+
+- [rstatix 官方文档](https://rpkgs.datanovia.com/rstatix/)
+- [rstatix GitHub](https://github.com/kassambara/rstatix)
+- [Datanovia 统计教程](https://www.datanovia.com/en/lessons/)
