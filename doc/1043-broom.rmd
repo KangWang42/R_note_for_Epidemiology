@@ -1,0 +1,494 @@
+---
+title: "broom 模型结果整理指南"
+date: "2026-01-13"
+categories: [R语言方法, 数据处理, broom]
+image: "images/broom-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## broom 简介
+
+**broom** 包将 R 中各种统计模型的输出转换为整洁（tidy）的数据框格式，便于后续分析、可视化和报告。它解决了 R 中不同模型输出格式不统一的问题。
+
+### 为什么需要 broom？
+
+传统 R 模型输出的问题：
+
+```{r}
+# 传统线性回归输出
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+summary(fit) # 输出格式复杂，难以编程处理
+```
+
+broom 的解决方案：将混乱的输出转为标准数据框。
+
+### 核心函数
+
+| 函数 | 作用 | 输出内容 |
+|------|------|----------|
+| `tidy()` | 模型系数 | 系数、标准误、p值等 |
+| `glance()` | 模型摘要 | R²、AIC、BIC等 |
+| `augment()` | 观测级信息 | 预测值、残差等 |
+
+
+## 安装与加载
+
+```{r eval=FALSE}
+# 安装
+install.packages("broom")
+
+# 扩展包（支持更多模型）
+install.packages("broom.mixed") # 混合效应模型
+```
+
+```{r}
+library(broom)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+
+# 设置主题
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：tidy() - 提取模型系数
+
+### 线性回归
+
+```{r}
+# 拟合线性模型
+lm_fit <- lm(mpg ~ wt + hp + cyl, data = mtcars)
+
+# 传统输出
+coef(summary(lm_fit))
+```
+
+```{r}
+# 使用 tidy() 整理
+tidy(lm_fit)
+```
+
+```{r}
+# 添加置信区间
+tidy(lm_fit, conf.int = TRUE, conf.level = 0.95)
+```
+
+### Logistic 回归
+
+```{r}
+# 拟合logistic回归
+glm_fit <- glm(am ~ wt + hp, data = mtcars, family = binomial)
+
+# 整理输出
+tidy(glm_fit)
+```
+
+```{r}
+# 输出 OR 值（指数化系数）
+tidy(glm_fit, exponentiate = TRUE, conf.int = TRUE)
+```
+
+### 生存分析
+
+```{r}
+library(survival)
+
+# 拟合 Cox 模型
+cox_fit <- coxph(Surv(time, status) ~ age + sex, data = lung)
+
+# 整理
+tidy(cox_fit, exponentiate = TRUE, conf.int = TRUE)
+```
+
+### t 检验
+
+```{r}
+# t 检验
+t_result <- t.test(mpg ~ am, data = mtcars)
+
+# 整理
+tidy(t_result)
+```
+
+### 相关检验
+
+```{r}
+# 相关检验
+cor_result <- cor.test(mtcars$mpg, mtcars$wt)
+
+# 整理
+tidy(cor_result)
+```
+
+
+## 第二部分：glance() - 模型摘要统计
+
+### 获取模型拟合优度
+
+```{r}
+# 线性模型摘要
+glance(lm_fit)
+```
+
+### 常见输出指标
+
+| 指标 | 含义 |
+|------|------|
+| `r.squared` | R² 决定系数 |
+| `adj.r.squared` | 调整 R² |
+| `sigma` | 残差标准误 |
+| `statistic` | F 统计量 |
+| `p.value` | F 检验 p 值 |
+| `AIC` | 赤池信息准则 |
+| `BIC` | 贝叶斯信息准则 |
+| `nobs` | 观测数 |
+
+### 比较多个模型
+
+```{r}
+# 定义多个模型
+model1 <- lm(mpg ~ wt, data = mtcars)
+model2 <- lm(mpg ~ wt + hp, data = mtcars)
+model3 <- lm(mpg ~ wt + hp + cyl, data = mtcars)
+
+# 比较拟合优度
+models <- list(
+    "Model 1" = model1,
+    "Model 2" = model2,
+    "Model 3" = model3
+)
+
+# 汇总所有模型
+model_comparison <- map_df(models, glance, .id = "model")
+model_comparison %>%
+    select(model, r.squared, adj.r.squared, AIC, BIC)
+```
+
+```{r}
+# 可视化比较
+model_comparison %>%
+    tidyr::pivot_longer(cols = c(AIC, BIC), names_to = "metric", values_to = "value") %>%
+    ggplot(aes(x = model, y = value, fill = metric)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981")) +
+    labs(title = "模型比较：AIC 与 BIC", x = "模型", y = "值") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+
+## 第三部分：augment() - 观测级数据
+
+### 提取预测值和残差
+
+```{r}
+# 添加预测值和残差
+augmented <- augment(lm_fit)
+head(augmented)
+```
+
+### augment 输出的常见列
+
+| 列名 | 含义 |
+|------|------|
+| `.fitted` | 预测值 |
+| `.resid` | 残差 |
+| `.std.resid` | 标准化残差 |
+| `.hat` | 杠杆值 |
+| `.cooksd` | Cook's 距离 |
+| `.sigma` | 删除该观测后的残差标准差 |
+
+### 残差诊断可视化
+
+```{r}
+# 残差 vs 拟合值
+ggplot(augmented, aes(x = .fitted, y = .resid)) +
+    geom_point(color = "#4f46e5", alpha = 0.7) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    geom_smooth(se = FALSE, color = "#10b981") +
+    labs(title = "残差 vs 拟合值", x = "拟合值", y = "残差")
+```
+
+```{r}
+# QQ 图
+ggplot(augmented, aes(sample = .std.resid)) +
+    stat_qq(color = "#4f46e5") +
+    stat_qq_line(color = "red") +
+    labs(title = "标准化残差 Q-Q 图", x = "理论分位数", y = "样本分位数")
+```
+
+```{r}
+# Cook's 距离
+ggplot(augmented, aes(x = seq_len(nrow(augmented)), y = .cooksd)) +
+    geom_col(fill = "#4f46e5", alpha = 0.7) +
+    geom_hline(yintercept = 4 / nrow(augmented), linetype = "dashed", color = "red") +
+    labs(title = "Cook's 距离", x = "观测编号", y = "Cook's D")
+```
+
+### 在新数据上预测
+
+```{r}
+# 新数据
+new_data <- data.frame(
+    wt = c(2.5, 3.0, 3.5),
+    hp = c(100, 150, 200),
+    cyl = c(4, 6, 8)
+)
+
+# 预测（含区间）
+augment(lm_fit, newdata = new_data, interval = "confidence")
+```
+
+
+## 第四部分：批量建模
+
+broom 与 purrr 结合，可以高效进行分组建模。
+
+### 分组回归
+
+```{r}
+# 按汽缸数分组建模
+by_cyl <- mtcars %>%
+    group_by(cyl) %>%
+    nest()
+
+by_cyl
+```
+
+```{r}
+# 对每组拟合模型
+by_cyl <- by_cyl %>%
+    mutate(
+        model = map(data, ~ lm(mpg ~ wt + hp, data = .x)),
+        tidied = map(model, tidy),
+        glanced = map(model, glance),
+        augmented = map(model, augment)
+    )
+
+by_cyl
+```
+
+### 提取分组系数
+
+```{r}
+# 展开系数
+by_cyl %>%
+    select(cyl, tidied) %>%
+    unnest(tidied)
+```
+
+```{r}
+# 可视化分组系数
+by_cyl %>%
+    select(cyl, tidied) %>%
+    unnest(tidied) %>%
+    filter(term != "(Intercept)") %>%
+    ggplot(aes(x = factor(cyl), y = estimate, fill = term)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    geom_errorbar(
+        aes(ymin = estimate - std.error, ymax = estimate + std.error),
+        position = position_dodge(width = 0.9),
+        width = 0.2
+    ) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981")) +
+    labs(
+        title = "不同汽缸数的回归系数",
+        x = "汽缸数",
+        y = "系数估计值"
+    ) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### 提取分组拟合优度
+
+```{r}
+by_cyl %>%
+    select(cyl, glanced) %>%
+    unnest(glanced) %>%
+    select(cyl, r.squared, adj.r.squared, AIC, p.value)
+```
+
+
+## 第五部分：支持的模型类型
+
+broom 支持 100+ 种模型类型。
+
+### 统计模型
+
+```{r echo=FALSE}
+stats_models <- data.frame(
+    类型 = c(
+        "线性回归", "广义线性模型", "混合效应模型",
+        "生存分析", "时间序列", "聚类"
+    ),
+    函数示例 = c(
+        "lm(), aov()", "glm(), betareg()", "lme4::lmer(), nlme::lme()",
+        "survival::coxph(), survfit()", "forecast::Arima()",
+        "stats::kmeans(), cluster::pam()"
+    )
+)
+knitr::kable(stats_models, align = "ll")
+```
+
+### 检查是否支持
+
+```{r eval=FALSE}
+# 查看支持的方法
+methods("tidy")
+methods("glance")
+methods("augment")
+```
+
+
+## 第六部分：与 ggplot2 结合
+
+### 可视化回归系数（森林图）
+
+```{r}
+# 提取系数
+coef_df <- tidy(lm_fit, conf.int = TRUE) %>%
+    filter(term != "(Intercept)")
+
+# 森林图
+ggplot(coef_df, aes(x = estimate, y = term)) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
+    geom_point(color = "#4f46e5", size = 3) +
+    geom_errorbarh(
+        aes(xmin = conf.low, xmax = conf.high),
+        height = 0.2,
+        color = "#4f46e5"
+    ) +
+    labs(
+        title = "回归系数及95%置信区间",
+        x = "系数估计值",
+        y = "变量"
+    ) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### Logistic 回归 OR 值可视化
+
+```{r}
+# OR 值
+or_df <- tidy(glm_fit, exponentiate = TRUE, conf.int = TRUE) %>%
+    filter(term != "(Intercept)")
+
+ggplot(or_df, aes(x = estimate, y = term)) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") +
+    geom_point(color = "#ef4444", size = 3) +
+    geom_errorbarh(
+        aes(xmin = conf.low, xmax = conf.high),
+        height = 0.2,
+        color = "#ef4444"
+    ) +
+    scale_x_log10() +
+    labs(
+        title = "Logistic 回归 OR 值",
+        x = "OR (95% CI)",
+        y = "变量"
+    ) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+
+## 第七部分：实战案例
+
+### 案例：多元回归分析报告
+
+```{r}
+# 完整分析流程
+library(knitr)
+
+# 1. 拟合模型
+model <- lm(mpg ~ wt + hp + cyl + am, data = mtcars)
+
+# 2. 系数表
+cat("### 回归系数\n")
+tidy(model, conf.int = TRUE) %>%
+    mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+    kable()
+```
+
+```{r}
+# 3. 模型摘要
+cat("\n### 模型拟合优度\n")
+glance(model) %>%
+    select(r.squared, adj.r.squared, sigma, statistic, p.value, AIC, BIC) %>%
+    mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+    kable()
+```
+
+```{r}
+# 4. 残差诊断
+augmented_data <- augment(model)
+
+# 组合诊断图
+p1 <- ggplot(augmented_data, aes(x = .fitted, y = .resid)) +
+    geom_point(alpha = 0.6) +
+    geom_hline(yintercept = 0, linetype = 2, color = "red") +
+    labs(title = "残差 vs 拟合值", x = "拟合值", y = "残差")
+
+p2 <- ggplot(augmented_data, aes(sample = .std.resid)) +
+    stat_qq() +
+    stat_qq_line(color = "red") +
+    labs(title = "Q-Q 图")
+
+library(patchwork)
+p1 + p2
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 基本用法
+tidy(model) # 系数表
+tidy(model, conf.int = TRUE) # 含置信区间
+tidy(model, exponentiate = TRUE) # OR/HR 值
+
+glance(model) # 模型摘要
+
+augment(model) # 添加预测值/残差
+augment(model, newdata = new_data) # 新数据预测
+
+# 批量建模
+data %>%
+    group_by(group) %>%
+    nest() %>%
+    mutate(model = map(data, ~ lm(y ~ x, data = .x))) %>%
+    mutate(tidied = map(model, tidy)) %>%
+    unnest(tidied)
+```
+
+
+## 小结
+
+broom 的核心价值：
+
+1. **标准化输出**：统一的数据框格式
+2. **便于编程**：轻松进行批量操作
+3. **可视化友好**：直接用于 ggplot2
+4. **覆盖广泛**：支持 100+ 种模型
+5. **与 tidyverse 无缝集成**
+
+> **最佳实践**：始终使用 broom 整理模型输出，而非手动提取 `summary()` 中的数值。
+
+
+## 参考资源
+
+- [broom 官方文档](https://broom.tidymodels.org/)
+- [broom GitHub](https://github.com/tidymodels/broom)
+- [broom.mixed](https://cran.r-project.org/package=broom.mixed) - 混合效应模型支持

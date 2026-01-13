@@ -1,0 +1,603 @@
+---
+title: "LSTM 深度学习时间序列预测"
+date: "2026-01-13"
+categories: [R语言方法, 深度学习, LSTM]
+image: "images/lstm-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    eval = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+> **注意**：本教程的代码需要安装 keras 包和 TensorFlow 后端。由于环境配置复杂，代码仅作展示，读者需在本地正确配置后运行。
+
+## LSTM 简介
+
+**LSTM**（Long Short-Term Memory，长短期记忆网络）是一种特殊的循环神经网络（RNN），能够学习长期依赖关系，特别适用于时间序列预测、自然语言处理等序列数据任务。
+
+### 为什么使用 LSTM？
+
+传统 RNN 存在**梯度消失/爆炸**问题，难以学习长期依赖。LSTM 通过引入**门控机制**解决了这一问题：
+
+| 门 | 作用 |
+|---|------|
+| **遗忘门** (Forget Gate) | 决定丢弃哪些信息 |
+| **输入门** (Input Gate) | 决定更新哪些信息 |
+| **输出门** (Output Gate) | 决定输出什么 |
+
+### R 语言深度学习框架
+
+| 框架 | 后端 | 特点 |
+|------|------|------|
+| **keras** | TensorFlow | 最成熟，文档丰富 |
+| **torch** | PyTorch | 原生R实现，无需Python |
+| **tensorflow** | TensorFlow | 底层API |
+
+本教程使用 **keras** 包，因其使用最广泛且文档完善。
+
+
+## 安装与配置
+
+### 安装 keras
+
+```{r}
+# 安装 keras 包
+install.packages("keras")
+
+# 安装 Python 后端（TensorFlow）
+library(keras)
+install_keras() # 自动安装 TensorFlow
+```
+
+> **注意**：keras 需要 Python 和 TensorFlow 环境。`install_keras()` 会自动配置。
+
+### 加载包
+
+```{r}
+library(keras)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# 设置主题
+theme_set(theme_bw(base_size = 12))
+
+# 设置随机种子
+set.seed(42)
+tensorflow::set_random_seed(42)
+```
+
+
+## 第一部分：时间序列数据准备
+
+### 创建示例数据
+
+```{r}
+# 生成模拟时间序列（带趋势和周期）
+n <- 500
+time <- 1:n
+trend <- 0.05 * time
+seasonal <- 10 * sin(2 * pi * time / 50)
+noise <- rnorm(n, sd = 2)
+series <- trend + seasonal + noise
+
+# 转为数据框
+ts_data <- data.frame(
+    time = time,
+    value = series
+)
+
+# 可视化
+ggplot(ts_data, aes(x = time, y = value)) +
+    geom_line(color = "#4f46e5", alpha = 0.8) +
+    labs(title = "模拟时间序列", x = "时间", y = "值") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### 数据标准化
+
+LSTM 对数据尺度敏感，需要进行标准化。
+
+```{r}
+# 计算训练集的均值和标准差（避免数据泄露）
+train_size <- floor(0.8 * n)
+
+train_mean <- mean(ts_data$value[1:train_size])
+train_sd <- sd(ts_data$value[1:train_size])
+
+# 标准化
+ts_data$scaled <- (ts_data$value - train_mean) / train_sd
+
+head(ts_data)
+```
+
+### 创建序列数据
+
+LSTM 需要将时间序列转换为 **滑动窗口** 格式。
+
+```{r}
+# 创建滑动窗口序列
+create_sequences <- function(data, look_back = 10) {
+    n <- length(data)
+    X <- matrix(0, nrow = n - look_back, ncol = look_back)
+    y <- numeric(n - look_back)
+
+    for (i in 1:(n - look_back)) {
+        X[i, ] <- data[i:(i + look_back - 1)]
+        y[i] <- data[i + look_back]
+    }
+
+    list(X = X, y = y)
+}
+
+# 使用过去10个时间步预测下一个
+look_back <- 10
+sequences <- create_sequences(ts_data$scaled, look_back)
+
+# 查看形状
+cat("X 形状:", dim(sequences$X), "\n")
+cat("y 长度:", length(sequences$y), "\n")
+```
+
+### 划分训练集和测试集
+
+```{r}
+# 划分
+train_idx <- 1:(train_size - look_back)
+test_idx <- (train_size - look_back + 1):nrow(sequences$X)
+
+X_train <- sequences$X[train_idx, ]
+y_train <- sequences$y[train_idx]
+X_test <- sequences$X[test_idx, ]
+y_test <- sequences$y[test_idx]
+
+cat("训练集大小:", length(y_train), "\n")
+cat("测试集大小:", length(y_test), "\n")
+```
+
+### 转换为 LSTM 输入格式
+
+LSTM 需要 3D 输入：`[samples, timesteps, features]`
+
+```{r}
+# 重塑为3D数组
+X_train_lstm <- array(X_train, dim = c(nrow(X_train), look_back, 1))
+X_test_lstm <- array(X_test, dim = c(nrow(X_test), look_back, 1))
+
+cat("LSTM 输入形状:", dim(X_train_lstm), "\n")
+```
+
+
+## 第二部分：构建 LSTM 模型
+
+### 基础 LSTM 模型
+
+```{r}
+# 定义模型
+model <- keras_model_sequential() %>%
+    # LSTM 层
+    layer_lstm(
+        units = 50, # 隐藏单元数
+        input_shape = c(look_back, 1), # 输入形状
+        return_sequences = FALSE # 只返回最后一个输出
+    ) %>%
+    # Dropout 防止过拟合
+    layer_dropout(rate = 0.2) %>%
+    # 输出层
+    layer_dense(units = 1)
+
+# 编译模型
+model %>% compile(
+    optimizer = optimizer_adam(learning_rate = 0.001),
+    loss = "mse",
+    metrics = c("mae")
+)
+
+# 查看模型结构
+summary(model)
+```
+
+### 堆叠 LSTM 模型
+
+多层 LSTM 可以学习更复杂的模式。
+
+```{r}
+# 双层 LSTM
+stacked_model <- keras_model_sequential() %>%
+    layer_lstm(
+        units = 50,
+        input_shape = c(look_back, 1),
+        return_sequences = TRUE # 返回完整序列给下一层
+    ) %>%
+    layer_dropout(rate = 0.2) %>%
+    layer_lstm(
+        units = 30,
+        return_sequences = FALSE
+    ) %>%
+    layer_dropout(rate = 0.2) %>%
+    layer_dense(units = 1)
+
+stacked_model %>% compile(
+    optimizer = "adam",
+    loss = "mse"
+)
+
+summary(stacked_model)
+```
+
+### 双向 LSTM
+
+双向 LSTM 同时学习正向和反向的依赖关系。
+
+```{r}
+# 双向 LSTM
+bidirectional_model <- keras_model_sequential() %>%
+    bidirectional(
+        layer_lstm(units = 50, return_sequences = FALSE),
+        input_shape = c(look_back, 1)
+    ) %>%
+    layer_dropout(rate = 0.2) %>%
+    layer_dense(units = 1)
+
+bidirectional_model %>% compile(
+    optimizer = "adam",
+    loss = "mse"
+)
+```
+
+
+## 第三部分：模型训练
+
+### 训练模型
+
+```{r}
+# 训练基础模型
+history <- model %>% fit(
+    x = X_train_lstm,
+    y = y_train,
+    epochs = 50,
+    batch_size = 32,
+    validation_split = 0.2,
+    verbose = 0
+)
+```
+
+### 可视化训练过程
+
+```{r}
+# 绘制损失曲线
+plot(history) +
+    theme_bw() +
+    labs(title = "模型训练过程") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### 早停和检查点
+
+```{r}
+# 回调函数
+callbacks <- list(
+    # 早停：验证损失连续10轮不降低则停止
+    callback_early_stopping(
+        monitor = "val_loss",
+        patience = 10,
+        restore_best_weights = TRUE
+    ),
+    # 保存最佳模型
+    callback_model_checkpoint(
+        filepath = "best_model.keras",
+        monitor = "val_loss",
+        save_best_only = TRUE
+    )
+)
+
+# 训练时使用回调
+history <- model %>% fit(
+    x = X_train_lstm,
+    y = y_train,
+    epochs = 100,
+    batch_size = 32,
+    validation_split = 0.2,
+    callbacks = callbacks
+)
+```
+
+
+## 第四部分：预测与评估
+
+### 进行预测
+
+```{r}
+# 在测试集上预测
+predictions_scaled <- model %>% predict(X_test_lstm)
+
+# 反标准化
+predictions <- predictions_scaled * train_sd + train_mean
+actual <- y_test * train_sd + train_mean
+
+# 创建结果数据框
+results <- data.frame(
+    time = test_idx + look_back,
+    actual = actual,
+    predicted = as.vector(predictions)
+)
+
+head(results)
+```
+
+### 可视化预测结果
+
+```{r}
+# 绘制预测 vs 实际
+ggplot(results, aes(x = time)) +
+    geom_line(aes(y = actual, color = "实际值"), linewidth = 0.8) +
+    geom_line(aes(y = predicted, color = "预测值"), linewidth = 0.8, linetype = "dashed") +
+    scale_color_manual(
+        values = c("实际值" = "#4f46e5", "预测值" = "#ef4444"),
+        name = ""
+    ) +
+    labs(
+        title = "LSTM 时间序列预测",
+        x = "时间",
+        y = "值"
+    ) +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "top"
+    )
+```
+
+### 计算评估指标
+
+```{r}
+# 计算指标
+mse <- mean((results$actual - results$predicted)^2)
+rmse <- sqrt(mse)
+mae <- mean(abs(results$actual - results$predicted))
+mape <- mean(abs((results$actual - results$predicted) / results$actual)) * 100
+
+cat("MSE:", round(mse, 4), "\n")
+cat("RMSE:", round(rmse, 4), "\n")
+cat("MAE:", round(mae, 4), "\n")
+cat("MAPE:", round(mape, 2), "%\n")
+```
+
+### 预测 vs 实际散点图
+
+```{r}
+ggplot(results, aes(x = actual, y = predicted)) +
+    geom_point(color = "#4f46e5", alpha = 0.6) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+    labs(
+        title = "预测值 vs 实际值",
+        x = "实际值",
+        y = "预测值"
+    ) +
+    coord_equal() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+
+## 第五部分：多步预测
+
+### 递归多步预测
+
+```{r}
+# 递归预测未来 n 步
+predict_future <- function(model, last_sequence, n_steps, train_mean, train_sd) {
+    predictions <- numeric(n_steps)
+    current_seq <- last_sequence
+
+    for (i in 1:n_steps) {
+        # 准备输入
+        input_data <- array(current_seq, dim = c(1, length(current_seq), 1))
+
+        # 预测下一步
+        pred <- model %>% predict(input_data, verbose = 0)
+        predictions[i] <- pred
+
+        # 更新序列（滑动窗口）
+        current_seq <- c(current_seq[-1], pred)
+    }
+
+    # 反标准化
+    predictions * train_sd + train_mean
+}
+
+# 使用最后一个测试序列预测未来20步
+last_seq <- X_test_lstm[nrow(X_test_lstm), , 1]
+future_preds <- predict_future(model, last_seq, 20, train_mean, train_sd)
+
+# 可视化
+future_time <- (max(results$time) + 1):(max(results$time) + 20)
+future_df <- data.frame(
+    time = future_time,
+    predicted = future_preds
+)
+
+ggplot() +
+    geom_line(data = results, aes(x = time, y = actual), color = "#4f46e5") +
+    geom_line(
+        data = future_df, aes(x = time, y = predicted),
+        color = "#ef4444", linewidth = 1
+    ) +
+    geom_vline(xintercept = max(results$time), linetype = "dashed", color = "gray50") +
+    labs(
+        title = "多步预测",
+        subtitle = "红色为未来20步预测",
+        x = "时间",
+        y = "值"
+    ) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+
+## 第六部分：多变量 LSTM
+
+### 准备多变量数据
+
+```{r}
+# 创建多变量时间序列
+n <- 500
+set.seed(42)
+
+multivar_data <- data.frame(
+    time = 1:n,
+    y = cumsum(rnorm(n)) + 0.02 * (1:n), # 目标变量
+    x1 = sin(2 * pi * (1:n) / 50) + rnorm(n, sd = 0.3), # 特征1
+    x2 = cos(2 * pi * (1:n) / 30) + rnorm(n, sd = 0.3) # 特征2
+)
+
+# 标准化
+train_size <- 400
+for (col in c("y", "x1", "x2")) {
+    train_mean <- mean(multivar_data[[col]][1:train_size])
+    train_sd <- sd(multivar_data[[col]][1:train_size])
+    multivar_data[[paste0(col, "_scaled")]] <-
+        (multivar_data[[col]] - train_mean) / train_sd
+}
+```
+
+### 创建多变量序列
+
+```{r}
+# 多变量滑动窗口
+create_multivar_sequences <- function(data, target_col, feature_cols, look_back = 10) {
+    n <- nrow(data)
+    n_features <- length(feature_cols)
+
+    X <- array(0, dim = c(n - look_back, look_back, n_features))
+    y <- numeric(n - look_back)
+
+    for (i in 1:(n - look_back)) {
+        for (j in 1:n_features) {
+            X[i, , j] <- data[i:(i + look_back - 1), feature_cols[j]]
+        }
+        y[i] <- data[i + look_back, target_col]
+    }
+
+    list(X = X, y = y)
+}
+
+# 创建序列
+look_back <- 10
+feature_cols <- c("y_scaled", "x1_scaled", "x2_scaled")
+mv_seq <- create_multivar_sequences(multivar_data, "y_scaled", feature_cols, look_back)
+
+cat("多变量输入形状:", dim(mv_seq$X), "\n")
+```
+
+### 构建多变量 LSTM
+
+```{r}
+# 划分数据
+train_idx <- 1:(train_size - look_back)
+test_idx <- (train_size - look_back + 1):(n - look_back)
+
+X_train_mv <- mv_seq$X[train_idx, , ]
+y_train_mv <- mv_seq$y[train_idx]
+X_test_mv <- mv_seq$X[test_idx, , ]
+y_test_mv <- mv_seq$y[test_idx]
+
+# 定义模型
+n_features <- length(feature_cols)
+
+mv_model <- keras_model_sequential() %>%
+    layer_lstm(
+        units = 50,
+        input_shape = c(look_back, n_features),
+        return_sequences = FALSE
+    ) %>%
+    layer_dropout(rate = 0.2) %>%
+    layer_dense(units = 1)
+
+mv_model %>% compile(
+    optimizer = "adam",
+    loss = "mse"
+)
+
+# 训练
+mv_history <- mv_model %>% fit(
+    X_train_mv, y_train_mv,
+    epochs = 50,
+    batch_size = 32,
+    validation_split = 0.2,
+    verbose = 0
+)
+```
+
+
+## 第七部分：模型保存与加载
+
+```{r}
+# 保存模型
+save_model_keras(model, "lstm_model.keras")
+
+# 加载模型
+loaded_model <- load_model_keras("lstm_model.keras")
+
+# 使用加载的模型预测
+predictions <- loaded_model %>% predict(X_test_lstm)
+```
+
+
+## 常用代码速查
+
+```{r}
+# 数据准备
+create_sequences <- function(data, look_back) {
+    # 返回 X (n x look_back) 和 y (n)
+}
+
+# 转为 LSTM 格式
+X_lstm <- array(X, dim = c(nrow(X), look_back, n_features))
+
+# 构建模型
+model <- keras_model_sequential() %>%
+    layer_lstm(units = 50, input_shape = c(timesteps, features)) %>%
+    layer_dropout(0.2) %>%
+    layer_dense(1)
+
+# 编译
+model %>% compile(optimizer = "adam", loss = "mse")
+
+# 训练
+history <- model %>% fit(X_train, y_train, epochs = 50, batch_size = 32)
+
+# 预测
+predictions <- model %>% predict(X_test)
+```
+
+
+## 小结
+
+LSTM 时间序列预测关键步骤：
+
+1. **数据准备**：标准化 + 滑动窗口
+2. **格式转换**：3D 数组 `[samples, timesteps, features]`
+3. **模型构建**：选择合适的 LSTM 结构
+4. **训练技巧**：早停、学习率调整
+5. **评估输出**：反标准化后计算指标
+
+> **最佳实践**：
+> - 总是对数据进行标准化
+> - 使用验证集监控过拟合
+> - 多尝试不同的 look_back 长度
+> - 堆叠 LSTM 可提升复杂序列的建模能力
+
+
+## 参考资源
+
+- [Keras for R](https://keras.posit.co/)
+- [Deep Learning with R](https://www.manning.com/books/deep-learning-with-r-second-edition)
+- [Understanding LSTM Networks](https://colah.github.io/posts/2015-08-Understanding-LSTMs/)
