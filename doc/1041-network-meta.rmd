@@ -1,0 +1,529 @@
+---
+title: "网状 Meta 分析 (Network Meta-Analysis) 完全指南"
+date: "2026-01-13"
+categories: [R包, Meta分析, 网状分析]
+image: "images/1041_cover.svg"
+description: "多种干预措施的间接比较：netmeta 包使用详解，从网络图到排序图的完整流程。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 8,
+    dpi = 300
+)
+```
+
+## 前言
+
+传统 Meta 分析只能**两两比较**干预措施（如 A vs B）。但临床决策中，我们常需要同时比较**多种干预措施**。
+
+**网状 Meta 分析 (Network Meta-Analysis, NMA)** 通过整合直接和间接证据，实现多种干预的同时比较和排序。
+
+本教程将介绍 NMA 的基本原理和 R 语言 `netmeta` 包的完整使用流程。
+
+---
+
+## 1. 网状 Meta 分析基础
+
+### 1.1 什么是网状 Meta？
+
+考虑 3 种降压药的比较：
+
+- 研究 1：药物 A vs 安慰剂
+- 研究 2：药物 B vs 安慰剂  
+- 研究 3：药物 A vs 药物 B
+
+传统 Meta 分析只能分别合成每对比较。而 NMA 可以：
+
+1. **同时比较所有干预**：A vs B vs C vs 安慰剂
+2. **利用间接证据**：即使没有 A vs C 的直接研究，也能通过 A-B-C 链条推断
+3. **对干预进行排序**：给出"最佳"干预的概率
+
+### 1.2 核心概念
+
+| 概念 | 说明 |
+|------|------|
+| **节点 (Node)** | 网络中的干预措施 |
+| **边 (Edge)** | 两种干预之间的比较 |
+| **直接证据** | 来自头对头比较研究 |
+| **间接证据** | 通过共同比较者推断 |
+| **混合证据** | 直接 + 间接的加权组合 |
+| **一致性** | 直接与间接证据是否吻合 |
+
+### 1.3 基本假设
+
+NMA 的核心假设是**一致性 (Transitivity)**：
+
+> 如果 A vs B 的效应是 δ_AB，B vs C 是 δ_BC，
+> 那么 A vs C 应该等于 δ_AB + δ_BC
+
+这要求：
+- 研究间具有可比性（相似的人群、结局定义）
+- 不存在效应修饰因子导致的异质性
+
+---
+
+## 2. netmeta 包入门
+
+### 2.1 安装与加载
+
+```{r}
+# install.packages("netmeta")
+library(netmeta)
+library(ggplot2)
+library(dplyr)
+```
+
+### 2.2 数据格式
+
+`netmeta` 支持两种数据格式：
+
+**对比格式 (Pairwise)**：每行是一对比较
+
+```{r}
+# 示例数据：抗抑郁药比较
+data(Senn2013)
+head(Senn2013)
+```
+
+**臂格式 (Arm-based)**：每行是一个研究臂
+
+```{r}
+# 转换示例（如果数据是臂格式）
+# pairwise() 函数可以转换
+```
+
+### 2.3 基础 NMA 模型
+
+```{r}
+# 运行网状 Meta 分析
+nma_result <- netmeta(
+    TE = TE, # 效应量（log OR, log RR, MD 等）
+    seTE = seTE, # 效应量标准误
+    treat1 = treat1, # 干预 1
+    treat2 = treat2, # 干预 2
+    studlab = studlab, # 研究标识
+    data = Senn2013,
+    sm = "MD", # 效应量类型：Mean Difference
+    reference.group = "plac", # 参照组
+    common = FALSE, # 使用随机效应模型
+    random = TRUE
+)
+
+# 查看结果摘要
+summary(nma_result)
+```
+
+---
+
+## 3. 网络图可视化
+
+### 3.1 基础网络图
+
+```{r}
+# 绘制网络结构图
+netgraph(nma_result,
+    cex = 1.2, # 节点文字大小
+    cex.points = 3, # 节点大小
+    col = "#4e79a7", # 节点颜色
+    thickness = "number.of.studies", # 边的粗细
+    plastic = FALSE,
+    multiarm = TRUE
+)
+title("网状 Meta 分析网络图")
+```
+
+### 3.2 美化网络图
+
+```{r}
+# 更精细的网络图
+netgraph(nma_result,
+    cex = 1.5,
+    cex.points = 4,
+    col = "gray30",
+    col.points = "#4e79a7",
+    thickness = "number.of.studies",
+    plastic = TRUE,
+    points = TRUE,
+    multiarm = TRUE,
+    number.of.studies = TRUE # 显示研究数量
+)
+```
+
+### 3.3 ggplot 风格网络图
+
+```{r}
+# 提取网络信息用于 ggplot
+network_info <- netconnection(nma_result)
+
+# 获取节点和边数据
+nodes <- data.frame(
+    treatment = nma_result$trts,
+    n_studies = rowSums(nma_result$A.matrix)
+)
+
+# 使用 ggraph 绑制（需安装 ggraph）
+# library(ggraph)
+# library(igraph)
+
+# 简单可视化
+cat(
+    "网络包含", nma_result$n, "项研究，",
+    length(nma_result$trts), "种干预措施\n"
+)
+```
+
+---
+
+## 4. 效应量与排序
+
+### 4.1 成对比较森林图
+
+```{r fig.height=10}
+# 相对于参照组的森林图
+forest(nma_result,
+    reference.group = "plac",
+    sortvar = TE,
+    smlab = "Mean Difference vs Placebo",
+    label.left = "Favors Treatment",
+    label.right = "Favors Placebo"
+)
+```
+
+### 4.2 联赛表 (League Table)
+
+```{r}
+# 生成联赛表
+league_table <- netleague(nma_result,
+    bracket = "(",
+    digits = 2
+)
+
+# 显示效应量矩阵
+print(league_table$common, row.names = TRUE)
+```
+
+### 4.3 排序分析
+
+```{r}
+# 计算 P-scores（频率学派排序）
+netrank_result <- netrank(nma_result, small.values = "good")
+
+# 查看排序结果
+print(netrank_result)
+
+# 绘制排序图
+plot(netrank_result)
+```
+
+### 4.4 SUCRA 曲线
+
+```{r}
+# 计算累积排序概率（SUCRA）
+# netmeta 使用 P-score，与贝叶斯的 SUCRA 类似
+
+# 可视化排序
+ranking_df <- data.frame(
+    Treatment = names(netrank_result$Pscore.random),
+    P_score = netrank_result$Pscore.random
+) %>%
+    arrange(desc(P_score))
+
+ggplot(ranking_df, aes(x = reorder(Treatment, P_score), y = P_score)) +
+    geom_col(fill = "#4e79a7", alpha = 0.8) +
+    geom_text(aes(label = round(P_score, 3)), hjust = -0.1, size = 3.5) +
+    coord_flip() +
+    ylim(0, 1.1) +
+    labs(
+        title = "干预措施 P-score 排序",
+        subtitle = "P-score 越高表示效果越好",
+        x = NULL,
+        y = "P-score"
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+---
+
+## 5. 一致性检验
+
+### 5.1 全局一致性检验
+
+```{r}
+# 整体一致性检验（设计 × 干预交互）
+decomp <- decomp.design(nma_result)
+print(decomp)
+```
+
+结果解读：
+- **Between-designs** 异质性：不同研究设计之间的差异
+- **p 值显著**表示存在不一致性
+
+### 5.2 局部不一致性：节点分割法
+
+```{r}
+# 节点分割比较直接和间接证据
+netsplit_result <- netsplit(nma_result)
+
+# 查看结果
+print(netsplit_result)
+
+# 可视化
+forest(netsplit_result)
+```
+
+### 5.3 净热图 (Net Heat Plot)
+
+```{r eval=FALSE}
+# 热图展示不一致性
+netheat(nma_result, random = TRUE)
+```
+
+---
+
+## 6. 亚组与敏感性分析
+
+### 6.1 亚组分析
+
+```{r eval=FALSE}
+# 按研究特征分层的亚组分析
+# 需要在数据中添加亚组变量
+
+nma_subgroup <- netmeta(
+    TE, seTE, treat1, treat2, studlab,
+    data = subset(Senn2013, year >= 2000), # 只用 2000 年后的研究
+    sm = "MD",
+    reference.group = "plac",
+    random = TRUE
+)
+```
+
+### 6.2 敏感性分析：排除高风险研究
+
+```{r eval=FALSE}
+# 排除某些研究的敏感性分析
+nma_sensitivity <- netmeta(
+    TE, seTE, treat1, treat2, studlab,
+    data = subset(Senn2013, !studlab %in% c("Study1", "Study2")),
+    sm = "MD",
+    reference.group = "plac",
+    random = TRUE
+)
+
+# 比较排序变化
+compare_rankings <- data.frame(
+    Original = netrank(nma_result)$Pscore.random,
+    Sensitivity = netrank(nma_sensitivity)$Pscore.random
+)
+```
+
+### 6.3 留一法敏感性分析
+
+```{r}
+# 留一法分析
+loo_result <- nma_result # 需要手动循环实现
+
+# 或使用贡献矩阵
+# netcontrib(nma_result)
+```
+
+---
+
+## 7. 发表偏倚评估
+
+### 7.1 比较调整漏斗图
+
+```{r}
+# 漏斗图
+funnel(nma_result,
+    order = nma_result$trts,
+    pch = 16,
+    col = "#4e79a7",
+    linreg = TRUE
+)
+```
+
+### 7.2 Egger 检验
+
+```{r}
+# metabias 需要成对数据
+# 可以使用 netmeta 的漏斗图进行视觉评估
+```
+
+---
+
+## 8. 完整案例分析
+
+### 8.1 数据准备
+
+```{r}
+# 使用内置抑郁症治疗数据
+data("Linde2016")
+head(Linde2016)
+```
+
+### 8.2 运行分析
+
+```{r}
+# 完整的 NMA 流程
+nma_depression <- netmeta(
+    lnOR, # log Odds Ratio
+    selnOR, # 标准误
+    treat1.long, treat2.long, # 干预名称
+    id, # 研究 ID
+    data = Linde2016,
+    sm = "OR", # Odds Ratio
+    reference.group = "Placebo",
+    common = FALSE,
+    random = TRUE
+)
+```
+
+### 8.3 结果汇总
+
+```{r}
+# 1. 网络图
+netgraph(nma_depression,
+    plastic = TRUE,
+    thickness = "number.of.studies",
+    cex.points = 3
+)
+title("抑郁症治疗网络图")
+
+# 2. 森林图
+forest(nma_depression,
+    reference.group = "Placebo",
+    sortvar = TE,
+    digits = 2
+)
+
+# 3. 排序
+rank_depression <- netrank(nma_depression, small.values = "bad")
+print(rank_depression)
+```
+
+### 8.4 一致性检验
+
+```{r}
+# 设计分解
+decomp_depression <- decomp.design(nma_depression)
+
+# 节点分割
+split_depression <- netsplit(nma_depression)
+```
+
+---
+
+## 9. 报告与图表导出
+
+### 9.1 结果表格
+
+```{r}
+# 生成可发表的结果表格
+results_table <- data.frame(
+    Treatment = names(netrank(nma_result)$Pscore.random),
+    `P-score` = round(netrank(nma_result)$Pscore.random, 3),
+    `Rank` = rank(-netrank(nma_result)$Pscore.random)
+) %>%
+    arrange(Rank)
+
+knitr::kable(results_table,
+    caption = "干预措施效果排序",
+    row.names = FALSE
+)
+```
+
+### 9.2 导出高质量图表
+
+```{r eval=FALSE}
+# 导出网络图
+pdf("network_graph.pdf", width = 8, height = 8)
+netgraph(nma_result, plastic = TRUE, thickness = "number.of.studies")
+dev.off()
+
+# 导出森林图
+pdf("forest_plot.pdf", width = 10, height = 12)
+forest(nma_result, reference.group = "plac")
+dev.off()
+```
+
+---
+
+## 10. 高级主题
+
+### 10.1 贝叶斯 NMA (gemtc)
+
+```{r eval=FALSE}
+# 贝叶斯方法使用 gemtc 包
+# install.packages("gemtc")
+library(gemtc)
+
+# 需要 JAGS 软件
+# 提供更灵活的建模和完整的后验分布
+```
+
+### 10.2 多成分干预 NMA
+
+```{r eval=FALSE}
+# 对于组合干预（如 A+B vs A vs B）
+# 使用 netmeta 的多成分分析功能
+# nma_additive <- netmeta(..., , additive = TRUE)
+```
+
+### 10.3 质量评估 CINeMA
+
+```{r}
+# 使用 CINeMA 框架评估 NMA 证据质量
+# 考虑：研究内偏倚、报告偏倚、间接性、不精确性、异质性、不一致性
+
+quality_table <- data.frame(
+    Domain = c(
+        "Within-study bias", "Reporting bias", "Indirectness",
+        "Imprecision", "Heterogeneity", "Incoherence"
+    ),
+    Assessment = c(
+        "Some concerns", "Low", "Low",
+        "Some concerns", "Low", "Low"
+    ),
+    Notes = c(
+        "部分研究质量中等", "漏斗图对称",
+        "人群和干预相似", "样本量有限",
+        "I²中等", "一致性检验不显著"
+    )
+)
+
+knitr::kable(quality_table, caption = "CINeMA 证据质量评估")
+```
+
+---
+
+## 注意事项与建议
+
+> [!WARNING]
+> **NMA 的关键假设检验**：
+> 1. 一致性假设必须通过检验验证
+> 2. 网络必须是连通的（所有干预需相连）
+> 3. 研究间异质性需要控制在合理范围
+
+> [!TIP]
+> **实践建议**：
+> - 先绘制网络图，了解证据结构
+> - 使用随机效应模型处理异质性
+> - 同时报告 P-score 和 95% CI
+> - 进行敏感性分析验证结果稳健性
+
+---
+
+## 参考文献
+
+1. Rücker, G., & Schwarzer, G. (2015). Ranking treatments in frequentist network meta-analysis works without resampling methods. *BMC Medical Research Methodology*, 15(1), 58.
+
+2. Salanti, G. (2012). Indirect and mixed-treatment comparison, network, or multiple-treatments meta-analysis: many names, many benefits, many concerns for the next generation evidence synthesis tool. *Research Synthesis Methods*, 3(2), 80-97.
+
+3. Chaimani, A., et al. (2013). Graphical tools for network meta-analysis in STATA. *PLoS ONE*, 8(10), e76654.
+
+4. Nikolakopoulou, A., et al. (2020). CINeMA: An approach for assessing confidence in the results of a network meta-analysis. *PLoS Medicine*, 17(4), e1003082.

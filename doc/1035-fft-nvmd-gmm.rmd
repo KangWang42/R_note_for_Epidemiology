@@ -1,9 +1,9 @@
 ---
-title: "组合算法: FFT + VMD + GMM"
+title: "组合算法: FFT + VMD + GMM 信号分析完全指南"
 date: "2026-01-13"
 categories: [R包, 信号处理, 机器学习, 聚类]
 image: "images/1035_cover.svg"
-description: "信号处理与模式识别的通用框架：利用 FFT 确定分解参数，VMD 提取特征，GMM 实现自动分类。"
+description: "信号处理与模式识别的通用框架：利用 FFT 确定分解参数，VMD 提取特征，GMM 实现自动分类。从数学原理到完整代码实现。"
 ---
 
 ```{r setup, include=FALSE}
@@ -11,228 +11,763 @@ knitr::opts_chunk$set(
     echo = TRUE,
     warning = FALSE,
     message = FALSE,
-    fig.width = 8,
-    fig.height = 6,
-    dpi = 150
+    fig.width = 10,
+    fig.height = 7,
+    dpi = 300
 )
 ```
 
-## 简介
+## 前言
 
-在复杂数据分析中，单一算法往往难以奏效。本文介绍一种经典的组合分析思路：
+在复杂信号分析中，单一算法往往难以奏效。本文介绍一种经典的**组合分析框架**：
 
-1.  **FFT (快速傅里叶变换)**: 将信号从时域转换到频域，识别主要频率成分。
-2.  **VMD (变分模态分解)**: 根据频域信息设定 K 值，将非平稳信号分解为若干平稳的 IMF 分量。
-3.  **GMM (高斯混合模型)**: 对分解出的模态特征或原始数据进行聚类，识别潜在的状态或模式。
-
-### 为什么要组合这三种方法？
-
-```mermaid
-graph LR
-    A[原始信号] --> B[FFT]
-    B --> C{确定K值}
-    C --> D[VMD分解]
-    D --> E[特征提取]
-    E --> F[GMM聚类]
-    F --> G[状态识别]
+```
+原始信号 → FFT分析 → 确定K值 → VMD分解 → 特征提取 → GMM聚类 → 状态识别
 ```
 
-| 步骤 | 算法 | 输入 | 输出 |
-|------|------|------|------|
-| 1 | FFT | 时域信号 | 频谱 → K值选择 |
-| 2 | VMD | 信号 + K | IMF分量 |
-| 3 | 特征提取 | IMF | 能量/熵/峭度等 |
-| 4 | GMM | 特征向量 | 类别标签 |
+这个框架将**频域分析、信号分解、机器学习**三大技术有机结合，可应用于故障诊断、生物医学信号分析、金融状态识别等众多领域。
 
-### 应用场景
+---
 
--   **故障诊断**：设备振动信号分析，识别正常/故障状态
--   **生物医学**：心电/脑电信号分段，识别不同生理状态
--   **金融分析**：市场状态识别（牛市/熊市/震荡）
--   **语音处理**：音频事件检测与分类
+## 1. 傅里叶变换 (FFT) 基础
 
-## 1. 信号生成与 FFT 分析
+### 1.1 什么是傅里叶变换？
 
-首先，我们生成一个非平稳信号，并使用 FFT 确定其主要频率成分，这有助于为 VMD 选择合适的模态数 K。
+**傅里叶变换**是将时域信号转换到频域的数学工具。其核心思想是：
+
+> **任何周期信号都可以表示为不同频率正弦波的叠加**
+
+对于连续信号 $f(t)$，傅里叶变换定义为：
+
+$$F(\omega) = \int_{-\infty}^{\infty} f(t) e^{-j\omega t} dt$$
+
+对于离散信号（计算机中），我们使用**离散傅里叶变换 (DFT)**：
+
+$$X[k] = \sum_{n=0}^{N-1} x[n] \cdot e^{-j2\pi kn/N}$$
+
+**快速傅里叶变换 (FFT)** 是 DFT 的高效算法实现，将计算复杂度从 $O(N^2)$ 降到 $O(N \log N)$。
+
+### 1.2 频谱的意义
+
+| 概念 | 说明 | 计算方法 |
+|------|------|----------|
+| **幅度谱** | 各频率成分的强度 | $|X[k]|$ |
+| **相位谱** | 各频率成分的相位 | $\arg(X[k])$ |
+| **功率谱** | 能量在频率上的分布 | $|X[k]|^2$ |
+| **功率谱密度 (PSD)** | 单位频率的功率 | $|X[k]|^2 / N$ |
+
+### 1.3 R 语言 FFT 实现
 
 ```{r}
-# 1.1 生成信号
-fs <- 1000
-t <- seq(0, 2, 1 / fs)
-# 信号在 t=1s 处发生频率变化
-sig <- c(sin(2 * pi * 10 * t[t <= 1]), sin(2 * pi * 50 * t[t > 1])) + rnorm(length(t), 0, 0.2)
-plot(t, sig, type = "l", main = "非平稳信号")
-
-# 1.2 FFT 分析
-sig_fft <- fft(sig)
-P2 <- abs(sig_fft / length(sig))
-P1 <- P2[1:(length(sig) / 2 + 1)]
-P1[2:length(P1) - 1] <- 2 * P1[2:length(P1) - 1]
-f <- fs * (0:(length(sig) / 2)) / length(sig)
-
-# 绘制频谱图
-plot(f, P1, type = "l", xlim = c(0, 100), main = "单边频谱图 (FFT)", xlab = "f (Hz)", ylab = "|P1(f)|")
-```
-
-从频谱图中，我们可以清晰地看到主要频率峰值，从而确定 VMD 的分解层数 K（例如看到两个峰，则 K=2）。
-
-### FFT 结果解读
-
-> [!TIP]
-> **如何从 FFT 确定 K 值**：
-> 1. 识别频谱中的显著峰值
-> 2. 峰值数量 = 信号中的主要频率成分数
-> 3. K ≥ 峰值数量（可以多加1-2个模态用于捕获噪声）
-
-## 2. VMD 分解
-
-利用上一步确定的 K 值进行 VMD 分解。
-
-```{r error=TRUE}
-# library(VMDecomp) # 假设已安装
-# res <- vmd(sig, alpha=2000, tau=0, K=2, DC=FALSE, init=1, tol=1e-6)
-# imfs <- res$u
-
-# 模拟分解结果
-imf1 <- c(sin(2 * pi * 10 * t[t <= 1]), rep(0, sum(t > 1))) # 模拟低频部分
-imf2 <- c(rep(0, sum(t <= 1)), sin(2 * pi * 50 * t[t > 1])) # 模拟高频部分
-imfs <- data.frame(IMF1 = imf1, IMF2 = imf2)
-
-par(mfrow = c(2, 1))
-plot(t, imf1, type = "l", main = "IMF 1 (低频成分)")
-plot(t, imf2, type = "l", main = "IMF 2 (高频成分)")
-```
-
-> [!NOTE]
-> 在实际应用中，VMD 能够自动将非平稳信号分解为多个相对平稳的模态分量（IMF），每个 IMF 围绕一个中心频率振荡。
-
-## 3. 特征提取
-
-分解后，我们通常提取 IMF 的统计特征输入到机器学习模型中。
-
-### 常用特征
-
-| 特征类型 | 特征名称 | 计算方法 | 物理意义 |
-|----------|----------|----------|----------|
-| **时域** | 能量 | $\sum x_i^2$ | 信号强度 |
-| **时域** | 峭度 | 四阶矩/方差² | 尖锐程度 |
-| **时域** | 偏度 | 三阶矩/标准差³ | 对称性 |
-| **频域** | 谱熵 | $-\sum p \log p$ | 频率分布复杂度 |
-| **频域** | 主频 | argmax(FFT) | 主要振动频率 |
-
-```{r}
-# 特征提取示例
-extract_features <- function(signal, window_size = 100) {
-    n_windows <- floor(length(signal) / window_size)
-    features <- data.frame(
-        energy = numeric(n_windows),
-        kurtosis = numeric(n_windows),
-        skewness = numeric(n_windows)
-    )
-
-    for (i in 1:n_windows) {
-        idx <- ((i - 1) * window_size + 1):(i * window_size)
-        seg <- signal[idx]
-        features$energy[i] <- sum(seg^2)
-        features$kurtosis[i] <- mean((seg - mean(seg))^4) / sd(seg)^4
-        features$skewness[i] <- mean((seg - mean(seg))^3) / sd(seg)^3
-    }
-    return(features)
-}
-
-# 提取 IMF1 的特征
-features_imf1 <- extract_features(imf1)
-head(features_imf1)
-```
-
-## 4. GMM 聚类
-
-使用 **GMM (高斯混合模型)** 对提取的特征进行聚类。
-
-`mclust` 是 R 中用于 GMM 聚类的优秀包。
-
-```{r eval=FALSE}
-install.packages("mclust")
-```
-
-```{r}
-library(mclust)
-
-# 4.1 构造特征矩阵 (这里简单使用滑动窗口提取 IMF1 的能量特征)
-window_size <- 100
-n_windows <- floor(length(t) / window_size)
-features <- numeric(n_windows)
-
-for (i in 1:n_windows) {
-    idx <- ((i - 1) * window_size + 1):(i * window_size)
-    features[i] <- sum(imf1[idx]^2) # 计算能量
-}
-
-feature_df <- data.frame(Energy = features)
-
-# 4.2 GMM 聚类
-# Mclust 自动选择最佳的组数 (G) 和模型类型
-fit_gmm <- Mclust(feature_df)
-
-summary(fit_gmm)
-
-# 4.3 结果可视化
-plot(fit_gmm, what = "classification")
-title("GMM Clustering on IMF Features")
-```
-
-图中展示了基于 IMF 能量特征的聚类结果，不同的颜色代表识别出的不同状态（例如"低频活跃期"和"静默期"）。
-
-### GMM 的优势
-
-| 特性 | 说明 |
-|------|------|
-| **软聚类** | 每个点有属于各类别的概率 |
-| **自动选择K** | BIC准则自动确定最佳类别数 |
-| **灵活建模** | 不同类别可有不同协方差结构 |
-
-## 5. 完整流程示例
-
-```{r eval=FALSE}
-# 完整的 FFT -> VMD -> GMM 流程
+library(ggplot2)
+library(dplyr)
+library(tidyr)
 library(VMDecomp)
 library(mclust)
 
-# Step 1: FFT 分析确定 K
-fft_result <- fft(signal)
-# ... 分析频谱，确定 K=3
+# 设置基本参数
+fs <- 1000 # 采样频率 (Hz)
+t <- seq(0, 2, 1 / fs) # 2秒时长
 
-# Step 2: VMD 分解
-vmd_result <- vmd(signal, alpha = 2000, K = 3)
-imfs <- vmd_result$u
+# 生成测试信号：非平稳信号（频率在 t=1s 处变化）
+set.seed(123)
+sig <- c(
+    sin(2 * pi * 10 * t[t <= 1]) + 0.5 * sin(2 * pi * 30 * t[t <= 1]), # 前半段: 10Hz + 30Hz
+    sin(2 * pi * 50 * t[t > 1]) + 0.3 * sin(2 * pi * 80 * t[t > 1]) # 后半段: 50Hz + 80Hz
+) + rnorm(length(t), 0, 0.2) # 添加噪声
 
-# Step 3: 特征提取
-features <- data.frame(
-    energy_imf1 = window_energy(imfs[, 1]),
-    energy_imf2 = window_energy(imfs[, 2]),
-    energy_imf3 = window_energy(imfs[, 3])
+# 绘制时域信号
+plot(t, sig,
+    type = "l", col = "gray40",
+    main = "非平稳信号（频率随时间变化）",
+    xlab = "Time (s)", ylab = "Amplitude"
 )
-
-# Step 4: GMM 聚类
-gmm_fit <- Mclust(features)
-states <- gmm_fit$classification
-
-# Step 5: 结果可视化
-plot(states, type = "l", main = "识别的系统状态")
+abline(v = 1, col = "red", lty = 2)
+text(0.5, max(sig) * 0.8, "10Hz + 30Hz", col = "blue")
+text(1.5, max(sig) * 0.8, "50Hz + 80Hz", col = "blue")
 ```
 
-## 总结
+### 1.4 频谱分析函数
 
-这种 **FFT -> VMD -> Feature Extraction -> GMM** 的流程是一个非常通用的信号处理与模式识别框架：
-1.  **FFT** 提供先验知识，指导参数选择。
-2.  **VMD** 进行降噪和成分分离，提取有意义的模态。
-3.  **特征工程** 将时序数据转换为可分析的特征向量。
-4.  **GMM** 实现自动化状态识别，提供概率性分类结果。
+```{r}
+# 自定义单边频谱计算函数
+compute_spectrum <- function(signal, fs) {
+    N <- length(signal)
+    sig_fft <- fft(signal)
+
+    # 计算双边频谱
+    P2 <- abs(sig_fft / N)
+
+    # 转换为单边频谱
+    P1 <- P2[1:(N / 2 + 1)]
+    P1[2:(length(P1) - 1)] <- 2 * P1[2:(length(P1) - 1)]
+
+    # 频率轴
+    f <- fs * (0:(N / 2)) / N
+
+    return(data.frame(frequency = f, amplitude = P1))
+}
+
+# 计算并绘制频谱
+spectrum_df <- compute_spectrum(sig, fs)
+
+ggplot(spectrum_df, aes(x = frequency, y = amplitude)) +
+    geom_line(color = "#4e79a7", linewidth = 0.8) +
+    xlim(0, 100) +
+    labs(
+        title = "全局 FFT 频谱（信息混杂）",
+        subtitle = "无法区分前后时段的频率差异",
+        x = "Frequency (Hz)",
+        y = "Amplitude"
+    ) +
+    theme_minimal(base_size = 14) +
+    geom_vline(xintercept = c(10, 30, 50, 80), linetype = "dashed", color = "red", alpha = 0.6)
+```
+
+### 1.5 短时傅里叶变换 (STFT)
+
+对于非平稳信号，全局 FFT 会将所有时段的频率信息混合。**短时傅里叶变换 (STFT)** 通过滑动窗口解决这个问题：
+
+```{r}
+# 简易 STFT 实现
+compute_stft <- function(signal, fs, window_size = 256, hop_size = 128) {
+    N <- length(signal)
+    n_windows <- floor((N - window_size) / hop_size) + 1
+
+    # 存储结果
+    stft_matrix <- matrix(0, nrow = window_size / 2 + 1, ncol = n_windows)
+    time_points <- numeric(n_windows)
+
+    for (i in 1:n_windows) {
+        start_idx <- (i - 1) * hop_size + 1
+        end_idx <- start_idx + window_size - 1
+
+        window <- signal[start_idx:end_idx] * hann_window(window_size)
+        spectrum <- compute_spectrum(window, fs)
+        stft_matrix[, i] <- spectrum$amplitude
+        time_points[i] <- t[start_idx + window_size / 2]
+    }
+
+    freq_axis <- compute_spectrum(rep(0, window_size), fs)$frequency
+
+    return(list(
+        matrix = stft_matrix,
+        time = time_points,
+        freq = freq_axis
+    ))
+}
+
+# 汉宁窗函数
+hann_window <- function(N) {
+    0.5 * (1 - cos(2 * pi * (0:(N - 1)) / (N - 1)))
+}
+
+# 计算 STFT
+stft_result <- compute_stft(sig, fs, window_size = 256, hop_size = 64)
+
+# 绘制时频图 (Spectrogram)
+stft_df <- expand.grid(
+    Time = stft_result$time,
+    Frequency = stft_result$freq
+)
+stft_df$Amplitude <- as.vector(t(stft_result$matrix))
+
+ggplot(stft_df %>% filter(Frequency < 100), aes(x = Time, y = Frequency, fill = Amplitude)) +
+    geom_tile() +
+    scale_fill_viridis_c(option = "magma") +
+    labs(
+        title = "短时傅里叶变换 (STFT) 时频图",
+        subtitle = "可以看到 t=1s 处频率发生变化",
+        x = "Time (s)",
+        y = "Frequency (Hz)"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+> [!TIP]
+> **FFT 在 VMD 工作流中的作用**：
+> 1. 识别信号中有多少个明显的频率成分
+> 2. 据此确定 VMD 的模态数 K
+> 3. 验证 VMD 分解结果的正确性
+
+---
+
+## 2. VMD 分解
+
+### 2.1 为什么用 VMD 而不是直接用 FFT？
+
+| 问题 | FFT 的局限 | VMD 的解决方案 |
+|------|-----------|----------------|
+| 非平稳信号 | 假设信号平稳 | 自适应分解 |
+| 模态混叠 | 无法分离相近频率 | 带宽约束分离 |
+| 噪声敏感 | 噪声污染频谱 | 内置去噪 |
+| 时变特性 | 无法体现时间信息 | 保留时域结构 |
+
+### 2.2 使用 FFT 确定 K 值
+
+```{r}
+# 分段 FFT 分析以确定 K 值
+par(mfrow = c(1, 2))
+
+# 前半段频谱
+spectrum_first <- compute_spectrum(sig[1:(length(sig) / 2)], fs)
+plot(spectrum_first$frequency, spectrum_first$amplitude,
+    type = "l", xlim = c(0, 100),
+    main = "前半段频谱 (t < 1s)",
+    xlab = "Frequency (Hz)", ylab = "Amplitude"
+)
+
+# 后半段频谱
+spectrum_second <- compute_spectrum(sig[(length(sig) / 2 + 1):length(sig)], fs)
+plot(spectrum_second$frequency, spectrum_second$amplitude,
+    type = "l", xlim = c(0, 100),
+    main = "后半段频谱 (t > 1s)",
+    xlab = "Frequency (Hz)", ylab = "Amplitude"
+)
+```
+
+观察：
+- 前半段有 2 个峰值（10Hz, 30Hz）
+- 后半段有 2 个峰值（50Hz, 80Hz）
+- **全信号分解建议 K = 4**
+
+### 2.3 执行 VMD 分解
+
+```{r}
+# VMD 分解
+K <- 4
+alpha <- 2000
+vmd_result <- VMDecomp::vmd(sig, alpha = alpha, tau = 0, K = K, DC = FALSE, init = 1, tol = 1e-6)
+
+# 提取 IMF
+imfs <- vmd_result$u
+
+# 绘制各模态
+par(mfrow = c(K + 1, 1), mar = c(2, 4, 2, 1))
+
+plot(t, sig, type = "l", col = "gray", main = "原始信号", ylab = "Amp")
+
+colors <- c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3")
+for (i in 1:K) {
+    plot(t, imfs[, i],
+        type = "l", col = colors[i],
+        main = paste("IMF", i), ylab = "Amp"
+    )
+}
+```
+
+### 2.4 频谱验证
+
+```{r fig.height=8}
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+
+for (i in 1:K) {
+    imf_spectrum <- compute_spectrum(imfs[, i], fs)
+
+    plot(imf_spectrum$frequency, imf_spectrum$amplitude,
+        type = "l", xlim = c(0, 100), col = colors[i], lwd = 2,
+        main = paste("IMF", i, "频谱"),
+        xlab = "Frequency (Hz)", ylab = "Amplitude"
+    )
+
+    # 标注峰值
+    peak_idx <- which.max(imf_spectrum$amplitude[imf_spectrum$frequency < 100 & imf_spectrum$frequency > 3])
+    peak_freq <- imf_spectrum$frequency[imf_spectrum$frequency < 100 & imf_spectrum$frequency > 3][peak_idx]
+    abline(v = peak_freq, lty = 2, col = "red")
+    text(peak_freq + 5, max(imf_spectrum$amplitude) * 0.8, paste0(round(peak_freq, 1), " Hz"))
+}
+```
+
+---
+
+## 3. 特征提取
+
+### 3.1 为什么需要特征提取？
+
+机器学习模型需要**固定长度的特征向量**作为输入，而原始 IMF 是变长时间序列。特征提取将时序数据压缩为有意义的统计量。
+
+### 3.2 常用特征类型
+
+#### 时域特征
+
+| 特征 | 公式 | 物理意义 |
+|------|------|----------|
+| **能量** | $E = \sum x_i^2$ | 信号强度 |
+| **均值** | $\bar{x} = \frac{1}{N}\sum x_i$ | 直流分量 |
+| **标准差** | $\sigma = \sqrt{\frac{1}{N}\sum(x_i-\bar{x})^2}$ | 波动幅度 |
+| **峰度** | $Kurt = \frac{E[(x-\mu)^4]}{\sigma^4}$ | 尖锐程度 |
+| **偏度** | $Skew = \frac{E[(x-\mu)^3]}{\sigma^3}$ | 对称性 |
+| **峰值因子** | $CF = \frac{\max|x|}{RMS}$ | 冲击程度 |
+| **波形因子** | $SF = \frac{RMS}{\bar{|x|}}$ | 波形特征 |
+
+#### 频域特征
+
+| 特征 | 计算方法 | 物理意义 |
+|------|----------|----------|
+| **主频** | $f_{peak} = \arg\max(FFT)$ | 主要振动频率 |
+| **均值频率** | $\bar{f} = \frac{\sum f \cdot P(f)}{\sum P(f)}$ | 频率加权中心 |
+| **谱熵** | $H = -\sum p \log p$ | 频率分布复杂度 |
+| **频带能量比** | 各频段能量占比 | 能量分布 |
+
+### 3.3 特征提取实现
+
+```{r}
+# 综合特征提取函数
+extract_features <- function(signal, fs = 1000) {
+    N <- length(signal)
+
+    # ====== 时域特征 ======
+    energy <- sum(signal^2)
+    mean_val <- mean(signal)
+    std_val <- sd(signal)
+    rms <- sqrt(mean(signal^2))
+
+    # 峰度 (excess kurtosis)
+    kurtosis <- mean((signal - mean_val)^4) / std_val^4 - 3
+
+    # 偏度
+    skewness <- mean((signal - mean_val)^3) / std_val^3
+
+    # 峰值因子
+    crest_factor <- max(abs(signal)) / rms
+
+    # 波形因子
+    shape_factor <- rms / mean(abs(signal))
+
+    # ====== 频域特征 ======
+    spectrum <- compute_spectrum(signal, fs)
+    freq <- spectrum$frequency
+    amp <- spectrum$amplitude
+
+    # 归一化为概率分布
+    p <- amp^2 / sum(amp^2)
+
+    # 主频
+    peak_freq <- freq[which.max(amp)]
+
+    # 均值频率
+    mean_freq <- sum(freq * p)
+
+    # 谱熵
+    p_nonzero <- p[p > 0]
+    spectral_entropy <- -sum(p_nonzero * log(p_nonzero))
+
+    return(c(
+        energy = energy,
+        mean = mean_val,
+        std = std_val,
+        rms = rms,
+        kurtosis = kurtosis,
+        skewness = skewness,
+        crest_factor = crest_factor,
+        shape_factor = shape_factor,
+        peak_freq = peak_freq,
+        mean_freq = mean_freq,
+        spectral_entropy = spectral_entropy
+    ))
+}
+
+# 测试
+test_features <- extract_features(imfs[, 1], fs)
+print(round(test_features, 4))
+```
+
+### 3.4 滑动窗口特征提取
+
+对于状态识别任务，我们需要对信号进行分窗处理：
+
+```{r}
+# 滑动窗口特征提取
+extract_windowed_features <- function(signal, fs, window_size = 200, hop_size = 100) {
+    N <- length(signal)
+    n_windows <- floor((N - window_size) / hop_size) + 1
+
+    # 创建结果矩阵
+    feature_names <- names(extract_features(rep(0, window_size), fs))
+    features_matrix <- matrix(0, nrow = n_windows, ncol = length(feature_names))
+    colnames(features_matrix) <- feature_names
+
+    for (i in 1:n_windows) {
+        start_idx <- (i - 1) * hop_size + 1
+        end_idx <- start_idx + window_size - 1
+
+        window <- signal[start_idx:end_idx]
+        features_matrix[i, ] <- extract_features(window, fs)
+    }
+
+    return(as.data.frame(features_matrix))
+}
+
+# 对各 IMF 提取特征
+window_size <- 200
+hop_size <- 50
+
+# 合并所有 IMF 的特征
+all_features <- data.frame()
+
+for (k in 1:K) {
+    imf_features <- extract_windowed_features(imfs[, k], fs, window_size, hop_size)
+    colnames(imf_features) <- paste0("IMF", k, "_", colnames(imf_features))
+
+    if (nrow(all_features) == 0) {
+        all_features <- imf_features
+    } else {
+        all_features <- cbind(all_features, imf_features)
+    }
+}
+
+# 添加时间标记
+all_features$time_center <- seq(window_size / 2, length(sig) - window_size / 2, by = hop_size)[1:nrow(all_features)] / fs
+
+cat("特征矩阵维度:", nrow(all_features), "窗口 ×", ncol(all_features), "特征\n")
+head(all_features[, 1:8])
+```
+
+---
+
+## 4. GMM 高斯混合模型聚类
+
+### 4.1 GMM 原理
+
+**高斯混合模型 (Gaussian Mixture Model)** 假设数据由 $G$ 个高斯分布混合生成：
+
+$$p(x) = \sum_{g=1}^{G} \pi_g \cdot \mathcal{N}(x | \mu_g, \Sigma_g)$$
+
+其中：
+- $\pi_g$：第 $g$ 个成分的混合权重
+- $\mu_g$：第 $g$ 个成分的均值向量
+- $\Sigma_g$：第 $g$ 个成分的协方差矩阵
+
+### 4.2 GMM vs K-means
+
+| 特性 | GMM | K-means |
+|------|-----|---------|
+| **聚类方式** | 软聚类（概率） | 硬聚类（确定） |
+| **簇形状** | 椭球形（灵活） | 球形 |
+| **输出** | 类别概率 | 类别标签 |
+| **模型选择** | BIC/AIC 自动 | 需手动指定 K |
+| **协方差** | 多种类型可选 | 无 |
+
+### 4.3 mclust 包使用
+
+```{r}
+# 选择关键特征进行聚类（避免维度过高）
+key_features <- all_features %>%
+    select(
+        IMF1_energy, IMF2_energy, IMF3_energy, IMF4_energy,
+        IMF1_peak_freq, IMF2_peak_freq, IMF3_peak_freq, IMF4_peak_freq
+    )
+
+# 数据标准化
+key_features_scaled <- scale(key_features)
+
+# GMM 聚类
+# Mclust 会自动尝试不同的 G 值和协方差类型
+gmm_fit <- Mclust(key_features_scaled)
+
+# 模型摘要
+summary(gmm_fit)
+```
+
+### 4.4 模型选择（BIC 准则）
+
+```{r}
+# 绘制 BIC 曲线
+plot(gmm_fit, what = "BIC")
+title("BIC 模型选择曲线")
+```
+
+> [!NOTE]
+> **BIC (贝叶斯信息准则)**：值越大表示模型越好。mclust 会自动在不同的成分数 G 和协方差结构中选择最优模型。
+
+### 4.5 聚类结果可视化
+
+```{r fig.height=8}
+# 添加聚类标签
+all_features$cluster <- gmm_fit$classification
+
+# 时间-状态图
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+
+# 原始信号着色
+plot(t, sig,
+    type = "l", col = "gray",
+    main = "原始信号与识别的状态", xlab = "Time (s)", ylab = "Amplitude"
+)
+
+# 状态序列
+plot(all_features$time_center, all_features$cluster,
+    type = "s", col = all_features$cluster, lwd = 2,
+    main = "识别的状态序列", xlab = "Time (s)", ylab = "State",
+    ylim = c(0.5, max(all_features$cluster) + 0.5)
+)
+points(all_features$time_center, all_features$cluster,
+    col = all_features$cluster, pch = 19, cex = 0.8
+)
+abline(v = 1, lty = 2, col = "red")
+text(1, max(all_features$cluster) + 0.3, "频率切换点", col = "red")
+```
+
+### 4.6 聚类概率可视化
+
+```{r}
+# 获取各类别的概率
+cluster_probs <- gmm_fit$z
+colnames(cluster_probs) <- paste0("State_", 1:ncol(cluster_probs))
+
+# 转换为长格式
+probs_df <- as.data.frame(cluster_probs)
+probs_df$time <- all_features$time_center
+probs_long <- pivot_longer(probs_df,
+    cols = starts_with("State"),
+    names_to = "State", values_to = "Probability"
+)
+
+# 绘制概率热图
+ggplot(probs_long, aes(x = time, y = State, fill = Probability)) +
+    geom_tile() +
+    scale_fill_viridis_c(option = "plasma") +
+    labs(
+        title = "各时刻属于不同状态的概率",
+        subtitle = "GMM 软聚类结果",
+        x = "Time (s)",
+        y = "State"
+    ) +
+    theme_minimal(base_size = 14) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "white", linewidth = 1)
+```
+
+### 4.7 特征空间可视化
+
+```{r}
+# 使用 PCA 降维可视化
+pca_result <- prcomp(key_features_scaled)
+
+# 准备绑图数据
+pca_df <- data.frame(
+    PC1 = pca_result$x[, 1],
+    PC2 = pca_result$x[, 2],
+    Cluster = factor(all_features$cluster),
+    Time = all_features$time_center
+)
+
+# 绑图
+ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
+    geom_point(aes(size = Time), alpha = 0.7) +
+    scale_color_brewer(palette = "Set1") +
+    labs(
+        title = "特征空间聚类结果 (PCA 降维)",
+        subtitle = "点大小表示时间，颜色表示聚类",
+        x = paste0("PC1 (", round(summary(pca_result)$importance[2, 1] * 100, 1), "%)"),
+        y = paste0("PC2 (", round(summary(pca_result)$importance[2, 2] * 100, 1), "%)")
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+---
+
+## 5. 完整流程封装
+
+### 5.1 端到端分析函数
+
+```{r}
+# 封装完整的 FFT-VMD-GMM 流程
+analyze_signal <- function(signal, fs, K = NULL, alpha = 2000, window_size = 200, hop_size = 50) {
+    # Step 1: 如果 K 未指定，使用 FFT 估计
+    if (is.null(K)) {
+        spectrum <- compute_spectrum(signal, fs)
+        # 简单的峰值检测
+        threshold <- max(spectrum$amplitude) * 0.1
+        peaks <- which(
+            spectrum$amplitude > threshold &
+                spectrum$frequency > 5 &
+                spectrum$frequency < fs / 2 - 10
+        )
+        K <- min(length(peaks), 6) # 最多 6 个模态
+        K <- max(K, 2) # 最少 2 个模态
+        cat("FFT 估计 K =", K, "\n")
+    }
+
+    # Step 2: VMD 分解
+    vmd_result <- VMDecomp::vmd(signal,
+        alpha = alpha, tau = 0, K = K,
+        DC = FALSE, init = 1, tol = 1e-6
+    )
+    imfs <- vmd_result$u
+
+    # Step 3: 特征提取
+    all_features <- data.frame()
+    for (k in 1:K) {
+        imf_features <- extract_windowed_features(imfs[, k], fs, window_size, hop_size)
+        colnames(imf_features) <- paste0("IMF", k, "_", colnames(imf_features))
+
+        if (nrow(all_features) == 0) {
+            all_features <- imf_features
+        } else {
+            all_features <- cbind(all_features, imf_features)
+        }
+    }
+
+    # Step 4: GMM 聚类
+    # 选择能量和主频特征
+    energy_cols <- grep("energy", colnames(all_features), value = TRUE)
+    freq_cols <- grep("peak_freq", colnames(all_features), value = TRUE)
+    key_features <- all_features[, c(energy_cols, freq_cols)]
+
+    key_features_scaled <- scale(key_features)
+    gmm_fit <- Mclust(key_features_scaled, G = 1:5)
+
+    # 返回结果
+    return(list(
+        imfs = imfs,
+        features = all_features,
+        gmm = gmm_fit,
+        clusters = gmm_fit$classification,
+        K = K
+    ))
+}
+```
+
+### 5.2 应用示例
+
+```{r}
+# 分析我们的测试信号
+result <- analyze_signal(sig, fs, K = 4, window_size = 200, hop_size = 50)
+
+cat("分解模态数:", result$K, "\n")
+cat("识别状态数:", result$gmm$G, "\n")
+cat("各状态样本数:", table(result$clusters), "\n")
+```
+
+---
+
+## 6. 实际应用案例
+
+### 6.1 应用场景一览
+
+| 领域 | 信号来源 | FFT 作用 | VMD 作用 | GMM 作用 |
+|------|----------|----------|----------|----------|
+| **机械故障诊断** | 振动传感器 | 识别特征频率 | 分离故障模态 | 故障类型分类 |
+| **心电分析** | ECG 电极 | 频带分析 | 分离心率成分 | 心律异常分类 |
+| **脑电分析** | EEG 电极 | 识别脑波节律 | 分离 α/β/θ/δ 波 | 睡眠分期 |
+| **金融分析** | 股价序列 | 识别周期 | 趋势分离 | 市场状态识别 |
+| **语音处理** | 麦克风 | 频谱分析 | 共振峰分离 | 语音分类 |
+
+### 6.2 故障诊断示例框架
+
+```{r eval=FALSE}
+# 机械故障诊断框架（概念代码）
+
+# 1. 数据采集
+vibration_data <- read_sensor_data("bearing_vibration.csv")
+
+# 2. 预处理
+signal <- vibration_data$amplitude
+fs <- 12800 # 典型振动采样率
+
+# 3. FFT 分析识别特征频率
+#    - 滚动体通过频率 (BPFO)
+#    - 内圈通过频率 (BPFI)
+#    - 保持架频率 (FTF)
+
+# 4. VMD 分解
+result <- analyze_signal(signal, fs, K = 5)
+
+# 5. GMM 聚类识别故障模式
+#    - 正常运行
+#    - 早期故障
+#    - 发展期故障
+#    - 严重故障
+
+# 6. 输出诊断结果
+diagnosis <- classify_fault_state(result$clusters)
+```
+
+---
+
+## 7. 进阶技巧
+
+### 7.1 自动 K 值选择
+
+```{r}
+# 基于残差能量的 K 值自动选择
+auto_select_K <- function(signal, alpha = 2000, K_max = 8) {
+    residual_energy <- numeric(K_max)
+
+    for (K in 2:K_max) {
+        vmd_result <- VMDecomp::vmd(signal,
+            alpha = alpha, tau = 0, K = K,
+            DC = FALSE, init = 1, tol = 1e-6
+        )
+        reconstructed <- rowSums(vmd_result$u)
+        residual_energy[K] <- sum((signal - reconstructed)^2) / sum(signal^2)
+    }
+
+    # 找到拐点（残差变化率小于阈值）
+    energy_diff <- -diff(residual_energy[2:K_max])
+    optimal_K <- which(energy_diff < 0.01)[1] + 1
+    if (is.na(optimal_K)) optimal_K <- which.min(residual_energy[2:K_max]) + 1
+
+    return(list(
+        optimal_K = optimal_K,
+        residual_energy = residual_energy
+    ))
+}
+```
+
+### 7.2 特征重要性分析
+
+```{r}
+# 使用随机森林评估特征重要性
+# library(randomForest)
+
+# 创建监督学习场景（如果有标签）
+# rf_model <- randomForest(cluster ~ ., data = all_features)
+# importance(rf_model)
+```
 
 > [!IMPORTANT]
-> 该框架可扩展：可用其他分解方法（EMD, EEMD）替代 VMD，或用其他聚类方法（K-means, DBSCAN）替代 GMM。
+> **流程优化建议**：
+> 1. 先用少量样本调试参数
+> 2. 特征标准化非常重要
+> 3. 考虑使用交叉验证评估聚类稳定性
+> 4. 对于时序数据，注意保持时间顺序
+
+---
+
+## 8. 总结
+
+**FFT → VMD → Feature Engineering → GMM** 是一个通用且强大的信号分析框架：
+
+```mermaid
+flowchart LR
+    A[信号] --> B[FFT]
+    B -->|确定 K| C[VMD]
+    C -->|IMFs| D[特征提取]
+    D -->|特征向量| E[GMM]
+    E -->|概率聚类| F[状态识别]
+```
+
+**各步骤价值**：
+1. **FFT**：提供先验知识，指导参数选择
+2. **VMD**：降噪与成分分离，提取有意义的模态
+3. **特征工程**：将时序数据转换为可分析的特征向量
+4. **GMM**：实现自动化状态识别，提供概率性分类结果
+
+> [!TIP]
+> **框架扩展性**：
+> - 可用 EMD/EEMD/CEEMDAN 替代 VMD
+> - 可用 K-means/DBSCAN/谱聚类替代 GMM
+> - 可加入监督学习（SVM、神经网络）进行分类
+
+---
 
 ## 参考文献
 
--   Dragomiretskiy, K., & Zosso, D. (2014). Variational Mode Decomposition. *IEEE Transactions on Signal Processing*.
--   Fraley, C., & Raftery, A. E. (2002). Model-based clustering, discriminant analysis, and density estimation. *JASA*.
+1. Dragomiretskiy, K., & Zosso, D. (2014). Variational Mode Decomposition. *IEEE Transactions on Signal Processing*, 62(3), 531-544.
+
+2. Fraley, C., & Raftery, A. E. (2002). Model-based clustering, discriminant analysis, and density estimation. *JASA*, 97(458), 611-631.
+
+3. Cooley, J. W., & Tukey, J. W. (1965). An algorithm for the machine calculation of complex Fourier series. *Mathematics of computation*, 19(90), 297-301.
+
+4. Scrucca, L., et al. (2016). mclust 5: Clustering, Classification and Density Estimation Using Gaussian Finite Mixture Models. *The R Journal*, 8(1), 289-317.

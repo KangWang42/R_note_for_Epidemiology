@@ -1,0 +1,731 @@
+---
+title: "future 包并行计算完全指南"
+date: "2026-01-13"
+categories: [R包, 并行计算, 性能优化]
+image: "images/1014_cover.svg"
+description: "R 语言现代并行计算框架：future 包设计理念、各种执行策略详解、furrr 整合与实战案例。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 6,
+    dpi = 300
+)
+```
+
+## 前言
+
+在数据科学工作中，我们经常遇到需要大量计算的任务：
+
+- 批量处理数千个文件
+- 蒙特卡洛模拟数百万次
+- 大规模机器学习交叉验证
+- 多模型参数调优
+
+**future** 包提供了 R 语言中最优雅、最现代的并行计算解决方案。它的核心理念是：
+
+> **"Write once, run anywhere"** — 代码编写一次，可在任何执行环境运行
+
+本教程将全面介绍 future 生态系统，帮助你大幅提升计算效率。
+
+---
+
+## 1. 并行计算基础概念
+
+### 1.1 为什么需要并行？
+
+| 场景 | 串行执行 | 并行执行（4核） |
+|------|----------|----------------|
+| 1000次模拟 | 100秒 | ~25秒 |
+| 处理100个文件 | 50秒 | ~13秒 |
+| 10折交叉验证 | 60秒 | ~6秒 |
+
+### 1.2 并行的类型
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                     并行计算类型                          │
+├──────────────────────────────────────────────────────────┤
+│  多线程 (Multithreading)                                 │
+│  └─ 共享内存，适合 I/O 密集型任务                         │
+│                                                          │
+│  多进程 (Multiprocessing)                                │
+│  └─ 独立内存，适合 CPU 密集型任务（R 的主要方式）          │
+│                                                          │
+│  分布式计算 (Distributed)                                 │
+│  └─ 跨机器计算，适合超大规模任务                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 1.3 R 并行工具演进
+
+| 时期 | 工具 | 特点 |
+|------|------|------|
+| 早期 | `parallel::mclapply` | 仅 Unix/Mac |
+| 早期 | `parallel::parLapply` | 跨平台但繁琐 |
+| 现代 | `foreach + doParallel` | 通用但语法复杂 |
+| **当前推荐** | **`future`** | 统一接口，简洁优雅 |
+
+---
+
+## 2. future 包入门
+
+### 2.1 安装与加载
+
+```{r}
+# 安装（如未安装）
+# install.packages("future")
+# install.packages("future.apply")  # apply 家族并行版
+# install.packages("furrr")          # purrr 并行版
+
+library(future)
+library(future.apply)
+library(furrr)
+library(dplyr) # 数据处理
+library(tictoc) # 计时
+```
+
+### 2.2 核心概念：Future 对象
+
+**Future** 是一个"承诺"——承诺在未来某个时刻返回结果。
+
+```{r}
+# 创建一个 future
+f <- future({
+    Sys.sleep(2) # 模拟耗时操作
+    42
+})
+
+# future 是非阻塞的（立即返回）
+print("Future 已创建，还未执行完")
+
+# 获取结果（会阻塞直到完成）
+result <- value(f)
+print(paste("结果:", result))
+```
+
+### 2.3 显式 vs 隐式 Future
+
+```{r}
+# 定义一个模拟耗时的函数
+slow_function <- function() {
+    Sys.sleep(0.5)
+    return("完成!")
+}
+
+# 显式 future（手动创建）
+f <- future(slow_function())
+v <- value(f)
+print(paste("显式 Future 结果:", v))
+
+# 隐式 future（使用 %<-% 语法）
+v2 %<-% {
+    Sys.sleep(0.5)
+    100 * 2
+}
+
+# v2 在需要时自动获取值
+print(paste("隐式 Future 结果:", v2))
+```
+
+---
+
+## 3. 执行策略详解 (Plan)
+
+### 3.1 plan() 的作用
+
+`plan()` 决定 future 如何执行。**这是 future 包最强大的特性**：
+
+> 改变一行代码，即可切换串行/并行/分布式执行
+
+### 3.2 常用执行策略
+
+| 策略 | 说明 | 适用场景 |
+|------|------|----------|
+| `sequential` | 串行执行（默认） | 开发调试 |
+| `multisession` | 多进程（跨平台） | **最常用** |
+| `multicore` | 多进程（Unix/Mac） | 内存效率高 |
+| `cluster` | 分布式集群 | 多机器 |
+
+### 3.3 plan() 使用示例
+
+```{r}
+# 查看当前策略
+plan()
+
+# 设置为多进程（使用所有可用核心）
+plan(multisession, workers = availableCores())
+
+# 或指定核心数
+plan(multisession, workers = 4)
+
+# 恢复串行
+plan(sequential)
+```
+
+### 3.4 检测可用资源
+
+```{r}
+# 可用 CPU 核心数
+cat("可用核心:", availableCores(), "\n")
+
+# 可用内存
+cat("可用内存:", availableCores(methods = "system"), "\n")
+```
+
+---
+
+## 4. future.apply：并行 apply 函数
+
+### 4.1 函数对照表
+
+| 标准函数 | future.apply 版本 |
+|----------|-------------------|
+| `lapply()` | `future_lapply()` |
+| `sapply()` | `future_sapply()` |
+| `vapply()` | `future_vapply()` |
+| `mapply()` | `future_mapply()` |
+| `apply()` | `future_apply()` |
+| `by()` | `future_by()` |
+
+### 4.2 基础示例
+
+```{r}
+# 定义耗时函数
+slow_sqrt <- function(x) {
+    Sys.sleep(0.1) # 模拟计算
+    sqrt(x)
+}
+
+# 测试数据
+numbers <- 1:20
+
+# 串行执行
+plan(sequential)
+tic("串行")
+result_seq <- future_sapply(numbers, slow_sqrt)
+toc()
+
+# 并行执行
+plan(multisession, workers = 4)
+tic("并行（4核）")
+result_par <- future_sapply(numbers, slow_sqrt)
+toc()
+
+# 恢复串行
+plan(sequential)
+```
+
+### 4.3 实际案例：批量文件处理
+
+```{r eval=FALSE}
+library(readr)
+library(future.apply)
+
+# 设置并行
+plan(multisession, workers = 4)
+
+# 获取所有 CSV 文件
+csv_files <- list.files("data/", pattern = "\\.csv$", full.names = TRUE)
+
+# 并行读取并处理
+results <- future_lapply(csv_files, function(file) {
+    df <- read_csv(file, show_col_types = FALSE)
+
+    # 处理逻辑
+    df_processed <- df %>%
+        filter(!is.na(key_column)) %>%
+        mutate(processed = TRUE)
+
+    return(df_processed)
+}, future.seed = TRUE) # 确保可重复性
+
+# 合并结果
+final_data <- bind_rows(results)
+```
+
+---
+
+## 5. furrr：并行化的 purrr
+
+### 5.1 为什么用 furrr？
+
+如果你已经习惯了 `purrr` 的优雅语法，`furrr` 让你无缝切换到并行：
+
+| purrr 函数 | furrr 版本 |
+|------------|------------|
+| `map()` | `future_map()` |
+| `map_dfr()` | `future_map_dfr()` |
+| `map2()` | `future_map2()` |
+| `pmap()` | `future_pmap()` |
+| `walk()` | `future_walk()` |
+| `imap()` | `future_imap()` |
+
+### 5.2 基础示例
+
+```{r}
+library(purrr)
+library(furrr)
+
+# 设置并行
+plan(multisession, workers = 4)
+
+# purrr 语法完全保留
+results <- future_map(1:10, ~ {
+    Sys.sleep(0.1)
+    .x^2
+})
+
+# 返回 data.frame
+results_df <- future_map_dfr(1:5, ~ {
+    tibble(
+        input = .x,
+        square = .x^2,
+        sqrt = sqrt(.x)
+    )
+})
+
+print(results_df)
+
+# 恢复串行
+plan(sequential)
+```
+
+### 5.3 多参数并行：future_map2 / future_pmap
+
+```{r}
+plan(multisession, workers = 4)
+
+# 两个输入向量
+x <- 1:5
+y <- 6:10
+
+# 并行处理
+results <- future_map2(x, y, ~ {
+    Sys.sleep(0.1)
+    .x + .y
+})
+
+print(unlist(results))
+
+# 多参数
+params <- list(
+    a = 1:3,
+    b = 4:6,
+    c = 7:9
+)
+
+results <- future_pmap(params, function(a, b, c) {
+    a * b + c
+})
+
+print(unlist(results))
+
+plan(sequential)
+```
+
+### 5.4 保留输入名称
+
+```{r}
+plan(multisession, workers = 2)
+
+named_list <- list(
+    first = 10,
+    second = 20,
+    third = 30
+)
+
+# 使用 future_imap 保留名称
+results <- future_imap(named_list, ~ {
+    paste0(.y, ": ", .x * 2)
+})
+
+print(results)
+
+plan(sequential)
+```
+
+---
+
+## 6. 进度显示：progressr
+
+### 6.1 安装和配置
+
+```{r}
+# install.packages("progressr")
+library(progressr)
+
+# 配置进度处理器（文本进度条）
+# handlers("txtprogressbar") 可以设置不同的进度显示方式
+```
+
+### 6.2 使用进度条
+
+```{r}
+plan(multisession, workers = 2)
+
+# 定义带进度的函数
+process_with_progress <- function(items) {
+    p <- progressr::progressor(along = items)
+
+    future_map(items, function(x) {
+        Sys.sleep(0.05)
+        p() # 更新进度
+        x^2
+    })
+}
+
+# 运行
+results <- process_with_progress(1:10)
+
+cat("处理完成，结果数量:", length(results), "\n")
+
+plan(sequential)
+```
+
+### 6.3 自定义进度样式
+
+```{r eval=FALSE}
+# Shiny 风格进度条
+handlers("shiny")
+
+# 带 ETA 的进度条
+handlers(handler_txtprogressbar(style = 3))
+
+# 哔声提示
+handlers(handler_beepr())
+
+# 多种处理器组合
+handlers(list(
+    handler_txtprogressbar(),
+    handler_beepr(finish = TRUE)
+))
+```
+
+---
+
+## 7. 错误处理与调试
+
+### 7.1 捕获错误
+
+```{r}
+plan(multisession, workers = 2)
+
+# 定义可能出错的函数
+risky_function <- function(x) {
+    if (x == 5) stop("Error at 5!")
+    sqrt(x)
+}
+
+# 使用 safely 包装
+safe_risky <- purrr::safely(risky_function)
+
+results <- future_map(1:10, safe_risky)
+
+# 提取结果和错误
+successes <- map(results, "result") %>% compact()
+errors <- map(results, "error") %>% compact()
+
+cat("成功:", length(successes), "\n")
+cat("失败:", length(errors), "\n")
+
+plan(sequential)
+```
+
+### 7.2 调试技巧
+
+```{r eval=FALSE}
+# 1. 先在串行模式下调试
+plan(sequential)
+
+# 运行代码，确保无错误
+result <- future_map(data, my_function)
+
+# 2. 切换并行
+plan(multisession, workers = 4)
+
+# 再次运行
+result <- future_map(data, my_function)
+```
+
+### 7.3 future 选项
+
+```{r}
+# 查看当前 future 配置
+cat("当前策略:", class(plan())[1], "\n")
+cat("可用核心:", availableCores(), "\n")
+
+# 常用设置
+options(
+    future.rng.onMisuse = "warning", # 随机数警告
+    future.globals.maxSize = 1024 * 1024^2 # 全局变量最大 1GB
+)
+
+cat("配置完成\n")
+```
+
+---
+
+## 8. 实战案例
+
+### 8.1 蒙特卡洛模拟
+
+```{r}
+# 估算圆周率 π
+estimate_pi <- function(n) {
+    x <- runif(n)
+    y <- runif(n)
+    inside <- sum(x^2 + y^2 <= 1)
+    4 * inside / n
+}
+
+# 并行执行多次模拟
+plan(multisession, workers = 4)
+
+set.seed(123)
+n_simulations <- 100
+points_per_sim <- 10000
+
+tic("Monte Carlo Pi Estimation")
+pi_estimates <- future_map_dbl(
+    1:n_simulations,
+    ~ estimate_pi(points_per_sim),
+    .options = furrr_options(seed = TRUE) # 确保可重复
+)
+toc()
+
+cat("π 估计值:", mean(pi_estimates), "\n")
+cat("标准误:", sd(pi_estimates), "\n")
+cat("真实值:", pi, "\n")
+
+plan(sequential)
+```
+
+### 8.2 交叉验证
+
+```{r}
+library(caret)
+
+# 创建示例数据
+set.seed(42)
+data <- data.frame(
+    x1 = rnorm(200),
+    x2 = rnorm(200),
+    y = factor(sample(c("A", "B"), 200, replace = TRUE))
+)
+
+# 创建 5 折分割
+folds <- createFolds(data$y, k = 5, returnTrain = TRUE)
+
+# 定义训练函数
+train_fold <- function(fold_idx) {
+    train_data <- data[folds[[fold_idx]], ]
+    test_data <- data[-folds[[fold_idx]], ]
+
+    model <- glm(y ~ x1 + x2, data = train_data, family = binomial)
+
+    pred_probs <- predict(model, test_data, type = "response")
+    pred_class <- ifelse(pred_probs > 0.5, "B", "A")
+
+    accuracy <- mean(pred_class == test_data$y)
+    return(accuracy)
+}
+
+# 并行交叉验证
+plan(multisession, workers = 4)
+
+tic("5-Fold CV")
+cv_results <- future_map_dbl(1:5, train_fold)
+toc()
+
+cat("各折准确率:", round(cv_results, 3), "\n")
+cat("平均准确率:", round(mean(cv_results), 3), "\n")
+
+plan(sequential)
+```
+
+### 8.3 Bootstrap 置信区间
+
+```{r}
+# 计算 Bootstrap 置信区间
+bootstrap_ci <- function(data, statistic, n_boot = 1000, conf_level = 0.95) {
+    plan(multisession, workers = 4)
+
+    # Bootstrap 重抽样
+    boot_stats <- future_map_dbl(1:n_boot, function(i) {
+        boot_sample <- sample(data, length(data), replace = TRUE)
+        statistic(boot_sample)
+    }, .options = furrr_options(seed = TRUE))
+
+    # 计算置信区间
+    alpha <- 1 - conf_level
+    ci <- quantile(boot_stats, c(alpha / 2, 1 - alpha / 2))
+
+    plan(sequential)
+
+    return(list(
+        estimate = statistic(data),
+        ci_lower = ci[1],
+        ci_upper = ci[2],
+        bootstrap_se = sd(boot_stats)
+    ))
+}
+
+# 使用示例
+set.seed(123)
+sample_data <- rnorm(100, mean = 50, sd = 10)
+
+result <- bootstrap_ci(sample_data, mean, n_boot = 2000)
+
+cat("点估计:", round(result$estimate, 2), "\n")
+cat("95% CI: [", round(result$ci_lower, 2), ",", round(result$ci_upper, 2), "]\n")
+cat("Bootstrap SE:", round(result$bootstrap_se, 2), "\n")
+```
+
+---
+
+## 9. 最佳实践
+
+### 9.1 何时使用并行
+
+✅ **适合并行**：
+- 独立任务（无依赖）
+- CPU 密集型计算
+- 大量重复操作
+
+❌ **不适合并行**：
+- 任务间有依赖
+- I/O 密集型（读写文件为主）
+- 单次快速操作
+- 任务数 < 核心数
+
+### 9.2 性能优化建议
+
+```{r eval=FALSE}
+# 1. 合理设置 workers
+plan(multisession, workers = availableCores() - 1) # 留一个核心给系统
+
+# 2. 批量处理小任务
+# 不好：1000次微小任务
+future_map(1:1000, ~ Sys.sleep(0.001))
+
+# 好：将小任务打包成大任务
+chunks <- split(1:1000, ceiling(seq_along(1:1000) / 100))
+future_map(chunks, ~ lapply(.x, my_function))
+
+# 3. 避免传递大对象
+# 不好：在每个任务中复制大数据
+big_data <- data.frame(...)
+future_map(1:100, ~ process(big_data, .x))
+
+# 好：使用引用或只传必要数据
+future_map(1:100, ~ process(big_data[.x, ]))
+```
+
+### 9.3 代码模板
+
+```{r eval=FALSE}
+#' 标准并行处理模板
+#' @param items 待处理项目列表
+#' @param process_fn 处理函数
+#' @param n_workers 工作进程数
+parallel_process <- function(items, process_fn, n_workers = 4) {
+    # 设置并行
+    plan(multisession, workers = n_workers)
+    on.exit(plan(sequential)) # 确保退出时恢复串行
+
+    # 带进度和错误处理的并行
+    safe_fn <- purrr::safely(process_fn)
+
+    results <- with_progress({
+        p <- progressr::progressor(along = items)
+
+        future_map(items, function(item) {
+            result <- safe_fn(item)
+            p()
+            result
+        }, .options = furrr_options(seed = TRUE))
+    })
+
+    # 整理结果
+    successes <- map(results, "result") %>% compact()
+    errors <- map(results, "error") %>% compact()
+
+    return(list(
+        results = successes,
+        errors = errors,
+        success_rate = length(successes) / length(items)
+    ))
+}
+```
+
+---
+
+## 10. 常见问题解答
+
+### Q1: Windows 上为什么不能用 multicore？
+
+**A**: `multicore` 依赖 Unix 的 `fork()` 系统调用，Windows 不支持。请使用 `multisession`。
+
+### Q2: 为什么并行后更慢了？
+
+**A**: 可能原因：
+1. 任务太小，通信开销超过计算时间
+2. workers 数量超过实际核心
+3. 内存不足导致频繁 swap
+
+### Q3: 如何在函数中使用外部变量？
+
+```{r eval=FALSE}
+# future 会自动捕获需要的变量
+external_data <- 1:100
+
+future_map(1:10, ~ {
+    sum(external_data) + .x # external_data 自动传递
+})
+```
+
+### Q4: 如何确保随机数可重复？
+
+```{r eval=FALSE}
+# 方法 1: furrr 选项
+future_map(1:10, my_random_fn,
+    .options = furrr_options(seed = 123)
+)
+
+# 方法 2: 手动设置种子
+future_map(1:10, ~ {
+    set.seed(.x) # 每个任务使用不同但确定性的种子
+    rnorm(10)
+})
+```
+
+---
+
+## 总结
+
+| 场景 | 推荐工具 |
+|------|----------|
+| 简单 lapply 替换 | `future_lapply()` |
+| purrr 用户 | `furrr::future_map()` |
+| 需要进度显示 | `progressr` |
+| 复杂工作流 | 显式 `future()` + `value()` |
+
+> [!TIP]
+> **记住黄金法则**：
+> 1. 先用 `plan(sequential)` 确保代码正确
+> 2. 然后只需改一行 `plan(multisession)` 即可并行
+> 3. 任务数应该远多于核心数才能充分利用并行
+
+---
+
+## 参考资料
+
+1. [future 包官方文档](https://future.futureverse.org/)
+2. [furrr 包官方文档](https://furrr.futureverse.org/)
+3. [progressr 包官方文档](https://progressr.futureverse.org/)
+4. Bengtsson, H. (2021). A Unifying Framework for Parallel and Distributed Processing in R using Futures. *The R Journal*.

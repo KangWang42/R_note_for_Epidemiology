@@ -1,0 +1,2526 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-01-13">
+<meta name="description" content="多种干预措施的间接比较：netmeta 包使用详解，从网络图到排序图的完整流程。">
+
+<title>网状 Meta 分析 (Network Meta-Analysis) 完全指南 – R 语言学习笔记</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-234273d1456647dabc34a594ac50e507.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-374967827064a263f620006ef06629b3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">R 语言学习笔记</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">主页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/packages.html"> 
+<span class="menu-text">实用 R 包</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/visualization.html"> 
+<span class="menu-text">可视化教程</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/methods.html"> 
+<span class="menu-text">R 语言方法</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/operation.html"> 
+<span class="menu-text">实用操作</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1041-network-meta.html">网状 Meta 分析</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用 R 包</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bruceR - 统计分析工具</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1012-comparegroups.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">compareGroups - 描述性表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1013-scitb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scitb - 快速基线表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">purrr - 函数式编程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-future.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">future - 并行计算</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">可视化教程</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2021-cowplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cowplot - 图形组合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2018-tidyplots.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidyplots - 极简可视化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggtext - 中英文字体混合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2019-dualaxis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双坐标轴</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2011-viscolor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">配色方案</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">patchwork - 图片拼接</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2013-legend.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">图例自定义</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2014-sankey.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">桑基图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">地图绑制</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2016-forestplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">森林图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2022-ggally.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GGally - 可视化扩展</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2023-radar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">雷达图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2024-venn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">韦恩图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">箱线图与小提琴图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">散点图与趋势线</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2027-bindhistogram.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">直方图与密度图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">柱状图与饼图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2029-bindlineplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">折线图与时间序列</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2030-bindareaplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">面积图与堆叠图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2031-bindcomplex.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">复杂组合图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">R 语言方法</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">卫生经济学分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1017-timeseries.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">时间序列分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">倾向性得分匹配</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1019-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logistic 回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">生存分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1021-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多元线性回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1023-mediation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">中介效应分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1024-multilevel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多水平模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1025-gam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">广义加性模型 (GAM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1026-poisson.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Poisson/负二项回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1027-rcs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">限制性立方样条 (RCS)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1028-did.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双重差分法 (DiD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1029-umbrella-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">伞状综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1040-scoping-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">范围综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1041-network-meta.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">网状 Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">质性研究与文本挖掘</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1031-lca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">潜类别分析 (LCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1032-sem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">结构方程模型 (SEM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1033-dlnm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">分布滞后非线性模型 (DLNM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1034-nvmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">变分模态分解 (VMD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1035-fft-nvmd-gmm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FFT + VMD + GMM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1036-anova.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">方差分析 (ANOVA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1037-plspm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PLS-PM 路径模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">因子分析 (EFA/CFA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1039-pca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">主成分分析 (PCA)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用操作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">数据导入导出</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RMarkdown 入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quarto vs RMarkdown</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Positron IDE 教程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3002-datatable.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">data.table 完全指南</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#前言" id="toc-前言" class="nav-link active" data-scroll-target="#前言">前言</a></li>
+  <li><a href="#网状-meta-分析基础" id="toc-网状-meta-分析基础" class="nav-link" data-scroll-target="#网状-meta-分析基础">1. 网状 Meta 分析基础</a>
+  <ul class="collapse">
+  <li><a href="#什么是网状-meta" id="toc-什么是网状-meta" class="nav-link" data-scroll-target="#什么是网状-meta">1.1 什么是网状 Meta？</a></li>
+  <li><a href="#核心概念" id="toc-核心概念" class="nav-link" data-scroll-target="#核心概念">1.2 核心概念</a></li>
+  <li><a href="#基本假设" id="toc-基本假设" class="nav-link" data-scroll-target="#基本假设">1.3 基本假设</a></li>
+  </ul></li>
+  <li><a href="#netmeta-包入门" id="toc-netmeta-包入门" class="nav-link" data-scroll-target="#netmeta-包入门">2. netmeta 包入门</a>
+  <ul class="collapse">
+  <li><a href="#安装与加载" id="toc-安装与加载" class="nav-link" data-scroll-target="#安装与加载">2.1 安装与加载</a></li>
+  <li><a href="#数据格式" id="toc-数据格式" class="nav-link" data-scroll-target="#数据格式">2.2 数据格式</a></li>
+  <li><a href="#基础-nma-模型" id="toc-基础-nma-模型" class="nav-link" data-scroll-target="#基础-nma-模型">2.3 基础 NMA 模型</a></li>
+  </ul></li>
+  <li><a href="#网络图可视化" id="toc-网络图可视化" class="nav-link" data-scroll-target="#网络图可视化">3. 网络图可视化</a>
+  <ul class="collapse">
+  <li><a href="#基础网络图" id="toc-基础网络图" class="nav-link" data-scroll-target="#基础网络图">3.1 基础网络图</a></li>
+  <li><a href="#美化网络图" id="toc-美化网络图" class="nav-link" data-scroll-target="#美化网络图">3.2 美化网络图</a></li>
+  <li><a href="#ggplot-风格网络图" id="toc-ggplot-风格网络图" class="nav-link" data-scroll-target="#ggplot-风格网络图">3.3 ggplot 风格网络图</a></li>
+  </ul></li>
+  <li><a href="#效应量与排序" id="toc-效应量与排序" class="nav-link" data-scroll-target="#效应量与排序">4. 效应量与排序</a>
+  <ul class="collapse">
+  <li><a href="#成对比较森林图" id="toc-成对比较森林图" class="nav-link" data-scroll-target="#成对比较森林图">4.1 成对比较森林图</a></li>
+  <li><a href="#联赛表-league-table" id="toc-联赛表-league-table" class="nav-link" data-scroll-target="#联赛表-league-table">4.2 联赛表 (League Table)</a></li>
+  <li><a href="#排序分析" id="toc-排序分析" class="nav-link" data-scroll-target="#排序分析">4.3 排序分析</a></li>
+  <li><a href="#sucra-曲线" id="toc-sucra-曲线" class="nav-link" data-scroll-target="#sucra-曲线">4.4 SUCRA 曲线</a></li>
+  </ul></li>
+  <li><a href="#一致性检验" id="toc-一致性检验" class="nav-link" data-scroll-target="#一致性检验">5. 一致性检验</a>
+  <ul class="collapse">
+  <li><a href="#全局一致性检验" id="toc-全局一致性检验" class="nav-link" data-scroll-target="#全局一致性检验">5.1 全局一致性检验</a></li>
+  <li><a href="#局部不一致性节点分割法" id="toc-局部不一致性节点分割法" class="nav-link" data-scroll-target="#局部不一致性节点分割法">5.2 局部不一致性：节点分割法</a></li>
+  <li><a href="#净热图-net-heat-plot" id="toc-净热图-net-heat-plot" class="nav-link" data-scroll-target="#净热图-net-heat-plot">5.3 净热图 (Net Heat Plot)</a></li>
+  </ul></li>
+  <li><a href="#亚组与敏感性分析" id="toc-亚组与敏感性分析" class="nav-link" data-scroll-target="#亚组与敏感性分析">6. 亚组与敏感性分析</a>
+  <ul class="collapse">
+  <li><a href="#亚组分析" id="toc-亚组分析" class="nav-link" data-scroll-target="#亚组分析">6.1 亚组分析</a></li>
+  <li><a href="#敏感性分析排除高风险研究" id="toc-敏感性分析排除高风险研究" class="nav-link" data-scroll-target="#敏感性分析排除高风险研究">6.2 敏感性分析：排除高风险研究</a></li>
+  <li><a href="#留一法敏感性分析" id="toc-留一法敏感性分析" class="nav-link" data-scroll-target="#留一法敏感性分析">6.3 留一法敏感性分析</a></li>
+  </ul></li>
+  <li><a href="#发表偏倚评估" id="toc-发表偏倚评估" class="nav-link" data-scroll-target="#发表偏倚评估">7. 发表偏倚评估</a>
+  <ul class="collapse">
+  <li><a href="#比较调整漏斗图" id="toc-比较调整漏斗图" class="nav-link" data-scroll-target="#比较调整漏斗图">7.1 比较调整漏斗图</a></li>
+  <li><a href="#egger-检验" id="toc-egger-检验" class="nav-link" data-scroll-target="#egger-检验">7.2 Egger 检验</a></li>
+  </ul></li>
+  <li><a href="#完整案例分析" id="toc-完整案例分析" class="nav-link" data-scroll-target="#完整案例分析">8. 完整案例分析</a>
+  <ul class="collapse">
+  <li><a href="#数据准备" id="toc-数据准备" class="nav-link" data-scroll-target="#数据准备">8.1 数据准备</a></li>
+  <li><a href="#运行分析" id="toc-运行分析" class="nav-link" data-scroll-target="#运行分析">8.2 运行分析</a></li>
+  <li><a href="#结果汇总" id="toc-结果汇总" class="nav-link" data-scroll-target="#结果汇总">8.3 结果汇总</a></li>
+  <li><a href="#一致性检验-1" id="toc-一致性检验-1" class="nav-link" data-scroll-target="#一致性检验-1">8.4 一致性检验</a></li>
+  </ul></li>
+  <li><a href="#报告与图表导出" id="toc-报告与图表导出" class="nav-link" data-scroll-target="#报告与图表导出">9. 报告与图表导出</a>
+  <ul class="collapse">
+  <li><a href="#结果表格" id="toc-结果表格" class="nav-link" data-scroll-target="#结果表格">9.1 结果表格</a></li>
+  <li><a href="#导出高质量图表" id="toc-导出高质量图表" class="nav-link" data-scroll-target="#导出高质量图表">9.2 导出高质量图表</a></li>
+  </ul></li>
+  <li><a href="#高级主题" id="toc-高级主题" class="nav-link" data-scroll-target="#高级主题">10. 高级主题</a>
+  <ul class="collapse">
+  <li><a href="#贝叶斯-nma-gemtc" id="toc-贝叶斯-nma-gemtc" class="nav-link" data-scroll-target="#贝叶斯-nma-gemtc">10.1 贝叶斯 NMA (gemtc)</a></li>
+  <li><a href="#多成分干预-nma" id="toc-多成分干预-nma" class="nav-link" data-scroll-target="#多成分干预-nma">10.2 多成分干预 NMA</a></li>
+  <li><a href="#质量评估-cinema" id="toc-质量评估-cinema" class="nav-link" data-scroll-target="#质量评估-cinema">10.3 质量评估 CINeMA</a></li>
+  </ul></li>
+  <li><a href="#注意事项与建议" id="toc-注意事项与建议" class="nav-link" data-scroll-target="#注意事项与建议">注意事项与建议</a></li>
+  <li><a href="#参考文献" id="toc-参考文献" class="nav-link" data-scroll-target="#参考文献">参考文献</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content column-body" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1041-network-meta.html">网状 Meta 分析</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">网状 Meta 分析 (Network Meta-Analysis) 完全指南</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">R包</div>
+    <div class="quarto-category">Meta分析</div>
+    <div class="quarto-category">网状分析</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    多种干预措施的间接比较：netmeta 包使用详解，从网络图到排序图的完整流程。
+  </div>
+</div>
+
+
+<div class="quarto-title-meta column-body">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">January 13, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="前言" class="level2">
+<h2 class="anchored" data-anchor-id="前言">前言</h2>
+<p>传统 Meta 分析只能<strong>两两比较</strong>干预措施（如 A vs B）。但临床决策中，我们常需要同时比较<strong>多种干预措施</strong>。</p>
+<p><strong>网状 Meta 分析 (Network Meta-Analysis, NMA)</strong> 通过整合直接和间接证据，实现多种干预的同时比较和排序。</p>
+<p>本教程将介绍 NMA 的基本原理和 R 语言 <code>netmeta</code> 包的完整使用流程。</p>
+<hr>
+</section>
+<section id="网状-meta-分析基础" class="level2">
+<h2 class="anchored" data-anchor-id="网状-meta-分析基础">1. 网状 Meta 分析基础</h2>
+<section id="什么是网状-meta" class="level3">
+<h3 class="anchored" data-anchor-id="什么是网状-meta">1.1 什么是网状 Meta？</h3>
+<p>考虑 3 种降压药的比较：</p>
+<ul>
+<li>研究 1：药物 A vs 安慰剂</li>
+<li>研究 2：药物 B vs 安慰剂<br>
+</li>
+<li>研究 3：药物 A vs 药物 B</li>
+</ul>
+<p>传统 Meta 分析只能分别合成每对比较。而 NMA 可以：</p>
+<ol type="1">
+<li><strong>同时比较所有干预</strong>：A vs B vs C vs 安慰剂</li>
+<li><strong>利用间接证据</strong>：即使没有 A vs C 的直接研究，也能通过 A-B-C 链条推断</li>
+<li><strong>对干预进行排序</strong>：给出”最佳”干预的概率</li>
+</ol>
+</section>
+<section id="核心概念" class="level3">
+<h3 class="anchored" data-anchor-id="核心概念">1.2 核心概念</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>节点 (Node)</strong></td>
+<td>网络中的干预措施</td>
+</tr>
+<tr class="even">
+<td><strong>边 (Edge)</strong></td>
+<td>两种干预之间的比较</td>
+</tr>
+<tr class="odd">
+<td><strong>直接证据</strong></td>
+<td>来自头对头比较研究</td>
+</tr>
+<tr class="even">
+<td><strong>间接证据</strong></td>
+<td>通过共同比较者推断</td>
+</tr>
+<tr class="odd">
+<td><strong>混合证据</strong></td>
+<td>直接 + 间接的加权组合</td>
+</tr>
+<tr class="even">
+<td><strong>一致性</strong></td>
+<td>直接与间接证据是否吻合</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="基本假设" class="level3">
+<h3 class="anchored" data-anchor-id="基本假设">1.3 基本假设</h3>
+<p>NMA 的核心假设是<strong>一致性 (Transitivity)</strong>：</p>
+<blockquote class="blockquote">
+<p>如果 A vs B 的效应是 δ_AB，B vs C 是 δ_BC， 那么 A vs C 应该等于 δ_AB + δ_BC</p>
+</blockquote>
+<p>这要求： - 研究间具有可比性（相似的人群、结局定义） - 不存在效应修饰因子导致的异质性</p>
+<hr>
+</section>
+</section>
+<section id="netmeta-包入门" class="level2">
+<h2 class="anchored" data-anchor-id="netmeta-包入门">2. netmeta 包入门</h2>
+<section id="安装与加载" class="level3">
+<h3 class="anchored" data-anchor-id="安装与加载">2.1 安装与加载</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># install.packages("netmeta")</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(netmeta)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="数据格式" class="level3">
+<h3 class="anchored" data-anchor-id="数据格式">2.2 数据格式</h3>
+<p><code>netmeta</code> 支持两种数据格式：</p>
+<p><strong>对比格式 (Pairwise)</strong>：每行是一对比较</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 示例数据：抗抑郁药比较</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(Senn2013)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(Senn2013)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     TE   seTE   treat1.long treat2.long treat1 treat2           studlab
+1 -1.90 0.1414     Metformin     Placebo   metf   plac      DeFronzo1995
+2 -0.82 0.0992     Metformin     Placebo   metf   plac         Lewin2007
+3 -0.20 0.3579     Metformin    Acarbose   metf   acar        Willms1999
+4 -1.34 0.1435 Rosiglitazone     Placebo   rosi   plac      Davidson2007
+5 -1.10 0.1141 Rosiglitazone     Placebo   rosi   plac Wolffenbuttel1999
+6 -1.30 0.1268  Pioglitazone     Placebo   piog   plac        Kipnes2001</code></pre>
+</div>
+</div>
+<p><strong>臂格式 (Arm-based)</strong>：每行是一个研究臂</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 转换示例（如果数据是臂格式）</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># pairwise() 函数可以转换</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="基础-nma-模型" class="level3">
+<h3 class="anchored" data-anchor-id="基础-nma-模型">2.3 基础 NMA 模型</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 运行网状 Meta 分析</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>nma_result <span class="ot">&lt;-</span> <span class="fu">netmeta</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">TE =</span> TE, <span class="co"># 效应量（log OR, log RR, MD 等）</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">seTE =</span> seTE, <span class="co"># 效应量标准误</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">treat1 =</span> treat1, <span class="co"># 干预 1</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">treat2 =</span> treat2, <span class="co"># 干预 2</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">studlab =</span> studlab, <span class="co"># 研究标识</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> Senn2013,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">sm =</span> <span class="st">"MD"</span>, <span class="co"># 效应量类型：Mean Difference</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">reference.group =</span> <span class="st">"plac"</span>, <span class="co"># 参照组</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">common =</span> <span class="cn">FALSE</span>, <span class="co"># 使用随机效应模型</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">random =</span> <span class="cn">TRUE</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看结果摘要</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(nma_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Original data (with adjusted standard errors for multi-arm studies):
+
+                   treat1 treat2      TE   seTE seTE.adj narms multiarm
+DeFronzo1995         metf   plac -1.9000 0.1414   0.3588     2         
+Lewin2007            metf   plac -0.8200 0.0992   0.3443     2         
+Willms1999           acar   metf  0.2000 0.3579   0.5574     3        *
+Davidson2007         plac   rosi  1.3400 0.1435   0.3596     2         
+Wolffenbuttel1999    plac   rosi  1.1000 0.1141   0.3489     2         
+Kipnes2001           piog   plac -1.3000 0.1268   0.3533     2         
+Kerenyi2004          plac   rosi  0.7700 0.1078   0.3469     2         
+Hanefeld2004         metf   piog -0.1600 0.0849   0.3405     2         
+Derosa2004           piog   rosi  0.1000 0.1831   0.3772     2         
+Baksi2004            plac   rosi  1.3000 0.1014   0.3450     2         
+Rosenstock2008       plac   rosi  1.0900 0.2263   0.3999     2         
+Zhu2003              plac   rosi  1.5000 0.1624   0.3675     2         
+Yang2003             metf   rosi  0.1400 0.2239   0.3986     2         
+Vongthavaravat2002   rosi   sulf -1.2000 0.1436   0.3596     2         
+Oyama2008            acar   sulf -0.4000 0.1549   0.3643     2         
+Costa1997            acar   plac -0.8000 0.1432   0.3595     2         
+Hermansen2007        plac   sita  0.5700 0.1291   0.3541     2         
+Garber2008           plac   vild  0.7000 0.1273   0.3534     2         
+Alex1998             metf   sulf -0.3700 0.1184   0.3503     2         
+Johnston1994         migl   plac -0.7400 0.1839   0.3775     2         
+Johnston1998a        migl   plac -1.4100 0.2235   0.3983     2         
+Kim2007              metf   rosi -0.0000 0.2339   0.4043     2         
+Johnston1998b        migl   plac -0.6800 0.2828   0.4344     2         
+Gonzalez-Ortiz2004   metf   plac -0.4000 0.4356   0.5463     2         
+Stucci1996           benf   plac -0.2300 0.3467   0.4785     2         
+Moulin2006           benf   plac -1.0100 0.1366   0.3569     2         
+Willms1999           metf   plac -1.2000 0.3758   0.5802     3        *
+Willms1999           acar   plac -1.0000 0.4669   0.8122     3        *
+
+Number of treatment arms (by study):
+                   narms
+DeFronzo1995           2
+Lewin2007              2
+Willms1999             3
+Davidson2007           2
+Wolffenbuttel1999      2
+Kipnes2001             2
+Kerenyi2004            2
+Hanefeld2004           2
+Derosa2004             2
+Baksi2004              2
+Rosenstock2008         2
+Zhu2003                2
+Yang2003               2
+Vongthavaravat2002     2
+Oyama2008              2
+Costa1997              2
+Hermansen2007          2
+Garber2008             2
+Alex1998               2
+Johnston1994           2
+Johnston1998a          2
+Kim2007                2
+Johnston1998b          2
+Gonzalez-Ortiz2004     2
+Stucci1996             2
+Moulin2006             2
+
+Results (random effects model):
+
+                   treat1 treat2      MD             95%-CI
+DeFronzo1995         metf   plac -1.1268 [-1.4291; -0.8244]
+Lewin2007            metf   plac -1.1268 [-1.4291; -0.8244]
+Willms1999           acar   metf  0.2850 [-0.2208;  0.7908]
+Davidson2007         plac   rosi  1.2335 [ 0.9830;  1.4839]
+Wolffenbuttel1999    plac   rosi  1.2335 [ 0.9830;  1.4839]
+Kipnes2001           piog   plac -1.1291 [-1.5596; -0.6986]
+Kerenyi2004          plac   rosi  1.2335 [ 0.9830;  1.4839]
+Hanefeld2004         metf   piog  0.0023 [-0.4398;  0.4444]
+Derosa2004           piog   rosi  0.1044 [-0.3347;  0.5435]
+Baksi2004            plac   rosi  1.2335 [ 0.9830;  1.4839]
+Rosenstock2008       plac   rosi  1.2335 [ 0.9830;  1.4839]
+Zhu2003              plac   rosi  1.2335 [ 0.9830;  1.4839]
+Yang2003             metf   rosi  0.1067 [-0.2170;  0.4304]
+Vongthavaravat2002   rosi   sulf -0.8169 [-1.2817; -0.3521]
+Oyama2008            acar   sulf -0.4252 [-0.9456;  0.0951]
+Costa1997            acar   plac -0.8418 [-1.3236; -0.3600]
+Hermansen2007        plac   sita  0.5700 [-0.1240;  1.2640]
+Garber2008           plac   vild  0.7000 [ 0.0073;  1.3927]
+Alex1998             metf   sulf -0.7102 [-1.1713; -0.2491]
+Johnston1994         migl   plac -0.9497 [-1.4040; -0.4955]
+Johnston1998a        migl   plac -0.9497 [-1.4040; -0.4955]
+Kim2007              metf   rosi  0.1067 [-0.2170;  0.4304]
+Johnston1998b        migl   plac -0.9497 [-1.4040; -0.4955]
+Gonzalez-Ortiz2004   metf   plac -1.1268 [-1.4291; -0.8244]
+Stucci1996           benf   plac -0.7311 [-1.2918; -0.1705]
+Moulin2006           benf   plac -0.7311 [-1.2918; -0.1705]
+Willms1999           metf   plac -1.1268 [-1.4291; -0.8244]
+Willms1999           acar   plac -0.8418 [-1.3236; -0.3600]
+
+Number of studies: k = 26
+Number of pairwise comparisons: m = 28
+Number of treatments: n = 10
+Number of designs: d = 15
+
+Random effects model
+
+Treatment estimate (sm = 'MD', comparison: other treatments vs 'plac'):
+          MD             95%-CI     z  p-value
+acar -0.8418 [-1.3236; -0.3600] -3.42   0.0006
+benf -0.7311 [-1.2918; -0.1705] -2.56   0.0106
+metf -1.1268 [-1.4291; -0.8244] -7.30 &lt; 0.0001
+migl -0.9497 [-1.4040; -0.4955] -4.10 &lt; 0.0001
+piog -1.1291 [-1.5596; -0.6986] -5.14 &lt; 0.0001
+plac       .                  .     .        .
+rosi -1.2335 [-1.4839; -0.9830] -9.65 &lt; 0.0001
+sita -0.5700 [-1.2640;  0.1240] -1.61   0.1075
+sulf -0.4166 [-0.8887;  0.0556] -1.73   0.0838
+vild -0.7000 [-1.3927; -0.0073] -1.98   0.0476
+
+Quantifying heterogeneity / inconsistency:
+tau^2 = 0.1087; tau = 0.3297; I^2 = 81.4% [72.0%; 87.7%]
+
+Tests of heterogeneity (within designs) and inconsistency (between designs):
+                    Q d.f.  p-value
+Total           96.99   18 &lt; 0.0001
+Within designs  74.46   11 &lt; 0.0001
+Between designs 22.53    7   0.0021
+
+Details of network meta-analysis methods:
+- Frequentist graph-theoretical approach
+- DerSimonian-Laird estimator for tau^2
+- Calculation of I^2 based on Q</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="网络图可视化" class="level2">
+<h2 class="anchored" data-anchor-id="网络图可视化">3. 网络图可视化</h2>
+<section id="基础网络图" class="level3">
+<h3 class="anchored" data-anchor-id="基础网络图">3.1 基础网络图</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘制网络结构图</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">netgraph</span>(nma_result,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">cex =</span> <span class="fl">1.2</span>, <span class="co"># 节点文字大小</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">cex.points =</span> <span class="dv">3</span>, <span class="co"># 节点大小</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">col =</span> <span class="st">"#4e79a7"</span>, <span class="co"># 节点颜色</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">thickness =</span> <span class="st">"number.of.studies"</span>, <span class="co"># 边的粗细</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">plastic =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">multiarm =</span> <span class="cn">TRUE</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span>(<span class="st">"网状 Meta 分析网络图"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="美化网络图" class="level3">
+<h3 class="anchored" data-anchor-id="美化网络图">3.2 美化网络图</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 更精细的网络图</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">netgraph</span>(nma_result,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">cex =</span> <span class="fl">1.5</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">cex.points =</span> <span class="dv">4</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">col =</span> <span class="st">"gray30"</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">col.points =</span> <span class="st">"#4e79a7"</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">thickness =</span> <span class="st">"number.of.studies"</span>,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">plastic =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">points =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">multiarm =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">number.of.studies =</span> <span class="cn">TRUE</span> <span class="co"># 显示研究数量</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="ggplot-风格网络图" class="level3">
+<h3 class="anchored" data-anchor-id="ggplot-风格网络图">3.3 ggplot 风格网络图</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 提取网络信息用于 ggplot</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>network_info <span class="ot">&lt;-</span> <span class="fu">netconnection</span>(nma_result)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 获取节点和边数据</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>nodes <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> nma_result<span class="sc">$</span>trts,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">n_studies =</span> <span class="fu">rowSums</span>(nma_result<span class="sc">$</span>A.matrix)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 ggraph 绑制（需安装 ggraph）</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># library(ggraph)</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># library(igraph)</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 简单可视化</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"网络包含"</span>, nma_result<span class="sc">$</span>n, <span class="st">"项研究，"</span>,</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">length</span>(nma_result<span class="sc">$</span>trts), <span class="st">"种干预措施</span><span class="sc">\n</span><span class="st">"</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>网络包含 10 项研究， 10 种干预措施</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="效应量与排序" class="level2">
+<h2 class="anchored" data-anchor-id="效应量与排序">4. 效应量与排序</h2>
+<section id="成对比较森林图" class="level3">
+<h3 class="anchored" data-anchor-id="成对比较森林图">4.1 成对比较森林图</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 相对于参照组的森林图</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">forest</span>(nma_result,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">reference.group =</span> <span class="st">"plac"</span>,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">sortvar =</span> TE,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">smlab =</span> <span class="st">"Mean Difference vs Placebo"</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">label.left =</span> <span class="st">"Favors Treatment"</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">label.right =</span> <span class="st">"Favors Placebo"</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="联赛表-league-table" class="level3">
+<h3 class="anchored" data-anchor-id="联赛表-league-table">4.2 联赛表 (League Table)</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 生成联赛表</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>league_table <span class="ot">&lt;-</span> <span class="fu">netleague</span>(nma_result,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">bracket =</span> <span class="st">"("</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">digits =</span> <span class="dv">2</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 显示效应量矩阵</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(league_table<span class="sc">$</span>common, <span class="at">row.names =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                     acar                 benf                 metf
+acar                 acar                    .  0.20 (-0.50;  0.90)
+benf  0.08 (-0.25;  0.41)                 benf                    .
+metf  0.29 ( 0.06;  0.51)  0.21 (-0.07;  0.48)                 metf
+migl  0.12 (-0.21;  0.44)  0.04 (-0.31;  0.39) -0.17 (-0.44;  0.10)
+piog  0.24 (-0.01;  0.49)  0.16 (-0.13;  0.45) -0.05 (-0.18;  0.09)
+plac -0.83 (-1.04; -0.61) -0.91 (-1.15; -0.66) -1.11 (-1.23; -1.00)
+rosi  0.37 ( 0.15;  0.60)  0.30 ( 0.03;  0.56)  0.09 (-0.04;  0.22)
+sita -0.26 (-0.59;  0.07) -0.34 (-0.69;  0.02) -0.54 (-0.82; -0.27)
+sulf -0.39 (-0.61; -0.17) -0.47 (-0.77; -0.16) -0.67 (-0.85; -0.50)
+vild -0.13 (-0.46;  0.20) -0.21 (-0.56;  0.15) -0.41 (-0.69; -0.14)
+                     migl                 piog                 plac
+acar                    .                    . -0.82 (-1.09; -0.55)
+benf                    .                    . -0.91 (-1.15; -0.66)
+metf                    . -0.16 (-0.33;  0.01) -1.15 (-1.31; -1.00)
+migl                 migl                    . -0.94 (-1.19; -0.70)
+piog  0.12 (-0.17;  0.41)                 piog -1.30 (-1.55; -1.05)
+plac -0.94 (-1.19; -0.70) -1.07 (-1.22; -0.92)                 plac
+rosi  0.26 (-0.01;  0.52)  0.14 (-0.02;  0.30)  1.20 ( 1.11;  1.30)
+sita -0.37 (-0.73; -0.02) -0.50 (-0.79; -0.20)  0.57 ( 0.32;  0.82)
+sulf -0.50 (-0.81; -0.20) -0.63 (-0.84; -0.42)  0.44 ( 0.26;  0.62)
+vild -0.24 (-0.60;  0.11) -0.37 (-0.66; -0.08)  0.70 ( 0.45;  0.95)
+                     rosi                 sita                 sulf
+acar                    .                    . -0.40 (-0.70; -0.10)
+benf                    .                    .                    .
+metf  0.07 (-0.24;  0.39)                    . -0.37 (-0.60; -0.14)
+migl                    .                    .                    .
+piog  0.10 (-0.26;  0.46)                    .                    .
+plac  1.15 ( 1.05;  1.25)  0.57 ( 0.32;  0.82)                    .
+rosi                 rosi                    . -1.20 (-1.48; -0.92)
+sita -0.63 (-0.90; -0.36)                 sita                    .
+sulf -0.76 (-0.94; -0.58) -0.13 (-0.44;  0.18)                 sulf
+vild -0.50 (-0.77; -0.24)  0.13 (-0.23;  0.49)  0.26 (-0.05;  0.57)
+                    vild
+acar                   .
+benf                   .
+metf                   .
+migl                   .
+piog                   .
+plac 0.70 ( 0.45;  0.95)
+rosi                   .
+sita                   .
+sulf                   .
+vild                vild</code></pre>
+</div>
+</div>
+</section>
+<section id="排序分析" class="level3">
+<h3 class="anchored" data-anchor-id="排序分析">4.3 排序分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算 P-scores（频率学派排序）</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>netrank_result <span class="ot">&lt;-</span> <span class="fu">netrank</span>(nma_result, <span class="at">small.values =</span> <span class="st">"good"</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看排序结果</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(netrank_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     P-score
+rosi  0.8934
+metf  0.7818
+piog  0.7746
+migl  0.6137
+acar  0.5203
+benf  0.4358
+vild  0.4232
+sita  0.3331
+sulf  0.2103
+plac  0.0139</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘制排序图</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(netrank_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="sucra-曲线" class="level3">
+<h3 class="anchored" data-anchor-id="sucra-曲线">4.4 SUCRA 曲线</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算累积排序概率（SUCRA）</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co"># netmeta 使用 P-score，与贝叶斯的 SUCRA 类似</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 可视化排序</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>ranking_df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">Treatment =</span> <span class="fu">names</span>(netrank_result<span class="sc">$</span>Pscore.random),</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">P_score =</span> netrank_result<span class="sc">$</span>Pscore.random</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>) <span class="sc">%&gt;%</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">arrange</span>(<span class="fu">desc</span>(P_score))</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(ranking_df, <span class="fu">aes</span>(<span class="at">x =</span> <span class="fu">reorder</span>(Treatment, P_score), <span class="at">y =</span> P_score)) <span class="sc">+</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_col</span>(<span class="at">fill =</span> <span class="st">"#4e79a7"</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_text</span>(<span class="fu">aes</span>(<span class="at">label =</span> <span class="fu">round</span>(P_score, <span class="dv">3</span>)), <span class="at">hjust =</span> <span class="sc">-</span><span class="fl">0.1</span>, <span class="at">size =</span> <span class="fl">3.5</span>) <span class="sc">+</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">coord_flip</span>() <span class="sc">+</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ylim</span>(<span class="dv">0</span>, <span class="fl">1.1</span>) <span class="sc">+</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"干预措施 P-score 排序"</span>,</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">subtitle =</span> <span class="st">"P-score 越高表示效果越好"</span>,</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="cn">NULL</span>,</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> <span class="st">"P-score"</span></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_minimal</span>(<span class="at">base_size =</span> <span class="dv">12</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="一致性检验" class="level2">
+<h2 class="anchored" data-anchor-id="一致性检验">5. 一致性检验</h2>
+<section id="全局一致性检验" class="level3">
+<h3 class="anchored" data-anchor-id="全局一致性检验">5.1 全局一致性检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 整体一致性检验（设计 × 干预交互）</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>decomp <span class="ot">&lt;-</span> <span class="fu">decomp.design</span>(nma_result)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(decomp)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Q statistics to assess homogeneity / consistency
+
+                    Q df  p-value
+Total           96.99 18 &lt; 0.0001
+Within designs  74.46 11 &lt; 0.0001
+Between designs 22.53  7   0.0021
+
+Design-specific decomposition of within-designs Q statistic
+
+    Design     Q df  p-value
+ plac:metf 42.16  2 &lt; 0.0001
+ plac:rosi 21.27  5   0.0007
+ plac:benf  4.38  1   0.0363
+ plac:migl  6.45  2   0.0398
+ metf:rosi  0.19  1   0.6655
+
+Between-designs Q statistic after detaching of single designs
+(influential designs have p-value markedly different from 0.0021)
+
+ Detached design     Q df p-value
+       rosi:sulf  6.77  6  0.3425
+       metf:sulf  7.51  6  0.2760
+       plac:rosi 16.29  6  0.0123
+       metf:piog 17.13  6  0.0088
+       plac:piog 17.25  6  0.0084
+       plac:metf 22.07  6  0.0012
+       plac:acar 22.44  6  0.0010
+       piog:rosi 22.48  6  0.0010
+       acar:sulf 22.52  6  0.0010
+       metf:rosi 22.52  6  0.0010
+  plac:acar:metf 22.38  5  0.0004
+
+Q statistic to assess consistency under the assumption of
+a full design-by-treatment interaction random effects model
+
+                   Q df p-value tau.within tau2.within
+Between designs 2.19  7  0.9483     0.3797      0.1442</code></pre>
+</div>
+</div>
+<p>结果解读： - <strong>Between-designs</strong> 异质性：不同研究设计之间的差异 - <strong>p 值显著</strong>表示存在不一致性</p>
+</section>
+<section id="局部不一致性节点分割法" class="level3">
+<h3 class="anchored" data-anchor-id="局部不一致性节点分割法">5.2 局部不一致性：节点分割法</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 节点分割比较直接和间接证据</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>netsplit_result <span class="ot">&lt;-</span> <span class="fu">netsplit</span>(nma_result)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看结果</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(netsplit_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Separate indirect from direct evidence (SIDE) using back-calculation method
+
+Random effects model: 
+
+ comparison k prop     nma  direct  indir.    Diff     z p-value
+  acar:metf 1 0.28  0.2850  0.2000  0.3182 -0.1182 -0.21  0.8368
+  acar:plac 2 0.65 -0.8418 -0.8567 -0.8138 -0.0429 -0.08  0.9338
+  acar:sulf 1 0.53 -0.4252 -0.4000 -0.4538  0.0538  0.10  0.9194
+  metf:piog 1 0.44  0.0023 -0.1600  0.1293 -0.2893 -0.64  0.5245
+  metf:plac 4 0.56 -1.1268 -1.1810 -1.0576 -0.1234 -0.40  0.6912
+  metf:rosi 2 0.34  0.1067  0.0710  0.1250 -0.0540 -0.15  0.8771
+  metf:sulf 1 0.45 -0.7102 -0.3700 -0.9896  0.6196  1.31  0.1900
+  piog:plac 1 0.39 -1.1291 -1.3000 -1.0214 -0.2786 -0.62  0.5368
+  piog:rosi 1 0.35  0.1044  0.1000  0.1067 -0.0067 -0.01  0.9885
+  rosi:plac 6 0.76 -1.2335 -1.1797 -1.4004  0.2206  0.74  0.4587
+  rosi:sulf 1 0.43 -0.8169 -1.2000 -0.5222 -0.6778 -1.42  0.1565
+
+Legend:
+ comparison - Treatment comparison
+ k          - Number of studies providing direct evidence
+ prop       - Direct evidence proportion
+ nma        - Estimated treatment effect (MD) in network meta-analysis
+ direct     - Estimated treatment effect (MD) derived from direct evidence
+ indir.     - Estimated treatment effect (MD) derived from indirect evidence
+ Diff       - Difference between direct and indirect treatment estimates
+ z          - z-value of test for disagreement (direct versus indirect)
+ p-value    - p-value of test for disagreement (direct versus indirect)</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 可视化</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">forest</span>(netsplit_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-13-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="净热图-net-heat-plot" class="level3">
+<h3 class="anchored" data-anchor-id="净热图-net-heat-plot">5.3 净热图 (Net Heat Plot)</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 热图展示不一致性</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">netheat</span>(nma_result, <span class="at">random =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="亚组与敏感性分析" class="level2">
+<h2 class="anchored" data-anchor-id="亚组与敏感性分析">6. 亚组与敏感性分析</h2>
+<section id="亚组分析" class="level3">
+<h3 class="anchored" data-anchor-id="亚组分析">6.1 亚组分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 按研究特征分层的亚组分析</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 需要在数据中添加亚组变量</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>nma_subgroup <span class="ot">&lt;-</span> <span class="fu">netmeta</span>(</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    TE, seTE, treat1, treat2, studlab,</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> <span class="fu">subset</span>(Senn2013, year <span class="sc">&gt;=</span> <span class="dv">2000</span>), <span class="co"># 只用 2000 年后的研究</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">sm =</span> <span class="st">"MD"</span>,</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">reference.group =</span> <span class="st">"plac"</span>,</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">random =</span> <span class="cn">TRUE</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="敏感性分析排除高风险研究" class="level3">
+<h3 class="anchored" data-anchor-id="敏感性分析排除高风险研究">6.2 敏感性分析：排除高风险研究</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 排除某些研究的敏感性分析</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>nma_sensitivity <span class="ot">&lt;-</span> <span class="fu">netmeta</span>(</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    TE, seTE, treat1, treat2, studlab,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> <span class="fu">subset</span>(Senn2013, <span class="sc">!</span>studlab <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Study1"</span>, <span class="st">"Study2"</span>)),</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">sm =</span> <span class="st">"MD"</span>,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">reference.group =</span> <span class="st">"plac"</span>,</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">random =</span> <span class="cn">TRUE</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 比较排序变化</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>compare_rankings <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">Original =</span> <span class="fu">netrank</span>(nma_result)<span class="sc">$</span>Pscore.random,</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">Sensitivity =</span> <span class="fu">netrank</span>(nma_sensitivity)<span class="sc">$</span>Pscore.random</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="留一法敏感性分析" class="level3">
+<h3 class="anchored" data-anchor-id="留一法敏感性分析">6.3 留一法敏感性分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 留一法分析</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>loo_result <span class="ot">&lt;-</span> nma_result <span class="co"># 需要手动循环实现</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 或使用贡献矩阵</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co"># netcontrib(nma_result)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="发表偏倚评估" class="level2">
+<h2 class="anchored" data-anchor-id="发表偏倚评估">7. 发表偏倚评估</h2>
+<section id="比较调整漏斗图" class="level3">
+<h3 class="anchored" data-anchor-id="比较调整漏斗图">7.1 比较调整漏斗图</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 漏斗图</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="fu">funnel</span>(nma_result,</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">order =</span> nma_result<span class="sc">$</span>trts,</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">pch =</span> <span class="dv">16</span>,</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">col =</span> <span class="st">"#4e79a7"</span>,</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">linreg =</span> <span class="cn">TRUE</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-18-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="egger-检验" class="level3">
+<h3 class="anchored" data-anchor-id="egger-检验">7.2 Egger 检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># metabias 需要成对数据</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 可以使用 netmeta 的漏斗图进行视觉评估</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="完整案例分析" class="level2">
+<h2 class="anchored" data-anchor-id="完整案例分析">8. 完整案例分析</h2>
+<section id="数据准备" class="level3">
+<h3 class="anchored" data-anchor-id="数据准备">8.1 数据准备</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用内置抑郁症治疗数据</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(<span class="st">"Linde2016"</span>)</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(Linde2016)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   id    author year           treat1             treat2
+1   1 Lecrubier 1997             SNRI            Placebo
+2   1 Lecrubier 1997              TCA            Placebo
+3   1 Lecrubier 1997              TCA               SNRI
+40  2      Smit 2006 Face-to-face CBT                 UC
+62  4   Blashki 1971              TCA            Placebo
+72  5      Bedi 2000         Ind drug Other face-to-face
+                     treat1.long                               treat2.long
+1                           SNRI                                   Placebo
+2                            TCA                                   Placebo
+3                            TCA                                      SNRI
+40              Face-to-face CBT                                        UC
+62                           TCA                                   Placebo
+72 Individualized antidepressant Other face-to-face psychosocial therapies
+        lnOR   selnOR resp1 n1 resp2 n2
+1   0.664976 0.358845    60 78    48 76
+2   0.094727 0.339731    49 75    48 76
+3  -0.570249 0.362066    49 75    60 78
+40  0.466237 0.411963    16 44    19 72
+62  0.916291 0.555278    20 35     8 23
+72  0.283880 0.411890    20 51    17 52</code></pre>
+</div>
+</div>
+</section>
+<section id="运行分析" class="level3">
+<h3 class="anchored" data-anchor-id="运行分析">8.2 运行分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 完整的 NMA 流程</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>nma_depression <span class="ot">&lt;-</span> <span class="fu">netmeta</span>(</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    lnOR, <span class="co"># log Odds Ratio</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    selnOR, <span class="co"># 标准误</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    treat1.long, treat2.long, <span class="co"># 干预名称</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    id, <span class="co"># 研究 ID</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> Linde2016,</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">sm =</span> <span class="st">"OR"</span>, <span class="co"># Odds Ratio</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">reference.group =</span> <span class="st">"Placebo"</span>,</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">common =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">random =</span> <span class="cn">TRUE</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="结果汇总" class="level3">
+<h3 class="anchored" data-anchor-id="结果汇总">8.3 结果汇总</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 网络图</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="fu">netgraph</span>(nma_depression,</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">plastic =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">thickness =</span> <span class="st">"number.of.studies"</span>,</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">cex.points =</span> <span class="dv">3</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span>(<span class="st">"抑郁症治疗网络图"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-22-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 森林图</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="fu">forest</span>(nma_depression,</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">reference.group =</span> <span class="st">"Placebo"</span>,</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">sortvar =</span> TE,</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">digits =</span> <span class="dv">2</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1041-network-meta_files/figure-html/unnamed-chunk-22-2.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 排序</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>rank_depression <span class="ot">&lt;-</span> <span class="fu">netrank</span>(nma_depression, <span class="at">small.values =</span> <span class="st">"bad"</span>)</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(rank_depression)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                                P-score
+Face-to-face CBT + SSRI                          0.9983
+Individualized antidepressant                    0.7623
+Remote therapist-lead CBT                        0.7424
+Hypericum                                        0.7164
+Face-to-face CBT                                 0.7071
+SNRI                                             0.6719
+Guided self-help CBT                             0.6455
+Other face-to-face psychosocial therapies        0.6344
+Low-dose SARI                                    0.6067
+Face-to-face interpersonal psychotherapy + SSRI  0.5571
+No/minimal contact CBT                           0.5518
+TCA                                              0.5481
+SSRI                                             0.5198
+Face-to-face psychodynamic therapy               0.4529
+Face-to-face PST + SSRI                          0.4465
+NRI                                              0.3704
+Face-to-face PST                                 0.3211
+NaSSA                                            0.2158
+UC                                               0.1728
+Face-to-face interpersonal psychotherapy         0.1475
+rMAO-A                                           0.1367
+Placebo                                          0.0744</code></pre>
+</div>
+</div>
+</section>
+<section id="一致性检验-1" class="level3">
+<h3 class="anchored" data-anchor-id="一致性检验-1">8.4 一致性检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 设计分解</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>decomp_depression <span class="ot">&lt;-</span> <span class="fu">decomp.design</span>(nma_depression)</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 节点分割</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>split_depression <span class="ot">&lt;-</span> <span class="fu">netsplit</span>(nma_depression)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="报告与图表导出" class="level2">
+<h2 class="anchored" data-anchor-id="报告与图表导出">9. 报告与图表导出</h2>
+<section id="结果表格" class="level3">
+<h3 class="anchored" data-anchor-id="结果表格">9.1 结果表格</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 生成可发表的结果表格</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>results_table <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">Treatment =</span> <span class="fu">names</span>(<span class="fu">netrank</span>(nma_result)<span class="sc">$</span>Pscore.random),</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">P-score</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">round</span>(<span class="fu">netrank</span>(nma_result)<span class="sc">$</span>Pscore.random, <span class="dv">3</span>),</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Rank</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">rank</span>(<span class="sc">-</span><span class="fu">netrank</span>(nma_result)<span class="sc">$</span>Pscore.random)</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>) <span class="sc">%&gt;%</span></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">arrange</span>(Rank)</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(results_table,</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">caption =</span> <span class="st">"干预措施效果排序"</span>,</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">row.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>干预措施效果排序</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Treatment</th>
+<th style="text-align: right;">P.score</th>
+<th style="text-align: right;">Rank</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">rosi</td>
+<td style="text-align: right;">0.893</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">metf</td>
+<td style="text-align: right;">0.782</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">piog</td>
+<td style="text-align: right;">0.775</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">migl</td>
+<td style="text-align: right;">0.614</td>
+<td style="text-align: right;">4</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">acar</td>
+<td style="text-align: right;">0.520</td>
+<td style="text-align: right;">5</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">benf</td>
+<td style="text-align: right;">0.436</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">vild</td>
+<td style="text-align: right;">0.423</td>
+<td style="text-align: right;">7</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">sita</td>
+<td style="text-align: right;">0.333</td>
+<td style="text-align: right;">8</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">sulf</td>
+<td style="text-align: right;">0.210</td>
+<td style="text-align: right;">9</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">plac</td>
+<td style="text-align: right;">0.014</td>
+<td style="text-align: right;">10</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section id="导出高质量图表" class="level3">
+<h3 class="anchored" data-anchor-id="导出高质量图表">9.2 导出高质量图表</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 导出网络图</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pdf</span>(<span class="st">"network_graph.pdf"</span>, <span class="at">width =</span> <span class="dv">8</span>, <span class="at">height =</span> <span class="dv">8</span>)</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="fu">netgraph</span>(nma_result, <span class="at">plastic =</span> <span class="cn">TRUE</span>, <span class="at">thickness =</span> <span class="st">"number.of.studies"</span>)</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="fu">dev.off</span>()</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 导出森林图</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="fu">pdf</span>(<span class="st">"forest_plot.pdf"</span>, <span class="at">width =</span> <span class="dv">10</span>, <span class="at">height =</span> <span class="dv">12</span>)</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a><span class="fu">forest</span>(nma_result, <span class="at">reference.group =</span> <span class="st">"plac"</span>)</span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="fu">dev.off</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="高级主题" class="level2">
+<h2 class="anchored" data-anchor-id="高级主题">10. 高级主题</h2>
+<section id="贝叶斯-nma-gemtc" class="level3">
+<h3 class="anchored" data-anchor-id="贝叶斯-nma-gemtc">10.1 贝叶斯 NMA (gemtc)</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 贝叶斯方法使用 gemtc 包</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="co"># install.packages("gemtc")</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(gemtc)</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 需要 JAGS 软件</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 提供更灵活的建模和完整的后验分布</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="多成分干预-nma" class="level3">
+<h3 class="anchored" data-anchor-id="多成分干预-nma">10.2 多成分干预 NMA</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 对于组合干预（如 A+B vs A vs B）</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 netmeta 的多成分分析功能</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="co"># nma_additive &lt;- netmeta(..., , additive = TRUE)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="质量评估-cinema" class="level3">
+<h3 class="anchored" data-anchor-id="质量评估-cinema">10.3 质量评估 CINeMA</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 CINeMA 框架评估 NMA 证据质量</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 考虑：研究内偏倚、报告偏倚、间接性、不精确性、异质性、不一致性</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>quality_table <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Domain =</span> <span class="fu">c</span>(</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Within-study bias"</span>, <span class="st">"Reporting bias"</span>, <span class="st">"Indirectness"</span>,</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Imprecision"</span>, <span class="st">"Heterogeneity"</span>, <span class="st">"Incoherence"</span></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">Assessment =</span> <span class="fu">c</span>(</span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Some concerns"</span>, <span class="st">"Low"</span>, <span class="st">"Low"</span>,</span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Some concerns"</span>, <span class="st">"Low"</span>, <span class="st">"Low"</span></span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">Notes =</span> <span class="fu">c</span>(</span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"部分研究质量中等"</span>, <span class="st">"漏斗图对称"</span>,</span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">"人群和干预相似"</span>, <span class="st">"样本量有限"</span>,</span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"I²中等"</span>, <span class="st">"一致性检验不显著"</span></span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-20"><a href="#cb41-20" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(quality_table, <span class="at">caption =</span> <span class="st">"CINeMA 证据质量评估"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>CINeMA 证据质量评估</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Domain</th>
+<th style="text-align: left;">Assessment</th>
+<th style="text-align: left;">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Within-study bias</td>
+<td style="text-align: left;">Some concerns</td>
+<td style="text-align: left;">部分研究质量中等</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Reporting bias</td>
+<td style="text-align: left;">Low</td>
+<td style="text-align: left;">漏斗图对称</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Indirectness</td>
+<td style="text-align: left;">Low</td>
+<td style="text-align: left;">人群和干预相似</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Imprecision</td>
+<td style="text-align: left;">Some concerns</td>
+<td style="text-align: left;">样本量有限</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Heterogeneity</td>
+<td style="text-align: left;">Low</td>
+<td style="text-align: left;">I²中等</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Incoherence</td>
+<td style="text-align: left;">Low</td>
+<td style="text-align: left;">一致性检验不显著</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="注意事项与建议" class="level2">
+<h2 class="anchored" data-anchor-id="注意事项与建议">注意事项与建议</h2>
+<blockquote class="blockquote">
+<p>[!WARNING] <strong>NMA 的关键假设检验</strong>： 1. 一致性假设必须通过检验验证 2. 网络必须是连通的（所有干预需相连） 3. 研究间异质性需要控制在合理范围</p>
+</blockquote>
+<blockquote class="blockquote">
+<p>[!TIP] <strong>实践建议</strong>： - 先绘制网络图，了解证据结构 - 使用随机效应模型处理异质性 - 同时报告 P-score 和 95% CI - 进行敏感性分析验证结果稳健性</p>
+</blockquote>
+<hr>
+</section>
+<section id="参考文献" class="level2">
+<h2 class="anchored" data-anchor-id="参考文献">参考文献</h2>
+<ol type="1">
+<li><p>Rücker, G., &amp; Schwarzer, G. (2015). Ranking treatments in frequentist network meta-analysis works without resampling methods. <em>BMC Medical Research Methodology</em>, 15(1), 58.</p></li>
+<li><p>Salanti, G. (2012). Indirect and mixed-treatment comparison, network, or multiple-treatments meta-analysis: many names, many benefits, many concerns for the next generation evidence synthesis tool. <em>Research Synthesis Methods</em>, 3(2), 80-97.</p></li>
+<li><p>Chaimani, A., et al.&nbsp;(2013). Graphical tools for network meta-analysis in STATA. <em>PLoS ONE</em>, 8(10), e76654.</p></li>
+<li><p>Nikolakopoulou, A., et al.&nbsp;(2020). CINeMA: An approach for assessing confidence in the results of a network meta-analysis. <em>PLoS Medicine</em>, 17(4), e1003082.</p></li>
+</ol>
+
+
+</section>
+
+</main> <!-- /main -->
+<!-- Back to Top Button -->
+
+<button id="back-to-top" aria-label="Back to Top">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <path d="M18 15l-6-6-6 6"></path>
+
+    </svg>
+
+</button>
+
+
+
+<!-- Floating TOC Button (Mobile Only) -->
+
+<button id="toc-floating-btn" aria-label="Table of Contents">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+
+        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+
+        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+
+        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+
+    </svg>
+
+</button>
+
+
+
+<!-- TOC Modal -->
+
+<div class="toc-modal-overlay">
+
+    <div class="toc-modal-content">
+
+        <div class="toc-modal-header">
+
+            <div class="toc-modal-title">目录</div>
+
+            <button class="toc-modal-close" aria-label="Close">×</button>
+
+        </div>
+
+        <div class="toc-modal-body" id="toc-modal-body">
+
+            <!-- TOC content will be injected here -->
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+    // Back to Top Logic
+
+    const backToTopBtn = document.getElementById('back-to-top');
+
+
+
+    window.addEventListener('scroll', () => {
+
+        if (window.scrollY > 300) {
+
+            backToTopBtn.classList.add('visible');
+
+        } else {
+
+            backToTopBtn.classList.remove('visible');
+
+        }
+
+    });
+
+
+
+    backToTopBtn.addEventListener('click', () => {
+
+        window.scrollTo({
+
+            top: 0,
+
+            behavior: 'smooth'
+
+        });
+
+    });
+
+
+
+    // Mobile Table Scrolling Logic
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const tables = document.querySelectorAll('table');
+
+        tables.forEach(table => {
+
+            if (!table.parentElement.classList.contains('table-responsive')) {
+
+                const wrapper = document.createElement('div');
+
+                wrapper.className = 'table-responsive';
+
+                wrapper.style.overflowX = 'auto'; // Force scroll
+
+                table.parentNode.insertBefore(wrapper, table);
+
+                wrapper.appendChild(table);
+
+            }
+
+        });
+
+
+
+        // Floating TOC Logic
+
+        const tocBtn = document.getElementById('toc-floating-btn');
+
+        const tocOverlay = document.querySelector('.toc-modal-overlay');
+
+        const tocClose = document.querySelector('.toc-modal-close');
+
+        const tocBody = document.getElementById('toc-modal-body');
+
+        const originalToc = document.getElementById('TOC');
+
+
+
+        if (originalToc && tocBtn) {
+
+            // Check if TOC has content
+
+            const tocLinks = originalToc.querySelectorAll('a');
+
+            if (tocLinks.length > 0) {
+
+                tocBtn.style.display = 'flex';
+
+
+
+                // Function to populate modal
+
+                const populateToc = () => {
+
+                    tocBody.innerHTML = '';
+
+                    const tocClone = originalToc.querySelector('ul').cloneNode(true);
+
+                    tocBody.appendChild(tocClone);
+
+
+
+                    // Add click listeners to close modal on link click
+
+                    tocBody.querySelectorAll('a').forEach(link => {
+
+                        link.addEventListener('click', () => {
+
+                            tocOverlay.classList.remove('active');
+
+                            // Smooth scroll to target (handled by browser usually, but ensure modal closes first)
+
+                        });
+
+                    });
+
+                };
+
+
+
+                tocBtn.addEventListener('click', () => {
+
+                    populateToc();
+
+                    tocOverlay.classList.add('active');
+
+                });
+
+
+
+                tocClose.addEventListener('click', () => {
+
+                    tocOverlay.classList.remove('active');
+
+                });
+
+
+
+                tocOverlay.addEventListener('click', (e) => {
+
+                    if (e.target === tocOverlay) {
+
+                        tocOverlay.classList.remove('active');
+
+                    }
+
+                });
+
+            } else {
+
+                tocBtn.style.display = 'none';
+
+            }
+
+        } else if (tocBtn) {
+
+            tocBtn.style.display = 'none';
+
+        }
+
+
+
+        // Article Footer Random Recommendation
+
+        // Only run on article pages (has sidebar and main content)
+
+        const sidebar = document.querySelector('#quarto-sidebar') || document.querySelector('.sidebar');
+
+        const mainContent = document.querySelector('main');
+
+
+
+        if (sidebar && mainContent) {
+
+            const links = Array.from(sidebar.querySelectorAll('a.sidebar-item-text'));
+
+
+
+            // If no links found with specific class, try generic anchor in sidebar
+
+            const allLinks = links.length > 0 ? links : Array.from(sidebar.querySelectorAll('a'));
+
+
+
+            // Filter out section headers if they are just toggles (usually href is # or empty)
+
+            const validLinks = allLinks.filter(a => a.href && !a.href.endsWith('#') && !a.href.includes('javascript:'));
+
+
+
+            // Article Footer Navigation (Prev/Next + Random)
+
+            const currentUrl = window.location.href.split('#')[0];
+
+            let currentIndex = -1;
+
+
+
+            // Find current article index
+
+            for (let i = 0; i < validLinks.length; i++) {
+
+                if (validLinks[i].href.split('#')[0] === currentUrl) {
+
+                    currentIndex = i;
+
+                    break;
+
+                }
+
+            }
+
+
+
+            // Create Container
+
+            const footerNav = document.createElement('div');
+
+            footerNav.className = 'article-footer-nav-container';
+
+            footerNav.style.marginTop = '4rem';
+
+            footerNav.style.paddingTop = '2rem';
+
+            footerNav.style.borderTop = '1px solid #e5e7eb';
+
+
+
+            // 1. Prev/Next Navigation
+
+            if (currentIndex !== -1) {
+
+                let navHtml = '<div class="article-footer-nav">';
+
+
+
+                // Previous
+
+                if (currentIndex > 0) {
+
+                    const prevLink = validLinks[currentIndex - 1];
+
+                    const prevTitle = prevLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${prevLink.href}" class="article-nav-link">
+
+                            <span class="nav-label">上一篇</span>
+
+                            <span class="nav-title">« ${prevTitle}</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                // Next
+
+                if (currentIndex < validLinks.length - 1) {
+
+                    const nextLink = validLinks[currentIndex + 1];
+
+                    const nextTitle = nextLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${nextLink.href}" class="article-nav-link" style="text-align: right;">
+
+                            <span class="nav-label">下一篇</span>
+
+                            <span class="nav-title">${nextTitle} »</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                navHtml += '</div>';
+
+
+
+                // Append Prev/Next HTML
+
+                const navDiv = document.createElement('div');
+
+                navDiv.innerHTML = navHtml;
+
+                footerNav.appendChild(navDiv);
+
+            }
+
+
+
+            // 2. Random Recommendation
+
+            const otherLinks = validLinks.filter((_, idx) => idx !== currentIndex);
+
+            if (otherLinks.length > 0) {
+
+                const randomIdx = Math.floor(Math.random() * otherLinks.length);
+
+                const randomLink = otherLinks[randomIdx];
+
+                const randomTitle = randomLink.innerText.trim(); // Use innerText for title
+
+
+
+                if (randomTitle) {
+
+                    const randomDiv = document.createElement('div');
+
+                    randomDiv.innerHTML = `
+
+                        <div class="random-recommendation">
+
+                            <h4>👋 随便看看</h4>
+
+                            <p>探索更多 R 语言精彩内容</p>
+
+                            <a href="${randomLink.href}" class="random-btn">
+
+                                🎲 ${randomTitle}
+
+                            </a>
+
+                        </div>
+
+                    `;
+
+                    footerNav.appendChild(randomDiv);
+
+                }
+
+            }
+
+
+
+            mainContent.appendChild(footerNav);
+
+        }
+
+    });
+
+</script>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Made with <a href="https://quarto.org/">Quarto</a> | © 2024-2026</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

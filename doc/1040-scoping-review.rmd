@@ -1,0 +1,552 @@
+---
+title: "范围综述 (Scoping Review) 完全指南"
+date: "2026-01-13"
+categories: [R包, 综述方法, 循证医学]
+image: "images/1040_cover.svg"
+description: "系统梳理文献地图：从 PRISMA-ScR 框架到 R 语言辅助工具，完成高质量范围综述。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 8,
+    dpi = 300
+)
+```
+
+## 前言
+
+**范围综述 (Scoping Review)** 是一种系统化的文献综述方法，旨在"绘制"某一研究领域的**文献地图**。与传统系统综述不同，范围综述更关注研究的**广度**而非深度。
+
+本教程将介绍范围综述的方法学框架、R 语言辅助工具及完整操作流程。
+
+---
+
+## 1. 什么是范围综述？
+
+### 1.1 定义与目的
+
+范围综述（也称"范畴综述"或"映射综述"）的主要目的是：
+
+- **识别研究空白**：发现某领域尚未被充分研究的问题
+- **澄清概念边界**：明确复杂概念的定义和使用方式
+- **绘制证据地图**：展示现有研究的类型、数量和分布
+- **为系统综述做准备**：判断是否值得进行深入的系统综述
+
+### 1.2 与系统综述的区别
+
+| 特征 | 范围综述 | 系统综述 |
+|------|----------|----------|
+| **研究问题** | 宽泛、探索性 | 精确、聚焦 |
+| **目的** | 描述证据范围 | 回答具体问题 |
+| **质量评价** | 通常不进行 | 必须进行 |
+| **数据合成** | 描述性/制图 | 定量/Meta分析 |
+| **纳入标准** | 相对宽松 | 严格明确 |
+| **结果呈现** | 表格、图表为主 | 效应量、置信区间 |
+
+### 1.3 适用场景
+
+✅ **适合范围综述**：
+- 新兴研究领域，需要了解整体格局
+- 概念复杂/定义不一，需要梳理
+- 文献类型多样（量化、质性、灰色文献）
+- 准备申请项目，需要文献背景
+
+❌ **不适合范围综述**：
+- 需要回答具体临床问题
+- 需要进行 Meta 分析
+- 研究领域已非常成熟
+
+---
+
+## 2. 方法学框架
+
+### 2.1 Arksey & O'Malley 框架 (2005)
+
+这是范围综述的经典框架，包含 5 个步骤：
+
+```
+┌────────────────────────────────────────────────────────┐
+│  Step 1: 确定研究问题                                   │
+│  └─ 定义广泛但明确的研究问题                            │
+│                                                        │
+│  Step 2: 识别相关文献                                   │
+│  └─ 多数据库检索 + 手工检索                             │
+│                                                        │
+│  Step 3: 筛选文献                                       │
+│  └─ 两阶段筛选（标题/摘要 → 全文）                      │
+│                                                        │
+│  Step 4: 数据制图                                       │
+│  └─ 提取关键数据，绘制证据地图                          │
+│                                                        │
+│  Step 5: 整理、总结、报告                               │
+│  └─ 描述性分析，识别研究空白                            │
+└────────────────────────────────────────────────────────┘
+```
+
+### 2.2 JBI Scoping Review 指南
+
+Joanna Briggs Institute (JBI) 在 2020 年发布了更详细的指南，增加了：
+
+- **可选步骤**：利益相关者咨询
+- **质量评估建议**：虽非必须，但可考虑
+- **PCC 框架**：Population + Concept + Context
+
+---
+
+## 3. PRISMA-ScR 报告规范
+
+**PRISMA-ScR (2018)** 是范围综述的报告规范，包含 22 个条目。
+
+### 3.1 核心条目
+
+```{r}
+# PRISMA-ScR 检查清单关键条目
+prisma_scr <- data.frame(
+    条目 = c(
+        "标题", "摘要", "引言", "方法-资格标准",
+        "方法-信息来源", "方法-检索策略", "方法-证据筛选",
+        "方法-数据制图", "结果-筛选流程", "结果-证据特征",
+        "讨论-总结", "讨论-局限性"
+    ),
+    要求 = c(
+        "标题中明确'Scoping Review'",
+        "结构化摘要，说明比对目的",
+        "说明为何选择范围综述",
+        "纳入/排除标准（PCC格式）",
+        "列出所有数据库和日期",
+        "至少一个完整检索策略",
+        "说明筛选流程和一致性",
+        "数据提取表格/框架",
+        "PRISMA流程图",
+        "证据特征表格",
+        "主要发现的总结",
+        "方法学和证据局限性"
+    )
+)
+
+knitr::kable(prisma_scr, caption = "PRISMA-ScR 核心报告条目")
+```
+
+### 3.2 PRISMA 流程图
+
+```{r fig.height=8, fig.width=10}
+library(ggplot2)
+
+# PRISMA 流程数据
+prisma_data <- data.frame(
+    stage = c("Identification", "Identification", "Screening", "Eligibility", "Included"),
+    step = c(
+        "Database\n(n=1250)", "Other\n(n=25)",
+        "Screened\n(n=980)", "Full-text\n(n=160)",
+        "Included\n(n=65)"
+    ),
+    x = c(1, 3, 2, 2, 2),
+    y = c(5, 5, 4, 3, 2)
+)
+
+# 绑制流程图
+ggplot() +
+    # 主要节点
+    geom_tile(
+        data = prisma_data, aes(x = x, y = y),
+        width = 1.8, height = 0.7, fill = "#4e79a7", color = "white", linewidth = 1
+    ) +
+    geom_text(
+        data = prisma_data, aes(x = x, y = y, label = step),
+        color = "white", size = 3.5, fontface = "bold"
+    ) +
+
+    # 箭头连接
+    geom_segment(aes(x = 1, y = 4.6, xend = 1.5, yend = 4.3),
+        arrow = arrow(length = unit(0.2, "cm")), color = "gray40"
+    ) +
+    geom_segment(aes(x = 3, y = 4.6, xend = 2.5, yend = 4.3),
+        arrow = arrow(length = unit(0.2, "cm")), color = "gray40"
+    ) +
+    geom_segment(aes(x = 2, y = 3.6, xend = 2, yend = 3.4),
+        arrow = arrow(length = unit(0.2, "cm")), color = "gray40"
+    ) +
+    geom_segment(aes(x = 2, y = 2.6, xend = 2, yend = 2.4),
+        arrow = arrow(length = unit(0.2, "cm")), color = "gray40"
+    ) +
+
+    # 排除节点
+    geom_tile(aes(x = 3.5, y = 4),
+        width = 1.2, height = 0.5,
+        fill = "#e15759", alpha = 0.8
+    ) +
+    geom_text(aes(x = 3.5, y = 4, label = "Excluded\n(n=820)"),
+        color = "white", size = 3
+    ) +
+    geom_segment(aes(x = 2.9, y = 4, xend = 2.9, yend = 4),
+        arrow = arrow(length = unit(0.15, "cm")), color = "gray40"
+    ) +
+    geom_tile(aes(x = 3.5, y = 3),
+        width = 1.2, height = 0.5,
+        fill = "#e15759", alpha = 0.8
+    ) +
+    geom_text(aes(x = 3.5, y = 3, label = "Excluded\n(n=95)"),
+        color = "white", size = 3
+    ) +
+
+    # Stage labels
+    annotate("text", x = 0, y = 5, label = "Identification", fontface = "bold", hjust = 1, size = 4) +
+    annotate("text", x = 0, y = 4, label = "Screening", fontface = "bold", hjust = 1, size = 4) +
+    annotate("text", x = 0, y = 3, label = "Eligibility", fontface = "bold", hjust = 1, size = 4) +
+    annotate("text", x = 0, y = 2, label = "Included", fontface = "bold", hjust = 1, size = 4) +
+    labs(title = "PRISMA Flow Diagram") +
+    theme_void() +
+    theme(plot.title = element_text(hjust = 0.5, size = 16, face = "bold")) +
+    coord_cartesian(xlim = c(-0.5, 4.5), ylim = c(1.5, 5.5))
+```
+
+---
+
+## 4. R 语言辅助工具
+
+### 4.1 文献管理与去重
+
+```{r eval=FALSE}
+# revtools 包用于文献筛选
+# install.packages("revtools")
+library(revtools)
+
+# 读取文献数据
+refs <- read_bibliography("search_results.ris")
+
+# 自动去重
+unique_refs <- find_duplicates(refs)
+
+# 交互式筛选（Shiny 界面）
+screen_abstracts(unique_refs)
+```
+
+### 4.2 litsearchr：优化检索策略
+
+```{r eval=FALSE}
+# litsearchr 帮助识别关键词
+# install.packages("litsearchr")
+library(litsearchr)
+
+# 从初步检索中提取关键词网络
+keywords <- extract_terms(
+    text = refs$abstract,
+    method = "fakerake",
+    min_freq = 3,
+    ngrams = TRUE,
+    min_n = 2,
+    max_n = 3
+)
+
+# 识别关键术语
+key_terms <- identify_important_terms(
+    keywords,
+    method = "strength",
+    cutoff_strength = 0.5
+)
+```
+
+### 4.3 数据提取模板
+
+```{r}
+# 创建数据提取表格
+extraction_form <- data.frame(
+    字段 = c(
+        "作者", "年份", "国家", "研究设计", "样本量",
+        "人群特征", "核心概念", "主要发现", "备注"
+    ),
+    说明 = c(
+        "第一作者姓氏", "发表年份", "研究开展国家",
+        "横断面/队列/RCT等", "参与者数量",
+        "年龄/性别/疾病等", "研究的核心变量",
+        "与研究问题相关的关键结果", "其他重要信息"
+    )
+)
+
+knitr::kable(extraction_form, caption = "数据提取表模板")
+```
+
+---
+
+## 5. 证据制图与可视化
+
+### 5.1 时间趋势图
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 模拟文献发表年份数据
+set.seed(42)
+publication_data <- data.frame(
+    year = sample(2010:2024, 100,
+        replace = TRUE,
+        prob = c(rep(0.03, 5), rep(0.05, 5), rep(0.08, 3), 0.12, 0.15)
+    )
+) %>%
+    count(year)
+
+ggplot(publication_data, aes(x = year, y = n)) +
+    geom_col(fill = "#4e79a7", alpha = 0.8) +
+    geom_smooth(method = "loess", se = FALSE, color = "#e15759", linewidth = 1.2) +
+    labs(
+        title = "文献发表年份分布",
+        subtitle = "2010-2024年相关研究数量趋势",
+        x = "发表年份",
+        y = "文献数量"
+    ) +
+    scale_x_continuous(breaks = seq(2010, 2024, 2)) +
+    theme_minimal(base_size = 14)
+```
+
+### 5.2 地理分布图
+
+```{r}
+# 模拟国家分布数据
+country_data <- data.frame(
+    country = c(
+        "USA", "UK", "China", "Australia", "Canada",
+        "Germany", "Netherlands", "Sweden", "Japan", "Others"
+    ),
+    count = c(25, 15, 12, 10, 8, 6, 5, 4, 3, 12)
+)
+
+ggplot(country_data, aes(x = reorder(country, count), y = count)) +
+    geom_col(fill = "#59a14f", alpha = 0.8) +
+    geom_text(aes(label = count), hjust = -0.3, size = 4) +
+    coord_flip() +
+    labs(
+        title = "研究地理分布",
+        x = NULL,
+        y = "文献数量"
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(panel.grid.major.y = element_blank())
+```
+
+### 5.3 研究设计分布
+
+```{r}
+library(tidyr)
+
+# 研究设计分类
+design_data <- data.frame(
+    设计类型 = c(
+        "横断面研究", "队列研究", "随机对照试验",
+        "质性研究", "混合方法", "综述"
+    ),
+    数量 = c(28, 18, 12, 15, 8, 19)
+)
+
+# 计算百分比
+design_data <- design_data %>%
+    mutate(
+        百分比 = 数量 / sum(数量) * 100,
+        标签 = paste0(数量, " (", round(百分比, 1), "%)")
+    )
+
+# 环形图
+ggplot(design_data, aes(x = 2, y = 数量, fill = 设计类型)) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar(theta = "y") +
+    xlim(0.5, 2.5) +
+    geom_text(aes(label = 标签),
+        position = position_stack(vjust = 0.5),
+        color = "white", fontface = "bold", size = 3.5
+    ) +
+    scale_fill_brewer(palette = "Set2") +
+    labs(
+        title = "研究设计类型分布",
+        fill = "设计类型"
+    ) +
+    theme_void() +
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+        legend.position = "right"
+    )
+```
+
+### 5.4 概念映射表
+
+```{r fig.height=10}
+# 创建概念-主题矩阵
+concept_matrix <- data.frame(
+    文献ID = paste0("Study ", 1:15),
+    概念1_定义 = sample(c(1, 0, NA), 15, replace = TRUE, prob = c(0.5, 0.3, 0.2)),
+    概念2_测量 = sample(c(1, 0, NA), 15, replace = TRUE, prob = c(0.4, 0.4, 0.2)),
+    概念3_干预 = sample(c(1, 0, NA), 15, replace = TRUE, prob = c(0.3, 0.5, 0.2)),
+    概念4_结局 = sample(c(1, 0, NA), 15, replace = TRUE, prob = c(0.6, 0.3, 0.1))
+)
+
+# 转换为长格式
+concept_long <- concept_matrix %>%
+    pivot_longer(-文献ID, names_to = "概念", values_to = "覆盖") %>%
+    mutate(
+        概念 = gsub("概念\\d_", "", 概念),
+        状态 = case_when(
+            覆盖 == 1 ~ "涵盖",
+            覆盖 == 0 ~ "未涵盖",
+            TRUE ~ "不适用"
+        )
+    )
+
+# 绘制概念映射热图
+ggplot(concept_long, aes(x = 概念, y = 文献ID, fill = 状态)) +
+    geom_tile(color = "white", linewidth = 0.5) +
+    scale_fill_manual(
+        values = c("涵盖" = "#59a14f", "未涵盖" = "#e15759", "不适用" = "gray90"),
+        na.value = "gray90"
+    ) +
+    labs(
+        title = "概念覆盖映射表",
+        subtitle = "展示各文献对不同概念的覆盖情况",
+        x = NULL,
+        y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+        panel.grid = element_blank()
+    )
+```
+
+---
+
+## 6. 质性数据归纳
+
+### 6.1 主题分析框架
+
+```{r}
+# 使用表格展示主题分析结果
+themes <- data.frame(
+    主题 = c(
+        "主题1：定义分歧", "主题1：定义分歧",
+        "主题2：测量工具", "主题2：测量工具",
+        "主题3：实施障碍", "主题3：实施障碍"
+    ),
+    子主题 = c(
+        "概念边界模糊", "术语使用不一",
+        "量表开发", "效度验证",
+        "资源限制", "文化因素"
+    ),
+    文献数 = c(12, 8, 15, 10, 18, 6),
+    代表性引用 = c(
+        "\"该概念的定义在不同研究中差异显著...\" (Author, 2020)",
+        "\"术语A和术语B经常被互换使用...\" (Author, 2021)",
+        "\"本研究开发了新的测量工具...\" (Author, 2019)",
+        "\"量表的信效度在不同人群中...\" (Author, 2022)",
+        "\"资源不足是主要障碍...\" (Author, 2020)",
+        "\"文化差异影响了实施效果...\" (Author, 2023)"
+    )
+)
+
+knitr::kable(themes, caption = "主题分析结果汇总")
+```
+
+---
+
+## 7. 完整案例流程
+
+### 7.1 研究问题定义
+
+```
+研究问题：
+"在社区环境中，针对老年人的数字健康干预措施有哪些类型？
+这些干预的目标人群、干预内容和评价结局是什么？"
+
+PCC 框架：
+- Population: 社区居住的老年人(≥65岁)
+- Concept: 数字健康干预
+- Context: 社区环境（非医疗机构）
+```
+
+### 7.2 检索策略示例
+
+```{r}
+# 示例检索策略（PubMed格式）
+search_strategy <- '
+((("aged"[MeSH Terms] OR "elderly"[tiab] OR "older adult*"[tiab])
+AND
+("telemedicine"[MeSH Terms] OR "mobile health"[tiab] OR
+ "digital health"[tiab] OR "eHealth"[tiab] OR "mHealth"[tiab])
+AND
+("community"[tiab] OR "home-based"[tiab] OR "community-dwelling"[tiab]))
+)
+Filters: 2015-2024, English
+'
+
+cat(search_strategy)
+```
+
+### 7.3 筛选流程代码
+
+```{r eval=FALSE}
+library(revtools)
+
+# 1. 导入检索结果
+results_pubmed <- read_bibliography("pubmed_results.ris")
+results_embase <- read_bibliography("embase_results.ris")
+results_wos <- read_bibliography("wos_results.ris")
+
+# 2. 合并数据库
+all_results <- merge_columns(
+    list(results_pubmed, results_embase, results_wos)
+)
+
+# 3. 去重
+deduplicated <- find_duplicates(all_results)
+unique_refs <- extract_unique_references(deduplicated)
+
+# 4. 标题/摘要筛选（交互式）
+screened_round1 <- screen_titles(unique_refs)
+
+# 5. 全文筛选
+# 导出需要获取全文的文献
+export_ris(screened_round1, filename = "for_fulltext.ris")
+
+# 筛选后再次导入
+fulltext_screened <- read_bibliography("fulltext_screened.ris")
+
+# 6. 最终纳入
+included_studies <- fulltext_screened[fulltext_screened$include == TRUE, ]
+```
+
+---
+
+## 8. 注意事项与建议
+
+### 8.1 常见问题
+
+| 问题 | 解决方案 |
+|------|----------|
+| 范围太宽 | 使用 PCC 框架细化研究问题 |
+| 检索不全面 | 至少检索 3 个数据库 + 灰色文献 |
+| 筛选不一致 | 双人独立筛选 + Kappa 一致性检验 |
+| 数据提取主观 | 制定详细提取指南，进行培训 |
+| 报告不规范 | 严格遵循 PRISMA-ScR 检查清单 |
+
+### 8.2 质量提升建议
+
+> [!TIP]
+> **范围综述质量提升清单**：
+> 1. 制定并发表研究方案 (Protocol)
+> 2. 组建研究团队，明确分工
+> 3. 制作详细的数据提取表，预先测试
+> 4. 使用可视化增强结果呈现
+> 5. 考虑纳入利益相关者咨询环节
+
+---
+
+## 参考文献
+
+1. Arksey, H., & O'Malley, L. (2005). Scoping studies: towards a methodological framework. *International Journal of Social Research Methodology*, 8(1), 19-32.
+
+2. Tricco, A. C., et al. (2018). PRISMA extension for scoping reviews (PRISMA-ScR): checklist and explanation. *Annals of Internal Medicine*, 169(7), 467-473.
+
+3. Peters, M. D., et al. (2020). Updated methodological guidance for the conduct of scoping reviews. *JBI Evidence Synthesis*, 18(10), 2119-2126.
+
+4. Munn, Z., et al. (2018). Systematic review or scoping review? Guidance for authors when choosing between a systematic or scoping review approach. *BMC Medical Research Methodology*, 18(1), 143.

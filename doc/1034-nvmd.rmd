@@ -1,9 +1,9 @@
 ---
-title: "变分模态分解 (VMD) 信号处理指南"
+title: "变分模态分解 (VMD) 信号处理完全指南"
 date: "2026-01-13"
 categories: [R包, 信号处理, 时间序列]
 image: "images/1034_cover.svg"
-description: "处理非线性非平稳信号的利器：完全非递归的 VMD 分解算法 R 语言实现。"
+description: "处理非线性非平稳信号的利器：完全非递归的 VMD 分解算法 R 语言实现，从数学原理到实战应用。"
 ---
 
 ```{r setup, include=FALSE}
@@ -17,161 +17,297 @@ knitr::opts_chunk$set(
 )
 ```
 
-## 1. VMD vs EMD：为什么要用 VMD？
+## 前言
 
-在处理生物医学信号（EEG, ECG）或金融时间序列时，我们经常遇到**非平稳**和**非线性**信号。
+在生物医学信号（EEG, ECG）、金融时间序列和机械振动分析中，我们经常遇到**非平稳**和**非线性**信号。传统的傅里叶分析假设信号是平稳的，无法有效处理这类复杂信号。**变分模态分解 (Variational Mode Decomposition, VMD)** 提供了一种强大的解决方案。
 
--   **EMD (经验模态分解)**：经典方法，但由递归筛选过程决定，容易受到噪声干扰（"模态混叠"）。
--   **VMD (变分模态分解)**：基于坚实的数学理论（维纳滤波、希尔伯特变换）。它将分解问题构建为一个约束变分问题，**完全非递归**，抗噪性强，能有效分离频率接近的成分。
+本教程将全面介绍 VMD 的理论基础、R 语言实现、参数调优策略以及实际应用案例。
 
-### VMD vs EMD 对比
+---
+
+## 1. VMD 的数学原理
+
+### 1.1 什么是模态分解？
+
+**模态分解**的目标是将一个复杂信号 $f(t)$ 分解为若干个**本征模态函数 (Intrinsic Mode Functions, IMF)**：
+
+$$f(t) = \sum_{k=1}^{K} u_k(t) + r(t)$$
+
+其中 $u_k(t)$ 是第 $k$ 个模态分量，$r(t)$ 是残差。
+
+每个 IMF 应该是一个**调幅-调频 (AM-FM) 信号**：
+$$u_k(t) = A_k(t) \cos(\phi_k(t))$$
+
+其中 $A_k(t)$ 是瞬时幅度，$\phi_k(t)$ 是瞬时相位。
+
+### 1.2 VMD 的变分问题
+
+VMD 将信号分解构造为一个**约束变分优化问题**：
+
+**目标**：找到 K 个模态 $\{u_k\}$，使得每个模态的**带宽**最小化。
+
+```
+最小化：Σ ||∂_t[(δ(t) + j/πt) * u_k(t)] e^{-jω_k t}||²
+
+约束条件：Σ u_k = f
+```
+
+其中：
+- $\omega_k$ 是第 $k$ 个模态的中心频率
+- $(δ(t) + j/πt) * u_k(t)$ 是 $u_k$ 的解析信号（通过希尔伯特变换获得）
+- $e^{-j\omega_k t}$ 将信号频谱移至基带
+
+### 1.3 ADMM 求解算法
+
+VMD 使用**交替方向乘子法 (ADMM)** 迭代求解：
+
+| 步骤 | 更新变量 | 说明 |
+|------|----------|------|
+| 1 | $\hat{u}_k^{n+1}$ | 更新模态频谱 |
+| 2 | $\omega_k^{n+1}$ | 更新中心频率 |
+| 3 | $\hat{\lambda}^{n+1}$ | 更新拉格朗日乘子 |
+
+迭代直到满足收敛条件：
+$$\sum_k \|\hat{u}_k^{n+1} - \hat{u}_k^n\|_2^2 / \|\hat{u}_k^n\|_2^2 < \epsilon$$
+
+### 1.4 VMD vs EMD 详细对比
 
 | 特性 | VMD | EMD |
 |------|-----|-----|
-| **理论基础** | 变分优化理论 | 经验算法，无严格数学基础 |
-| **分解方式** | 非递归，同时分解 | 递归筛选 |
-| **模态混叠** | 有效避免 | 容易发生 |
-| **噪声敏感性** | 低 | 高 |
-| **模态数K** | 需预先设定 | 自适应确定 |
-| **计算速度** | 较慢 | 较快 |
+| **理论基础** | 变分优化理论，数学严格 | 经验算法，无严格数学基础 |
+| **分解方式** | 非递归，同时分解所有模态 | 递归筛选，逐一提取 |
+| **模态混叠** | 通过带宽约束有效避免 | 容易发生，尤其相近频率 |
+| **噪声敏感性** | 低，内置去噪机制 | 高，噪声直接影响筛选 |
+| **端点效应** | 较小（频域处理） | 明显（时域处理） |
+| **模态数 K** | 需预先设定 | 自适应确定 |
+| **计算速度** | 较慢（迭代优化） | 较快（筛选过程） |
+| **参数敏感度** | 中等（alpha, K） | 低（自动） |
 
 > [!NOTE]
-> VMD 的主要优势在于其"带宽限制"的变分框架，能够将频率相近的成分有效分离。
+> VMD 的主要优势在于其"带宽限制"的变分框架，能够将频率相近的成分有效分离，这在 EMD 中几乎不可能实现。
 
-## 2. 工具：VMDecomp
+---
+
+## 2. R 语言工具：VMDecomp 包
+
+### 2.1 安装
 
 ```{r eval=FALSE}
-# 由于不在 CRAN，需从 GitHub 安装
+# VMDecomp 包不在 CRAN，需从 GitHub 安装
 install.packages("devtools")
 devtools::install_github("lampros-mouselimis/VMDecomp")
 ```
 
+### 2.2 函数接口
+
 ```{r}
 library(VMDecomp)
 library(ggplot2)
+library(dplyr)
+library(tidyr)
 ```
 
-## 3. 构造仿真信号
+`vmd()` 函数的完整参数：
 
-为了验证 VMD 的能力，我们构造一个已知成分的信号：
-$$ S(t) = S_{low}(10Hz) + S_{mid}(50Hz) + S_{high}(100Hz) + Noise $$
+```r
+vmd(
+  signal,        # 输入信号（一维数值向量）
+  alpha,         # 带宽约束因子（惩罚参数）
+  tau,           # 噪声容限（0 = 无严格约束）
+  K,             # 模态数量
+  DC,            # 是否包含直流分量（TRUE/FALSE）
+  init,          # 中心频率初始化方式（1=均匀, 2=随机）
+  tol            # 收敛容差
+)
+```
+
+---
+
+## 3. 仿真信号分解实验
+
+### 3.1 构造已知成分的测试信号
+
+为了验证 VMD 的分解效果，我们构造一个包含三个已知频率成分的合成信号：
+
+$$S(t) = 2\sin(2\pi \cdot 10 \cdot t) + 1.5\sin(2\pi \cdot 50 \cdot t) + \sin(2\pi \cdot 100 \cdot t) + \epsilon$$
 
 ```{r}
-# 采样频率
-fs <- 1000
-t <- seq(0, 1, length.out = fs)
+# 采样参数
+fs <- 1000 # 采样频率 (Hz)
+duration <- 1 # 信号时长 (s)
+t <- seq(0, duration, length.out = fs * duration)
 
-# 频率分量
+# 真实信号成分
 f1 <- 10 # 低频
 f2 <- 50 # 中频
 f3 <- 100 # 高频
 
-# 构造信号 (正弦波叠加 + 高斯白噪声)
+# 原始成分（用于后续对比）
+comp1_true <- 2 * sin(2 * pi * f1 * t)
+comp2_true <- 1.5 * sin(2 * pi * f2 * t)
+comp3_true <- 1 * sin(2 * pi * f3 * t)
+
+# 合成信号 (加高斯白噪声)
 set.seed(123)
-sig <- 2 * sin(2 * pi * f1 * t) +
-    1.5 * sin(2 * pi * f2 * t) +
-    1 * sin(2 * pi * f3 * t) +
-    rnorm(length(t), 0, 0.5) # 噪声
+noise <- rnorm(length(t), 0, 0.5)
+sig <- comp1_true + comp2_true + comp3_true + noise
 
 # 绘制原始信号
 plot(t, sig,
     type = "l", col = "darkgrey",
-    main = "Raw Synthetic Signal (with Noise)", xlab = "Time (s)", ylab = "Amplitude"
+    main = "合成测试信号 (10Hz + 50Hz + 100Hz + Noise)",
+    xlab = "Time (s)", ylab = "Amplitude"
 )
 ```
 
-## 4. 参数设置与分解
+### 3.2 FFT 频谱分析确定 K 值
 
-VMD 需要预先设定几个关键参数，其中最重要的是 **K (模态数)** 和 **alpha (带宽限制)**。
-
-### 参数选择指南
-
-| 参数 | 含义 | 推荐值/选择方法 |
-|------|------|-----------------|
-| **K** | 模态数量 | 先用FFT估计主要频率成分数 |
-| **alpha** | 带宽限制因子 | 2000（中等），越大带宽越窄 |
-| **tau** | 噪声容限 | 0（无严格约束）或 0.01 |
-| **DC** | 是否包含直流分量 | FALSE（通常无需） |
-| **tol** | 收敛容差 | 1e-6 或 1e-7 |
-
-> [!TIP]
-> **如何确定K值**：
-> 1. 先对信号做FFT，识别明显的频率峰
-> 2. K = 峰的数量 + 1（为噪声预留一个模态）
-> 3. 过大的K会导致过拟合，过小会丢失信息
-
-### alpha 参数的影响
+在使用 VMD 之前，通常先用 FFT 分析信号的频率成分：
 
 ```{r}
-# 不同 alpha 值的效果对比
-par(mfrow = c(1, 2))
+# 计算 FFT
+sig_fft <- fft(sig)
+P <- abs(sig_fft / length(sig))
+P1 <- P[1:(length(sig) / 2 + 1)]
+P1[2:length(P1)] <- 2 * P1[2:length(P1)]
+f <- fs * (0:(length(sig) / 2)) / length(sig)
 
-# alpha 较小（带宽宽）
-vmd_low_alpha <- VMDecomp::vmd(sig, alpha = 500, tau = 0, K = 3, DC = FALSE, init = 1, tol = 1e-6)
-plot(t, vmd_low_alpha$u[, 1], type = "l", main = "alpha=500 (宽带宽)", ylab = "IMF 1", xlab = "Time")
-
-# alpha 较大（带宽窄）
-vmd_high_alpha <- VMDecomp::vmd(sig, alpha = 5000, tau = 0, K = 3, DC = FALSE, init = 1, tol = 1e-6)
-plot(t, vmd_high_alpha$u[, 1], type = "l", main = "alpha=5000 (窄带宽)", ylab = "IMF 1", xlab = "Time")
+# 绘制单边频谱
+plot(f, P1,
+    type = "l", xlim = c(0, 150),
+    main = "FFT 频谱分析 - 确定 K 值",
+    xlab = "Frequency (Hz)", ylab = "Amplitude"
+)
+abline(v = c(10, 50, 100), col = "red", lty = 2)
+text(c(10, 50, 100), max(P1) * 0.9, c("10Hz", "50Hz", "100Hz"), pos = 4, col = "red")
 ```
 
-### 执行分解
+从频谱图可以清晰看到 3 个峰值，因此设置 **K = 3**。
+
+---
+
+## 4. VMD 参数详解与调优
+
+### 4.1 关键参数说明
+
+| 参数 | 符号 | 作用 | 推荐值 |
+|------|------|------|--------|
+| **K** | 模态数 | 分解出的 IMF 数量 | FFT 峰值数 + 0~1 |
+| **alpha** | α | 带宽约束强度 | 1000-5000 |
+| **tau** | τ | 噪声容限 | 0 或 0.01 |
+| **DC** | - | 包含直流分量 | 通常 FALSE |
+| **init** | - | 初始化方式 | 1 (均匀分布) |
+| **tol** | ε | 收敛阈值 | 1e-6 或 1e-7 |
+
+### 4.2 alpha 参数的影响实验
+
+alpha 控制模态的带宽：
+- **alpha 小** → 带宽宽 → 模态可能重叠/混合
+- **alpha 大** → 带宽窄 → 分离更清晰，但可能丢失边缘信息
+
+```{r fig.height=10}
+# 对比不同 alpha 值
+alphas <- c(500, 2000, 5000)
+par(mfrow = c(length(alphas), 1), mar = c(3, 4, 2, 1))
+
+for (a in alphas) {
+    vmd_res <- VMDecomp::vmd(sig, alpha = a, tau = 0, K = 3, DC = FALSE, init = 1, tol = 1e-6)
+
+    # 绘制第一个模态（应对应10Hz）
+    plot(t, vmd_res$u[, 1],
+        type = "l", col = "blue",
+        main = paste0("IMF 1 (alpha = ", a, ")"),
+        xlab = "", ylab = "Amplitude"
+    )
+    # 叠加真实10Hz成分用于对比
+    lines(t, comp1_true, col = "red", lty = 2)
+}
+```
+
+### 4.3 K 值选择策略
+
+> [!TIP]
+> **K 值选择的 3 种方法**：
+> 
+> 1. **FFT 峰值法**：观察频谱中明显的峰值数量
+> 2. **能量法**：逐渐增加 K，当残差能量变化小于阈值时停止
+> 3. **中心频率法**：检查相邻模态的中心频率差异，过小说明 K 过大
 
 ```{r}
-# VMD 参数
+# K 值敏感性分析
+par(mfrow = c(2, 2), mar = c(3, 4, 2, 1))
+
+for (K_test in c(2, 3, 4, 5)) {
+    vmd_res <- VMDecomp::vmd(sig, alpha = 2000, tau = 0, K = K_test, DC = FALSE, init = 1, tol = 1e-6)
+
+    # 计算重构误差
+    reconstructed <- rowSums(vmd_res$u)
+    error <- mean((sig - reconstructed)^2)
+
+    # 绘制重构信号
+    plot(t[1:200], sig[1:200],
+        type = "l", col = "gray",
+        main = paste0("K = ", K_test, ", MSE = ", round(error, 4)),
+        xlab = "Time", ylab = "Amplitude"
+    )
+    lines(t[1:200], reconstructed[1:200], col = "blue")
+}
+```
+
+---
+
+## 5. 完整分解与验证
+
+### 5.1 执行标准 VMD 分解
+
+```{r}
+# 最优参数设置
 alpha <- 2000 # 适中的带宽限制
-tau <- 0 # 噪声容限 (0 表示无严格去噪，或依靠 alpha)
-K <- 3 # 我们知道有 3 个主要成分
+tau <- 0 # 无噪声容限
+K <- 3 # 3 个主要成分
 DC <- FALSE # 无直流偏移
-init <- 1 # 初始化模式 (1 = 均匀分布)
+init <- 1 # 均匀初始化
 tol <- 1e-6 # 收敛容差
 
 # 执行分解
-# 输出结果包含了分解出的模态 (u) 和中心频率 (omega) 等
 vmd_res <- VMDecomp::vmd(sig, alpha, tau, K, DC, init, tol)
 
-# 提取模态分量矩阵 (K 行 x N 列)
+# 提取模态分量矩阵
 imfs <- vmd_res$u
+
+# 查看中心频率（如果返回）
+if (!is.null(vmd_res$omega)) {
+    cat("模态中心频率 (归一化): ", round(vmd_res$omega[nrow(vmd_res$omega), ], 4), "\n")
+    cat("对应实际频率 (Hz): ", round(vmd_res$omega[nrow(vmd_res$omega), ] * fs / 2, 1), "\n")
+}
 ```
 
-## 5. 结果可视化与验证
+### 5.2 分解结果可视化
 
-我们将分解出的 3 个 IMF 分量与原始信号的真实成分进行对比。
-
-```{r fig.height=10}
-par(mfrow = c(4, 1), mar = c(2, 4, 2, 1))
+```{r fig.height=12}
+par(mfrow = c(5, 1), mar = c(2, 4, 2, 1))
 
 # 原始信号
-plot(t, sig, type = "l", main = "Original Noisy Signal", col = "gray")
+plot(t, sig, type = "l", main = "原始含噪信号", col = "gray", ylab = "Amplitude")
 
-# 分解出的 IMF 1 (对应低频 10Hz)
-plot(t, imfs[, 1],
-    type = "l", col = "blue", lwd = 1.5,
-    main = "IMF 1 (Extracted Low Freq)"
-)
+# 分解出的各 IMF
+colors <- c("blue", "green", "red")
+titles <- c("IMF 1 (低频 ~10Hz)", "IMF 2 (中频 ~50Hz)", "IMF 3 (高频 ~100Hz)")
 
-# 分解出的 IMF 2 (对应中频 50Hz)
-plot(t, imfs[, 2],
-    type = "l", col = "green", lwd = 1.5,
-    main = "IMF 2 (Extracted Mid Freq)"
-)
+for (i in 1:3) {
+    plot(t, imfs[, i],
+        type = "l", col = colors[i], lwd = 1.5,
+        main = titles[i], ylab = "Amplitude"
+    )
+}
 
-# 分解出的 IMF 3 (对应高频 100Hz)
-plot(t, imfs[, 3],
-    type = "l", col = "red", lwd = 1.5,
-    main = "IMF 3 (Extracted High Freq)"
-)
+# 重构信号
+plot(t, rowSums(imfs), type = "l", main = "重构信号", col = "purple", ylab = "Amplitude")
 ```
 
-**观察**:
-即使存在噪声，VMD 也能非常干净地还原出原始的 10Hz, 50Hz, 100Hz 正弦波，表现优于许多传统滤波器。
+### 5.3 频谱验证
 
-## 6. 频谱验证
-
-使用FFT验证分解出的各模态确实对应预期的频率：
-
-```{r}
-# 计算各 IMF 的频谱
+```{r fig.height=9}
 par(mfrow = c(3, 1), mar = c(4, 4, 2, 1))
 
 for (i in 1:3) {
@@ -184,45 +320,213 @@ for (i in 1:3) {
         type = "l", xlim = c(0, 150),
         main = paste("IMF", i, "频谱"),
         xlab = "Frequency (Hz)", ylab = "Amplitude",
-        col = c("blue", "green", "red")[i]
+        col = colors[i], lwd = 2
     )
+
+    # 标注峰值频率
+    peak_idx <- which.max(P1[f < 150 & f > 5])
+    peak_freq <- f[f < 150 & f > 5][peak_idx]
+    abline(v = peak_freq, col = "red", lty = 2)
+    text(peak_freq + 5, max(P1) * 0.8, paste0(round(peak_freq, 1), " Hz"), col = "red")
 }
 ```
+
+### 5.4 与真实成分对比
+
+```{r fig.height=9}
+# 计算相关系数
+cor1 <- cor(imfs[, 1], comp1_true)
+cor2 <- cor(imfs[, 2], comp2_true)
+cor3 <- cor(imfs[, 3], comp3_true)
+
+par(mfrow = c(3, 1), mar = c(3, 4, 2, 1))
+
+plot(t[1:200], imfs[1:200, 1],
+    type = "l", col = "blue",
+    main = paste0("IMF 1 vs 真实 10Hz (r = ", round(cor1, 4), ")"), ylab = "Amplitude"
+)
+lines(t[1:200], comp1_true[1:200], col = "red", lty = 2)
+legend("topright", c("VMD提取", "真实成分"), col = c("blue", "red"), lty = c(1, 2), cex = 0.8)
+
+plot(t[1:200], imfs[1:200, 2],
+    type = "l", col = "green",
+    main = paste0("IMF 2 vs 真实 50Hz (r = ", round(cor2, 4), ")"), ylab = "Amplitude"
+)
+lines(t[1:200], comp2_true[1:200], col = "red", lty = 2)
+
+plot(t[1:200], imfs[1:200, 3],
+    type = "l", col = "red",
+    main = paste0("IMF 3 vs 真实 100Hz (r = ", round(cor3, 4), ")"), ylab = "Amplitude"
+)
+lines(t[1:200], comp3_true[1:200], col = "darkred", lty = 2)
+```
+
+---
+
+## 6. 高级应用：VMD 去噪
+
+VMD 的一个重要应用是信号去噪：通过分解后选择性重构实现。
+
+### 6.1 去噪原理
+
+1. 用 VMD 分解含噪信号
+2. 识别哪些 IMF 主要包含噪声（通常是高频模态）
+3. 仅用"干净"的 IMF 重构信号
+
+```{r}
+# 生成强噪声信号
+set.seed(42)
+sig_noisy <- comp1_true + comp2_true + rnorm(length(t), 0, 1.5)
+
+# VMD 分解 (使用更大的 K 来分离噪声)
+vmd_denoise <- VMDecomp::vmd(sig_noisy, alpha = 3000, tau = 0, K = 4, DC = FALSE, init = 1, tol = 1e-6)
+
+# 计算每个 IMF 的能量
+imf_energy <- apply(vmd_denoise$u, 2, function(x) sum(x^2))
+cat("各 IMF 能量占比:\n")
+print(round(imf_energy / sum(imf_energy) * 100, 1))
+```
+
+```{r fig.height=8}
+par(mfrow = c(3, 1), mar = c(3, 4, 2, 1))
+
+# 原始含噪信号
+plot(t, sig_noisy,
+    type = "l", col = "gray",
+    main = "强噪声信号", ylab = "Amplitude"
+)
+
+# 使用前2个 IMF 重构（去除高频噪声模态）
+sig_denoised <- rowSums(vmd_denoise$u[, 1:2])
+plot(t, sig_denoised,
+    type = "l", col = "blue",
+    main = "VMD 去噪后 (使用 IMF 1-2)", ylab = "Amplitude"
+)
+
+# 真实信号对比
+sig_true <- comp1_true + comp2_true
+plot(t, sig_true,
+    type = "l", col = "green",
+    main = "真实干净信号", ylab = "Amplitude"
+)
+
+# 计算去噪效果
+snr_before <- 10 * log10(sum(sig_true^2) / sum((sig_noisy - sig_true)^2))
+snr_after <- 10 * log10(sum(sig_true^2) / sum((sig_denoised - sig_true)^2))
+cat("去噪前 SNR:", round(snr_before, 2), "dB\n")
+cat("去噪后 SNR:", round(snr_after, 2), "dB\n")
+```
+
+---
 
 ## 7. 实际应用场景
 
 ### 7.1 生物医学信号处理
 
-| 应用 | 信号类型 | VMD 作用 |
-|------|----------|----------|
-| **心电图 (ECG)** | 心跳节律 | 分离心率变异性(HRV)成分 |
-| **脑电图 (EEG)** | 脑波 | 提取 α, β, θ, δ 波 |
-| **肌电图 (EMG)** | 肌肉活动 | 去除运动伪迹 |
+| 应用领域 | 信号类型 | VMD 作用 | 实际用途 |
+|----------|----------|----------|----------|
+| **心电图 (ECG)** | 心电节律 | 分离 QRS 波群和基线漂移 | 心律失常检测 |
+| **脑电图 (EEG)** | 脑波节律 | 提取 α, β, θ, δ 波段 | 睡眠分期、癫痫检测 |
+| **肌电图 (EMG)** | 肌肉活动 | 去除运动伪迹和电源干扰 | 肌疲劳分析 |
+| **呼吸信号** | 呼吸模式 | 分离呼吸成分和心跳干扰 | 睡眠呼吸暂停诊断 |
 
-### 7.2 金融时间序列
+### 7.2 金融时间序列分析
 
-- **股票价格分解**：分离长期趋势、周期波动和噪声
-- **波动率分析**：提取不同频率的波动成分
+```{r eval=FALSE}
+# 金融数据分解示例（概念代码）
+# 将股价分解为：长期趋势 + 周期波动 + 短期噪声
 
-### 7.3 故障诊断
+stock_price <- get_stock_data("AAPL")
+vmd_stock <- vmd(stock_price, alpha = 2000, K = 3)
 
-- **轴承振动信号**：提取特征频率，识别故障类型
-- **电机电流分析**：检测异常振动成分
+trend <- vmd_stock$u[, 1] # 长期趋势
+cycle <- vmd_stock$u[, 2] # 中期周期
+noise <- vmd_stock$u[, 3] # 短期波动/噪声
+```
+
+### 7.3 机械故障诊断
+
+- **轴承振动信号**：提取故障特征频率
+- **齿轮箱信号**：分离啮合频率成分
+- **旋转机械**：识别不平衡、不对中等故障模式
+
+---
 
 ## 8. 常见问题与解决方案
+
+### 8.1 问题诊断表
 
 | 问题 | 可能原因 | 解决方案 |
 |------|----------|----------|
 | 模态混叠 | K 值过小 | 增加 K 值 |
-| 过分解 | K 值过大 | 减少 K 值或增加 alpha |
-| 边缘效应 | 信号不对称 | 使用镜像延拓预处理 |
-| 收敛慢/不收敛 | tol 过小或 alpha 不当 | 调整参数 |
+| 过分解（模态太碎） | K 值过大 | 减少 K 值 |
+| 相邻模态频率太近 | alpha 过小 | 增加 alpha |
+| 边缘效应 | 信号截断不当 | 使用镜像延拓预处理 |
+| 收敛慢/不收敛 | 参数不当 | 调整 alpha 或 tol |
+| 高频模态丢失 | alpha 过大 | 减小 alpha |
+
+### 8.2 参数选择流程图
+
+```
+开始
+  │
+  ↓
+[FFT 分析]──→ 确定 K 值
+  │
+  ↓
+[设置 alpha=2000]
+  │
+  ↓
+[运行 VMD]
+  │
+  ↓
+检查模态频谱
+  │
+  ├──→ 混叠? ──→ 增加 K 或 alpha
+  │
+  ├──→ 过分解? ──→ 减少 K
+  │
+  └──→ 满意 ──→ 完成
+```
 
 > [!WARNING]
-> VMD 对参数敏感！建议先用仿真信号确定最佳参数组合，再应用于真实数据。
+> VMD 对参数较为敏感！建议先用仿真信号（已知成分）测试参数设置，确定最佳参数后再应用于真实数据。
+
+---
+
+## 9. 与其他分解方法的对比
+
+### 9.1 主流分解方法一览
+
+| 方法 | 全称 | 特点 | 适用场景 |
+|------|------|------|----------|
+| **EMD** | 经验模态分解 | 自适应、无需设定 K | 一般非平稳信号 |
+| **EEMD** | 集合经验模态分解 | 添加噪声抑制模态混叠 | 噪声敏感信号 |
+| **CEEMDAN** | 完全自适应噪声集合经验模态分解 | 进一步改进噪声处理 | 强噪声信号 |
+| **VMD** | 变分模态分解 | 非递归、带宽可控 | 频率相近成分分离 |
+| **EWT** | 经验小波变换 | 自适应小波 | 频率变化信号 |
+
+### 9.2 何时选择 VMD？
+
+✅ **推荐使用 VMD**：
+- 需要分离频率相近的成分
+- 信号含较强噪声
+- 需要精确控制各模态带宽
+- 端点效应敏感的应用
+
+❌ **考虑其他方法**：
+- 完全未知信号成分数量 → EMD/EEMD
+- 计算速度要求极高 → EMD
+- 频率随时间剧烈变化 → EWT
+
+---
 
 ## 参考文献
 
--   Dragomiretskiy, K., & Zosso, D. (2014). Variational Mode Decomposition. *IEEE Transactions on Signal Processing*, 62(3), 531-544.
--   Nazari, M., & Sakhaei, S. M. (2020). Variational Mode Decomposition: Applications in biomedical signal processing. *Computers in Biology and Medicine*.
+1. Dragomiretskiy, K., & Zosso, D. (2014). Variational Mode Decomposition. *IEEE Transactions on Signal Processing*, 62(3), 531-544.
 
+2. Nazari, M., & Sakhaei, S. M. (2020). Variational Mode Decomposition: Applications in biomedical signal processing. *Computers in Biology and Medicine*.
+
+3. Wang, Y., Markert, R., Xiang, J., & Zheng, W. (2015). Research on variational mode decomposition and its application in detecting rub-impact fault of the rotor system. *Mechanical Systems and Signal Processing*.
+
+4. Lahmiri, S. (2014). Comparative study of ECG signal denoising by wavelet thresholding in empirical and variational mode decomposition domains. *Healthcare Technology Letters*.

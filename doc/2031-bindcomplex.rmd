@@ -1,0 +1,675 @@
+---
+title: "复杂组合图与发表级图表完全指南"
+date: "2026-01-13"
+categories: [可视化, ggplot2, 发表图表]
+image: "images/2031_cover.svg"
+description: "从多面板设计到嵌套图形：patchwork、cowplot 高级技巧，打造顶刊级别可视化作品。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 12,
+    fig.height = 8,
+    dpi = 300
+)
+```
+
+## 前言
+
+科研论文发表对图表有严格要求：清晰、专业、信息丰富。本教程将介绍如何使用 R 语言创建**发表级别的复杂组合图表**，包括：
+
+- 多面板布局设计
+- 嵌套图形（图中图）
+- 注释层设计
+- 顶刊风格模板
+
+---
+
+## 1. 准备工作
+
+```{r}
+library(ggplot2)
+library(patchwork)
+library(cowplot)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+
+# 设置发表级主题
+theme_publication <- function(base_size = 12) {
+    theme_minimal(base_size = base_size) +
+        theme(
+            # 标题
+            plot.title = element_text(face = "bold", size = base_size + 2, hjust = 0),
+            plot.subtitle = element_text(size = base_size, color = "gray40"),
+
+            # 坐标轴
+            axis.title = element_text(face = "bold", size = base_size),
+            axis.text = element_text(size = base_size - 1),
+            axis.line = element_line(color = "black", linewidth = 0.5),
+
+            # 图例
+            legend.title = element_text(face = "bold", size = base_size),
+            legend.text = element_text(size = base_size - 1),
+            legend.background = element_rect(fill = "white", color = NA),
+
+            # 面板
+            panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+            panel.grid.minor = element_blank(),
+            panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
+
+            # 分面
+            strip.text = element_text(face = "bold", size = base_size),
+            strip.background = element_rect(fill = "gray95", color = "black")
+        )
+}
+
+theme_set(theme_publication())
+```
+
+---
+
+## 2. 创建示例数据
+
+```{r}
+set.seed(42)
+
+# 实验数据
+n <- 100
+experiment_data <- data.frame(
+    condition = rep(c("Control", "Treatment A", "Treatment B"), each = n),
+    response = c(
+        rnorm(n, 50, 10),
+        rnorm(n, 65, 12),
+        rnorm(n, 75, 8)
+    ),
+    biomarker = c(
+        rnorm(n, 100, 20),
+        rnorm(n, 120, 25),
+        rnorm(n, 150, 18)
+    ),
+    time = rep(1:10, each = 10, times = 3)
+)
+
+# 时间序列数据
+time_data <- experiment_data %>%
+    group_by(condition, time) %>%
+    summarise(
+        mean_response = mean(response),
+        se_response = sd(response) / sqrt(n()),
+        .groups = "drop"
+    )
+
+# 生存数据（模拟）
+survival_data <- data.frame(
+    time = c(0, 10, 20, 30, 40, 50, 60),
+    survival_control = c(1, 0.95, 0.85, 0.70, 0.55, 0.40, 0.30),
+    survival_treatment = c(1, 0.98, 0.92, 0.85, 0.75, 0.65, 0.55)
+)
+```
+
+---
+
+## 3. patchwork 多图组合
+
+### 3.1 基础组合
+
+```{r}
+# 创建四个基础图
+p1 <- ggplot(experiment_data, aes(x = condition, y = response, fill = condition)) +
+    geom_boxplot(alpha = 0.8) +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(title = "A. 各组响应分布", x = NULL, y = "Response") +
+    theme(legend.position = "none")
+
+p2 <- ggplot(experiment_data, aes(x = biomarker, y = response, color = condition)) +
+    geom_point(alpha = 0.6) +
+    geom_smooth(method = "lm", se = FALSE, linewidth = 1) +
+    scale_color_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(title = "B. 生物标志物相关性", x = "Biomarker", y = "Response") +
+    theme(legend.position = c(0.85, 0.2))
+
+p3 <- ggplot(time_data, aes(x = time, y = mean_response, color = condition)) +
+    geom_line(linewidth = 1) +
+    geom_ribbon(
+        aes(
+            ymin = mean_response - 1.96 * se_response,
+            ymax = mean_response + 1.96 * se_response, fill = condition
+        ),
+        alpha = 0.2, color = NA
+    ) +
+    scale_color_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(title = "C. 时间趋势", x = "Time (days)", y = "Mean Response") +
+    theme(legend.position = "none")
+
+p4 <- ggplot(survival_data) +
+    geom_step(aes(x = time, y = survival_control, color = "Control"), linewidth = 1) +
+    geom_step(aes(x = time, y = survival_treatment, color = "Treatment"), linewidth = 1) +
+    scale_color_manual(values = c("Control" = "#4e79a7", "Treatment" = "#59a14f")) +
+    labs(title = "D. 生存曲线", x = "Time (months)", y = "Survival Probability", color = "Group") +
+    ylim(0, 1)
+
+# 组合
+(p1 | p2) / (p3 | p4)
+```
+
+### 3.2 复杂布局
+
+```{r fig.height=10}
+# 使用 plot_layout 自定义尺寸
+combined <- (p1 | p2) / (p3 | p4) +
+    plot_layout(heights = c(1, 1.2)) +
+    plot_annotation(
+        title = "Figure 1. Treatment Effects on Response and Survival",
+        subtitle = "A comprehensive analysis of experimental outcomes",
+        caption = "Data source: Simulated experiment",
+        theme = theme(
+            plot.title = element_text(size = 16, face = "bold"),
+            plot.subtitle = element_text(size = 12, color = "gray40"),
+            plot.caption = element_text(size = 10, color = "gray60", hjust = 0)
+        )
+    )
+
+combined
+```
+
+### 3.3 非对称布局
+
+```{r}
+# 左侧大图 + 右侧多小图
+p_main <- ggplot(experiment_data, aes(x = biomarker, y = response)) +
+    geom_point(aes(color = condition), alpha = 0.6, size = 2) +
+    geom_smooth(aes(color = condition), method = "lm", se = TRUE, alpha = 0.2) +
+    scale_color_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(
+        title = "Main: Biomarker-Response Relationship",
+        x = "Biomarker Level", y = "Response"
+    ) +
+    theme(legend.position = "bottom")
+
+p_hist1 <- ggplot(experiment_data, aes(x = response, fill = condition)) +
+    geom_histogram(alpha = 0.7, bins = 20, position = "identity") +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(title = "Response Distribution") +
+    theme(legend.position = "none", axis.title.y = element_blank())
+
+p_hist2 <- ggplot(experiment_data, aes(x = biomarker, fill = condition)) +
+    geom_histogram(alpha = 0.7, bins = 20, position = "identity") +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(title = "Biomarker Distribution") +
+    theme(legend.position = "none", axis.title.y = element_blank())
+
+# 组合布局
+p_main + (p_hist1 / p_hist2) + plot_layout(widths = c(2, 1))
+```
+
+---
+
+## 4. cowplot 高级技巧
+
+### 4.1 图中图 (Inset)
+
+```{r}
+# 主图
+main_plot <- ggplot(experiment_data, aes(x = biomarker, y = response, color = condition)) +
+    geom_point(alpha = 0.6, size = 2) +
+    scale_color_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(x = "Biomarker", y = "Response") +
+    theme(legend.position = c(0.15, 0.85))
+
+# 内嵌图（局部放大或统计）
+inset_plot <- ggplot(experiment_data, aes(x = condition, y = response, fill = condition)) +
+    geom_boxplot(alpha = 0.8, width = 0.6) +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(x = NULL, y = NULL) +
+    theme_minimal(base_size = 8) +
+    theme(
+        legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.background = element_rect(fill = "white", color = "gray40"),
+        plot.background = element_rect(fill = "white", color = "gray40", linewidth = 0.5)
+    )
+
+# 组合
+ggdraw(main_plot) +
+    draw_plot(inset_plot, x = 0.55, y = 0.1, width = 0.4, height = 0.35)
+```
+
+### 4.2 多层注释
+
+```{r}
+# 创建带标签的组合图
+labeled_combined <- ggdraw() +
+    draw_plot(p1, x = 0, y = 0.5, width = 0.5, height = 0.5) +
+    draw_plot(p2, x = 0.5, y = 0.5, width = 0.5, height = 0.5) +
+    draw_plot(p3, x = 0, y = 0, width = 0.5, height = 0.5) +
+    draw_plot(p4, x = 0.5, y = 0, width = 0.5, height = 0.5) +
+    # 添加面板标签
+    draw_plot_label(
+        label = c("A", "B", "C", "D"),
+        x = c(0, 0.5, 0, 0.5),
+        y = c(1, 1, 0.5, 0.5),
+        size = 16, fontface = "bold"
+    )
+
+labeled_combined
+```
+
+### 4.3 混合图表类型
+
+```{r fig.height=9}
+# 创建表格图
+summary_table <- experiment_data %>%
+    group_by(condition) %>%
+    summarise(
+        N = n(),
+        `Mean ± SD` = paste0(round(mean(response), 1), " ± ", round(sd(response), 1)),
+        Median = round(median(response), 1)
+    )
+
+# 表格绘制
+table_plot <- tableGrob(summary_table,
+    rows = NULL,
+    theme = ttheme_minimal(
+        core = list(fg_params = list(fontsize = 10)),
+        colhead = list(fg_params = list(fontsize = 10, fontface = "bold"))
+    )
+)
+
+# 组合图表 + 表格
+combined_with_table <- ggdraw() +
+    draw_plot(p1, x = 0, y = 0.35, width = 0.5, height = 0.65) +
+    draw_plot(p2, x = 0.5, y = 0.35, width = 0.5, height = 0.65) +
+    draw_grob(table_plot, x = 0.25, y = 0.02, width = 0.5, height = 0.3)
+
+combined_with_table
+```
+
+---
+
+## 5. 高级分面设计
+
+### 5.1 自由坐标轴分面
+
+```{r}
+ggplot(experiment_data, aes(x = time, y = response)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "loess", color = "#4e79a7", fill = "#4e79a7", alpha = 0.2) +
+    facet_wrap(~condition, scales = "free_y", ncol = 3) +
+    labs(
+        title = "Response Trends by Condition",
+        subtitle = "Y-axis scales are independent for each panel",
+        x = "Time", y = "Response"
+    )
+```
+
+### 5.2 嵌套分面 (facet_grid)
+
+```{r}
+# 添加第二个分类变量
+experiment_data$gender <- rep(c("Male", "Female"), length.out = nrow(experiment_data))
+
+ggplot(experiment_data, aes(x = response, fill = condition)) +
+    geom_density(alpha = 0.7) +
+    facet_grid(gender ~ condition) +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(
+        title = "Response Distribution by Condition and Gender",
+        x = "Response", y = "Density"
+    ) +
+    theme(legend.position = "none")
+```
+
+### 5.3 分面 + 汇总边缘图
+
+```{r}
+library(ggExtra)
+
+# 创建基础散点图
+p_scatter <- ggplot(experiment_data, aes(x = biomarker, y = response, color = condition)) +
+    geom_point(alpha = 0.6) +
+    scale_color_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(x = "Biomarker", y = "Response") +
+    theme(legend.position = "bottom")
+
+# 添加边缘直方图
+ggMarginal(p_scatter, type = "histogram", groupColour = TRUE, groupFill = TRUE, alpha = 0.5)
+```
+
+---
+
+## 6. 注释系统设计
+
+### 6.1 统计显著性标注
+
+```{r}
+library(ggpubr)
+
+# 带显著性标注的箱线图
+ggplot(experiment_data, aes(x = condition, y = response, fill = condition)) +
+    geom_boxplot(alpha = 0.8) +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    stat_compare_means(
+        comparisons = list(
+            c("Control", "Treatment A"),
+            c("Control", "Treatment B"),
+            c("Treatment A", "Treatment B")
+        ),
+        method = "t.test",
+        label = "p.signif",
+        tip.length = 0.02
+    ) +
+    labs(
+        title = "Treatment Effects with Statistical Significance",
+        x = NULL, y = "Response"
+    ) +
+    theme(legend.position = "none")
+```
+
+### 6.2 复杂注释层
+
+```{r}
+# 创建带多层注释的图
+ggplot(
+    experiment_data %>% filter(condition == "Treatment A"),
+    aes(x = biomarker, y = response)
+) +
+    # 数据层
+    geom_point(alpha = 0.6, color = "#f28e2b", size = 2) +
+    geom_smooth(method = "lm", color = "#e15759", fill = "#e15759", alpha = 0.2) +
+
+    # 注释层 - 参考区域
+    annotate("rect",
+        xmin = 80, xmax = 120, ymin = -Inf, ymax = Inf,
+        fill = "yellow", alpha = 0.15
+    ) +
+    annotate("text",
+        x = 100, y = max(experiment_data$response) * 0.95,
+        label = "Normal Range", fontface = "italic", color = "gray40"
+    ) +
+
+    # 注释层 - 关键点标记
+    annotate("point", x = 150, y = 80, color = "red", size = 4, shape = 17) +
+    annotate("segment",
+        x = 155, y = 82, xend = 152, yend = 80,
+        arrow = arrow(length = unit(0.1, "inches")), color = "red"
+    ) +
+    annotate("text", x = 165, y = 84, label = "Outlier", color = "red", fontface = "bold") +
+
+    # 注释层 - 统计信息
+    annotate("text",
+        x = 80, y = 40, hjust = 0,
+        label = paste(
+            "n =", sum(experiment_data$condition == "Treatment A"),
+            "\nr =", round(cor(
+                experiment_data$biomarker[experiment_data$condition == "Treatment A"],
+                experiment_data$response[experiment_data$condition == "Treatment A"]
+            ), 2)
+        ),
+        size = 4
+    ) +
+    labs(
+        title = "Treatment A: Biomarker-Response Relationship",
+        subtitle = "Annotated with reference range and statistical summary",
+        x = "Biomarker Level", y = "Response"
+    )
+```
+
+---
+
+## 7. 发表级模板
+
+### 7.1 Nature 风格
+
+```{r}
+theme_nature <- function(base_size = 10) {
+    theme_minimal(base_size = base_size) +
+        theme(
+            # 文字使用 Arial
+            text = element_text(family = "sans"),
+
+            # 简洁的轴线
+            axis.line = element_line(color = "black", linewidth = 0.3),
+            axis.ticks = element_line(color = "black", linewidth = 0.3),
+            axis.ticks.length = unit(0.1, "cm"),
+
+            # 无网格线
+            panel.grid = element_blank(),
+
+            # 图例在底部
+            legend.position = "bottom",
+            legend.box = "horizontal",
+
+            # 紧凑的边距
+            plot.margin = margin(5, 5, 5, 5)
+        )
+}
+
+# 应用
+ggplot(experiment_data, aes(x = condition, y = response, fill = condition)) +
+    geom_boxplot(alpha = 0.8, width = 0.6, outlier.size = 1) +
+    scale_fill_manual(values = c("#E64B35", "#4DBBD5", "#00A087")) + # Nature 配色
+    labs(x = NULL, y = "Response (arbitrary units)") +
+    theme_nature() +
+    theme(legend.position = "none")
+```
+
+### 7.2 Cell 风格
+
+```{r}
+theme_cell <- function(base_size = 11) {
+    theme_classic(base_size = base_size) +
+        theme(
+            # 粗边框
+            panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+
+            # 轴线
+            axis.line = element_blank(),
+            axis.ticks = element_line(color = "black", linewidth = 0.5),
+
+            # 标题
+            plot.title = element_text(size = base_size + 2, face = "bold", hjust = 0.5),
+
+            # 图例
+            legend.position = "right",
+            legend.key.size = unit(0.4, "cm")
+        )
+}
+
+ggplot(time_data, aes(x = time, y = mean_response, color = condition)) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2.5) +
+    geom_errorbar(
+        aes(
+            ymin = mean_response - se_response,
+            ymax = mean_response + se_response
+        ),
+        width = 0.3
+    ) +
+    scale_color_manual(values = c("#374E55", "#DF8F44", "#00A1D5")) + # Cell 配色
+    labs(
+        title = "Time Course of Response",
+        x = "Time (days)",
+        y = "Mean Response ± SE",
+        color = "Condition"
+    ) +
+    theme_cell()
+```
+
+### 7.3 JAMA 风格
+
+```{r}
+theme_jama <- function(base_size = 11) {
+    theme_minimal(base_size = base_size) +
+        theme(
+            # 灰色网格
+            panel.grid.major = element_line(color = "gray85", linewidth = 0.3),
+            panel.grid.minor = element_blank(),
+
+            # 轴线
+            axis.line = element_line(color = "black", linewidth = 0.4),
+
+            # 标题居中
+            plot.title = element_text(hjust = 0.5, face = "bold"),
+            plot.subtitle = element_text(hjust = 0.5),
+
+            # 图例
+            legend.position = "bottom"
+        )
+}
+
+ggplot(experiment_data, aes(x = biomarker, y = response, color = condition)) +
+    geom_point(alpha = 0.5) +
+    geom_smooth(method = "lm", se = TRUE, alpha = 0.15) +
+    scale_color_manual(values = c("#0072B5", "#BC3C29", "#20854E")) + # JAMA 配色
+    labs(
+        title = "Association Between Biomarker and Response",
+        subtitle = "By treatment condition",
+        x = "Biomarker Level",
+        y = "Response",
+        color = "Condition"
+    ) +
+    theme_jama()
+```
+
+---
+
+## 8. 导出高质量图片
+
+### 8.1 ggsave 参数
+
+```{r eval=FALSE}
+# 创建最终图
+final_plot <- (p1 | p2) / (p3 | p4) +
+    plot_annotation(title = "Figure 1")
+
+# 导出为 PDF（矢量格式，发表首选）
+ggsave("figure1.pdf", final_plot, width = 10, height = 8, dpi = 300)
+
+# 导出为 TIFF（某些期刊要求）
+ggsave("figure1.tiff", final_plot, width = 10, height = 8, dpi = 300, compression = "lzw")
+
+# 导出为 PNG（网页/PPT 使用）
+ggsave("figure1.png", final_plot, width = 10, height = 8, dpi = 300)
+
+# 导出为 SVG（可编辑矢量）
+ggsave("figure1.svg", final_plot, width = 10, height = 8)
+```
+
+### 8.2 批量导出
+
+```{r eval=FALSE}
+# 批量导出多个图
+plots_list <- list(
+    "fig1_boxplot" = p1,
+    "fig2_scatter" = p2,
+    "fig3_timecourse" = p3,
+    "fig4_survival" = p4
+)
+
+# 循环导出
+for (name in names(plots_list)) {
+    ggsave(
+        paste0(name, ".pdf"),
+        plots_list[[name]],
+        width = 6,
+        height = 5,
+        dpi = 300
+    )
+}
+```
+
+---
+
+## 9. 实战案例：完整论文图
+
+```{r fig.height=12, fig.width=14}
+# 创建完整的论文图
+# Panel A: 主效应箱线图
+panelA <- ggplot(experiment_data, aes(x = condition, y = response, fill = condition)) +
+    geom_violin(alpha = 0.3, color = NA) +
+    geom_boxplot(width = 0.3, alpha = 0.8, outlier.size = 1) +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(x = NULL, y = "Response") +
+    theme(legend.position = "none")
+
+# Panel B: 相关性散点图
+panelB <- ggplot(experiment_data, aes(x = biomarker, y = response)) +
+    geom_point(aes(color = condition), alpha = 0.5) +
+    geom_smooth(aes(color = condition), method = "lm", se = FALSE, linewidth = 0.8) +
+    scale_color_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(x = "Biomarker", y = "Response", color = "Condition") +
+    theme(
+        legend.position = c(0.85, 0.2),
+        legend.background = element_rect(fill = "white", color = "gray80")
+    )
+
+# Panel C: 时间趋势
+panelC <- ggplot(time_data, aes(x = time, y = mean_response, color = condition)) +
+    geom_ribbon(
+        aes(
+            ymin = mean_response - 1.96 * se_response,
+            ymax = mean_response + 1.96 * se_response, fill = condition
+        ),
+        alpha = 0.2, color = NA
+    ) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2) +
+    scale_color_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    scale_fill_manual(values = c("#4e79a7", "#f28e2b", "#59a14f")) +
+    labs(x = "Time (days)", y = "Mean Response ± 95% CI") +
+    theme(legend.position = "none")
+
+# Panel D: 生存曲线
+panelD <- survival_data %>%
+    pivot_longer(cols = starts_with("survival"), names_to = "group", values_to = "survival") %>%
+    mutate(group = ifelse(group == "survival_control", "Control", "Treatment")) %>%
+    ggplot(aes(x = time, y = survival, color = group)) +
+    geom_step(linewidth = 1.2) +
+    geom_point(size = 2) +
+    scale_color_manual(values = c("Control" = "#4e79a7", "Treatment" = "#59a14f")) +
+    scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1)) +
+    labs(x = "Time (months)", y = "Survival Probability", color = "Group") +
+    theme(legend.position = c(0.85, 0.85))
+
+# 组合
+final_figure <- (panelA | panelB) / (panelC | panelD) +
+    plot_annotation(
+        title = "Figure 1. Comprehensive Analysis of Treatment Effects",
+        subtitle = "A) Group comparison, B) Biomarker correlation, C) Time course, D) Survival",
+        tag_levels = "A",
+        theme = theme(
+            plot.title = element_text(size = 16, face = "bold"),
+            plot.subtitle = element_text(size = 12, color = "gray40")
+        )
+    ) &
+    theme(plot.tag = element_text(size = 14, face = "bold"))
+
+final_figure
+```
+
+---
+
+## 总结
+
+| 工具 | 主要用途 | 优势 |
+|------|----------|------|
+| `patchwork` | 多图组合 | 语法简洁，布局灵活 |
+| `cowplot` | 图中图、复杂布局 | 精确定位控制 |
+| `gridExtra` | 表格与图组合 | 支持表格元素 |
+| `ggpubr` | 统计标注 | 自动显著性标记 |
+| `ggExtra` | 边缘图 | 一行代码添加 |
+
+> [!TIP]
+> **发表图表检查清单**：
+> - [ ] 字体大小≥8pt
+> - [ ] 线条粗细≥0.5pt  
+> - [ ] 分辨率≥300dpi
+> - [ ] 配色对色盲友好
+> - [ ] 图例标签完整
+> - [ ] 坐标轴标签含单位
