@@ -1,0 +1,290 @@
+---
+title: "缺失值处理完全指南"
+date: "2026-01-13"
+categories: [R语言方法, 数据处理, 缺失值]
+image: "images/missing-data-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## 缺失值问题概述
+
+缺失数据是数据分析中最常见的问题之一。正确处理缺失值对于获得可靠的统计推断至关重要。
+
+### 缺失机制分类
+
+| 类型 | 全称 | 含义 | 处理难度 |
+|------|------|------|---------|
+| **MCAR** | Missing Completely At Random | 完全随机缺失 | 易 |
+| **MAR** | Missing At Random | 随机缺失（依赖其他变量） | 中 |
+| **MNAR** | Missing Not At Random | 非随机缺失（依赖缺失值本身） | 难 |
+
+## 安装与加载
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(naniar) # 缺失值可视化
+library(mice) # 多重插补
+
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：缺失值检测
+
+### 1.1 基础检测
+
+```{r}
+# 创建含缺失值的示例数据
+set.seed(42)
+df <- data.frame(
+    id = 1:100,
+    age = sample(c(20:60, NA), 100, replace = TRUE, prob = c(rep(0.02, 41), 0.18)),
+    income = sample(c(3000:10000, NA), 100, replace = TRUE),
+    education = sample(c("高中", "本科", "硕士", NA), 100, replace = TRUE),
+    score = rnorm(100, 75, 10)
+)
+df$score[sample(1:100, 10)] <- NA
+
+# 基础统计
+sum(is.na(df)) # 总缺失数
+colSums(is.na(df)) # 每列缺失数
+mean(is.na(df$age)) # 缺失比例
+```
+
+### 1.2 使用 naniar 包
+
+```{r}
+# 缺失值摘要
+miss_var_summary(df)
+```
+
+```{r}
+# 缺失模式
+miss_case_summary(df) %>% head()
+```
+
+### 1.3 可视化缺失模式
+
+```{r}
+# 缺失值热图
+vis_miss(df)
+```
+
+```{r}
+# 缺失模式图
+gg_miss_upset(df)
+```
+
+
+## 第二部分：简单处理方法
+
+### 2.1 删除法
+
+```{r}
+# 删除含NA的行（listwise deletion）
+df_complete <- na.omit(df)
+nrow(df_complete)
+
+# 删除特定列NA
+df_drop <- df %>% drop_na(age, income)
+nrow(df_drop)
+```
+
+> **注意**：删除法可能导致样本量大幅减少，仅在MCAR时无偏。
+
+### 2.2 均值/中位数填充
+
+```{r}
+# 均值填充
+df_mean <- df %>%
+    mutate(
+        age = ifelse(is.na(age), mean(age, na.rm = TRUE), age),
+        income = ifelse(is.na(income), median(income, na.rm = TRUE), income)
+    )
+
+# 使用 coalesce（类型更安全）
+df_filled <- df %>%
+    mutate(
+        age = coalesce(as.numeric(age), mean(age, na.rm = TRUE)),
+        score = coalesce(score, median(score, na.rm = TRUE))
+    )
+```
+
+### 2.3 众数填充（分类变量）
+
+```{r}
+# 计算众数
+get_mode <- function(x) {
+    x <- x[!is.na(x)]
+    ux <- unique(x)
+    ux[which.max(tabulate(match(x, ux)))]
+}
+
+df_mode <- df %>%
+    mutate(education = replace_na(education, get_mode(education)))
+```
+
+
+## 第三部分：多重插补（mice）
+
+多重插补是处理MAR缺失的推荐方法。
+
+### 3.1 基本流程
+
+```{r}
+# 准备数据（只保留数值和因子）
+df_mice <- df %>%
+    select(-id) %>%
+    mutate(education = as.factor(education))
+
+# 执行多重插补
+imp <- mice(df_mice, m = 5, method = "pmm", seed = 123, print = FALSE)
+```
+
+### 3.2 查看插补方法
+
+```{r}
+# 查看使用的方法
+imp$method
+```
+
+| 方法 | 适用类型 | 说明 |
+|------|---------|------|
+| `pmm` | 数值型 | 预测均值匹配（默认，推荐） |
+| `logreg` | 二分类 | 逻辑回归 |
+| `polyreg` | 多分类 | 多项式回归 |
+| `norm` | 数值型 | 正态分布 |
+
+### 3.3 提取填充数据
+
+```{r}
+# 提取第1个填充数据集
+complete_data <- complete(imp, 1)
+head(complete_data)
+```
+
+```{r}
+# 提取所有填充数据（长格式）
+all_complete <- complete(imp, "long")
+head(all_complete)
+```
+
+### 3.4 对多重填充数据建模
+
+```{r}
+# 在每个填充数据上拟合模型
+fit <- with(imp, lm(score ~ age + income + education))
+
+# 合并结果（Rubin规则）
+pooled <- pool(fit)
+summary(pooled)
+```
+
+
+## 第四部分：可视化填充效果
+
+### 4.1 密度图比较
+
+```{r}
+# 比较原始与填充后的分布
+densityplot(imp, ~age)
+```
+
+### 4.2 条带图
+
+```{r}
+stripplot(imp, age ~ .imp, pch = 20)
+```
+
+
+## 第五部分：实战案例
+
+### 完整分析流程
+
+```{r}
+# 1. 检查缺失模式
+miss_var_summary(df)
+```
+
+```{r}
+# 2. 可视化
+vis_miss(df)
+```
+
+```{r}
+# 3. 多重插补
+df_for_imp <- df %>%
+    select(-id) %>%
+    mutate(education = as.factor(education))
+
+imp_final <- mice(df_for_imp, m = 5, seed = 42, print = FALSE)
+```
+
+```{r}
+# 4. 分析
+model <- with(imp_final, lm(score ~ age + income))
+result <- pool(model)
+summary(result)
+```
+
+```{r}
+# 5. 提取最终数据
+final_data <- complete(imp_final, action = "long", include = TRUE)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 检测
+sum(is.na(df))
+colSums(is.na(df))
+naniar::miss_var_summary(df)
+
+# 可视化
+naniar::vis_miss(df)
+naniar::gg_miss_upset(df)
+
+# 简单处理
+df %>% drop_na() # 删除NA行
+df %>% replace_na(list(x = 0)) # 填充固定值
+df %>% mutate(x = replace_na(x, mean(x, na.rm = TRUE)))
+
+# 多重插补
+imp <- mice(df, m = 5, method = "pmm")
+complete(imp, 1) # 提取填充数据
+fit <- with(imp, lm(y ~ x)) # 建模
+pool(fit) # 合并结果
+```
+
+
+## 小结
+
+缺失值处理策略选择：
+
+| 情况 | 推荐方法 |
+|------|---------|
+| 缺失<5%，MCAR | 删除法 |
+| 缺失较多，MAR | 多重插补（mice） |
+| 时间序列 | 线性插值 |
+| 需要快速预览 | 均值/中位数填充 |
+
+> **最佳实践**：始终报告缺失情况，并进行敏感性分析验证结果稳健性。
+
+
+## 参考资源
+
+- [mice 包文档](https://amices.org/mice/)
+- [naniar 包文档](https://naniar.njtierney.com/)
+- [Flexible Imputation of Missing Data](https://stefvanbuuren.name/fimd/)

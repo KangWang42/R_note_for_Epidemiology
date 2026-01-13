@@ -1,0 +1,291 @@
+---
+title: "ROC 分析与模型评估"
+date: "2026-01-13"
+categories: [R语言方法, 模型评估, ROC]
+image: "images/roc-analysis-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## ROC 分析简介
+
+**ROC**（Receiver Operating Characteristic）曲线是评估二分类模型性能的重要工具，展示了不同阈值下灵敏度与特异度的权衡关系。
+
+### 核心概念
+
+| 指标 | 公式 | 含义 |
+|------|------|------|
+| **灵敏度** (Sensitivity) | TP/(TP+FN) | 真阳性率，检出率 |
+| **特异度** (Specificity) | TN/(TN+FP) | 真阴性率 |
+| **AUC** | 曲线下面积 | 模型区分能力，0.5-1 |
+
+## 安装与加载
+
+```{r}
+library(pROC)
+library(ggplot2)
+library(dplyr)
+
+theme_set(theme_bw(base_size = 12))
+set.seed(42)
+```
+
+
+## 第一部分：ROC 曲线绑制
+
+### 1.1 创建示例数据
+
+```{r}
+# 模拟二分类数据
+n <- 200
+df <- data.frame(
+    outcome = rbinom(n, 1, 0.4),
+    predictor1 = rnorm(n),
+    predictor2 = rnorm(n)
+)
+df$predictor1 <- df$predictor1 + df$outcome * 1.2
+df$predictor2 <- df$predictor2 + df$outcome * 0.8
+
+# 拟合 logistic 回归
+model <- glm(outcome ~ predictor1 + predictor2, data = df, family = binomial)
+df$prob <- predict(model, type = "response")
+```
+
+### 1.2 计算 ROC 曲线
+
+```{r}
+# 使用 pROC 包
+roc_obj <- roc(df$outcome, df$prob)
+roc_obj
+```
+
+### 1.3 绑制 ROC 曲线
+
+```{r}
+# 基础绑图
+plot(roc_obj,
+    col = "#4f46e5",
+    lwd = 2,
+    main = "ROC 曲线"
+)
+```
+
+```{r}
+# ggplot2 风格
+ggroc(roc_obj, color = "#4f46e5", size = 1.2) +
+    geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray50") +
+    labs(title = "ROC 曲线", x = "特异度", y = "灵敏度") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+
+## 第二部分：AUC 计算与置信区间
+
+### 2.1 AUC 值
+
+```{r}
+# AUC
+auc(roc_obj)
+```
+
+### 2.2 置信区间（Bootstrap）
+
+```{r}
+# 95% CI
+ci.auc(roc_obj, conf.level = 0.95, method = "bootstrap", boot.n = 1000)
+```
+
+### 2.3 AUC 解释
+
+| AUC 范围 | 模型表现 |
+|---------|---------|
+| 0.9-1.0 | 优秀 |
+| 0.8-0.9 | 良好 |
+| 0.7-0.8 | 一般 |
+| 0.6-0.7 | 较差 |
+| 0.5-0.6 | 无意义 |
+
+
+## 第三部分：最佳截断值
+
+### 3.1 约登指数法
+
+```{r}
+# 约登指数 = 灵敏度 + 特异度 - 1
+coords_youden <- coords(roc_obj, "best", ret = "all", best.method = "youden")
+coords_youden
+```
+
+### 3.2 其他方法
+
+```{r}
+# 最接近左上角
+coords_closest <- coords(roc_obj, "best", ret = "all", best.method = "closest.topleft")
+
+# 指定灵敏度
+coords_sens <- coords(roc_obj, x = 0.9, input = "sensitivity", ret = "all")
+coords_sens
+```
+
+### 3.3 可视化最佳点
+
+```{r}
+best_threshold <- coords_youden$threshold
+
+ggroc(roc_obj, color = "#4f46e5", size = 1.2) +
+    geom_point(
+        aes(x = coords_youden$specificity, y = coords_youden$sensitivity),
+        color = "red", size = 4
+    ) +
+    annotate("text",
+        x = coords_youden$specificity - 0.1,
+        y = coords_youden$sensitivity + 0.05,
+        label = paste0("最佳阈值 = ", round(best_threshold, 3)),
+        color = "red"
+    ) +
+    labs(title = "ROC 曲线与最佳截断点")
+```
+
+
+## 第四部分：比较多条 ROC 曲线
+
+### 4.1 DeLong 检验
+
+```{r}
+# 两个预测模型
+roc1 <- roc(df$outcome, df$predictor1)
+roc2 <- roc(df$outcome, df$prob)
+
+# DeLong 检验比较 AUC
+test_result <- roc.test(roc1, roc2, method = "delong")
+test_result
+```
+
+### 4.2 绑制多条曲线
+
+```{r}
+# 组合绑图
+roc_list <- list(
+    "单变量" = roc1,
+    "多变量模型" = roc2
+)
+
+ggroc(roc_list, size = 1) +
+    scale_color_manual(values = c("#4f46e5", "#10b981")) +
+    geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray50") +
+    labs(
+        title = "ROC 曲线比较",
+        color = "模型",
+        x = "特异度",
+        y = "灵敏度"
+    ) +
+    theme(legend.position = "bottom")
+```
+
+
+## 第五部分：校准曲线
+
+校准曲线评估预测概率与实际概率的一致性。
+
+```{r}
+# 创建校准数据
+df$prob_group <- cut(df$prob, breaks = seq(0, 1, 0.1), include.lowest = TRUE)
+
+calibration_data <- df %>%
+    group_by(prob_group) %>%
+    summarise(
+        mean_pred = mean(prob),
+        mean_obs = mean(outcome),
+        n = n()
+    ) %>%
+    filter(n >= 5)
+
+# 绑制校准曲线
+ggplot(calibration_data, aes(x = mean_pred, y = mean_obs)) +
+    geom_point(aes(size = n), color = "#4f46e5") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+    geom_smooth(method = "loess", se = FALSE, color = "#ef4444") +
+    labs(
+        title = "校准曲线",
+        x = "预测概率",
+        y = "观察概率"
+    ) +
+    coord_equal(xlim = c(0, 1), ylim = c(0, 1))
+```
+
+
+## 第六部分：完整案例
+
+```{r}
+# 1. 数据准备
+data(PimaIndiansDiabetes2, package = "mlbench")
+pima <- na.omit(PimaIndiansDiabetes2)
+pima$diabetes <- ifelse(pima$diabetes == "pos", 1, 0)
+
+# 2. 拟合模型
+fit <- glm(diabetes ~ glucose + mass + age, data = pima, family = binomial)
+pima$pred_prob <- predict(fit, type = "response")
+
+# 3. ROC 分析
+roc_pima <- roc(pima$diabetes, pima$pred_prob)
+
+# 4. 输出结果
+cat("AUC:", round(auc(roc_pima), 3), "\n")
+cat("95% CI:", paste(round(ci.auc(roc_pima), 3), collapse = " - "), "\n")
+
+# 5. 最佳阈值
+best <- coords(roc_pima, "best", ret = c("threshold", "sensitivity", "specificity"))
+cat("\n最佳阈值:", round(best$threshold, 3), "\n")
+cat("灵敏度:", round(best$sensitivity, 3), "\n")
+cat("特异度:", round(best$specificity, 3), "\n")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 基础 ROC
+roc_obj <- roc(outcome, predictor)
+plot(roc_obj)
+ggroc(roc_obj)
+
+# AUC
+auc(roc_obj)
+ci.auc(roc_obj)
+
+# 最佳阈值
+coords(roc_obj, "best", best.method = "youden")
+coords(roc_obj, x = 0.9, input = "sensitivity")
+
+# 比较 ROC
+roc.test(roc1, roc2)
+
+# 指定阈值的性能
+coords(roc_obj, x = 0.5, input = "threshold")
+```
+
+
+## 小结
+
+ROC 分析核心要点：
+
+1. **AUC** 衡量整体区分能力
+2. **最佳阈值** 平衡灵敏度与特异度
+3. **DeLong检验** 比较模型优劣
+4. **校准曲线** 评估预测可靠性
+
+> **注意**：高 AUC 不等于好的校准，两者应同时评估。
+
+
+## 参考资源
+
+- [pROC 包文档](https://web.expasy.org/pROC/)
+- [ROC曲线解读指南](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2698108/)

@@ -1,0 +1,305 @@
+---
+title: "ggplot2 可视化入门"
+date: "2026-01-13"
+categories: [可视化教程, ggplot2, 入门]
+image: "images/ggplot2-intro-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+## ggplot2 简介
+
+**ggplot2** 是 R 语言最强大的可视化包，基于"图形语法"（Grammar of Graphics）理论构建。
+
+### 图层语法核心
+
+| 组件 | 函数 | 作用 |
+|------|------|------|
+| **数据** | `ggplot(data)` | 指定数据源 |
+| **映射** | `aes()` | 变量到视觉属性的映射 |
+| **几何** | `geom_*()` | 图形类型 |
+| **标度** | `scale_*()` | 刻度和图例 |
+| **主题** | `theme()` | 非数据元素样式 |
+
+## 安装与加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 示例数据
+data(mpg)
+head(mpg)
+```
+
+
+## 第一部分：基础语法
+
+### 1.1 最简绑图
+
+```{r}
+ggplot(data = mpg, aes(x = displ, y = hwy)) +
+  geom_point()
+```
+
+### 1.2 添加颜色映射
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
+  geom_point()
+```
+
+### 1.3 映射 vs 设置
+
+```{r}
+# 映射：变量 → 属性（在 aes 内）
+ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
+  geom_point()
+
+# 设置：固定值（在 aes 外）
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "#4f46e5", size = 3, alpha = 0.6)
+```
+
+
+## 第二部分：常用几何对象
+
+### 2.1 散点图
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(aes(color = class, size = cyl), alpha = 0.7)
+```
+
+### 2.2 折线图
+
+```{r}
+# 时间序列数据
+economics_small <- economics %>% filter(date >= "2000-01-01")
+
+ggplot(economics_small, aes(x = date, y = unemploy)) +
+  geom_line(color = "#4f46e5", linewidth = 1)
+```
+
+### 2.3 柱状图
+
+```{r}
+ggplot(mpg, aes(x = class)) +
+  geom_bar(fill = "#4f46e5")
+```
+
+```{r}
+# 已汇总数据
+class_summary <- mpg %>% count(class)
+
+ggplot(class_summary, aes(x = reorder(class, -n), y = n)) +
+  geom_col(fill = "#10b981") +
+  labs(x = "车型", y = "数量")
+```
+
+### 2.4 直方图
+
+```{r}
+ggplot(mpg, aes(x = hwy)) +
+  geom_histogram(bins = 20, fill = "#4f46e5", color = "white")
+```
+
+### 2.5 密度图
+
+```{r}
+ggplot(mpg, aes(x = hwy, fill = drv)) +
+  geom_density(alpha = 0.5)
+```
+
+### 2.6 箱线图
+
+```{r}
+ggplot(mpg, aes(x = class, y = hwy)) +
+  geom_boxplot(fill = "#4f46e5", alpha = 0.7)
+```
+
+### 2.7 小提琴图
+
+```{r}
+ggplot(mpg, aes(x = drv, y = hwy)) +
+  geom_violin(fill = "#10b981", alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white")
+```
+
+
+## 第三部分：图层叠加
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "#4f46e5", alpha = 0.6) +
+  geom_smooth(method = "lm", color = "#ef4444", se = TRUE)
+```
+
+```{r}
+# 多种平滑方法
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "loess", color = "#4f46e5") +
+  geom_smooth(method = "lm", color = "#ef4444", linetype = "dashed")
+```
+
+
+## 第四部分：分面
+
+### 4.1 单变量分面
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point() +
+  facet_wrap(~class, ncol = 4)
+```
+
+### 4.2 双变量分面
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point() +
+  facet_grid(drv ~ cyl)
+```
+
+
+## 第五部分：标度与坐标系
+
+### 5.1 颜色标度
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set2")
+```
+
+```{r}
+# 手动配色
+ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("4" = "#4f46e5", "f" = "#10b981", "r" = "#ef4444"))
+```
+
+### 5.2 坐标变换
+
+```{r}
+# 对数坐标
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.1) +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+### 5.3 坐标翻转
+
+```{r}
+ggplot(mpg, aes(x = class, y = hwy)) +
+  geom_boxplot() +
+  coord_flip()
+```
+
+
+## 第六部分：主题系统
+
+### 6.1 预设主题
+
+```{r}
+p <- ggplot(mpg, aes(x = displ, y = hwy)) + geom_point()
+
+p + theme_minimal()
+```
+
+```{r}
+p + theme_classic()
+```
+
+### 6.2 自定义主题
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
+  geom_point(size = 2) +
+  labs(
+    title = "发动机排量与油耗",
+    subtitle = "数据来源: mpg 数据集",
+    x = "排量 (L)",
+    y = "高速油耗 (mpg)",
+    color = "车型"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray50"),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+
+## 第七部分：保存图片
+
+```{r eval=FALSE}
+# 保存最后一张图
+ggsave("my_plot.png", width = 8, height = 6, dpi = 300)
+
+# 保存指定图
+p <- ggplot(mpg, aes(x = displ, y = hwy)) + geom_point()
+ggsave("scatter.pdf", plot = p, width = 10, height = 8)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 基础框架
+ggplot(data, aes(x, y)) + geom_*()
+
+# 常用几何
+geom_point()      # 散点
+geom_line()       # 折线
+geom_bar()        # 柱状（计数）
+geom_col()        # 柱状（已有值）
+geom_histogram()  # 直方图
+geom_density()    # 密度
+geom_boxplot()    # 箱线
+geom_smooth()     # 平滑
+
+# 映射
+aes(x, y, color, fill, size, shape, alpha)
+
+# 分面
+facet_wrap(~ var)
+facet_grid(row ~ col)
+
+# 标签
+labs(title, subtitle, x, y, caption)
+
+# 保存
+ggsave("file.png", width, height, dpi)
+```
+
+
+## 小结
+
+ggplot2 学习路径：
+
+1. **掌握基础**：ggplot + aes + geom
+2. **学习映射**：变量到视觉属性
+3. **熟悉几何**：选择合适的图形类型
+4. **精通主题**：定制美观的样式
+
+> **技巧**：从模仿开始，逐步修改参数，理解每个组件的作用。
+
+
+## 参考资源
+
+- [ggplot2 官方文档](https://ggplot2.tidyverse.org/)
+- [R Graph Gallery](https://r-graph-gallery.com/)
+- [ggplot2: Elegant Graphics for Data Analysis](https://ggplot2-book.org/)

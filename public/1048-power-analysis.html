@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-01-13">
+
+<title>样本量与功效分析 – R 语言学习笔记</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-234273d1456647dabc34a594ac50e507.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-374967827064a263f620006ef06629b3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">R 语言学习笔记</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">主页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/packages.html"> 
+<span class="menu-text">实用 R 包</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/visualization.html"> 
+<span class="menu-text">可视化教程</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/methods.html"> 
+<span class="menu-text">R 语言方法</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/operation.html"> 
+<span class="menu-text">实用操作</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1048-power-analysis.html">样本量计算</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用 R 包</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bruceR - 统计分析工具</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1012-comparegroups.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">compareGroups - 描述性表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1013-scitb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scitb - 快速基线表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">purrr - 函数式编程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-future.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">future - 并行计算</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1045-rstatix.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">rstatix - 管道式统计</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">可视化教程</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2021-cowplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cowplot - 图形组合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2018-tidyplots.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidyplots - 极简可视化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggtext - 中英文字体混合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2019-dualaxis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双坐标轴</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2011-viscolor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">配色方案</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">patchwork - 图片拼接</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2013-legend.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">图例自定义</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2014-sankey.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">桑基图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">地图绑制</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2016-forestplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">森林图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2022-ggally.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GGally - 可视化扩展</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2023-radar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">雷达图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2024-venn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">韦恩图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">箱线图与小提琴图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">散点图与趋势线</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2027-bindhistogram.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">直方图与密度图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">柱状图与饼图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2029-bindlineplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">折线图与时间序列</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2030-bindareaplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">面积图与堆叠图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2031-bindcomplex.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">复杂组合图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2032-ggplot2-intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggplot2 可视化入门</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">R 语言方法</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">卫生经济学分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1017-timeseries.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">时间序列分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">倾向性得分匹配</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1019-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logistic 回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">生存分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1021-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多元线性回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1023-mediation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">中介效应分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1024-multilevel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多水平模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1025-gam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">广义加性模型 (GAM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1026-poisson.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Poisson/负二项回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1027-rcs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">限制性立方样条 (RCS)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1028-did.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双重差分法 (DiD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1029-umbrella-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">伞状综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1040-scoping-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">范围综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1041-network-meta.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">网状 Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">质性研究与文本挖掘</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1031-lca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">潜类别分析 (LCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1032-sem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">结构方程模型 (SEM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1033-dlnm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">分布滞后非线性模型 (DLNM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1034-nvmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">变分模态分解 (VMD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1035-fft-nvmd-gmm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FFT + VMD + GMM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1036-anova.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">方差分析 (ANOVA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1037-plspm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PLS-PM 路径模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">因子分析 (EFA/CFA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1039-pca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">主成分分析 (PCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1042-tidymodels.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidymodels 机器学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1043-broom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">broom 模型整理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1044-lstm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LSTM 深度学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1046-missing-data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">缺失值处理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1047-roc-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ROC 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1048-power-analysis.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">样本量计算</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1049-eda.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">探索性数据分析</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用操作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">数据导入导出</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RMarkdown 入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quarto vs RMarkdown</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Positron IDE 教程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3002-datatable.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">data.table 完全指南</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3003-dplyr-tidyr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">dplyr/tidyr 数据处理</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#功效分析简介" id="toc-功效分析简介" class="nav-link active" data-scroll-target="#功效分析简介"><span class="header-section-number">1</span> 功效分析简介</a>
+  <ul class="collapse">
+  <li><a href="#核心概念" id="toc-核心概念" class="nav-link" data-scroll-target="#核心概念"><span class="header-section-number">1.1</span> 核心概念</a></li>
+  <li><a href="#四要素关系" id="toc-四要素关系" class="nav-link" data-scroll-target="#四要素关系"><span class="header-section-number">1.2</span> 四要素关系</a></li>
+  </ul></li>
+  <li><a href="#安装与加载" id="toc-安装与加载" class="nav-link" data-scroll-target="#安装与加载"><span class="header-section-number">2</span> 安装与加载</a></li>
+  <li><a href="#第一部分t-检验样本量" id="toc-第一部分t-检验样本量" class="nav-link" data-scroll-target="#第一部分t-检验样本量"><span class="header-section-number">3</span> 第一部分：t 检验样本量</a>
+  <ul class="collapse">
+  <li><a href="#独立样本-t-检验" id="toc-独立样本-t-检验" class="nav-link" data-scroll-target="#独立样本-t-检验"><span class="header-section-number">3.1</span> 1.1 独立样本 t 检验</a></li>
+  <li><a href="#配对-t-检验" id="toc-配对-t-检验" class="nav-link" data-scroll-target="#配对-t-检验"><span class="header-section-number">3.2</span> 1.2 配对 t 检验</a></li>
+  <li><a href="#cohens-d-参考标准" id="toc-cohens-d-参考标准" class="nav-link" data-scroll-target="#cohens-d-参考标准"><span class="header-section-number">3.3</span> 1.3 Cohen’s d 参考标准</a></li>
+  <li><a href="#从原始数据估算-d" id="toc-从原始数据估算-d" class="nav-link" data-scroll-target="#从原始数据估算-d"><span class="header-section-number">3.4</span> 1.4 从原始数据估算 d</a></li>
+  </ul></li>
+  <li><a href="#第二部分方差分析样本量" id="toc-第二部分方差分析样本量" class="nav-link" data-scroll-target="#第二部分方差分析样本量"><span class="header-section-number">4</span> 第二部分：方差分析样本量</a>
+  <ul class="collapse">
+  <li><a href="#单因素-anova" id="toc-单因素-anova" class="nav-link" data-scroll-target="#单因素-anova"><span class="header-section-number">4.1</span> 2.1 单因素 ANOVA</a></li>
+  <li><a href="#效应量-f-转换" id="toc-效应量-f-转换" class="nav-link" data-scroll-target="#效应量-f-转换"><span class="header-section-number">4.2</span> 2.2 效应量 f 转换</a></li>
+  </ul></li>
+  <li><a href="#第三部分相关分析样本量" id="toc-第三部分相关分析样本量" class="nav-link" data-scroll-target="#第三部分相关分析样本量"><span class="header-section-number">5</span> 第三部分：相关分析样本量</a></li>
+  <li><a href="#第四部分卡方检验样本量" id="toc-第四部分卡方检验样本量" class="nav-link" data-scroll-target="#第四部分卡方检验样本量"><span class="header-section-number">6</span> 第四部分：卡方检验样本量</a></li>
+  <li><a href="#第五部分回归分析样本量" id="toc-第五部分回归分析样本量" class="nav-link" data-scroll-target="#第五部分回归分析样本量"><span class="header-section-number">7</span> 第五部分：回归分析样本量</a></li>
+  <li><a href="#第六部分可视化功效曲线" id="toc-第六部分可视化功效曲线" class="nav-link" data-scroll-target="#第六部分可视化功效曲线"><span class="header-section-number">8</span> 第六部分：可视化功效曲线</a>
+  <ul class="collapse">
+  <li><a href="#样本量-vs-功效" id="toc-样本量-vs-功效" class="nav-link" data-scroll-target="#样本量-vs-功效"><span class="header-section-number">8.1</span> 6.1 样本量 vs 功效</a></li>
+  <li><a href="#效应量-vs-所需样本" id="toc-效应量-vs-所需样本" class="nav-link" data-scroll-target="#效应量-vs-所需样本"><span class="header-section-number">8.2</span> 6.2 效应量 vs 所需样本</a></li>
+  </ul></li>
+  <li><a href="#第七部分临床研究案例" id="toc-第七部分临床研究案例" class="nav-link" data-scroll-target="#第七部分临床研究案例"><span class="header-section-number">9</span> 第七部分：临床研究案例</a>
+  <ul class="collapse">
+  <li><a href="#rct-样本量计算" id="toc-rct-样本量计算" class="nav-link" data-scroll-target="#rct-样本量计算"><span class="header-section-number">9.1</span> 7.1 RCT 样本量计算</a></li>
+  <li><a href="#考虑脱落率" id="toc-考虑脱落率" class="nav-link" data-scroll-target="#考虑脱落率"><span class="header-section-number">9.2</span> 7.2 考虑脱落率</a></li>
+  </ul></li>
+  <li><a href="#常用代码速查" id="toc-常用代码速查" class="nav-link" data-scroll-target="#常用代码速查"><span class="header-section-number">10</span> 常用代码速查</a></li>
+  <li><a href="#小结" id="toc-小结" class="nav-link" data-scroll-target="#小结"><span class="header-section-number">11</span> 小结</a></li>
+  <li><a href="#参考资源" id="toc-参考资源" class="nav-link" data-scroll-target="#参考资源"><span class="header-section-number">12</span> 参考资源</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content column-body" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./1015-health-economics.html">R 语言方法</a></li><li class="breadcrumb-item"><a href="./1048-power-analysis.html">样本量计算</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">样本量与功效分析</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">R语言方法</div>
+    <div class="quarto-category">统计设计</div>
+    <div class="quarto-category">样本量</div>
+  </div>
+  </div>
+
+
+
+<div class="quarto-title-meta column-body">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">January 13, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="功效分析简介" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="功效分析简介"><span class="header-section-number">1</span> 功效分析简介</h2>
+<p><strong>功效分析</strong>用于确定研究所需的样本量，或评估给定样本量下检测效应的能力。</p>
+<section id="核心概念" class="level3" data-number="1.1">
+<h3 data-number="1.1" class="anchored" data-anchor-id="核心概念"><span class="header-section-number">1.1</span> 核心概念</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>符号</th>
+<th>含义</th>
+<th>常用值</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>显著性水平</strong></td>
+<td>α</td>
+<td>I类错误概率</td>
+<td>0.05</td>
+</tr>
+<tr class="even">
+<td><strong>功效</strong></td>
+<td>1-β</td>
+<td>检测真实效应的概率</td>
+<td>0.80</td>
+</tr>
+<tr class="odd">
+<td><strong>效应量</strong></td>
+<td>d/r/f</td>
+<td>效应大小</td>
+<td>因检验而异</td>
+</tr>
+<tr class="even">
+<td><strong>样本量</strong></td>
+<td>n</td>
+<td>每组样本数</td>
+<td>待计算</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="四要素关系" class="level3" data-number="1.2">
+<h3 data-number="1.2" class="anchored" data-anchor-id="四要素关系"><span class="header-section-number">1.2</span> 四要素关系</h3>
+<p>知道任意三个，可求第四个： - <strong>样本量计算</strong>：已知 α, 功效, 效应量 → 求 n - <strong>功效计算</strong>：已知 α, n, 效应量 → 求功效 - <strong>效应量估计</strong>：已知 α, n, 功效 → 求可检测效应量</p>
+</section>
+</section>
+<section id="安装与加载" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="安装与加载"><span class="header-section-number">2</span> 安装与加载</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(pwr)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">theme_set</span>(<span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">12</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="第一部分t-检验样本量" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="第一部分t-检验样本量"><span class="header-section-number">3</span> 第一部分：t 检验样本量</h2>
+<section id="独立样本-t-检验" class="level3" data-number="3.1">
+<h3 data-number="3.1" class="anchored" data-anchor-id="独立样本-t-检验"><span class="header-section-number">3.1</span> 1.1 独立样本 t 检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 双侧检验，中等效应（d=0.5），功效=0.8，α=0.05</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.t.test</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">d =</span> <span class="fl">0.5</span>, <span class="co"># Cohen's d</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">sig.level =</span> <span class="fl">0.05</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">power =</span> <span class="fl">0.80</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"two.sample"</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+     Two-sample t test power calculation 
+
+              n = 63.76561
+              d = 0.5
+      sig.level = 0.05
+          power = 0.8
+    alternative = two.sided
+
+NOTE: n is number in *each* group</code></pre>
+</div>
+</div>
+<p><strong>解读</strong>：每组需要 64 人，总共 128 人。</p>
+</section>
+<section id="配对-t-检验" class="level3" data-number="3.2">
+<h3 data-number="3.2" class="anchored" data-anchor-id="配对-t-检验"><span class="header-section-number">3.2</span> 1.2 配对 t 检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.t.test</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">d =</span> <span class="fl">0.5</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">sig.level =</span> <span class="fl">0.05</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">power =</span> <span class="fl">0.80</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">type =</span> <span class="st">"paired"</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+     Paired t test power calculation 
+
+              n = 33.36713
+              d = 0.5
+      sig.level = 0.05
+          power = 0.8
+    alternative = two.sided
+
+NOTE: n is number of *pairs*</code></pre>
+</div>
+</div>
+</section>
+<section id="cohens-d-参考标准" class="level3" data-number="3.3">
+<h3 data-number="3.3" class="anchored" data-anchor-id="cohens-d-参考标准"><span class="header-section-number">3.3</span> 1.3 Cohen’s d 参考标准</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>效应大小</th>
+<th>Cohen’s d</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>小</td>
+<td>0.2</td>
+<td>微弱差异</td>
+</tr>
+<tr class="even">
+<td>中</td>
+<td>0.5</td>
+<td>中等差异</td>
+</tr>
+<tr class="odd">
+<td>大</td>
+<td>0.8</td>
+<td>明显差异</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="从原始数据估算-d" class="level3" data-number="3.4">
+<h3 data-number="3.4" class="anchored" data-anchor-id="从原始数据估算-d"><span class="header-section-number">3.4</span> 1.4 从原始数据估算 d</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 根据均值差和标准差估算</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>mean_diff <span class="ot">&lt;-</span> <span class="dv">5</span> <span class="co"># 预期均值差</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>pooled_sd <span class="ot">&lt;-</span> <span class="dv">10</span> <span class="co"># 合并标准差</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>d <span class="ot">&lt;-</span> mean_diff <span class="sc">/</span> pooled_sd</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Cohen's d ="</span>, d)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Cohen's d = 0.5</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="第二部分方差分析样本量" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="第二部分方差分析样本量"><span class="header-section-number">4</span> 第二部分：方差分析样本量</h2>
+<section id="单因素-anova" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="单因素-anova"><span class="header-section-number">4.1</span> 2.1 单因素 ANOVA</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># k=3组，中等效应（f=0.25）</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.anova.test</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">k =</span> <span class="dv">3</span>, <span class="co"># 组数</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">f =</span> <span class="fl">0.25</span>, <span class="co"># 效应量</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">sig.level =</span> <span class="fl">0.05</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">power =</span> <span class="fl">0.80</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+     Balanced one-way analysis of variance power calculation 
+
+              k = 3
+              n = 52.3966
+              f = 0.25
+      sig.level = 0.05
+          power = 0.8
+
+NOTE: n is number in each group</code></pre>
+</div>
+</div>
+<p><strong>解读</strong>：每组需要 52 人，总共 156 人。</p>
+</section>
+<section id="效应量-f-转换" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="效应量-f-转换"><span class="header-section-number">4.2</span> 2.2 效应量 f 转换</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 从 eta-squared 转换</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>eta_sq <span class="ot">&lt;-</span> <span class="fl">0.06</span> <span class="co"># 中等效应</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(eta_sq <span class="sc">/</span> (<span class="dv">1</span> <span class="sc">-</span> eta_sq))</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"f ="</span>, <span class="fu">round</span>(f, <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>f = 0.253</code></pre>
+</div>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>η²</th>
+<th>f</th>
+<th>效应大小</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.01</td>
+<td>0.10</td>
+<td>小</td>
+</tr>
+<tr class="even">
+<td>0.06</td>
+<td>0.25</td>
+<td>中</td>
+</tr>
+<tr class="odd">
+<td>0.14</td>
+<td>0.40</td>
+<td>大</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="第三部分相关分析样本量" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="第三部分相关分析样本量"><span class="header-section-number">5</span> 第三部分：相关分析样本量</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 中等相关（r=0.3）</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.r.test</span>(</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">r =</span> <span class="fl">0.3</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">sig.level =</span> <span class="fl">0.05</span>,</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">power =</span> <span class="fl">0.80</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+     approximate correlation power calculation (arctangh transformation) 
+
+              n = 84.07364
+              r = 0.3
+      sig.level = 0.05
+          power = 0.8
+    alternative = two.sided</code></pre>
+</div>
+</div>
+<p><strong>解读</strong>：需要 84 个样本。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>r</th>
+<th>效应大小</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.1</td>
+<td>小</td>
+</tr>
+<tr class="even">
+<td>0.3</td>
+<td>中</td>
+</tr>
+<tr class="odd">
+<td>0.5</td>
+<td>大</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="第四部分卡方检验样本量" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="第四部分卡方检验样本量"><span class="header-section-number">6</span> 第四部分：卡方检验样本量</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2x2 列联表，中等效应</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.chisq.test</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">w =</span> <span class="fl">0.3</span>, <span class="co"># 效应量</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">df =</span> <span class="dv">1</span>, <span class="co"># 自由度 = (行-1)*(列-1)</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">sig.level =</span> <span class="fl">0.05</span>,</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">power =</span> <span class="fl">0.80</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+     Chi squared power calculation 
+
+              w = 0.3
+              N = 87.20954
+             df = 1
+      sig.level = 0.05
+          power = 0.8
+
+NOTE: N is the number of observations</code></pre>
+</div>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>w</th>
+<th>效应大小</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.1</td>
+<td>小</td>
+</tr>
+<tr class="even">
+<td>0.3</td>
+<td>中</td>
+</tr>
+<tr class="odd">
+<td>0.5</td>
+<td>大</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="第五部分回归分析样本量" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="第五部分回归分析样本量"><span class="header-section-number">7</span> 第五部分：回归分析样本量</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 多元回归：5个预测变量，f²=0.15</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.f2.test</span>(</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">u =</span> <span class="dv">5</span>, <span class="co"># 预测变量数</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">f2 =</span> <span class="fl">0.15</span>, <span class="co"># 效应量</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">sig.level =</span> <span class="fl">0.05</span>,</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">power =</span> <span class="fl">0.80</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+     Multiple regression power calculation 
+
+              u = 5
+              v = 85.21369
+             f2 = 0.15
+      sig.level = 0.05
+          power = 0.8</code></pre>
+</div>
+</div>
+<p><strong>解读</strong>：需要 <span class="math inline">\(v+u+1 = 73+5+1 = 79\)</span> 个样本。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>f²</th>
+<th>效应大小</th>
+<th>R²</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.02</td>
+<td>小</td>
+<td>0.02</td>
+</tr>
+<tr class="even">
+<td>0.15</td>
+<td>中</td>
+<td>0.13</td>
+</tr>
+<tr class="odd">
+<td>0.35</td>
+<td>大</td>
+<td>0.26</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="第六部分可视化功效曲线" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="第六部分可视化功效曲线"><span class="header-section-number">8</span> 第六部分：可视化功效曲线</h2>
+<section id="样本量-vs-功效" class="level3" data-number="8.1">
+<h3 data-number="8.1" class="anchored" data-anchor-id="样本量-vs-功效"><span class="header-section-number">8.1</span> 6.1 样本量 vs 功效</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算不同样本量的功效</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>sample_sizes <span class="ot">&lt;-</span> <span class="fu">seq</span>(<span class="dv">10</span>, <span class="dv">200</span>, <span class="at">by =</span> <span class="dv">5</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>powers <span class="ot">&lt;-</span> <span class="fu">sapply</span>(sample_sizes, <span class="cf">function</span>(n) {</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pwr.t.test</span>(<span class="at">n =</span> n, <span class="at">d =</span> <span class="fl">0.5</span>, <span class="at">sig.level =</span> <span class="fl">0.05</span>)<span class="sc">$</span>power</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 绑图</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>power_df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">n =</span> sample_sizes, <span class="at">power =</span> powers)</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(power_df, <span class="fu">aes</span>(<span class="at">x =</span> n, <span class="at">y =</span> power)) <span class="sc">+</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">color =</span> <span class="st">"#4f46e5"</span>, <span class="at">linewidth =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="fl">0.8</span>, <span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">color =</span> <span class="st">"red"</span>) <span class="sc">+</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="dv">64</span>, <span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">color =</span> <span class="st">"gray50"</span>) <span class="sc">+</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"功效曲线（Cohen's d = 0.5）"</span>,</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="st">"每组样本量"</span>,</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> <span class="st">"统计功效"</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>), <span class="at">breaks =</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">1</span>, <span class="fl">0.2</span>)) <span class="sc">+</span></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">annotate</span>(<span class="st">"text"</span>, <span class="at">x =</span> <span class="dv">70</span>, <span class="at">y =</span> <span class="fl">0.75</span>, <span class="at">label =</span> <span class="st">"n = 64"</span>, <span class="at">color =</span> <span class="st">"gray30"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1048-power-analysis_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" width="768"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="效应量-vs-所需样本" class="level3" data-number="8.2">
+<h3 data-number="8.2" class="anchored" data-anchor-id="效应量-vs-所需样本"><span class="header-section-number">8.2</span> 6.2 效应量 vs 所需样本</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>effect_sizes <span class="ot">&lt;-</span> <span class="fu">seq</span>(<span class="fl">0.2</span>, <span class="dv">1</span>, <span class="at">by =</span> <span class="fl">0.05</span>)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>sample_needed <span class="ot">&lt;-</span> <span class="fu">sapply</span>(effect_sizes, <span class="cf">function</span>(d) {</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pwr.t.test</span>(<span class="at">d =</span> d, <span class="at">sig.level =</span> <span class="fl">0.05</span>, <span class="at">power =</span> <span class="fl">0.80</span>)<span class="sc">$</span>n</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>effect_df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">d =</span> effect_sizes, <span class="at">n =</span> sample_needed)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(effect_df, <span class="fu">aes</span>(<span class="at">x =</span> d, <span class="at">y =</span> n)) <span class="sc">+</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">color =</span> <span class="st">"#10b981"</span>, <span class="at">linewidth =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"效应量与所需样本量的关系"</span>,</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="st">"Cohen's d"</span>,</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> <span class="st">"每组所需样本量"</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1048-power-analysis_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid figure-img" width="768"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="第七部分临床研究案例" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="第七部分临床研究案例"><span class="header-section-number">9</span> 第七部分：临床研究案例</h2>
+<section id="rct-样本量计算" class="level3" data-number="9.1">
+<h3 data-number="9.1" class="anchored" data-anchor-id="rct-样本量计算"><span class="header-section-number">9.1</span> 7.1 RCT 样本量计算</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 假设：对照组治愈率40%，干预组预期60%</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 转换为 Cohen's h</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>p1 <span class="ot">&lt;-</span> <span class="fl">0.40</span> <span class="co"># 对照组比例</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>p2 <span class="ot">&lt;-</span> <span class="fl">0.60</span> <span class="co"># 干预组比例</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>h <span class="ot">&lt;-</span> <span class="dv">2</span> <span class="sc">*</span> <span class="fu">asin</span>(<span class="fu">sqrt</span>(p2)) <span class="sc">-</span> <span class="dv">2</span> <span class="sc">*</span> <span class="fu">asin</span>(<span class="fu">sqrt</span>(p1))</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.2p.test</span>(<span class="at">h =</span> h, <span class="at">sig.level =</span> <span class="fl">0.05</span>, <span class="at">power =</span> <span class="fl">0.80</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+     Difference of proportion power calculation for binomial distribution (arcsine transformation) 
+
+              h = 0.4027158
+              n = 96.79194
+      sig.level = 0.05
+          power = 0.8
+    alternative = two.sided
+
+NOTE: same sample sizes</code></pre>
+</div>
+</div>
+<p><strong>解读</strong>：每组需要 97 人。</p>
+</section>
+<section id="考虑脱落率" class="level3" data-number="9.2">
+<h3 data-number="9.2" class="anchored" data-anchor-id="考虑脱落率"><span class="header-section-number">9.2</span> 7.2 考虑脱落率</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 预期脱落率 15%</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>n_calculated <span class="ot">&lt;-</span> <span class="dv">97</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>dropout_rate <span class="ot">&lt;-</span> <span class="fl">0.15</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>n_final <span class="ot">&lt;-</span> <span class="fu">ceiling</span>(n_calculated <span class="sc">/</span> (<span class="dv">1</span> <span class="sc">-</span> dropout_rate))</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"考虑脱落后每组需要:"</span>, n_final, <span class="st">"人</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>考虑脱落后每组需要: 115 人</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"总样本量:"</span>, n_final <span class="sc">*</span> <span class="dv">2</span>, <span class="st">"人"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>总样本量: 230 人</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="常用代码速查" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="常用代码速查"><span class="header-section-number">10</span> 常用代码速查</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># t 检验</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.t.test</span>(<span class="at">d =</span> <span class="fl">0.5</span>, <span class="at">power =</span> <span class="fl">0.8</span>, <span class="at">sig.level =</span> <span class="fl">0.05</span>)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 配对 t 检验</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.t.test</span>(<span class="at">d =</span> <span class="fl">0.5</span>, <span class="at">power =</span> <span class="fl">0.8</span>, <span class="at">type =</span> <span class="st">"paired"</span>)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ANOVA</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.anova.test</span>(<span class="at">k =</span> <span class="dv">3</span>, <span class="at">f =</span> <span class="fl">0.25</span>, <span class="at">power =</span> <span class="fl">0.8</span>)</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 相关</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.r.test</span>(<span class="at">r =</span> <span class="fl">0.3</span>, <span class="at">power =</span> <span class="fl">0.8</span>)</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 卡方</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.chisq.test</span>(<span class="at">w =</span> <span class="fl">0.3</span>, <span class="at">df =</span> <span class="dv">1</span>, <span class="at">power =</span> <span class="fl">0.8</span>)</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 回归</span></span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.f2.test</span>(<span class="at">u =</span> <span class="dv">5</span>, <span class="at">f2 =</span> <span class="fl">0.15</span>, <span class="at">power =</span> <span class="fl">0.8</span>)</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 两比例</span></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a><span class="fu">pwr.2p.test</span>(<span class="at">h =</span> <span class="fl">0.5</span>, <span class="at">power =</span> <span class="fl">0.8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="小结" class="level2" data-number="11">
+<h2 data-number="11" class="anchored" data-anchor-id="小结"><span class="header-section-number">11</span> 小结</h2>
+<p>样本量计算要点：</p>
+<ol type="1">
+<li><strong>明确研究设计</strong>：选择正确的统计方法</li>
+<li><strong>预估效应量</strong>：参考文献或预实验</li>
+<li><strong>设定功效水平</strong>：通常 80% 或 90%</li>
+<li><strong>考虑实际因素</strong>：脱落率、多重比较</li>
+</ol>
+<blockquote class="blockquote">
+<p><strong>建议</strong>：宁可略微高估样本量，预留 10-20% 余量。</p>
+</blockquote>
+</section>
+<section id="参考资源" class="level2" data-number="12">
+<h2 data-number="12" class="anchored" data-anchor-id="参考资源"><span class="header-section-number">12</span> 参考资源</h2>
+<ul>
+<li><a href="https://cran.r-project.org/web/packages/pwr/">pwr 包文档</a></li>
+<li><a href="https://www.psychologie.hhu.de/arbeitsgruppen/allgemeine-psychologie-und-arbeitspsychologie/gpower">G*Power 软件</a></li>
+<li>Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences</li>
+</ul>
+
+
+</section>
+
+</main> <!-- /main -->
+<!-- Back to Top Button -->
+
+<button id="back-to-top" aria-label="Back to Top">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <path d="M18 15l-6-6-6 6"></path>
+
+    </svg>
+
+</button>
+
+
+
+<!-- Floating TOC Button (Mobile Only) -->
+
+<button id="toc-floating-btn" aria-label="Table of Contents">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+
+        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+
+        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+
+        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+
+    </svg>
+
+</button>
+
+
+
+<!-- TOC Modal -->
+
+<div class="toc-modal-overlay">
+
+    <div class="toc-modal-content">
+
+        <div class="toc-modal-header">
+
+            <div class="toc-modal-title">目录</div>
+
+            <button class="toc-modal-close" aria-label="Close">×</button>
+
+        </div>
+
+        <div class="toc-modal-body" id="toc-modal-body">
+
+            <!-- TOC content will be injected here -->
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+    // Back to Top Logic
+
+    const backToTopBtn = document.getElementById('back-to-top');
+
+
+
+    window.addEventListener('scroll', () => {
+
+        if (window.scrollY > 300) {
+
+            backToTopBtn.classList.add('visible');
+
+        } else {
+
+            backToTopBtn.classList.remove('visible');
+
+        }
+
+    });
+
+
+
+    backToTopBtn.addEventListener('click', () => {
+
+        window.scrollTo({
+
+            top: 0,
+
+            behavior: 'smooth'
+
+        });
+
+    });
+
+
+
+    // Mobile Table Scrolling Logic
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const tables = document.querySelectorAll('table');
+
+        tables.forEach(table => {
+
+            if (!table.parentElement.classList.contains('table-responsive')) {
+
+                const wrapper = document.createElement('div');
+
+                wrapper.className = 'table-responsive';
+
+                wrapper.style.overflowX = 'auto'; // Force scroll
+
+                table.parentNode.insertBefore(wrapper, table);
+
+                wrapper.appendChild(table);
+
+            }
+
+        });
+
+
+
+        // Floating TOC Logic
+
+        const tocBtn = document.getElementById('toc-floating-btn');
+
+        const tocOverlay = document.querySelector('.toc-modal-overlay');
+
+        const tocClose = document.querySelector('.toc-modal-close');
+
+        const tocBody = document.getElementById('toc-modal-body');
+
+        const originalToc = document.getElementById('TOC');
+
+
+
+        if (originalToc && tocBtn) {
+
+            // Check if TOC has content
+
+            const tocLinks = originalToc.querySelectorAll('a');
+
+            if (tocLinks.length > 0) {
+
+                tocBtn.style.display = 'flex';
+
+
+
+                // Function to populate modal
+
+                const populateToc = () => {
+
+                    tocBody.innerHTML = '';
+
+                    const tocClone = originalToc.querySelector('ul').cloneNode(true);
+
+                    tocBody.appendChild(tocClone);
+
+
+
+                    // Add click listeners to close modal on link click
+
+                    tocBody.querySelectorAll('a').forEach(link => {
+
+                        link.addEventListener('click', () => {
+
+                            tocOverlay.classList.remove('active');
+
+                            // Smooth scroll to target (handled by browser usually, but ensure modal closes first)
+
+                        });
+
+                    });
+
+                };
+
+
+
+                tocBtn.addEventListener('click', () => {
+
+                    populateToc();
+
+                    tocOverlay.classList.add('active');
+
+                });
+
+
+
+                tocClose.addEventListener('click', () => {
+
+                    tocOverlay.classList.remove('active');
+
+                });
+
+
+
+                tocOverlay.addEventListener('click', (e) => {
+
+                    if (e.target === tocOverlay) {
+
+                        tocOverlay.classList.remove('active');
+
+                    }
+
+                });
+
+            } else {
+
+                tocBtn.style.display = 'none';
+
+            }
+
+        } else if (tocBtn) {
+
+            tocBtn.style.display = 'none';
+
+        }
+
+
+
+        // Article Footer Random Recommendation
+
+        // Only run on article pages (has sidebar and main content)
+
+        const sidebar = document.querySelector('#quarto-sidebar') || document.querySelector('.sidebar');
+
+        const mainContent = document.querySelector('main');
+
+
+
+        if (sidebar && mainContent) {
+
+            const links = Array.from(sidebar.querySelectorAll('a.sidebar-item-text'));
+
+
+
+            // If no links found with specific class, try generic anchor in sidebar
+
+            const allLinks = links.length > 0 ? links : Array.from(sidebar.querySelectorAll('a'));
+
+
+
+            // Filter out section headers if they are just toggles (usually href is # or empty)
+
+            const validLinks = allLinks.filter(a => a.href && !a.href.endsWith('#') && !a.href.includes('javascript:'));
+
+
+
+            // Article Footer Navigation (Prev/Next + Random)
+
+            const currentUrl = window.location.href.split('#')[0];
+
+            let currentIndex = -1;
+
+
+
+            // Find current article index
+
+            for (let i = 0; i < validLinks.length; i++) {
+
+                if (validLinks[i].href.split('#')[0] === currentUrl) {
+
+                    currentIndex = i;
+
+                    break;
+
+                }
+
+            }
+
+
+
+            // Create Container
+
+            const footerNav = document.createElement('div');
+
+            footerNav.className = 'article-footer-nav-container';
+
+            footerNav.style.marginTop = '4rem';
+
+            footerNav.style.paddingTop = '2rem';
+
+            footerNav.style.borderTop = '1px solid #e5e7eb';
+
+
+
+            // 1. Prev/Next Navigation
+
+            if (currentIndex !== -1) {
+
+                let navHtml = '<div class="article-footer-nav">';
+
+
+
+                // Previous
+
+                if (currentIndex > 0) {
+
+                    const prevLink = validLinks[currentIndex - 1];
+
+                    const prevTitle = prevLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${prevLink.href}" class="article-nav-link">
+
+                            <span class="nav-label">上一篇</span>
+
+                            <span class="nav-title">« ${prevTitle}</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                // Next
+
+                if (currentIndex < validLinks.length - 1) {
+
+                    const nextLink = validLinks[currentIndex + 1];
+
+                    const nextTitle = nextLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${nextLink.href}" class="article-nav-link" style="text-align: right;">
+
+                            <span class="nav-label">下一篇</span>
+
+                            <span class="nav-title">${nextTitle} »</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                navHtml += '</div>';
+
+
+
+                // Append Prev/Next HTML
+
+                const navDiv = document.createElement('div');
+
+                navDiv.innerHTML = navHtml;
+
+                footerNav.appendChild(navDiv);
+
+            }
+
+
+
+            // 2. Random Recommendation
+
+            const otherLinks = validLinks.filter((_, idx) => idx !== currentIndex);
+
+            if (otherLinks.length > 0) {
+
+                const randomIdx = Math.floor(Math.random() * otherLinks.length);
+
+                const randomLink = otherLinks[randomIdx];
+
+                const randomTitle = randomLink.innerText.trim(); // Use innerText for title
+
+
+
+                if (randomTitle) {
+
+                    const randomDiv = document.createElement('div');
+
+                    randomDiv.innerHTML = `
+
+                        <div class="random-recommendation">
+
+                            <h4>👋 随便看看</h4>
+
+                            <p>探索更多 R 语言精彩内容</p>
+
+                            <a href="${randomLink.href}" class="random-btn">
+
+                                🎲 ${randomTitle}
+
+                            </a>
+
+                        </div>
+
+                    `;
+
+                    footerNav.appendChild(randomDiv);
+
+                }
+
+            }
+
+
+
+            mainContent.appendChild(footerNav);
+
+        }
+
+    });
+
+</script>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Made with <a href="https://quarto.org/">Quarto</a> | © 2024-2026</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

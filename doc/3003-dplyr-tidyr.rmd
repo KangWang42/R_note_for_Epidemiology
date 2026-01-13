@@ -1,0 +1,439 @@
+---
+title: "dplyr/tidyr 数据处理完全指南"
+date: "2026-01-13"
+categories: [实用操作, 数据处理, tidyverse]
+image: "images/dplyr-tidyr-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## dplyr/tidyr 简介
+
+**dplyr** 和 **tidyr** 是 tidyverse 的核心数据处理包，提供了直观、高效的数据操作语法。
+
+### 为什么选择 dplyr/tidyr？
+
+| 特点 | 说明 |
+|------|------|
+| **语法直观** | 函数名即动词，易读易写 |
+| **管道操作** | `%>%` 链式调用 |
+| **性能优秀** | 底层C++实现 |
+| **生态完善** | 与tidyverse无缝集成 |
+
+## 安装与加载
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(tibble)
+
+# 示例数据
+data(mtcars)
+df <- as_tibble(mtcars, rownames = "car")
+head(df)
+```
+
+
+## 第一部分：dplyr 核心函数
+
+### 1.1 filter() - 筛选行
+
+```{r}
+# 单条件筛选
+df %>% filter(mpg > 25)
+```
+
+```{r}
+# 多条件筛选（AND）
+df %>% filter(mpg > 20, cyl == 4)
+
+# 多条件筛选（OR）
+df %>% filter(mpg > 30 | hp > 200)
+```
+
+```{r}
+# 使用 %in%
+df %>% filter(cyl %in% c(4, 6))
+```
+
+### 1.2 select() - 选择列
+
+```{r}
+# 选择特定列
+df %>% select(car, mpg, hp)
+```
+
+```{r}
+# 排除列
+df %>% select(-car, -vs, -am)
+
+# 选择范围
+df %>% select(mpg:hp)
+```
+
+```{r}
+# 辅助函数
+df %>% select(starts_with("c")) # 以c开头
+df %>% select(ends_with("p")) # 以p结尾
+df %>% select(contains("ar")) # 包含ar
+df %>% select(where(is.numeric)) # 数值型列
+```
+
+### 1.3 mutate() - 创建/修改列
+
+```{r}
+# 创建新列
+df %>% mutate(
+    kpl = mpg * 0.425, # 英里转公里
+    hp_per_cyl = hp / cyl # 每缸马力
+)
+```
+
+```{r}
+# 条件创建
+df %>% mutate(
+    efficiency = case_when(
+        mpg >= 25 ~ "高效",
+        mpg >= 18 ~ "中等",
+        TRUE ~ "低效"
+    )
+)
+```
+
+```{r}
+# 修改现有列
+df %>% mutate(
+    cyl = as.factor(cyl),
+    am = ifelse(am == 1, "手动", "自动")
+)
+```
+
+### 1.4 arrange() - 排序
+
+```{r}
+# 升序
+df %>% arrange(mpg)
+
+# 降序
+df %>% arrange(desc(mpg))
+
+# 多列排序
+df %>% arrange(cyl, desc(mpg))
+```
+
+### 1.5 summarise() - 汇总
+
+```{r}
+# 基础汇总
+df %>% summarise(
+    n = n(),
+    mean_mpg = mean(mpg),
+    sd_mpg = sd(mpg),
+    median_hp = median(hp)
+)
+```
+
+```{r}
+# 多列汇总
+df %>% summarise(
+    across(c(mpg, hp, wt), list(
+        mean = mean,
+        sd = sd
+    ))
+)
+```
+
+
+## 第二部分：分组操作
+
+### 2.1 group_by() + summarise()
+
+```{r}
+# 分组汇总
+df %>%
+    group_by(cyl) %>%
+    summarise(
+        n = n(),
+        mean_mpg = mean(mpg),
+        mean_hp = mean(hp)
+    )
+```
+
+```{r}
+# 多列分组
+df %>%
+    group_by(cyl, am) %>%
+    summarise(
+        n = n(),
+        mean_mpg = mean(mpg),
+        .groups = "drop"
+    )
+```
+
+### 2.2 group_by() + mutate()
+
+```{r}
+# 分组内计算
+df %>%
+    group_by(cyl) %>%
+    mutate(
+        mpg_rank = rank(-mpg), # 组内排名
+        mpg_pct = mpg / max(mpg) # 组内百分比
+    ) %>%
+    select(car, cyl, mpg, mpg_rank, mpg_pct)
+```
+
+### 2.3 分组筛选
+
+```{r}
+# 每组取最大值
+df %>%
+    group_by(cyl) %>%
+    slice_max(mpg, n = 2)
+
+# 每组取前N行
+df %>%
+    group_by(cyl) %>%
+    slice_head(n = 3)
+```
+
+
+## 第三部分：表连接（Join）
+
+```{r}
+# 创建示例数据
+cars_info <- tibble(
+    car = c("Mazda RX4", "Honda Civic", "Toyota Corolla"),
+    country = c("日本", "日本", "日本"),
+    year = c(1978, 1980, 1979)
+)
+
+prices <- tibble(
+    car = c("Mazda RX4", "Datsun 710", "Honda Civic"),
+    price = c(25000, 18000, 15000)
+)
+```
+
+### 3.1 left_join() - 左连接
+
+```{r}
+# 保留左表所有行
+df %>%
+    select(car, mpg, hp) %>%
+    left_join(cars_info, by = "car")
+```
+
+### 3.2 inner_join() - 内连接
+
+```{r}
+# 只保留匹配行
+df %>%
+    select(car, mpg) %>%
+    inner_join(prices, by = "car")
+```
+
+### 3.3 full_join() - 全连接
+
+```{r}
+# 保留所有行
+cars_info %>% full_join(prices, by = "car")
+```
+
+### 3.4 anti_join() - 反连接
+
+```{r}
+# 保留不匹配的行
+df %>%
+    select(car, mpg) %>%
+    anti_join(prices, by = "car") %>%
+    head()
+```
+
+
+## 第四部分：tidyr 数据整形
+
+### 4.1 pivot_longer() - 宽转长
+
+```{r}
+# 创建宽格式数据
+wide_data <- tibble(
+    id = 1:3,
+    time1 = c(10, 15, 12),
+    time2 = c(12, 18, 14),
+    time3 = c(14, 20, 16)
+)
+wide_data
+```
+
+```{r}
+# 转为长格式
+long_data <- wide_data %>%
+    pivot_longer(
+        cols = starts_with("time"),
+        names_to = "time",
+        values_to = "value"
+    )
+long_data
+```
+
+### 4.2 pivot_wider() - 长转宽
+
+```{r}
+# 转回宽格式
+long_data %>%
+    pivot_wider(
+        names_from = time,
+        values_from = value
+    )
+```
+
+### 4.3 separate() - 拆分列
+
+```{r}
+# 拆分日期
+dates <- tibble(
+    id = 1:3,
+    date = c("2024-01-15", "2024-02-20", "2024-03-25")
+)
+
+dates %>%
+    separate(date, into = c("year", "month", "day"), sep = "-")
+```
+
+### 4.4 unite() - 合并列
+
+```{r}
+# 合并列
+tibble(
+    year = c(2024, 2024, 2024),
+    month = c(1, 2, 3),
+    day = c(15, 20, 25)
+) %>%
+    unite("date", year:day, sep = "-")
+```
+
+### 4.5 nest()/unnest() - 嵌套
+
+```{r}
+# 嵌套数据框
+nested <- df %>%
+    group_by(cyl) %>%
+    nest()
+
+nested
+```
+
+```{r}
+# 展开嵌套
+nested %>% unnest(data)
+```
+
+
+## 第五部分：实用技巧
+
+### 5.1 跨列操作 across()
+
+```{r}
+# 批量标准化
+df %>%
+    mutate(across(
+        where(is.numeric),
+        ~ (. - mean(.)) / sd(.)
+    )) %>%
+    select(car, mpg, hp, wt)
+```
+
+### 5.2 行操作 rowwise()
+
+```{r}
+# 行方向计算
+df %>%
+    rowwise() %>%
+    mutate(row_mean = mean(c(mpg, hp, wt))) %>%
+    select(car, mpg, hp, wt, row_mean)
+```
+
+### 5.3 计数与去重
+
+```{r}
+# 计数
+df %>% count(cyl, sort = TRUE)
+
+# 去重
+df %>% distinct(cyl, am)
+```
+
+### 5.4 缺失值处理
+
+```{r}
+# 删除含NA行
+df %>% drop_na()
+
+# 填充NA
+df %>% replace_na(list(mpg = 0, hp = 0))
+
+# 用前值填充
+tibble(x = c(1, NA, NA, 4)) %>%
+    fill(x, .direction = "down")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 筛选
+df %>% filter(条件)
+df %>% filter(x > 10, y == "A")
+df %>% filter(x %in% c(1, 2, 3))
+
+# 选择
+df %>% select(col1, col2)
+df %>% select(-col)
+df %>% select(where(is.numeric))
+
+# 修改
+df %>% mutate(new_col = 计算)
+df %>% mutate(across(cols, fun))
+
+# 汇总
+df %>%
+    group_by(group) %>%
+    summarise(mean = mean(x))
+
+# 排序
+df %>% arrange(desc(col))
+
+# 连接
+left_join(df1, df2, by = "key")
+inner_join(df1, df2, by = c("a" = "b"))
+
+# 整形
+pivot_longer(cols, names_to, values_to)
+pivot_wider(names_from, values_from)
+```
+
+
+## 小结
+
+dplyr/tidyr 核心价值：
+
+1. **动词即函数**：filter, select, mutate, arrange, summarise
+2. **管道流畅**：`%>%` 连接操作
+3. **分组强大**：group_by + 任意操作
+4. **连接完备**：left/right/inner/full/anti join
+5. **整形自如**：pivot_longer/wider
+
+
+## 参考资源
+
+- [dplyr 官方文档](https://dplyr.tidyverse.org/)
+- [tidyr 官方文档](https://tidyr.tidyverse.org/)
+- [R for Data Science](https://r4ds.had.co.nz/)

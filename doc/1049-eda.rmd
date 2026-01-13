@@ -1,0 +1,351 @@
+---
+title: "探索性数据分析 (EDA)"
+date: "2026-01-13"
+categories: [R语言方法, 数据分析, EDA]
+image: "images/eda-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## EDA 简介
+
+**探索性数据分析**（Exploratory Data Analysis, EDA）是理解数据特征、发现模式和异常的关键步骤，为后续分析奠定基础。
+
+### EDA 核心目标
+
+| 目标 | 关注点 |
+|------|--------|
+| **了解数据结构** | 变量类型、维度、完整性 |
+| **描述分布特征** | 集中趋势、离散程度、偏态 |
+| **发现变量关系** | 相关性、分组差异 |
+| **识别异常值** | 离群点、数据错误 |
+
+## 安装与加载
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(skimr) # 快速数据摘要
+library(DataExplorer) # 自动化EDA报告
+library(corrplot) # 相关矩阵可视化
+
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：数据概览
+
+### 1.1 基础检查
+
+```{r}
+# 使用内置数据集
+data(mtcars)
+df <- mtcars
+
+# 维度
+dim(df)
+
+# 结构
+str(df)
+
+# 前几行
+head(df)
+```
+
+### 1.2 使用 skimr
+
+```{r}
+# 快速全面摘要
+skim(df)
+```
+
+### 1.3 使用 DataExplorer
+
+```{r}
+# 数据概览
+introduce(df)
+```
+
+```{r}
+# 可视化数据类型
+plot_intro(df)
+```
+
+
+## 第二部分：单变量分析
+
+### 2.1 数值变量分布
+
+```{r}
+# 直方图
+ggplot(df, aes(x = mpg)) +
+    geom_histogram(bins = 15, fill = "#4f46e5", color = "white") +
+    labs(title = "MPG 分布", x = "油耗 (MPG)", y = "频数")
+```
+
+```{r}
+# 密度图
+ggplot(df, aes(x = mpg)) +
+    geom_density(fill = "#4f46e5", alpha = 0.5) +
+    geom_rug()
+```
+
+```{r}
+# 批量直方图
+plot_histogram(df)
+```
+
+### 2.2 分类变量分布
+
+```{r}
+# 柱状图
+df$cyl <- as.factor(df$cyl)
+df$am <- factor(df$am, labels = c("自动", "手动"))
+
+ggplot(df, aes(x = cyl)) +
+    geom_bar(fill = "#10b981") +
+    labs(title = "气缸数分布", x = "气缸数", y = "数量")
+```
+
+### 2.3 描述性统计
+
+```{r}
+# 汇总统计
+df %>%
+    select(mpg, hp, wt, qsec) %>%
+    summary()
+```
+
+
+## 第三部分：双变量分析
+
+### 3.1 数值 vs 数值
+
+```{r}
+# 散点图
+ggplot(df, aes(x = wt, y = mpg)) +
+    geom_point(color = "#4f46e5", size = 3, alpha = 0.7) +
+    geom_smooth(method = "lm", color = "#ef4444") +
+    labs(title = "重量与油耗的关系")
+```
+
+```{r}
+# 散点图矩阵
+pairs(df[, c("mpg", "hp", "wt", "qsec")],
+    pch = 19,
+    col = "#4f46e5"
+)
+```
+
+### 3.2 数值 vs 分类
+
+```{r}
+# 分组箱线图
+ggplot(df, aes(x = cyl, y = mpg, fill = cyl)) +
+    geom_boxplot() +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = "不同气缸数的油耗分布")
+```
+
+```{r}
+# 小提琴图 + 点图
+ggplot(df, aes(x = cyl, y = mpg)) +
+    geom_violin(fill = "#4f46e5", alpha = 0.3) +
+    geom_jitter(width = 0.1, alpha = 0.7)
+```
+
+### 3.3 分类 vs 分类
+
+```{r}
+# 交叉表
+table(df$cyl, df$am)
+```
+
+```{r}
+# 堆叠柱状图
+ggplot(df, aes(x = cyl, fill = am)) +
+    geom_bar(position = "dodge") +
+    scale_fill_manual(values = c("#4f46e5", "#10b981")) +
+    labs(title = "变速箱类型按气缸数分布")
+```
+
+
+## 第四部分：相关分析
+
+### 4.1 相关系数矩阵
+
+```{r}
+# 数值变量相关
+numeric_vars <- df %>% select(where(is.numeric))
+cor_matrix <- cor(numeric_vars)
+round(cor_matrix, 2)
+```
+
+### 4.2 相关矩阵可视化
+
+```{r}
+corrplot(cor_matrix,
+    method = "color",
+    type = "upper",
+    addCoef.col = "black",
+    tl.col = "black",
+    tl.srt = 45,
+    diag = FALSE
+)
+```
+
+```{r}
+# DataExplorer 方式
+plot_correlation(numeric_vars)
+```
+
+
+## 第五部分：异常值检测
+
+### 5.1 箱线图法
+
+```{r}
+# 识别异常值
+ggplot(df, aes(y = hp)) +
+    geom_boxplot(fill = "#4f46e5", alpha = 0.7) +
+    labs(title = "马力分布与异常值")
+```
+
+```{r}
+# 统计异常值
+identify_outliers <- function(x) {
+    Q1 <- quantile(x, 0.25)
+    Q3 <- quantile(x, 0.75)
+    IQR <- Q3 - Q1
+    lower <- Q1 - 1.5 * IQR
+    upper <- Q3 + 1.5 * IQR
+    which(x < lower | x > upper)
+}
+
+outlier_idx <- identify_outliers(df$hp)
+cat("异常值索引:", outlier_idx, "\n")
+cat("异常值:", df$hp[outlier_idx])
+```
+
+### 5.2 Z-score 法
+
+```{r}
+df$hp_zscore <- scale(df$hp)
+sum(abs(df$hp_zscore) > 3) # |z| > 3 的异常值
+```
+
+
+## 第六部分：自动化 EDA 报告
+
+### 6.1 DataExplorer 报告
+
+```{r eval=FALSE}
+# 生成完整HTML报告
+create_report(df, output_file = "eda_report.html")
+```
+
+### 6.2 自定义报告
+
+```{r eval=FALSE}
+# 分步生成
+plot_intro(df) # 数据概览
+plot_missing(df) # 缺失值
+plot_histogram(df) # 直方图
+plot_correlation(df) # 相关矩阵
+plot_bar(df) # 柱状图（分类变量）
+```
+
+
+## 第七部分：完整 EDA 流程
+
+```{r}
+# 1. 加载数据
+data(iris)
+iris_df <- iris
+
+# 2. 数据概览
+cat("维度:", dim(iris_df), "\n")
+cat("变量:\n")
+names(iris_df)
+```
+
+```{r}
+# 3. 缺失值检查
+colSums(is.na(iris_df))
+```
+
+```{r}
+# 4. 描述统计
+skim(iris_df)
+```
+
+```{r}
+# 5. 分布可视化
+ggplot(iris_df, aes(x = Sepal.Length, fill = Species)) +
+    geom_density(alpha = 0.5) +
+    labs(title = "萼片长度按物种分布")
+```
+
+```{r}
+# 6. 关系探索
+ggplot(iris_df, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+    geom_point(size = 2) +
+    labs(title = "萼片与花瓣长度的关系")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 基础检查
+dim(df)
+str(df)
+head(df)
+summary(df)
+
+# skimr
+skim(df)
+
+# DataExplorer
+introduce(df)
+plot_intro(df)
+plot_missing(df)
+plot_histogram(df)
+plot_bar(df)
+plot_correlation(df)
+create_report(df)
+
+# 相关矩阵
+cor(df_numeric)
+corrplot(cor_matrix, method = "color")
+
+# 异常值
+boxplot.stats(x)$out
+```
+
+
+## 小结
+
+EDA 最佳实践：
+
+1. **先概览后细节**：从整体到局部
+2. **数值分类分开**：不同类型不同方法
+3. **可视化优先**：图比数字更直观
+4. **记录发现**：为后续分析做准备
+
+> **提示**：EDA 是迭代过程，发现问题后回头清洗数据，再继续探索。
+
+
+## 参考资源
+
+- [skimr 包文档](https://docs.ropensci.org/skimr/)
+- [DataExplorer 包文档](https://boxuancui.github.io/DataExplorer/)
+- [R for Data Science - EDA章节](https://r4ds.had.co.nz/exploratory-data-analysis.html)
