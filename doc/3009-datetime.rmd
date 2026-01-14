@@ -1,0 +1,655 @@
+---
+title: "日期与时间变量处理完全指南"
+date: "2026-01-14"
+categories: [实用操作, 数据处理, 日期时间]
+image: "images/3009-datetime-cover.svg"
+description: "系统介绍 R 语言中日期时间的处理方法，涵盖 lubridate、hms 等包的使用，帮助你轻松处理各种日期格式转换、计算和可视化需求。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 6,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 为什么日期时间处理很重要？
+
+在医学和流行病学研究中，日期时间变量无处不在：
+
+- **纵向研究**：计算随访时间、观察期长度
+- **生存分析**：从入组日期到事件发生的时间
+- **时间序列**：按周/月/季度聚合数据
+- **数据清洗**：统一多种日期格式
+
+然而，日期时间数据往往是数据清洗中最麻烦的部分。本教程将帮助你系统掌握 R 中的日期时间处理技巧。
+
+---
+
+## R 中的日期时间类型
+
+R 中有三种主要的日期时间类型：
+
+| 类型 | 描述 | 示例 |
+|------|------|------|
+| `Date` | 只有日期，无时间 | "2024-01-15" |
+| `POSIXct` | 日期+时间，存储为秒数 | "2024-01-15 14:30:00" |
+| `POSIXlt` | 日期+时间，存储为列表 | 同上，但结构不同 |
+
+```{r}
+# 安装并加载必要的包
+if (!require("lubridate")) install.packages("lubridate")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("tibble")) install.packages("tibble")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("hms")) install.packages("hms")
+
+library(lubridate)
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(hms)
+```
+
+### Date 类型
+
+最简单的日期类型，只包含年月日信息：
+
+```{r}
+# 创建 Date 对象
+today_date <- Sys.Date()
+today_date
+class(today_date)
+
+# 内部存储为整数（自 1970-01-01 的天数）
+as.numeric(today_date)
+```
+
+### POSIXct 与 POSIXlt
+
+当需要同时处理日期和时间时，使用 POSIX 类型：
+
+```{r}
+# POSIXct：紧凑型（推荐用于数据存储）
+now_ct <- Sys.time()
+now_ct
+class(now_ct)
+
+# 内部存储为秒数
+as.numeric(now_ct)
+
+# POSIXlt：列表型（方便提取组件）
+now_lt <- as.POSIXlt(now_ct)
+now_lt$year + 1900 # 年份（从1900开始计）
+now_lt$mon + 1 # 月份（0-11）
+now_lt$mday # 日
+now_lt$hour # 时
+now_lt$min # 分
+```
+
+> [!TIP]
+> 推荐使用 `POSIXct` 存储日期时间数据，因为它更紧凑、更适合放入数据框。使用 `lubridate` 包则可以轻松提取组件，无需手动处理 `POSIXlt`。
+
+---
+
+## lubridate 包核心功能
+
+`lubridate` 是 tidyverse 生态中处理日期时间的核心包，提供了直观、一致的函数接口。
+
+### 日期解析：智能识别格式
+
+`lubridate` 提供了一系列根据日期顺序命名的解析函数：
+
+| 函数 | 格式 | 示例输入 |
+|------|------|----------|
+| `ymd()` | 年-月-日 | "2024-01-15", "2024/01/15", "20240115" |
+| `mdy()` | 月-日-年 | "01-15-2024", "Jan 15, 2024" |
+| `dmy()` | 日-月-年 | "15-01-2024", "15 January 2024" |
+| `ymd_hms()` | 年月日时分秒 | "2024-01-15 14:30:00" |
+
+```{r}
+# 各种格式都能智能识别
+ymd("2024-01-15")
+ymd("2024/01/15")
+ymd("20240115")
+ymd("24-1-15") # 两位年份也能识别
+
+# 月日年格式
+mdy("January 15, 2024")
+mdy("01/15/2024")
+
+# 日月年格式（欧洲常用）
+dmy("15-01-2024")
+dmy("15 Jan 2024")
+```
+
+### 带时间的解析
+
+```{r}
+# 完整日期时间
+ymd_hms("2024-01-15 14:30:00")
+ymd_hms("2024-01-15 14:30:00", tz = "Asia/Shanghai")
+
+# 只有时分
+ymd_hm("2024-01-15 14:30")
+
+# 使用 hms 包处理纯时间
+hms::as_hms("14:30:00")
+```
+
+### 组件提取
+
+`lubridate` 提供了简洁的组件提取函数：
+
+```{r}
+dt <- ymd_hms("2024-03-15 14:30:45")
+
+# 日期组件
+year(dt) # 年
+month(dt) # 月（数字）
+month(dt, label = TRUE) # 月（名称）
+day(dt) # 日
+yday(dt) # 一年中的第几天
+wday(dt) # 星期几（数字，1=周日）
+wday(dt, label = TRUE) # 星期几（名称）
+week(dt) # 一年中的第几周
+
+# 时间组件
+hour(dt) # 时
+minute(dt) # 分
+second(dt) # 秒
+```
+
+### 组件修改
+
+可以直接修改日期时间的某个组件：
+
+```{r}
+dt <- ymd("2024-03-15")
+
+# 修改年份
+year(dt) <- 2025
+dt
+
+# 修改月份
+month(dt) <- 6
+dt
+
+# 修改日期
+day(dt) <- 1
+dt
+```
+
+---
+
+## 日期运算
+
+### 算术运算
+
+日期可以直接进行加减运算：
+
+```{r}
+start_date <- ymd("2024-01-15")
+
+# 加减天数
+start_date + 30
+start_date - 10
+
+# 使用 lubridate 的时间单位函数
+start_date + days(30)
+start_date + weeks(2)
+start_date + months(3)
+start_date + years(1)
+```
+
+### Duration（持续时间）
+
+`Duration` 是精确的时间长度，以秒为单位存储：
+
+```{r}
+# 创建 Duration
+d1 <- ddays(30) # 30天 = 30 * 86400 秒
+d2 <- dweeks(2) # 2周
+d3 <- dhours(48) # 48小时
+d4 <- dminutes(90) # 90分钟
+
+# Duration 是精确的
+ymd("2024-01-31") + dmonths(1) # 注意：会加上精确的秒数
+```
+
+### Period（周期）
+
+`Period` 是人类直觉的时间长度，考虑日历：
+
+```{r}
+# 创建 Period
+p1 <- days(30)
+p2 <- weeks(2)
+p3 <- months(1)
+p4 <- years(1)
+
+# Period 会根据日历调整
+ymd("2024-01-31") + months(1) # 会调整为有效日期
+ymd("2024-02-29") + years(1) # 会考虑闰年
+```
+
+> [!IMPORTANT]
+> **Duration vs Period 的区别**：
+> - Duration 是精确的秒数，适合计算时间差
+> - Period 是日历单位，适合处理"下个月"这样的概念
+> 
+> 例如：1个月的 Duration 总是约 30.44 天，但 1 个月的 Period 会根据实际月份变化。
+
+### Interval（时间段）
+
+`Interval` 表示一个有起止时间的时间段：
+
+```{r}
+# 创建时间段
+start <- ymd("2024-01-01")
+end <- ymd("2024-12-31")
+
+study_period <- interval(start, end)
+study_period
+
+# 检查日期是否在时间段内
+event_date <- ymd("2024-06-15")
+event_date %within% study_period
+
+# 计算时间段长度
+int_length(study_period) # 秒数
+int_length(study_period) / 86400 # 天数
+
+# 使用 time_length 函数
+time_length(study_period, unit = "day")
+time_length(study_period, unit = "month")
+time_length(study_period, unit = "year")
+```
+
+---
+
+## 时间差计算
+
+### difftime 函数
+
+```{r}
+date1 <- ymd("2024-01-15")
+date2 <- ymd("2024-03-20")
+
+# 计算差值
+diff <- date2 - date1
+diff
+class(diff)
+
+# 指定单位
+difftime(date2, date1, units = "days")
+difftime(date2, date1, units = "weeks")
+difftime(date2, date1, units = "hours")
+
+# 转换为数值
+as.numeric(difftime(date2, date1, units = "days"))
+```
+
+### 实战：计算随访时间
+
+```{r}
+# 模拟队列数据
+cohort <- tibble(
+    patient_id = 1:10,
+    enrollment_date = ymd("2020-01-01") + days(sample(0:365, 10)),
+    event_date = enrollment_date + days(sample(100:1000, 10)),
+    event_type = sample(c("event", "censored"), 10, replace = TRUE)
+)
+
+# 计算随访时间
+cohort <- cohort %>%
+    mutate(
+        follow_up_days = as.numeric(difftime(event_date, enrollment_date, units = "days")),
+        follow_up_months = follow_up_days / 30.44,
+        follow_up_years = follow_up_days / 365.25
+    )
+
+cohort %>% select(patient_id, follow_up_days, follow_up_months, follow_up_years)
+```
+
+---
+
+## Base R 日期函数
+
+虽然 `lubridate` 更方便，了解 Base R 函数仍然很有价值。
+
+### as.Date() 转换
+
+```{r}
+# 从字符串转换
+as.Date("2024-01-15") # 默认格式 YYYY-MM-DD
+
+# 指定格式
+as.Date("15/01/2024", format = "%d/%m/%Y")
+as.Date("January 15, 2024", format = "%B %d, %Y")
+
+# 从数值转换（天数自 1970-01-01）
+as.Date(19737, origin = "1970-01-01")
+```
+
+### 格式化符号
+
+| 符号 | 含义 | 示例 |
+|------|------|------|
+| `%Y` | 四位年份 | 2024 |
+| `%y` | 两位年份 | 24 |
+| `%m` | 两位月份 | 01-12 |
+| `%B` | 完整月份名 | January |
+| `%b` | 缩写月份名 | Jan |
+| `%d` | 两位日期 | 01-31 |
+| `%H` | 24小时制时 | 00-23 |
+| `%M` | 分钟 | 00-59 |
+| `%S` | 秒 | 00-59 |
+| `%A` | 完整星期名 | Monday |
+| `%a` | 缩写星期名 | Mon |
+
+### strptime 与 strftime
+
+```{r}
+# strptime: 字符串 -> 日期时间
+dt <- strptime("2024-01-15 14:30:00", format = "%Y-%m-%d %H:%M:%S")
+dt
+
+# strftime: 日期时间 -> 字符串
+strftime(Sys.time(), format = "%Y年%m月%d日 %H:%M")
+strftime(Sys.Date(), format = "%A, %B %d, %Y")
+```
+
+---
+
+## 实战应用
+
+### 案例一：多格式日期清洗
+
+在实际数据中，日期格式往往五花八门：
+
+```{r}
+# 混乱的日期数据
+messy_dates <- c(
+    "2024-01-15",
+    "01/15/2024",
+    "15-Jan-2024",
+    "January 15, 2024",
+    "20240115",
+    "2024.01.15"
+)
+
+# 使用 parse_date_time 智能解析多种格式
+clean_dates <- parse_date_time(
+    messy_dates,
+    orders = c("ymd", "mdy", "dmy", "Bdy", "ymd", "ymd")
+)
+clean_dates
+
+# 或者使用更智能的方式
+parse_date_time(messy_dates, orders = c("ymd", "mdy", "dmy"))
+```
+
+### 案例二：生存分析时间变量
+
+```{r}
+# 模拟临床试验数据
+trial_data <- tibble(
+    patient_id = sprintf("PT%03d", 1:20),
+    enrollment = ymd("2022-01-01") + days(sample(0:180, 20, replace = TRUE)),
+    last_visit = enrollment + days(sample(90:730, 20, replace = TRUE)),
+    death_date = if_else(
+        runif(20) < 0.3,
+        enrollment + days(sample(30:365, 20, replace = TRUE)),
+        as.Date(NA)
+    )
+)
+
+# 计算生存时间
+trial_data <- trial_data %>%
+    mutate(
+        # 事件日期：死亡日期或最后随访日期
+        event_date = coalesce(death_date, last_visit),
+        # 事件状态
+        status = if_else(!is.na(death_date), 1, 0),
+        # 生存时间（天）
+        survival_days = as.numeric(difftime(event_date, enrollment, units = "days")),
+        # 生存时间（年）
+        survival_years = survival_days / 365.25
+    )
+
+trial_data %>%
+    select(patient_id, enrollment, event_date, status, survival_days, survival_years) %>%
+    head(10)
+```
+
+### 案例三：时间序列聚合
+
+```{r}
+# 模拟每日数据
+daily_data <- tibble(
+    date = seq(ymd("2023-01-01"), ymd("2023-12-31"), by = "day"),
+    cases = rpois(365, lambda = 50)
+)
+
+# 按周聚合
+weekly_data <- daily_data %>%
+    mutate(
+        week_start = floor_date(date, unit = "week")
+    ) %>%
+    group_by(week_start) %>%
+    summarize(
+        weekly_cases = sum(cases),
+        avg_daily = mean(cases),
+        .groups = "drop"
+    )
+
+head(weekly_data)
+
+# 按月聚合
+monthly_data <- daily_data %>%
+    mutate(
+        year_month = floor_date(date, unit = "month")
+    ) %>%
+    group_by(year_month) %>%
+    summarize(
+        monthly_cases = sum(cases),
+        .groups = "drop"
+    )
+
+head(monthly_data)
+```
+
+### 案例四：年龄计算
+
+```{r}
+# 精确计算年龄
+birth_dates <- ymd(c("1990-05-15", "1985-11-30", "2000-02-29"))
+reference_date <- ymd("2024-01-15")
+
+# 方法1：使用 interval 和 years
+ages <- interval(birth_dates, reference_date) / years(1)
+floor(ages)
+
+# 方法2：使用 time_length
+time_length(interval(birth_dates, reference_date), unit = "year") %>% floor()
+
+# 封装为函数
+calc_age <- function(birth_date, ref_date = Sys.Date()) {
+    interval(birth_date, ref_date) / years(1) %>% floor()
+}
+
+calc_age(ymd("1990-05-15"))
+```
+
+---
+
+## 高级技巧
+
+### 时区处理
+
+```{r}
+# 创建带时区的日期时间
+dt_utc <- ymd_hms("2024-01-15 12:00:00", tz = "UTC")
+dt_utc
+
+# 查看本地时区
+Sys.timezone()
+
+# 转换时区
+with_tz(dt_utc, tzone = "Asia/Shanghai") # 显示为上海时间
+with_tz(dt_utc, tzone = "America/New_York") # 显示为纽约时间
+
+# 强制更改时区（不改变显示的数值）
+force_tz(dt_utc, tzone = "Asia/Shanghai")
+```
+
+### 工作日与节假日
+
+```{r}
+# 判断是否为周末
+dates <- seq(ymd("2024-01-01"), ymd("2024-01-14"), by = "day")
+
+tibble(
+    date = dates,
+    weekday = wday(dates, label = TRUE),
+    is_weekend = wday(dates) %in% c(1, 7) # 1=周日, 7=周六
+)
+
+# 计算工作日差异
+workdays <- function(start, end) {
+    dates <- seq(start, end, by = "day")
+    sum(!wday(dates) %in% c(1, 7))
+}
+
+workdays(ymd("2024-01-01"), ymd("2024-01-31"))
+```
+
+### 滚动时间窗口
+
+```{r}
+# 使用 slider 包进行滚动计算
+if (!require("slider")) install.packages("slider")
+library(slider)
+
+# 7天移动平均
+daily_data <- daily_data %>%
+    mutate(
+        ma_7day = slide_dbl(cases, mean, .before = 6, .complete = TRUE)
+    )
+
+# 可视化
+ggplot(daily_data %>% filter(date >= ymd("2023-06-01"), date <= ymd("2023-08-31"))) +
+    geom_col(aes(x = date, y = cases), fill = "#e2e8f0", alpha = 0.7) +
+    geom_line(aes(x = date, y = ma_7day), color = "#4f46e5", linewidth = 1) +
+    labs(
+        title = "每日病例数与7天移动平均",
+        x = "日期",
+        y = "病例数"
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+### 日期格式化输出
+
+```{r}
+# 创建友好的日期显示
+dt <- ymd_hms("2024-03-15 14:30:00")
+
+# 中文格式
+format(dt, "%Y年%m月%d日 %H时%M分")
+
+# 自定义函数
+format_date_cn <- function(date) {
+    paste0(
+        year(date), "年",
+        month(date), "月",
+        day(date), "日"
+    )
+}
+
+format_date_cn(Sys.Date())
+
+# 相对时间
+difftime(Sys.time(), dt, units = "days") %>%
+    as.numeric() %>%
+    round(1) %>%
+    paste("天前")
+```
+
+---
+
+## 常见问题与解决方案
+
+### 问题一：Excel 日期数字
+
+Excel 存储日期为数字（自 1899-12-30 的天数）：
+
+```{r}
+# Excel 日期数字转换
+excel_date <- 45306 # Excel 中的日期数字
+as.Date(excel_date, origin = "1899-12-30")
+
+# 批量转换
+excel_dates <- c(45306, 45337, 45366)
+as.Date(excel_dates, origin = "1899-12-30")
+```
+
+### 问题二：缺失日期处理
+
+```{r}
+dates_with_na <- c("2024-01-15", NA, "invalid", "2024-02-28")
+
+# 使用 lubridate 会对无效日期返回 NA
+ymd(dates_with_na, quiet = TRUE)
+
+# 检查缺失
+tibble(raw = dates_with_na) %>%
+    mutate(
+        parsed = ymd(raw, quiet = TRUE),
+        is_valid = !is.na(parsed)
+    )
+```
+
+### 问题三：跨年计算
+
+```{r}
+# 年末到年初的时间差
+date1 <- ymd("2023-12-25")
+date2 <- ymd("2024-01-05")
+
+difftime(date2, date1, units = "days")
+
+# 计算跨年周数
+week(date1) # 2023年第52周
+week(date2) # 2024年第1周
+isoweek(date1) # ISO周数
+isoweek(date2)
+```
+
+---
+
+## 总结
+
+| 任务 | 推荐函数 | 示例 |
+|------|----------|------|
+| 字符串转日期 | `ymd()`, `mdy()`, `dmy()` | `ymd("2024-01-15")` |
+| 提取组件 | `year()`, `month()`, `day()` | `month(date)` |
+| 日期运算 | `days()`, `months()`, `years()` | `date + months(3)` |
+| 时间差 | `difftime()`, `interval()` | `difftime(d2, d1)` |
+| 格式化输出 | `format()`, `strftime()` | `format(date, "%Y年%m月%d日")` |
+| 聚合 | `floor_date()`, `ceiling_date()` | `floor_date(date, "month")` |
+
+---
+
+## 参考资源
+
+- [lubridate 官方文档](https://lubridate.tidyverse.org/)
+- [R for Data Science - Dates and Times](https://r4ds.hadley.nz/datetimes)
+- [lubridate 速查表](https://rawgit.com/rstudio/cheatsheets/main/lubridate.pdf)

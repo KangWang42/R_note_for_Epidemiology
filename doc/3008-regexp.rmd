@@ -1,143 +1,635 @@
 ---
 title: "正则表达式 R 语言实战指南"
-author: "Antigravity"
-date: "`r Sys.Date()`"
-output:
-  html_document:
-    toc: true
-    toc_float: true
+date: "2026-01-14"
+categories: [实用操作, 数据处理, 字符串处理]
+image: "images/3008-regexp-cover.svg"
+description: "全面系统的正则表达式教程，涵盖 Base R 和 stringr 包的使用，从基础语法到高级技巧，助力数据清洗与文本挖掘。"
 ---
 
-![Regex in R](images/3008-regexp-cover.svg)
-
-> [!NOTE]
-> 正则表达式（Regular Expression，简称 Regex）是一种强大的文本处理工具，用于搜索、匹配和替换特定的字符模式。在 R 语言中，正则表达式是数据清洗和文本挖掘的核心技能。
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
 
 ## 什么是正则表达式？
 
-正则表达式是由普通字符（如字母 a 到 z）以及特殊字符（称为“元字符”）组成的文字模式。该模式描述在搜索文本时要匹配的一个或多个字符串。
+正则表达式（Regular Expression，简称 Regex）是一种强大的文本处理工具，用于搜索、匹配和替换特定的字符模式。在 R 语言中，正则表达式是数据清洗和文本挖掘的核心技能。
 
 正则表达式可以用来：
-- 验证字符串是否符合某种规则（如电子邮箱格式）。
-- 在一段文字中提取特定的信息（如电话号码）。
-- 批量替换文本中的特定内容。
+
+- **验证格式**：检查字符串是否符合某种规则（如电子邮箱、电话号码）
+- **提取信息**：从一段文字中提取特定的信息（如 ICD 编码、药物剂量）
+- **批量替换**：替换文本中的特定内容（如统一日期格式）
+- **文本分割**：按照特定模式分割字符串
+
+---
 
 ## R 语言中的正则表达式环境
 
 在 R 中，主要有两套处理正则表达式的系统：
 
-1.  **Base R 函数**：如 `grep()`, `sub()`, `gsub()`, `regexpr()` 等。
-2.  **stringr 包**：由 Hadley Wickham 开发，其语法更加统一和现代，推荐在现代 R 开发中使用。
+| 系统 | 描述 | 适用场景 |
+|------|------|----------|
+| **Base R** | `grep()`, `sub()`, `gsub()`, `regexpr()` 等 | 简单匹配、兼容老代码 |
+| **stringr** | `str_detect()`, `str_extract()` 等 | 现代开发、tidyverse 集成 |
 
-本教程将重点介绍 `stringr` 包的使用。
+> [!TIP]
+> 推荐使用 `stringr` 包进行日常开发，其函数命名统一（都以 `str_` 开头）、参数顺序一致（字符串在前，模式在后），更易于记忆和使用。
 
-```{r setup, message=FALSE}
+```{r}
 # 安装并加载必要的包
 if (!require("stringr")) install.packages("stringr")
 if (!require("dplyr")) install.packages("dplyr")
+if (!require("tibble")) install.packages("tibble")
 
 library(stringr)
 library(dplyr)
+library(tibble)
 ```
+
+---
 
 ## 基础语法详解
 
-### 1. 字符匹配
+### 字符匹配
 
--   `.`：匹配除换行符之外的任意单个字符。
--   `^`：匹配字符串的开始。
--   `$`：匹配字符串的结束。
--   `[abc]`：匹配方括号内的任意一个字符。
--   `[^abc]`：匹配不在方括号内的任意一个字符。
--   `[a-z]`：匹配指定范围内的任意小写字母。
+最基本的正则表达式就是普通字符，它们匹配自身：
 
-### 2. 量词（次数匹配）
+```{r}
+# 简单字符匹配
+text <- "Hello World"
+str_detect(text, "World") # 检测是否包含 "World"
+str_extract(text, "World") # 提取 "World"
+```
 
--   `*`：匹配前面的元素 0 次或多次。
--   `+`：匹配前面的元素 1 次或多次。
--   `?`：匹配前面的元素 0 次或 1 次。
--   `{n}`：匹配前面的元素恰好 n 次。
--   `{n,}`：匹配前面的元素至少 n 次。
--   `{n,m}`：匹配前面的元素 n 到 m 次。
+### 元字符（特殊字符）
 
-### 3. 特殊转义
+以下是正则表达式中最常用的元字符：
+
+| 元字符 | 含义 | 示例 |
+|--------|------|------|
+| `.` | 匹配任意单个字符（除换行符） | `a.c` 匹配 "abc", "a1c" |
+| `^` | 匹配字符串开始 | `^Hello` 匹配以 Hello 开头 |
+| `$` | 匹配字符串结束 | `world$` 匹配以 world 结尾 |
+| `[]` | 字符集，匹配其中任意一个 | `[aeiou]` 匹配元音字母 |
+| `[^]` | 否定字符集 | `[^0-9]` 匹配非数字 |
+| `\|` | 或操作 | `cat\|dog` 匹配 cat 或 dog |
+
+```{r}
+fruits <- c("apple", "banana", "cherry", "date", "apricot")
+
+# 以 'a' 开头
+str_subset(fruits, "^a")
+
+# 以 'e' 结尾
+str_subset(fruits, "e$")
+
+# 包含 'an' 或 'er'
+str_subset(fruits, "an|er")
+```
+
+### 量词（次数匹配）
+
+量词用于指定前面的元素应该匹配多少次：
+
+| 量词 | 含义 | 示例 |
+|------|------|------|
+| `*` | 0次或多次 | `ab*c` 匹配 "ac", "abc", "abbc" |
+| `+` | 1次或多次 | `ab+c` 匹配 "abc", "abbc"（不匹配 "ac"） |
+| `?` | 0次或1次 | `colou?r` 匹配 "color", "colour" |
+| `{n}` | 恰好n次 | `a{3}` 匹配 "aaa" |
+| `{n,}` | 至少n次 | `a{2,}` 匹配 "aa", "aaa", ... |
+| `{n,m}` | n到m次 | `a{2,4}` 匹配 "aa", "aaa", "aaaa" |
+
+```{r}
+# 量词示例
+texts <- c("color", "colour", "colouur", "clr")
+
+# 匹配 color 或 colour
+str_subset(texts, "colou?r")
+
+# 匹配至少一个 u
+str_subset(texts, "colo+u*r")
+```
+
+### 特殊转义序列
 
 > [!IMPORTANT]
 > 在 R 中，反斜杠 `\` 是转义字符。要表示正则表达式中的特殊含义，通常需要使用**双反斜杠** `\\`。
 
--   `\\d`：匹配数字。
--   `\\D`：匹配非数字。
--   `\\w`：匹配单词字符（字母、数字、下划线）。
--   `\\s`：匹配空白字符（空格、制表符等）。
+| 转义序列 | 含义 | 等价写法 |
+|----------|------|----------|
+| `\\d` | 数字 | `[0-9]` |
+| `\\D` | 非数字 | `[^0-9]` |
+| `\\w` | 单词字符 | `[a-zA-Z0-9_]` |
+| `\\W` | 非单词字符 | `[^a-zA-Z0-9_]` |
+| `\\s` | 空白字符 | 空格、制表符、换行等 |
+| `\\S` | 非空白字符 | |
+| `\\b` | 单词边界 | |
 
-## stringr 实战案例
+```{r}
+mixed_text <- "ID123 costs $45.99 on 2024-01-15"
 
-### 1. 检测模式：str_detect
+# 提取所有数字序列
+str_extract_all(mixed_text, "\\d+")
 
-用于判断字符串中是否包含特定模式，返回逻辑值。
+# 提取所有单词
+str_extract_all(mixed_text, "\\w+")
 
-```{r str_detect_demo}
-fruits <- c("apple", "banana", "cherry", "date")
-
-# 是否包含 'a'
-str_detect(fruits, "a")
-
-# 以 'a' 开头
-str_detect(fruits, "^a")
-
-# 以 'e' 结尾
-str_detect(fruits, "e$")
+# 提取价格格式
+str_extract(mixed_text, "\\$\\d+\\.\\d{2}")
 ```
 
-### 2. 提取内容：str_extract 与 str_extract_all
+---
 
-`str_extract` 提取第一个匹配到的内容，`str_extract_all` 提取所有匹配到的内容。
+## Base R 函数详解
 
-```{r str_extract_demo}
-text <- "My phone number is 123-456-7890 and office is 098-765-4321."
+虽然 `stringr` 更为推荐，但了解 Base R 函数仍然很重要，尤其是在阅读和维护老代码时。
 
-# 提取第一个电话号码格式 (数字-数字-数字)
-str_extract(text, "\\d{3}-\\d{3}-\\d{4}")
+### grep 与 grepl：模式检测
 
-# 提取所有电话号码
-str_extract_all(text, "\\d{3}-\\d{3}-\\d{4}")
+```{r}
+samples <- c("Sample_001", "Control_002", "Sample_003", "Treated_004")
+
+# grep 返回匹配的索引位置
+grep("Sample", samples)
+
+# grepl 返回逻辑向量
+grepl("Sample", samples)
+
+# 使用 value = TRUE 返回匹配的值
+grep("Sample", samples, value = TRUE)
 ```
 
-### 3. 替换内容：str_replace 与 str_replace_all
+### sub 与 gsub：替换操作
 
-用于清洗数据，替换不需要的字符。
+```{r}
+messy_ids <- c("ID-001-A", "ID-002-B", "ID-003-C")
 
-```{r str_replace_demo}
-messy_data <- c("ID_001", "ID_002", "ID_003")
+# sub 只替换第一个匹配
+sub("-", "_", messy_ids)
 
-# 将 ID_ 替换为空，只保留数字
-str_replace(messy_data, "ID_", "")
+# gsub 替换所有匹配
+gsub("-", "_", messy_ids)
 
-# 将所有破折号替换为斜杠
-date_text <- "2023-10-01"
-str_replace_all(date_text, "-", "/")
+# 删除所有非数字字符
+gsub("[^0-9]", "", messy_ids)
 ```
 
-## 综合练习：清洗科研数据
+### regexpr 与 gregexpr：位置匹配
 
-假设我们有一组杂乱的样本编号，需要提取出其中的数字部分并转换为数值型。
+```{r}
+text <- "The quick brown fox jumps over the lazy dog"
 
-```{r lab_cleaning}
-raw_samples <- c("Sample-12 (Control)", "Sample-45 (Treated)", "Exp_09_v2")
+# regexpr 返回第一个匹配的位置和长度
+match_info <- regexpr("the", text, ignore.case = TRUE)
+match_info
+attr(match_info, "match.length")
 
-# 步骤：
-# 1. 提取所有连续的数字
-# 2. 转换为数值
-clean_ids <- raw_samples %>%
-    str_extract("\\d+") %>%
-    as.numeric()
-
-print(clean_ids)
+# gregexpr 返回所有匹配
+all_matches <- gregexpr("the", text, ignore.case = TRUE)
+all_matches
 ```
+### regmatches：提取匹配内容
+
+```{r}
+# 配合 regexpr/gregexpr 使用
+phone_text <- "Contact: 123-456-7890 or 098-765-4321"
+
+# 找到所有电话号码的位置
+positions <- gregexpr("\\d{3}-\\d{3}-\\d{4}", phone_text)
+
+# 提取匹配内容
+regmatches(phone_text, positions)
+```
+
+---
+
+## stringr 核心函数
+
+`stringr` 包提供了一套统一、现代的字符串处理函数。
+
+### str_detect：检测模式
+
+用于判断字符串中是否包含特定模式，返回逻辑值。常用于 `dplyr::filter()` 中。
+
+```{r}
+emails <- c("john@example.com", "invalid-email", "mary@company.org", "test@")
+
+# 检测是否是有效邮箱格式
+str_detect(emails, "^[\\w.-]+@[\\w.-]+\\.[a-z]{2,}$")
+
+# 在数据框中使用
+tibble(email = emails) %>%
+  filter(str_detect(email, "@.*\\."))
+```
+
+### str_extract 与 str_extract_all：提取内容
+
+```{r}
+medical_notes <- c(
+  "Patient took 500mg aspirin twice daily",
+  "Prescribed 250mg antibiotics for 7 days",
+  "Blood pressure: 120/80 mmHg"
+)
+
+# 提取第一个剂量（数字+mg）
+str_extract(medical_notes, "\\d+mg")
+
+# 提取所有数字
+str_extract_all(medical_notes, "\\d+")
+```
+
+### str_replace 与 str_replace_all：替换内容
+
+```{r}
+dates <- c("2024/01/15", "2024/02/28", "2024/03/10")
+
+# 将斜杠替换为破折号
+str_replace_all(dates, "/", "-")
+
+# 使用分组进行格式转换（YYYY/MM/DD -> DD-MM-YYYY）
+str_replace(dates, "(\\d{4})/(\\d{2})/(\\d{2})", "\\3-\\2-\\1")
+```
+
+### str_match 与 str_match_all：分组捕获
+
+这是从复杂文本中提取结构化信息的利器。
+
+```{r}
+# 提取药物信息：药名、剂量、单位
+prescriptions <- c(
+  "Aspirin 500mg twice daily",
+  "Metformin 1000mg once daily",
+  "Lisinopril 10mg once daily"
+)
+
+# 使用分组捕获
+pattern <- "(\\w+)\\s+(\\d+)(mg|mcg)"
+matches <- str_match(prescriptions, pattern)
+matches
+
+# 转换为数据框
+tibble(
+  full_match = matches[, 1],
+  drug = matches[, 2],
+  dose = as.numeric(matches[, 3]),
+  unit = matches[, 4]
+)
+```
+
+### str_split 与 str_split_fixed：分割字符串
+
+```{r}
+# 分割地址
+addresses <- c("北京市|海淀区|中关村", "上海市|浦东新区|陆家嘴")
+
+# str_split 返回列表
+str_split(addresses, "\\|")
+
+# str_split_fixed 返回矩阵，指定列数
+str_split_fixed(addresses, "\\|", n = 3)
+```
+
+### str_locate 与 str_locate_all：定位匹配
+
+```{r}
+sentence <- "The cat sat on the mat"
+
+# 找到第一个 "at" 的位置
+str_locate(sentence, "at")
+
+# 找到所有 "at" 的位置
+str_locate_all(sentence, "at")
+```
+
+### str_subset 与 str_which：筛选匹配
+
+```{r}
+files <- c("data_2024.csv", "report_2024.pdf", "data_2023.csv", "notes.txt")
+
+# 返回匹配的元素
+str_subset(files, "\\.csv$")
+
+# 返回匹配的索引
+str_which(files, "\\.csv$")
+```
+
+---
+
+## 高级正则技巧
+
+### 分组与反向引用
+
+分组使用圆括号 `()` 定义，可以在同一表达式中引用之前的分组。
+
+```{r}
+# 检测重复单词
+text_with_duplicates <- c("the the cat", "a dog", "is is is great")
+
+# \\1 引用第一个分组
+str_detect(text_with_duplicates, "\\b(\\w+)\\s+\\1\\b")
+
+# 删除重复单词
+str_replace_all(text_with_duplicates, "\\b(\\w+)(\\s+\\1)+\\b", "\\1")
+```
+
+### 环视断言（Lookaround）
+
+环视断言可以在不消耗字符的情况下匹配位置。
+
+| 类型 | 语法 | 含义 |
+|------|------|------|
+| 正向前瞻 | `(?=...)` | 后面跟着... |
+| 负向前瞻 | `(?!...)` | 后面不跟着... |
+| 正向后顾 | `(?<=...)` | 前面是... |
+| 负向后顾 | `(?<!...)` | 前面不是... |
+
+```{r}
+prices <- c("$100", "€200", "¥300", "$50")
+
+# 提取美元价格（$ 后面的数字）- 使用正向后顾
+str_extract(prices, "(?<=\\$)\\d+")
+
+# 提取数字后面不跟 $ 的价格
+str_extract(c("100$", "200", "300€"), "\\d+(?!\\$)")
+```
+
+### 贪婪与非贪婪匹配
+
+默认情况下，量词是贪婪的（匹配尽可能多的字符）。在量词后加 `?` 变成非贪婪模式。
+
+```{r}
+html <- "<div>First</div><div>Second</div>"
+
+# 贪婪匹配：匹配到最后一个 </div>
+str_extract(html, "<div>.*</div>")
+
+# 非贪婪匹配：匹配到第一个 </div>
+str_extract(html, "<div>.*?</div>")
+
+# 提取所有 div 内容
+str_extract_all(html, "<div>.*?</div>")
+```
+
+### 命名分组
+
+使用 `(?<name>...)` 可以给分组命名，使代码更易读。
+
+```{r}
+# 提取日期组件
+date_text <- "Meeting scheduled for 2024-03-15"
+
+pattern <- "(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})"
+match <- str_match(date_text, pattern)
+match
+```
+
+---
+
+## 实战案例
+
+### 案例一：医学数据清洗
+
+提取 ICD-10 编码和药物剂量信息：
+
+```{r}
+# 模拟病历数据
+records <- tibble(
+  patient_id = 1:5,
+  diagnosis = c(
+    "Primary: I10 (Hypertension), Secondary: E11.9",
+    "Diagnosis codes: J45.0, J44.1",
+    "ICD: K21.0 - GERD with esophagitis",
+    "Main dx: F32.1, comorbid: E78.0",
+    "Codes assigned: N18.3, I25.10"
+  ),
+  medication = c(
+    "Lisinopril 10mg daily",
+    "Salbutamol 100mcg PRN",
+    "Omeprazole 20mg BID",
+    "Sertraline 50mg QD",
+    "Atorvastatin 40mg HS"
+  )
+)
+
+# 提取所有 ICD 编码
+records <- records %>%
+  mutate(
+    icd_codes = str_extract_all(diagnosis, "[A-Z]\\d{2}\\.?\\d*"),
+    primary_icd = sapply(icd_codes, `[`, 1)
+  )
+
+# 提取药物剂量
+records <- records %>%
+  mutate(
+    drug_info = str_match(medication, "(\\w+)\\s+(\\d+)(mg|mcg)"),
+    drug_name = drug_info[, 2],
+    dose = as.numeric(drug_info[, 3]),
+    unit = drug_info[, 4]
+  )
+
+records %>% select(patient_id, primary_icd, drug_name, dose, unit)
+```
+
+### 案例二：问卷数据验证
+
+验证邮箱、电话和身份证格式：
+
+```{r}
+# 模拟问卷数据
+survey <- tibble(
+  id = 1:5,
+  email = c("alice@example.com", "bob@company", "carol@uni.edu.cn", "invalid", "eve@org.net"),
+  phone = c("13812345678", "1381234567", "138-1234-5678", "12345678901", "13912345678"),
+  id_card = c("110101199001011234", "11010119900101123X", "1101011990010112", "110101199013011234", "320102198512251234")
+)
+
+# 邮箱验证
+email_pattern <- "^[\\w.-]+@[\\w.-]+\\.[a-z]{2,}$"
+
+# 手机号验证（中国大陆）
+phone_pattern <- "^1[3-9]\\d{9}$"
+
+# 身份证验证（简化版，18位）
+id_pattern <- "^\\d{6}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[\\dX]$"
+
+survey %>%
+  mutate(
+    # 先清理电话号码中的破折号
+    phone_clean = str_replace_all(phone, "-", ""),
+    # 验证各字段
+    email_valid = str_detect(email, email_pattern),
+    phone_valid = str_detect(phone_clean, phone_pattern),
+    id_valid = str_detect(id_card, id_pattern)
+  ) %>%
+  select(id, email_valid, phone_valid, id_valid)
+```
+
+### 案例三：批量文件重命名
+
+使用正则表达式重命名文件：
+
+```{r}
+# 模拟文件名列表
+old_names <- c(
+  "data_2024_01_15.csv",
+  "data_2024_02_28.csv",
+  "report_2024_03_10.xlsx",
+  "analysis_2024_04_22.R"
+)
+
+# 将日期格式从 YYYY_MM_DD 改为 YYYYMMDD
+new_names <- str_replace(old_names, "(\\d{4})_(\\d{2})_(\\d{2})", "\\1\\2\\3")
+new_names
+
+# 提取文件扩展名
+extensions <- str_extract(old_names, "\\.[^.]+$")
+extensions
+```
+
+### 案例四：清洗科研数据
+
+从杂乱的样本编号中提取有用信息：
+
+```{r}
+raw_samples <- c(
+  "Sample-12 (Control Group A)",
+  "Sample-45 (Treated Group B)",
+  "Exp_09_v2 - Final",
+  "CTRL-001-2024-Jan",
+  "TRT-005-2024-Feb"
+)
+
+# 创建清洗后的数据框
+cleaned <- tibble(raw = raw_samples) %>%
+  mutate(
+    # 提取样本编号（数字部分）
+    sample_id = as.numeric(str_extract(raw, "\\d+")),
+    # 判断分组
+    group = case_when(
+      str_detect(raw, "(?i)control|ctrl") ~ "Control",
+      str_detect(raw, "(?i)treat|trt") ~ "Treatment",
+      TRUE ~ "Unknown"
+    ),
+    # 提取版本信息（如果有）
+    version = str_extract(raw, "v\\d+"),
+    # 提取月份（如果有）
+    month = str_extract(raw, "(?i)jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec")
+  )
+
+cleaned
+```
+
+---
+
+## 调试与测试技巧
+
+### 使用在线工具
+
+> [!TIP]
+> 推荐使用 [Regex101](https://regex101.com/) 进行模式测试。选择 "PCRE2" 风格（与 R 最接近），可以实时查看匹配结果和各分组内容。
+
+### 逐步构建复杂模式
+
+```{r}
+# 复杂模式分步构建
+# 目标：匹配中国手机号
+
+# 步骤1：匹配第一位（1）
+pattern_v1 <- "^1"
+
+# 步骤2：添加第二位（3-9）
+pattern_v2 <- "^1[3-9]"
+
+# 步骤3：添加剩余9位数字
+pattern_v3 <- "^1[3-9]\\d{9}$"
+
+test_phones <- c("13812345678", "12345678901", "138123456789")
+
+# 测试最终模式
+str_detect(test_phones, pattern_v3)
+```
+
+### 使用 str_view 可视化匹配
+
+```{r}
+# str_view 在控制台中高亮显示匹配
+text <- "The quick brown fox jumps over the lazy dog"
+
+# 查看所有 'o' 的位置
+str_view(text, "o")
+
+# 查看所有以 'o' 结尾的单词
+str_view(text, "\\w+o\\b")
+```
+
+---
+
+## 性能优化建议
+
+### 预编译正则表达式
+
+对于需要重复使用的模式，可以考虑预编译：
+
+```{r}
+# 使用 stringr::regex() 设置选项
+pattern <- regex("sample", ignore_case = TRUE)
+
+texts <- c("Sample A", "SAMPLE B", "sample c", "Other")
+str_detect(texts, pattern)
+```
+
+### 避免过度复杂的模式
+
+```{r}
+# 不推荐：过于复杂的单一模式
+# complex_pattern <- "^(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21-\\x5a\\x53-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])+)\\])$"
+
+# 推荐：简单实用的模式
+simple_email_pattern <- "^[\\w.-]+@[\\w.-]+\\.[a-z]{2,}$"
+```
+
+---
+
+## 常见错误与解决方案
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `\d` 不工作 | R 需要双反斜杠 | 使用 `\\d` |
+| 匹配结果为空 | 模式不匹配 | 使用在线工具调试 |
+| 贪婪匹配过多 | 默认贪婪 | 使用 `*?` 或 `+?` |
+| 中文匹配问题 | 编码问题 | 确保文件为 UTF-8 |
+
+---
 
 ## 总结
 
-正则表达式是 R 语言中不可或缺的利器。虽然初学者可能会觉得语法晦涩，但通过 `stringr` 包的函数和不断的练习，你会发现它在处理凌乱的医学或社会科学数据时效率极高。
+正则表达式是 R 语言中不可或缺的利器。本教程涵盖了：
 
-> [!TIP]
-> 推荐使用 [Regex101](https://regex101.com/) 等在线工具进行模式测试，提高开发效率。
+| 主题 | 内容 |
+|------|------|
+| 基础语法 | 元字符、量词、转义序列 |
+| Base R 函数 | `grep`, `sub`, `gsub`, `regexpr` |
+| stringr 函数 | `str_detect`, `str_extract`, `str_match` 等 |
+| 高级技巧 | 分组、环视断言、非贪婪匹配 |
+| 实战案例 | 医学数据、问卷验证、文件处理 |
+
+掌握正则表达式后，你将能够高效处理各种文本清洗和数据提取任务。
+
+---
+
+## 参考资源
+
+- [stringr 官方文档](https://stringr.tidyverse.org/)
+- [R for Data Science - Strings Chapter](https://r4ds.hadley.nz/strings)
+- [Regex101 在线测试](https://regex101.com/)
+- [正则表达式速查表](https://www.rexegg.com/regex-quickstart.html)
