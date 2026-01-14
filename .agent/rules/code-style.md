@@ -6,7 +6,7 @@ trigger: always_on
 
 文章有自动标题序号，所以文内标题不要加什么 1 1.1这些
 
-记得写_quarto.yml
+记得写_quarto.yml,写的文章要source("generate_sections.R")修改对应的section
 
 注释要清晰全面
 
