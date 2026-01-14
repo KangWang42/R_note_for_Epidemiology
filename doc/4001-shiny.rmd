@@ -1,0 +1,829 @@
+---
+title: "Shiny Web 应用开发完全指南"
+date: "2026-01-14"
+categories: [实用操作, Web应用, Shiny]
+image: "images/shiny_cover.svg"
+description: "使用 R Shiny 包构建交互式 Web 应用，从基础概念到部署的完整教程。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是 Shiny
+
+**Shiny** 是 RStudio（现 Posit）开发的 R 包，用于构建**交互式 Web 应用程序**。无需 HTML、CSS 或 JavaScript 知识，只用 R 代码就能创建专业的数据分析应用。
+
+### 为什么使用 Shiny
+
+| 优势 | 说明 |
+|------|------|
+| **纯 R 开发** | 无需学习前端技术 |
+| **响应式编程** | 输入变化时输出自动更新 |
+| **丰富组件** | 内置大量输入/输出控件 |
+| **可扩展** | 可集成 HTML/CSS/JavaScript |
+| **易于部署** | 支持多种托管平台 |
+
+### 应用场景
+
+- **数据仪表盘**：实时监控、KPI 展示
+- **交互式报告**：允许用户自定义参数
+- **数据探索工具**：动态筛选和可视化
+- **机器学习演示**：模型预测界面
+- **教学工具**：统计概念可视化
+
+---
+
+## 安装与加载
+
+```{r}
+# 安装 Shiny
+# install.packages("shiny")
+
+# 加载包
+library(shiny)
+library(tidyverse)
+library(DT) # 交互式表格
+```
+
+---
+
+## Shiny 应用结构
+
+每个 Shiny 应用由**三部分**组成：
+
+```{r eval=FALSE}
+library(shiny)
+
+# 1. 用户界面 (UI)
+ui <- fluidPage(
+    titlePanel("我的第一个 Shiny 应用"),
+    sidebarLayout(
+        sidebarPanel(
+            # 输入控件
+            sliderInput("n", "样本量:", min = 10, max = 1000, value = 100)
+        ),
+        mainPanel(
+            # 输出展示
+            plotOutput("histogram")
+        )
+    )
+)
+
+# 2. 服务器逻辑 (Server)
+server <- function(input, output, session) {
+    output$histogram <- renderPlot({
+        data <- rnorm(input$n)
+        hist(data, main = paste("n =", input$n), col = "#4f46e5")
+    })
+}
+
+# 3. 创建应用
+shinyApp(ui = ui, server = server)
+```
+
+### 核心概念
+
+```{r echo=FALSE}
+concepts <- tibble(
+    概念 = c("UI", "Server", "Input", "Output", "Reactive"),
+    说明 = c(
+        "定义应用外观和布局",
+        "定义应用逻辑和计算",
+        "用户交互控件（滑块、按钮等）",
+        "展示结果（图表、表格等）",
+        "响应式编程，输入变化触发更新"
+    )
+)
+knitr::kable(concepts)
+```
+
+---
+
+## 输入控件
+
+Shiny 提供多种输入控件：
+
+### 数值输入
+
+```{r eval=FALSE}
+# 滑块
+sliderInput("slider", "选择范围:", min = 0, max = 100, value = 50)
+
+# 数值框
+numericInput("num", "输入数字:", value = 10, min = 1, max = 100)
+
+# 范围滑块
+sliderInput("range", "范围:", min = 0, max = 100, value = c(25, 75))
+```
+
+### 文本输入
+
+```{r eval=FALSE}
+# 单行文本
+textInput("text", "输入文本:", value = "默认值")
+
+# 多行文本
+textAreaInput("textarea", "输入描述:", rows = 3)
+
+# 密码输入
+passwordInput("password", "密码:")
+```
+
+### 选择输入
+
+```{r eval=FALSE}
+# 下拉选择
+selectInput("select", "选择一项:",
+    choices = c("选项A", "选项B", "选项C")
+)
+
+# 多选
+selectInput("multi", "多选:",
+    choices = c("A", "B", "C"), multiple = TRUE
+)
+
+# 单选按钮
+radioButtons("radio", "单选:",
+    choices = c("男" = "M", "女" = "F")
+)
+
+# 复选框组
+checkboxGroupInput("checkbox", "多选:",
+    choices = c("选项1", "选项2", "选项3")
+)
+
+# 单个复选框
+checkboxInput("agree", "我同意条款", value = FALSE)
+```
+
+### 日期与文件
+
+```{r eval=FALSE}
+# 日期选择
+dateInput("date", "选择日期:", value = Sys.Date())
+
+# 日期范围
+dateRangeInput("daterange", "日期范围:")
+
+# 文件上传
+fileInput("file", "上传文件:", accept = c(".csv", ".xlsx"))
+```
+
+### 动作按钮
+
+```{r eval=FALSE}
+# 按钮
+actionButton("go", "开始分析", class = "btn-primary")
+
+# 链接按钮
+actionLink("link", "点击这里")
+```
+
+---
+
+## 输出控件
+
+展示计算结果的控件：
+
+### 图表输出
+
+```{r eval=FALSE}
+# UI 端
+plotOutput("myplot", height = "400px")
+
+# Server 端
+output$myplot <- renderPlot({
+    ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) +
+        geom_point() +
+        theme_minimal()
+})
+```
+
+### 表格输出
+
+```{r eval=FALSE}
+# 静态表格
+tableOutput("table")
+output$table <- renderTable({
+    head(iris)
+})
+
+# 交互式表格 (DT)
+DTOutput("dt_table")
+output$dt_table <- renderDT({
+    datatable(iris, options = list(pageLength = 5))
+})
+```
+
+### 文本输出
+
+```{r eval=FALSE}
+# 普通文本
+textOutput("text")
+output$text <- renderText({
+    paste("结果:", input$n)
+})
+
+# 格式化输出
+verbatimTextOutput("code")
+output$code <- renderPrint({
+    summary(iris)
+})
+```
+
+### HTML 输出
+
+```{r eval=FALSE}
+# HTML 内容
+htmlOutput("html")
+uiOutput("dynamic_ui")
+
+output$html <- renderUI({
+    tags$div(
+        tags$h3("动态标题"),
+        tags$p("这是动态生成的内容")
+    )
+})
+```
+
+---
+
+## 响应式编程
+
+Shiny 的核心是**响应式编程**：当输入变化时，相关输出自动更新。
+
+### reactive() 表达式
+
+用于创建可共享的响应式数据：
+
+```{r eval=FALSE}
+server <- function(input, output, session) {
+    # 创建响应式数据
+    filtered_data <- reactive({
+        iris %>%
+            filter(Species == input$species)
+    })
+
+    # 多个输出共享同一个响应式数据
+    output$plot <- renderPlot({
+        ggplot(filtered_data(), aes(Sepal.Length, Sepal.Width)) +
+            geom_point()
+    })
+
+    output$table <- renderTable({
+        head(filtered_data())
+    })
+}
+```
+
+### observe() 与 observeEvent()
+
+用于执行副作用（不返回值）：
+
+```{r eval=FALSE}
+server <- function(input, output, session) {
+    # 监视某个输入的变化
+    observe({
+        print(paste("当前值:", input$slider))
+    })
+
+    # 仅在按钮点击时执行
+    observeEvent(input$go_button, {
+        showNotification("分析开始！", type = "message")
+    })
+}
+```
+
+### reactiveValues()
+
+创建可修改的响应式值：
+
+```{r eval=FALSE}
+server <- function(input, output, session) {
+    # 创建响应式值对象
+    rv <- reactiveValues(count = 0, data = NULL)
+
+    # 点击按钮时增加计数
+    observeEvent(input$add, {
+        rv$count <- rv$count + 1
+    })
+
+    output$counter <- renderText({
+        paste("点击次数:", rv$count)
+    })
+}
+```
+
+### isolate()
+
+阻止响应式依赖：
+
+```{r eval=FALSE}
+output$result <- renderText({
+    # 仅在按钮点击时更新，slider 变化不触发
+    input$go_button
+
+    isolate({
+        paste("固定值:", input$slider)
+    })
+})
+```
+
+---
+
+## 布局设计
+
+### 基础布局
+
+```{r eval=FALSE}
+# 侧边栏布局
+ui <- fluidPage(
+    titlePanel("标题"),
+    sidebarLayout(
+        sidebarPanel(
+            # 输入控件
+        ),
+        mainPanel(
+            # 输出展示
+        )
+    )
+)
+```
+
+### 多行多列布局
+
+```{r eval=FALSE}
+ui <- fluidPage(
+    fluidRow(
+        column(
+            4,
+            wellPanel(
+                sliderInput("n", "N:", min = 1, max = 100, value = 50)
+            )
+        ),
+        column(
+            8,
+            plotOutput("plot")
+        )
+    ),
+    fluidRow(
+        column(
+            12,
+            tableOutput("table")
+        )
+    )
+)
+```
+
+### 标签页布局
+
+```{r eval=FALSE}
+ui <- fluidPage(
+    tabsetPanel(
+        tabPanel("图表", plotOutput("plot")),
+        tabPanel("数据", tableOutput("table")),
+        tabPanel("摘要", verbatimTextOutput("summary"))
+    )
+)
+```
+
+### 导航栏布局
+
+```{r eval=FALSE}
+ui <- navbarPage(
+    "我的应用",
+    tabPanel(
+        "首页",
+        h2("欢迎"),
+        p("这是首页内容")
+    ),
+    tabPanel(
+        "分析",
+        plotOutput("plot")
+    ),
+    navbarMenu(
+        "更多",
+        tabPanel("设置"),
+        tabPanel("帮助")
+    )
+)
+```
+
+### 仪表盘布局
+
+使用 `shinydashboard` 包创建专业仪表盘：
+
+```{r eval=FALSE}
+library(shinydashboard)
+
+ui <- dashboardPage(
+    dashboardHeader(title = "数据仪表盘"),
+    dashboardSidebar(
+        sidebarMenu(
+            menuItem("概览", tabName = "overview", icon = icon("dashboard")),
+            menuItem("分析", tabName = "analysis", icon = icon("chart-line"))
+        )
+    ),
+    dashboardBody(
+        tabItems(
+            tabItem(
+                tabName = "overview",
+                fluidRow(
+                    valueBox(100, "总记录", icon = icon("database")),
+                    valueBox(50, "活跃用户", icon = icon("users"))
+                )
+            ),
+            tabItem(
+                tabName = "analysis",
+                plotOutput("plot")
+            )
+        )
+    )
+)
+```
+
+---
+
+## 完整示例：数据探索应用
+
+以下是一个完整的数据探索应用示例：
+
+```{r eval=FALSE}
+library(shiny)
+library(tidyverse)
+library(DT)
+
+# 使用内置数据集
+data(mtcars)
+mtcars$car <- rownames(mtcars)
+
+ui <- fluidPage(
+    # 应用标题
+    titlePanel("🚗 汽车数据探索器"),
+
+    # 侧边栏布局
+    sidebarLayout(
+        sidebarPanel(
+            width = 3,
+
+            # 变量选择
+            selectInput("x_var", "X 轴变量:",
+                choices = names(mtcars)[sapply(mtcars, is.numeric)],
+                selected = "wt"
+            ),
+            selectInput("y_var", "Y 轴变量:",
+                choices = names(mtcars)[sapply(mtcars, is.numeric)],
+                selected = "mpg"
+            ),
+
+            # 颜色分组
+            selectInput("color_var", "颜色分组:",
+                choices = c("无" = "none", "cyl", "gear", "am")
+            ),
+
+            # 气缸数筛选
+            checkboxGroupInput("cyl_filter", "气缸数:",
+                choices = unique(mtcars$cyl),
+                selected = unique(mtcars$cyl)
+            ),
+            hr(),
+
+            # 下载按钮
+            downloadButton("download_data", "下载筛选数据"),
+            downloadButton("download_plot", "下载图表")
+        ),
+        mainPanel(
+            width = 9,
+            tabsetPanel(
+                tabPanel(
+                    "📊 散点图",
+                    plotOutput("scatter_plot", height = "500px")
+                ),
+                tabPanel(
+                    "📈 分布图",
+                    fluidRow(
+                        column(6, plotOutput("hist_x")),
+                        column(6, plotOutput("hist_y"))
+                    )
+                ),
+                tabPanel(
+                    "📋 数据表",
+                    DTOutput("data_table")
+                ),
+                tabPanel(
+                    "📝 统计摘要",
+                    verbatimTextOutput("summary_stats")
+                )
+            )
+        )
+    )
+)
+
+server <- function(input, output, session) {
+    # 响应式筛选数据
+    filtered_data <- reactive({
+        mtcars %>%
+            filter(cyl %in% input$cyl_filter)
+    })
+
+    # 散点图
+    output$scatter_plot <- renderPlot({
+        p <- ggplot(
+            filtered_data(),
+            aes_string(x = input$x_var, y = input$y_var)
+        ) +
+            geom_point(size = 3, alpha = 0.7) +
+            geom_smooth(method = "lm", se = TRUE, color = "#4f46e5") +
+            theme_minimal(base_size = 14) +
+            labs(
+                title = paste(input$y_var, "vs", input$x_var),
+                x = input$x_var,
+                y = input$y_var
+            )
+
+        # 添加颜色分组
+        if (input$color_var != "none") {
+            p <- ggplot(
+                filtered_data(),
+                aes_string(
+                    x = input$x_var, y = input$y_var,
+                    color = paste0("factor(", input$color_var, ")")
+                )
+            ) +
+                geom_point(size = 3, alpha = 0.7) +
+                theme_minimal(base_size = 14) +
+                labs(color = input$color_var)
+        }
+
+        p
+    })
+
+    # X 变量直方图
+    output$hist_x <- renderPlot({
+        ggplot(filtered_data(), aes_string(x = input$x_var)) +
+            geom_histogram(fill = "#4f46e5", color = "white", bins = 15) +
+            theme_minimal(base_size = 12) +
+            labs(title = paste(input$x_var, "分布"), x = input$x_var)
+    })
+
+    # Y 变量直方图
+    output$hist_y <- renderPlot({
+        ggplot(filtered_data(), aes_string(x = input$y_var)) +
+            geom_histogram(fill = "#7c3aed", color = "white", bins = 15) +
+            theme_minimal(base_size = 12) +
+            labs(title = paste(input$y_var, "分布"), x = input$y_var)
+    })
+
+    # 数据表
+    output$data_table <- renderDT({
+        datatable(
+            filtered_data(),
+            options = list(
+                pageLength = 10,
+                scrollX = TRUE
+            ),
+            filter = "top"
+        )
+    })
+
+    # 统计摘要
+    output$summary_stats <- renderPrint({
+        cat("=== 数据摘要 ===\n\n")
+        cat("样本量:", nrow(filtered_data()), "\n\n")
+        summary(filtered_data()[, c(input$x_var, input$y_var)])
+    })
+
+    # 下载数据
+    output$download_data <- downloadHandler(
+        filename = function() {
+            paste0("mtcars_filtered_", Sys.Date(), ".csv")
+        },
+        content = function(file) {
+            write.csv(filtered_data(), file, row.names = FALSE)
+        }
+    )
+
+    # 下载图表
+    output$download_plot <- downloadHandler(
+        filename = function() {
+            paste0("scatter_plot_", Sys.Date(), ".png")
+        },
+        content = function(file) {
+            p <- ggplot(
+                filtered_data(),
+                aes_string(x = input$x_var, y = input$y_var)
+            ) +
+                geom_point(size = 3) +
+                geom_smooth(method = "lm") +
+                theme_minimal()
+            ggsave(file, p, width = 10, height = 6)
+        }
+    )
+}
+
+# 运行应用
+shinyApp(ui = ui, server = server)
+```
+
+---
+
+## 美化应用
+
+### 使用 bslib 主题
+
+```{r eval=FALSE}
+library(bslib)
+
+ui <- fluidPage(
+    theme = bs_theme(
+        bootswatch = "flatly", # 主题名称
+        primary = "#4f46e5", # 主色调
+        base_font = font_google("Noto Sans SC") # 中文字体
+    ),
+    # ... 其他内容
+)
+```
+
+### 自定义 CSS
+
+```{r eval=FALSE}
+ui <- fluidPage(
+    tags$head(
+        tags$style(HTML("
+      .well { background-color: #f8fafc; }
+      .btn-primary { background-color: #4f46e5; }
+      h1 { color: #1e293b; }
+    "))
+    ),
+    # ... 其他内容
+)
+```
+
+### 添加进度条和通知
+
+```{r eval=FALSE}
+server <- function(input, output, session) {
+    observeEvent(input$long_task, {
+        # 显示进度条
+        withProgress(message = "处理中...", value = 0, {
+            for (i in 1:10) {
+                incProgress(1 / 10, detail = paste("步骤", i))
+                Sys.sleep(0.5)
+            }
+        })
+
+        # 显示成功通知
+        showNotification("处理完成！", type = "message", duration = 3)
+    })
+}
+```
+
+---
+
+## 应用部署
+
+### 本地运行
+
+```{r eval=FALSE}
+# 从文件运行
+runApp("my_app/")
+
+# 指定端口
+runApp("my_app/", port = 8080)
+```
+
+### 部署到 shinyapps.io
+
+```{r eval=FALSE}
+# 安装部署工具
+install.packages("rsconnect")
+
+# 配置账户
+rsconnect::setAccountInfo(
+    name = "your_account",
+    token = "your_token",
+    secret = "your_secret"
+)
+
+# 部署应用
+rsconnect::deployApp("my_app/")
+```
+
+### 部署到 Shiny Server
+
+1. 安装 Shiny Server（开源版或专业版）
+2. 将应用放到 `/srv/shiny-server/` 目录
+3. 访问 `http://your_server:3838/app_name`
+
+---
+
+## 进阶技巧
+
+### 模块化开发
+
+将大型应用拆分为模块：
+
+```{r eval=FALSE}
+# 定义模块 UI
+histogramUI <- function(id) {
+    ns <- NS(id)
+    tagList(
+        sliderInput(ns("bins"), "Bins:", min = 5, max = 50, value = 20),
+        plotOutput(ns("plot"))
+    )
+}
+
+# 定义模块 Server
+histogramServer <- function(id, data) {
+    moduleServer(id, function(input, output, session) {
+        output$plot <- renderPlot({
+            hist(data(), breaks = input$bins, col = "#4f46e5")
+        })
+    })
+}
+
+# 在主应用中使用
+ui <- fluidPage(
+    histogramUI("hist1"),
+    histogramUI("hist2")
+)
+
+server <- function(input, output, session) {
+    histogramServer("hist1", reactive(rnorm(500)))
+    histogramServer("hist2", reactive(runif(500)))
+}
+```
+
+### 使用 JavaScript
+
+```{r eval=FALSE}
+ui <- fluidPage(
+    tags$head(
+        tags$script(HTML("
+      Shiny.addCustomMessageHandler('alert', function(message) {
+        alert(message);
+      });
+    "))
+    ),
+    actionButton("show_alert", "显示提示")
+)
+
+server <- function(input, output, session) {
+    observeEvent(input$show_alert, {
+        session$sendCustomMessage("alert", "Hello from R!")
+    })
+}
+```
+
+---
+
+## 常见问题
+
+### 1. 应用响应缓慢
+
+- 使用 `reactive()` 缓存计算结果
+- 避免在 `render*` 函数中进行重复计算
+- 使用 `bindCache()` 缓存输出
+
+### 2. 文件上传限制
+
+```{r eval=FALSE}
+# 增加上传大小限制（100MB）
+options(shiny.maxRequestSize = 100 * 1024^2)
+```
+
+### 3. 中文显示问题
+
+```{r eval=FALSE}
+# 设置编码
+Sys.setlocale("LC_ALL", "Chinese")
+```
+
+---
+
+## 总结
+
+| 组件 | 主要函数 | 用途 |
+|------|----------|------|
+| UI 布局 | `fluidPage()`, `sidebarLayout()` | 定义应用结构 |
+| 输入控件 | `*Input()` | 收集用户输入 |
+| 输出控件 | `*Output()` | 展示结果 |
+| 响应式 | `reactive()`, `observe()` | 处理数据流 |
+| 部署 | `rsconnect::deployApp()` | 发布应用 |
+
+### 推荐资源
+
+- [Shiny 官方教程](https://shiny.posit.co/r/getstarted/shiny-basics/lesson1/)
+- [Mastering Shiny](https://mastering-shiny.org/) - Hadley Wickham 著
+- [Shiny Gallery](https://shiny.posit.co/r/gallery/) - 示例应用集
+- [shinydashboard](https://rstudio.github.io/shinydashboard/) - 仪表盘扩展

@@ -1,0 +1,358 @@
+---
+title: "ggguides: 简化 ggplot2 图例操作"
+date: "2026-01-14"
+categories: [可视化教程, ggplot2扩展, 图例]
+image: "images/ggguides_cover.svg"
+description: "使用 ggguides 包简化 ggplot2 中的图例定位、样式调整和多图图例合并操作。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是 ggguides
+
+**ggguides** 是一个简化 ggplot2 图例（legend）和引导（guide）操作的 R 包。它提供了一系列**一行代码**函数，让原本复杂的图例调整变得简单直观。
+
+### 为什么需要 ggguides
+
+在 ggplot2 中，调整图例位置、样式、合并多个图例等操作通常需要编写大量代码。ggguides 将这些常见操作封装成简洁的函数：
+
+| 传统方式 | ggguides 方式 |
+|----------|---------------|
+| `theme(legend.position = "bottom")` | `legend_bottom()` |
+| 复杂的 `guides()` + `theme()` 组合 | `legend_horizontal()` |
+| 多层嵌套设置 | 一行函数调用 |
+
+### 主要功能
+
+- **图例定位**：快速设置图例位置
+- **图例样式**：调整方向、标题、文本样式
+- **图例换行**：自动或手动设置图例换行
+- **patchwork 集成**：跨多图收集和统一图例
+
+---
+
+## 安装与加载
+
+```{r}
+library(ggguides)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+```
+
+---
+
+## 基础图例定位
+
+### 四个方向定位
+
+```{r}
+# 创建基础图
+p <- ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) +
+    geom_point(size = 3) +
+    theme_minimal()
+
+# 图例在底部
+p + legend_bottom()
+```
+
+```{r}
+# 图例在顶部
+p + legend_top()
+```
+
+```{r}
+# 图例在左侧
+p + legend_left()
+```
+
+```{r}
+# 图例在右侧（默认）
+p + legend_right()
+```
+
+### 隐藏图例
+
+```{r}
+# 隐藏所有图例
+p + legend_none()
+```
+
+---
+
+## 图例样式调整
+
+### 水平/垂直方向
+
+```{r}
+# 水平排列的图例
+p + legend_bottom() + legend_horizontal()
+```
+
+```{r}
+# 垂直排列的图例（默认）
+p + legend_bottom() + legend_vertical()
+```
+
+### 图例标题调整
+
+```{r}
+# 隐藏图例标题（使用 theme）
+p +
+    legend_bottom() +
+    theme(legend.title = element_blank())
+```
+
+```{r}
+# 自定义图例标题样式
+p +
+    legend_bottom() +
+    theme(
+        legend.title = element_text(face = "bold", size = 12)
+    )
+```
+
+### 图例换行
+
+当图例项目过多时，可以设置换行：
+
+```{r}
+# 使用更多类别的数据
+p2 <- ggplot(mpg, aes(displ, hwy, color = class)) +
+    geom_point(size = 2) +
+    theme_minimal()
+
+# 自动换行（每行 3 个）
+p2 +
+    legend_bottom() +
+    legend_wrap(nrow = 3)
+```
+
+---
+
+## 多种美学的图例
+
+当图形有多个美学映射时，ggguides 可以统一管理它们：
+
+```{r}
+# 有颜色和形状两个图例
+p3 <- ggplot(iris, aes(Sepal.Length, Sepal.Width,
+    color = Species, shape = Species
+)) +
+    geom_point(size = 3) +
+    theme_minimal()
+
+p3
+```
+
+```{r}
+# 将两个图例合并显示
+p3 +
+    legend_bottom() +
+    legend_horizontal()
+```
+
+---
+
+## 与 patchwork 集成
+
+ggguides 与 patchwork 无缝集成，可以跨多个子图收集和统一图例。
+
+### 收集共享图例
+
+```{r}
+# 创建多个子图
+p_a <- ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) +
+    geom_point() +
+    labs(title = "A") +
+    theme_minimal()
+
+p_b <- ggplot(iris, aes(Petal.Length, Petal.Width, color = Species)) +
+    geom_point() +
+    labs(title = "B") +
+    theme_minimal()
+
+# 使用 patchwork 组合
+combined <- p_a + p_b
+
+# 收集图例到底部
+combined +
+    plot_layout(guides = "collect") &
+    legend_bottom()
+```
+
+### 统一图例样式
+
+```{r}
+# 所有子图使用统一的图例设置
+combined +
+    plot_layout(guides = "collect") &
+    legend_bottom() &
+    legend_horizontal() &
+    theme(legend.background = element_rect(fill = "grey95", color = NA))
+```
+
+---
+
+## 高级定制
+
+### 精确定位
+
+除了四个基本方向，还可以精确控制图例位置：
+
+```{r}
+# 图例放在图内右下角
+p +
+    theme(
+        legend.position = c(0.95, 0.05),
+        legend.justification = c(1, 0),
+        legend.background = element_rect(fill = "white", color = "grey80")
+    )
+```
+
+### 组合使用
+
+```{r}
+# 完整的图例定制
+ggplot(mpg, aes(displ, hwy, color = class, size = cyl)) +
+    geom_point(alpha = 0.7) +
+    scale_size_continuous(range = c(1, 5)) +
+    theme_minimal() +
+    legend_bottom() +
+    legend_horizontal() +
+    legend_wrap(nrow = 2) +
+    labs(
+        title = "Engine Displacement vs Highway MPG",
+        x = "Displacement (L)",
+        y = "Highway MPG",
+        color = "Class",
+        size = "Cylinders"
+    )
+```
+
+---
+
+## 实战案例
+
+### 科研论文图表
+
+```{r}
+# 创建适合论文的图表
+ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species, shape = Species)) +
+    geom_point(size = 2.5, alpha = 0.8) +
+    geom_smooth(method = "lm", se = FALSE, linewidth = 0.8) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    theme_classic(base_size = 12) +
+    legend_bottom() +
+    legend_horizontal() +
+    theme(legend.title = element_blank()) +
+    labs(
+        x = "Sepal Length (cm)",
+        y = "Sepal Width (cm)"
+    ) +
+    theme(
+        legend.key.size = unit(0.8, "cm"),
+        legend.text = element_text(size = 10)
+    )
+```
+
+### 仪表盘多图
+
+```{r fig.height=8}
+# 创建仪表盘风格的多图组合
+# 子图 1：散点图
+plot1 <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
+    geom_point(size = 3) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(title = "Weight vs MPG", color = "Cylinders") +
+    theme_minimal()
+
+# 子图 2：箱线图
+plot2 <- ggplot(mtcars, aes(factor(cyl), mpg, fill = factor(cyl))) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(title = "Cylinders vs MPG", x = "Cylinders", fill = "Cylinders") +
+    theme_minimal()
+
+# 子图 3：密度图
+plot3 <- ggplot(mtcars, aes(mpg, fill = factor(cyl))) +
+    geom_density(alpha = 0.5) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(title = "MPG Distribution", fill = "Cylinders") +
+    theme_minimal()
+
+# 组合并收集图例
+(plot1 + plot2) / plot3 +
+    plot_layout(guides = "collect") &
+    legend_bottom() &
+    legend_horizontal()
+```
+
+---
+
+## 函数速查表
+
+| 函数 | 功能 |
+|------|------|
+| `legend_bottom()` | 图例置于底部 |
+| `legend_top()` | 图例置于顶部 |
+| `legend_left()` | 图例置于左侧 |
+| `legend_right()` | 图例置于右侧 |
+| `legend_none()` | 隐藏图例 |
+| `legend_horizontal()` | 图例水平排列 |
+| `legend_vertical()` | 图例垂直排列 |
+| `legend_wrap(nrow, ncol)` | 图例换行设置 |
+| `legend_inside()` | 图例嵌入图内 |
+| `collect_legends()` | 收集多图图例 |
+
+---
+
+## 与原生方法对比
+
+```{r echo=FALSE}
+comparison <- tibble(
+    Operation = c("Bottom legend", "Horizontal", "Hide title", "Wrap legend"),
+    Native = c(
+        'theme(legend.position = "bottom")',
+        'theme(legend.direction = "horizontal")',
+        "theme(legend.title = element_blank())",
+        "guides(color = guide_legend(nrow = 2))"
+    ),
+    ggguides = c(
+        "legend_bottom()",
+        "legend_horizontal()",
+        "legend_style(title = FALSE)",
+        "legend_wrap(nrow = 2)"
+    )
+)
+
+knitr::kable(comparison)
+```
+
+---
+
+## 总结
+
+**ggguides** 的优势：
+
+1. **简洁**：一行代码完成常见图例操作
+2. **直观**：函数名清晰表达功能
+3. **兼容**：与 ggplot2 和 patchwork 无缝集成
+4. **可链式**：多个函数可以连续调用
+
+### 推荐资源
+
+- [ggguides 官方文档](https://gillescolling.com/ggguides/)
+- [GitHub 仓库](https://github.com/gcol33/ggguides)
+- [CRAN 页面](https://cran.r-project.org/package=ggguides)

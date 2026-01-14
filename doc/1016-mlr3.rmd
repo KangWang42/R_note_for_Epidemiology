@@ -3,7 +3,6 @@ title: "mlr3 机器学习全流程指南"
 date: "2026-01-10"
 categories: [R语言方法, 机器学习, mlr3]
 image: "figure/mlr3-cover.png"
-draft: true
 ---
 
 ```{r setup, include=FALSE}
@@ -37,11 +36,15 @@ knitr::opts_chunk$set(
 
 ```{r echo=FALSE}
 eco_data <- data.frame(
-  包名 = c("mlr3", "mlr3learners", "mlr3tuning", "mlr3pipelines", 
-           "mlr3viz", "mlr3verse", "mlr3extralearners"),
-  功能 = c("核心框架", "常用学习器（随机森林、XGBoost等）", 
-           "超参数调优", "数据预处理管道",
-           "可视化", "一键加载所有包", "更多学习器")
+  包名 = c(
+    "mlr3", "mlr3learners", "mlr3tuning", "mlr3pipelines",
+    "mlr3viz", "mlr3verse", "mlr3extralearners"
+  ),
+  功能 = c(
+    "核心框架", "常用学习器（随机森林、XGBoost等）",
+    "超参数调优", "数据预处理管道",
+    "可视化", "一键加载所有包", "更多学习器"
+  )
 )
 knitr::kable(eco_data, align = "ll")
 ```
@@ -51,11 +54,13 @@ knitr::kable(eco_data, align = "ll")
 
 ```{r eval=FALSE}
 # 安装核心包
-install.packages("mlr3verse")  # 一键安装所有常用包
+install.packages("mlr3verse") # 一键安装所有常用包
 
 # 或单独安装
-install.packages(c("mlr3", "mlr3learners", "mlr3tuning", 
-                   "mlr3pipelines", "mlr3viz"))
+install.packages(c(
+  "mlr3", "mlr3learners", "mlr3tuning",
+  "mlr3pipelines", "mlr3viz"
+))
 ```
 
 ```{r}
@@ -143,7 +148,7 @@ task_penguins$target_names
 c(nrow = task_penguins$nrow, ncol = task_penguins$ncol)
 
 # 查看类别分布
-task_penguins$data(cols = "species") |> 
+task_penguins$data(cols = "species") |>
   table()
 ```
 
@@ -152,8 +157,10 @@ task_penguins$data(cols = "species") |>
 ```{r}
 # 只使用数值特征
 task_numeric <- task_penguins$clone()
-task_numeric$select(c("bill_length_mm", "bill_depth_mm", 
-                      "flipper_length_mm", "body_mass_g"))
+task_numeric$select(c(
+  "bill_length_mm", "bill_depth_mm",
+  "flipper_length_mm", "body_mass_g"
+))
 task_numeric$feature_names
 ```
 
@@ -167,7 +174,7 @@ Learner 封装了机器学习算法。
 ```{r}
 # 分类学习器
 as.data.table(mlr_learners)[
-  task_type == "classif", 
+  task_type == "classif",
   .(key, label, packages)
 ] |> head(10)
 ```
@@ -337,8 +344,10 @@ scores <- rr$score(msr("classif.acc"))
 
 ggplot(scores, aes(x = factor(iteration), y = classif.acc)) +
   geom_col(fill = "#4f46e5", alpha = 0.8) +
-  geom_hline(yintercept = mean(scores$classif.acc), 
-             linetype = "dashed", color = "red") +
+  geom_hline(
+    yintercept = mean(scores$classif.acc),
+    linetype = "dashed", color = "red"
+  ) +
   labs(
     title = "5折交叉验证结果",
     subtitle = paste("平均准确率:", round(mean(scores$classif.acc), 4)),
@@ -473,8 +482,10 @@ archive <- as.data.table(instance$archive)
 ggplot(archive, aes(x = seq_len(nrow(archive)), y = classif.acc)) +
   geom_line(color = "#4f46e5", linewidth = 0.8) +
   geom_point(color = "#4f46e5", size = 2) +
-  geom_hline(yintercept = instance$result_y, 
-             linetype = "dashed", color = "red") +
+  geom_hline(
+    yintercept = instance$result_y,
+    linetype = "dashed", color = "red"
+  ) +
   labs(
     title = "超参数调优过程",
     subtitle = paste("最优准确率:", round(instance$result_y, 4)),
@@ -608,9 +619,10 @@ as.data.table(mlr_filters)[, .(key, task_types, packages)]
 
 ```{r}
 # 使用随机森林内置的特征重要性
-learner_rf_imp <- lrn("classif.ranger", 
-                      num.trees = 100,
-                      importance = "impurity")
+learner_rf_imp <- lrn("classif.ranger",
+  num.trees = 100,
+  importance = "impurity"
+)
 learner_rf_imp$train(task_penguins)
 
 # 提取特征重要性
@@ -641,8 +653,9 @@ ggplot(importance_df, aes(x = reorder(feature, score), y = score)) +
 
 ```{r}
 # 使用 select 操作符选择特定特征
-graph_fs <- po("select", 
-               selector = selector_name(c("flipper_length_mm", "bill_length_mm", "bill_depth_mm"))) %>>%
+graph_fs <- po("select",
+  selector = selector_name(c("flipper_length_mm", "bill_length_mm", "bill_depth_mm"))
+) %>>%
   lrn("classif.ranger", num.trees = 100)
 
 graph_fs_learner <- as_learner(graph_fs)
@@ -670,8 +683,8 @@ task <- TaskClassif$new(
 
 # 2. 构建预处理管道
 # 注意：先用众数填充因子缺失值，再用中位数填充数值缺失值
-preprocess <- po("imputemode") %>>%       # 填充因子缺失值（如 sex）
-  po("imputemedian") %>>%                  # 填充数值缺失值
+preprocess <- po("imputemode") %>>% # 填充因子缺失值（如 sex）
+  po("imputemedian") %>>% # 填充数值缺失值
   po("encode") %>>%
   po("scale")
 

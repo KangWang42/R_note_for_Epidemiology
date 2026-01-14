@@ -1,0 +1,825 @@
+---
+title: "R 语言网络爬虫完全指南"
+date: "2026-01-14"
+categories: [实用操作, 数据获取, 网络爬虫]
+image: "images/web_scraping_cover.svg"
+description: "使用 rvest、httr 等 R 包进行网页数据抓取，从基础概念到实战案例的完整教程。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是网络爬虫
+
+**网络爬虫（Web Scraping）** 是一种自动化从网页提取数据的技术。通过编程方式访问网页，解析 HTML 内容，从中提取所需信息。
+
+### 爬虫的应用场景
+
+| 场景 | 示例 |
+|------|------|
+| 数据收集 | 收集商品价格、新闻文章、评论数据 |
+| 学术研究 | 获取公开数据集、文献信息 |
+| 市场分析 | 竞品监控、舆情分析 |
+| 个人使用 | 整理收藏、自动化任务 |
+
+### 法律与伦理
+
+> **⚠️ 重要提醒**：在进行网络爬虫时，请务必：
+>
+> 1. **遵守 robots.txt**：网站的 robots.txt 文件定义了允许爬取的范围
+> 2. **尊重服务条款**：不要违反网站的使用条款
+> 3. **控制请求频率**：避免给服务器造成负担（建议每次请求间隔 1-3 秒）
+> 4. **仅用于合法目的**：如学术研究、个人使用
+> 5. **保护隐私**：不收集个人敏感信息
+
+---
+
+## R 包安装与加载
+
+R 语言有多个优秀的网络爬虫相关包：
+
+```{r}
+# 核心包
+library(rvest) # 网页解析，基于 httr 和 xml2
+library(httr) # HTTP 请求处理
+library(xml2) # XML/HTML 解析
+
+# 辅助包
+library(tidyverse) # 数据处理
+library(jsonlite) # JSON 数据处理
+```
+
+### 包功能对比
+
+| R 包 | 主要功能 | 适用场景 |
+|------|----------|----------|
+| **rvest** | 网页解析、CSS选择器 | 大多数静态网页 |
+| **httr** | HTTP 请求、headers、cookies | 需要认证或自定义请求 |
+| **xml2** | XML/HTML 底层解析 | 复杂文档结构 |
+| **jsonlite** | JSON 数据解析 | API 返回的 JSON 数据 |
+| **RSelenium** | 浏览器自动化 | JavaScript 动态渲染页面 |
+
+---
+
+## HTML 基础知识
+
+要进行网页爬取，需要理解 HTML 的基本结构：
+
+### HTML 文档结构
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>页面标题</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1 id="main-title">主标题</h1>
+      <p class="description">这是一段描述文字</p>
+      <ul class="list">
+        <li>列表项 1</li>
+        <li>列表项 2</li>
+      </ul>
+      <a href="https://example.com">链接文字</a>
+    </div>
+  </body>
+</html>
+```
+
+### CSS 选择器
+
+CSS 选择器是定位 HTML 元素的主要方式：
+
+| 选择器类型 | 语法 | 示例 | 说明 |
+|------------|------|------|------|
+| 标签选择器 | `tag` | `h1` | 选择所有 h1 标签 |
+| 类选择器 | `.class` | `.description` | 选择 class="description" 的元素 |
+| ID 选择器 | `#id` | `#main-title` | 选择 id="main-title" 的元素 |
+| 属性选择器 | `[attr=value]` | `[href]` | 选择有 href 属性的元素 |
+| 后代选择器 | `A B` | `div p` | 选择 div 内的所有 p |
+| 直接子元素 | `A > B` | `ul > li` | 选择 ul 的直接子元素 li |
+| 组合选择器 | `A, B` | `h1, h2` | 选择 h1 或 h2 |
+
+### XPath 选择器
+
+XPath 是另一种强大的元素定位方式：
+
+| XPath 语法 | 说明 | 示例 |
+|-----------|------|------|
+| `//tag` | 选择所有该标签 | `//div` |
+| `//tag[@attr]` | 有某属性的标签 | `//a[@href]` |
+| `//tag[@attr='value']` | 属性值匹配 | `//div[@class='container']` |
+| `//tag/text()` | 获取文本内容 | `//p/text()` |
+| `//tag[1]` | 第一个匹配元素 | `//li[1]` |
+
+---
+
+## 基础爬取实战
+
+让我们从一个简单的例子开始，爬取 Wikipedia 页面：
+
+### 读取网页
+
+```{r}
+# 定义目标 URL
+url <- "https://en.wikipedia.org/wiki/R_(programming_language)"
+
+# 读取网页内容
+page <- read_html(url)
+
+# 查看页面结构
+page
+```
+
+### 提取标题
+
+```{r}
+# 使用 CSS 选择器提取页面标题
+title <- page |>
+    html_element("h1#firstHeading") |>
+    html_text2()
+
+cat("页面标题:", title, "\n")
+```
+### 提取段落文本
+
+```{r}
+# 提取第一个段落
+first_para <- page |>
+    html_element("div.mw-parser-output > p:not(.mw-empty-elt)") |>
+    html_text2()
+
+# 显示前 200 个字符
+cat(substr(first_para, 1, 200), "...\n")
+```
+
+### 提取多个元素
+
+```{r}
+# 提取目录中的所有链接
+toc_items <- page |>
+    html_elements("div#toc li a") |>
+    html_text2()
+
+# 显示前 10 个目录项
+head(toc_items, 10)
+```
+
+---
+
+## 数据提取技巧
+
+### 提取表格数据
+
+`html_table()` 函数可以直接将 HTML 表格转换为数据框：
+
+```{r}
+# 读取维基百科的 R 语言版本历史页面
+url_versions <- "https://en.wikipedia.org/wiki/R_(programming_language)"
+page_versions <- read_html(url_versions)
+
+# 提取所有表格
+tables <- page_versions |>
+    html_elements("table.wikitable") |>
+    html_table()
+
+# 查看表格数量
+cat("找到", length(tables), "个表格\n")
+
+# 查看第一个表格
+if (length(tables) > 0) {
+    tables[[1]] |>
+        head(5)
+}
+```
+
+### 提取链接
+
+```{r}
+# 提取所有外部链接
+external_links <- page |>
+    html_elements("a.external") |>
+    html_attr("href")
+
+# 显示前 5 个
+head(external_links, 5)
+```
+
+### 提取图片
+
+```{r}
+# 提取所有图片的 src 属性
+images <- page |>
+    html_elements("img") |>
+    html_attr("src")
+
+# 过滤并显示前 5 个
+images[!is.na(images)] |>
+    head(5)
+```
+
+### 处理嵌套结构
+
+```{r}
+# 假设我们要提取信息框中的数据
+infobox <- page |>
+    html_element("table.infobox")
+
+if (!is.na(infobox)) {
+    # 提取所有行
+    rows <- infobox |>
+        html_elements("tr")
+
+    # 创建数据框
+    infobox_data <- tibble(
+        label = rows |> html_element("th") |> html_text2(),
+        value = rows |> html_element("td") |> html_text2()
+    ) |>
+        filter(!is.na(label), !is.na(value))
+
+    head(infobox_data, 10)
+}
+```
+
+---
+
+## HTTP 请求进阶
+
+当网站有反爬虫机制时，需要使用 `httr` 包来定制请求。
+
+### 设置 User-Agent
+
+```{r}
+# 模拟浏览器的 User-Agent
+response <- GET(
+    url = "https://httpbin.org/user-agent",
+    add_headers(
+        `User-Agent` = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+)
+
+# 查看服务器看到的 User-Agent
+content(response, "text") |>
+    fromJSON()
+```
+
+### 设置完整的请求头
+
+```{r}
+# 创建完整的请求头
+custom_headers <- add_headers(
+    `User-Agent` = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    `Accept` = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    `Accept-Language` = "zh-CN,zh;q=0.9,en;q=0.8",
+    `Accept-Encoding` = "gzip, deflate",
+    `Connection` = "keep-alive"
+)
+
+# 发送请求
+response <- GET(
+    url = "https://httpbin.org/headers",
+    custom_headers
+)
+
+# 查看请求头
+content(response, "text") |>
+    fromJSON() |>
+    pluck("headers")
+```
+
+### 处理 Cookies
+
+```{r}
+# 使用 session 保持 cookies
+session <- session("https://httpbin.org/cookies/set?name=test_cookie&value=12345")
+
+# 查看 cookies
+session$response$cookies
+```
+
+### 处理请求延迟
+
+```{r}
+# 定义带延迟的爬取函数
+scrape_with_delay <- function(urls, delay = 1) {
+    results <- list()
+
+    for (i in seq_along(urls)) {
+        cat("正在爬取第", i, "个页面:", urls[i], "\n")
+
+        # 发送请求
+        tryCatch(
+            {
+                results[[i]] <- read_html(urls[i])
+            },
+            error = function(e) {
+                cat("错误:", e$message, "\n")
+                results[[i]] <- NA
+            }
+        )
+
+        # 添加延迟（最后一个不需要）
+        if (i < length(urls)) {
+            Sys.sleep(delay)
+        }
+    }
+
+    return(results)
+}
+
+# 示例使用（仅演示，不实际执行大量请求）
+# pages <- scrape_with_delay(c("url1", "url2", "url3"), delay = 2)
+```
+
+---
+
+## 处理反爬虫机制
+
+许多网站会采用各种反爬虫措施。以下是常见的应对策略：
+
+### 常见反爬虫措施
+
+| 措施 | 说明 | 应对方法 |
+|------|------|----------|
+| User-Agent 检测 | 阻止非浏览器请求 | 设置真实 User-Agent |
+| IP 限制 | 阻止频繁请求的 IP | 使用代理、降低频率 |
+| Cookies/Session | 需要登录或会话 | 使用 session 管理 |
+| JavaScript 渲染 | 内容由 JS 动态生成 | 使用 RSelenium |
+| 验证码 | 人机验证 | 需要手动处理或专业服务 |
+| 动态 Token | 请求需要特定参数 | 分析请求，提取 token |
+
+### 使用代理
+
+```{r eval=FALSE}
+# 设置代理（示例，需要真实代理地址）
+response <- GET(
+    url = "https://example.com",
+    use_proxy(
+        url = "http://proxy.example.com",
+        port = 8080,
+        username = "user",
+        password = "pass"
+    )
+)
+```
+
+### 随机延迟
+
+```{r}
+# 随机延迟函数，模拟人类行为
+random_delay <- function(min_sec = 1, max_sec = 3) {
+    delay <- runif(1, min_sec, max_sec)
+    cat("等待", round(delay, 2), "秒...\n")
+    Sys.sleep(delay)
+}
+
+# 使用示例
+random_delay(1, 2)
+```
+
+### 处理请求失败
+
+```{r}
+# 带重试机制的请求函数
+safe_request <- function(url, max_retries = 3, delay = 2) {
+    for (attempt in 1:max_retries) {
+        tryCatch(
+            {
+                response <- GET(
+                    url,
+                    add_headers(`User-Agent` = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                )
+
+                if (status_code(response) == 200) {
+                    return(content(response, "text", encoding = "UTF-8"))
+                } else {
+                    cat("HTTP 状态码:", status_code(response), "\n")
+                }
+            },
+            error = function(e) {
+                cat("请求失败 (尝试", attempt, "/", max_retries, "):", e$message, "\n")
+            }
+        )
+
+        if (attempt < max_retries) {
+            Sys.sleep(delay * attempt) # 递增延迟
+        }
+    }
+
+    return(NULL)
+}
+
+# 测试
+result <- safe_request("https://httpbin.org/status/200")
+cat("请求结果:", substr(result, 1, 50), "...\n")
+```
+
+---
+
+## 豆瓣电影爬取示例
+
+> **注意**：豆瓣网站有严格的反爬虫机制，以下代码仅作为学习参考，可能无法直接运行成功。实际爬取时请遵守豆瓣的服务条款。
+
+```{r eval=FALSE}
+# 豆瓣电影排行榜 URL
+douban_url <- "https://movie.douban.com/chart"
+
+# 设置请求头，模拟浏览器
+douban_headers <- add_headers(
+    `User-Agent` = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    `Accept` = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    `Accept-Language` = "zh-CN,zh;q=0.9",
+    `Accept-Encoding` = "gzip, deflate, br",
+    `Connection` = "keep-alive",
+    `Referer` = "https://movie.douban.com/",
+    `Cookie` = "bid=your_bid_cookie_here" # 需要真实的 cookie
+)
+
+# 发送请求
+response <- GET(douban_url, douban_headers)
+
+# 检查状态
+if (status_code(response) == 200) {
+    page <- content(response, encoding = "UTF-8")
+
+    # 提取电影信息
+    movies <- page |>
+        html_elements("div.pl2") |>
+        html_element("a") |>
+        html_text2()
+
+    print(movies)
+} else {
+    cat("请求失败，状态码:", status_code(response), "\n")
+}
+```
+
+### 豆瓣 API 替代方案
+
+对于豆瓣数据，更推荐使用其官方 API 或第三方数据源：
+
+```{r eval=FALSE}
+# 使用豆瓣 API（需要 API Key）
+api_url <- "https://api.douban.com/v2/movie/top250"
+response <- GET(api_url, query = list(
+    apikey = "YOUR_API_KEY",
+    start = 0,
+    count = 20
+))
+
+if (status_code(response) == 200) {
+    data <- content(response, "text") |> fromJSON()
+    print(data$subjects)
+}
+```
+
+---
+
+## 实战案例：爬取 CRAN 包信息
+
+让我们完成一个完整的爬虫项目：从 CRAN 网站获取 R 包信息。
+
+### 获取热门包列表
+
+```{r}
+# CRAN 任务视图页面
+cran_url <- "https://cran.r-project.org/web/views/"
+
+# 读取页面
+cran_page <- read_html(cran_url)
+
+# 提取任务视图列表
+task_views <- cran_page |>
+    html_elements("table tr td:first-child a") |>
+    html_text2()
+
+# 显示任务视图
+cat("CRAN 任务视图:\n")
+head(task_views, 10)
+```
+
+### 获取特定包的详细信息
+
+```{r}
+# 定义获取包信息的函数
+get_package_info <- function(package_name) {
+    url <- paste0("https://cran.r-project.org/web/packages/", package_name, "/index.html")
+
+    tryCatch(
+        {
+            page <- read_html(url)
+
+            # 提取表格信息
+            info_table <- page |>
+                html_element("table") |>
+                html_table()
+
+            # 整理数据
+            if (!is.null(info_table) && nrow(info_table) > 0) {
+                result <- tibble(
+                    package = package_name,
+                    field = info_table[[1]],
+                    value = info_table[[2]]
+                )
+                return(result)
+            }
+        },
+        error = function(e) {
+            cat("获取", package_name, "失败:", e$message, "\n")
+            return(NULL)
+        }
+    )
+
+    return(NULL)
+}
+
+# 获取 rvest 包的信息
+rvest_info <- get_package_info("rvest")
+print(rvest_info)
+```
+
+### 批量获取多个包的信息
+
+```{r}
+# 要查询的包列表
+packages <- c("rvest", "httr", "dplyr")
+
+# 批量获取（带延迟）
+all_info <- map(packages, function(pkg) {
+    cat("正在获取:", pkg, "\n")
+    result <- get_package_info(pkg)
+    Sys.sleep(1) # 礼貌延迟
+    return(result)
+})
+
+# 合并结果
+combined_info <- bind_rows(all_info)
+
+# 筛选关键信息
+combined_info |>
+    filter(field %in% c("Version:", "Depends:", "Published:")) |>
+    pivot_wider(names_from = field, values_from = value)
+```
+
+---
+
+## 数据清洗与存储
+
+爬取数据后，通常需要进行清洗和保存：
+
+### 文本清洗
+
+```{r}
+# 示例：清洗爬取的文本
+raw_text <- "\n\n  R is a programming language  \n  for statistical computing.  \n\n"
+
+# 清洗函数
+clean_text <- function(text) {
+    text |>
+        str_trim() |> # 去除首尾空白
+        str_squish() |> # 合并多个空白为一个
+        str_replace_all("\\s+", " ") # 规范化空格
+}
+
+clean_text(raw_text)
+```
+
+### 保存数据
+
+```{r eval=FALSE}
+# 保存为 CSV
+write_csv(combined_info, "cran_packages.csv")
+
+# 保存为 RDS（保留 R 对象结构）
+saveRDS(combined_info, "cran_packages.rds")
+
+# 保存为 JSON
+write_json(combined_info, "cran_packages.json")
+```
+
+### 增量爬取
+
+```{r eval=FALSE}
+# 增量爬取：只获取新数据
+incremental_scrape <- function(urls, existing_data, id_column) {
+    # 过滤已有数据
+    existing_ids <- existing_data[[id_column]]
+    new_urls <- urls[!urls %in% existing_ids]
+
+    if (length(new_urls) == 0) {
+        cat("没有新数据需要爬取\n")
+        return(existing_data)
+    }
+
+    cat("需要爬取", length(new_urls), "个新页面\n")
+
+    # 爬取新数据
+    new_data <- map_dfr(new_urls, function(url) {
+        # 爬取逻辑...
+        Sys.sleep(1)
+    })
+
+    # 合并数据
+    bind_rows(existing_data, new_data)
+}
+```
+
+---
+
+## 动态网页处理
+
+对于 JavaScript 渲染的动态网页，需要使用 RSelenium：
+
+```{r eval=FALSE}
+# 安装 RSelenium
+# install.packages("RSelenium")
+
+library(RSelenium)
+
+# 启动 Selenium 服务器（需要先安装 Docker 或 Java）
+# docker run -d -p 4444:4444 selenium/standalone-chrome
+
+# 连接到 Selenium
+remDr <- remoteDriver(
+    remoteServerAddr = "localhost",
+    port = 4444,
+    browserName = "chrome"
+)
+
+remDr$open()
+
+# 导航到页面
+remDr$navigate("https://example.com")
+
+# 等待页面加载
+Sys.sleep(3)
+
+# 获取页面源代码
+page_source <- remDr$getPageSource()[[1]]
+
+# 使用 rvest 解析
+page <- read_html(page_source)
+
+# 提取数据...
+
+# 关闭浏览器
+remDr$close()
+```
+
+---
+
+## 常见问题与解决方案
+
+### 编码问题
+
+```{r}
+# 处理中文编码
+handle_encoding <- function(response) {
+    # 尝试 UTF-8
+    text <- tryCatch(
+        content(response, "text", encoding = "UTF-8"),
+        error = function(e) NULL
+    )
+
+    if (is.null(text) || grepl("锟斤拷", text)) {
+        # 尝试 GBK
+        text <- content(response, "text", encoding = "GBK")
+    }
+
+    return(text)
+}
+```
+
+### 处理分页
+
+```{r eval=FALSE}
+# 分页爬取
+scrape_paginated <- function(base_url, max_pages = 10) {
+    all_data <- list()
+
+    for (page_num in 1:max_pages) {
+        url <- paste0(base_url, "?page=", page_num)
+        cat("正在爬取第", page_num, "页\n")
+
+        page <- read_html(url)
+
+        # 提取数据
+        data <- page |>
+            html_elements(".item") |>
+            html_text2()
+
+        # 检查是否有数据
+        if (length(data) == 0) {
+            cat("没有更多数据，停止爬取\n")
+            break
+        }
+
+        all_data[[page_num]] <- data
+        Sys.sleep(runif(1, 1, 2)) # 随机延迟
+    }
+
+    return(unlist(all_data))
+}
+```
+
+### 处理异常
+
+```{r}
+# 完整的错误处理
+safe_scrape <- function(url) {
+    result <- list(
+        success = FALSE,
+        data = NULL,
+        error = NULL
+    )
+
+    tryCatch(
+        {
+            response <- GET(url, timeout(30))
+
+            if (http_error(response)) {
+                result$error <- paste("HTTP 错误:", status_code(response))
+            } else {
+                result$success <- TRUE
+                result$data <- content(response, encoding = "UTF-8")
+            }
+        },
+        error = function(e) {
+            result$error <- e$message
+        }
+    )
+
+    return(result)
+}
+
+# 测试
+test_result <- safe_scrape("https://httpbin.org/status/200")
+cat("成功:", test_result$success, "\n")
+```
+
+---
+
+## 总结
+
+### 爬虫工作流程
+
+```{r echo=FALSE}
+# 创建流程图数据
+workflow <- tibble(
+    step = 1:6,
+    action = c(
+        "分析目标网站", "检查 robots.txt",
+        "确定提取元素", "编写爬虫代码",
+        "处理反爬虫", "清洗存储数据"
+    ),
+    tool = c(
+        "浏览器开发者工具", "/robots.txt",
+        "CSS/XPath 选择器", "rvest + httr",
+        "headers/delay/proxy", "tidyverse"
+    )
+)
+
+workflow
+```
+
+### 核心函数速查
+
+| 函数 | 用途 | 包 |
+|------|------|-----|
+| `read_html()` | 读取网页 | rvest |
+| `html_elements()` | 选择多个元素 | rvest |
+| `html_element()` | 选择单个元素 | rvest |
+| `html_text2()` | 提取文本 | rvest |
+| `html_attr()` | 提取属性 | rvest |
+| `html_table()` | 提取表格 | rvest |
+| `GET()` | 发送 GET 请求 | httr |
+| `POST()` | 发送 POST 请求 | httr |
+| `add_headers()` | 添加请求头 | httr |
+| `content()` | 提取响应内容 | httr |
+
+### 最佳实践
+
+1. **先看 robots.txt** - 确认网站的爬取规则
+2. **设置合理延迟** - 每次请求间隔 1-3 秒
+3. **模拟浏览器** - 设置真实的 User-Agent
+4. **错误处理** - 使用 tryCatch 处理异常
+5. **增量爬取** - 避免重复获取已有数据
+6. **数据备份** - 定期保存爬取结果
+
+### 推荐资源
+
+- [rvest 官方文档](https://rvest.tidyverse.org/)
+- [httr 官方文档](https://httr.r-lib.org/)
+- [SelectorGadget](https://selectorgadget.com/) - CSS 选择器工具
+- [Web Scraping with R](https://r4ds.hadley.nz/) - 《R for Data Science》相关章节

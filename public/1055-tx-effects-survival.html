@@ -1,0 +1,4096 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-01-14">
+<meta name="description" content="使用 TxEffectsSurvival 包进行终末事件和非终末事件的治疗效果推断，包括 Win Ratio、RICH 等方法。">
+
+<title>TxEffectsSurvival: 竞争风险下的治疗效果分析 – R 语言学习笔记</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-234273d1456647dabc34a594ac50e507.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-374967827064a263f620006ef06629b3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">R 语言学习笔记</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">主页</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-r-包" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">实用 R 包</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-r-包">    
+        <li>
+    <a class="dropdown-item" href="./sections/packages.html#表格制作">
+ <span class="dropdown-text">📊 表格制作</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/packages.html#数据处理">
+ <span class="dropdown-text">🔄 数据处理</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/packages.html#模型整理">
+ <span class="dropdown-text">📈 模型整理</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">可视化教程</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-">    
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#图形基础">
+ <span class="dropdown-text">🏗️ 图形基础</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#图形组合">
+ <span class="dropdown-text">🔀 图形组合</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#统计图表">
+ <span class="dropdown-text">📊 统计图表</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#专题图类">
+ <span class="dropdown-text">🗺️ 专题图类</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#进阶美化">
+ <span class="dropdown-text">✨ 进阶美化</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-r-语言方法" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">R 语言方法</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-r-语言方法">    
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#回归分析">
+ <span class="dropdown-text">🔢 回归分析</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#生存分析">
+ <span class="dropdown-text">⏱️ 生存分析</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#因果推断">
+ <span class="dropdown-text">🎯 因果推断</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#高级建模">
+ <span class="dropdown-text">📐 高级建模</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#机器学习">
+ <span class="dropdown-text">🤖 机器学习</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#数据预处理">
+ <span class="dropdown-text">📋 数据预处理</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#综述方法">
+ <span class="dropdown-text">📚 综述方法</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#特殊方法">
+ <span class="dropdown-text">🔬 特殊方法</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu--1" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">实用操作</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu--1">    
+        <li>
+    <a class="dropdown-item" href="./sections/operation.html#数据输入输出">
+ <span class="dropdown-text">📥 数据输入输出</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/operation.html#文档写作">
+ <span class="dropdown-text">📝 文档写作</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/operation.html#开发环境">
+ <span class="dropdown-text">💻 开发环境</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">R 语言方法</li><li class="breadcrumb-item"><a href="./1020-survival.html">⏱️ 生存分析</a></li><li class="breadcrumb-item"><a href="./1055-tx-effects-survival.html">治疗效果分析 (TxEffects)</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">实用 R 包</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">📊 表格制作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bruceR - 统计分析工具</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1012-comparegroups.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">compareGroups - 描述性表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1013-scitb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scitb - 快速基线表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1053-gtsummary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">gtsummary - 发表级表格</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔄 数据处理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">purrr - 函数式编程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-future.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">future - 并行计算</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1045-rstatix.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">rstatix - 管道式统计</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">📈 模型整理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1043-broom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">broom - 模型整理</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">可视化教程</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">🏗️ 图形基础</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2032-ggplot2-intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggplot2 可视化入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2033-ggplot2-styling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggplot2 样式设置详解</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2011-viscolor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">配色方案</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2013-legend.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">图例自定义</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔀 图形组合</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">patchwork - 图片拼接</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2021-cowplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cowplot - 图形组合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2031-bindcomplex.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">复杂组合图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">📊 统计图表</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">箱线图与小提琴图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">散点图与趋势线</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2027-bindhistogram.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">直方图与密度图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">柱状图与饼图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2029-bindlineplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">折线图与时间序列</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2030-bindareaplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">面积图与堆叠图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false">
+ <span class="menu-text">🗺️ 专题图类</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">地图绑制</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2014-sankey.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">桑基图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2016-forestplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">森林图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2020-heatmap.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">热图绑制完全指南</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2024-venn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">韦恩图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2023-radar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">雷达图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
+ <span class="menu-text">✨ 进阶美化</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggtext - 中英文字体混合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2018-tidyplots.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidyplots - 极简可视化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2022-ggally.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GGally - 可视化扩展</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2019-dualaxis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双坐标轴</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2034-ggguides.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggguides - 图例简化</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true">
+ <span class="menu-text">R 语言方法</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔢 回归分析</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1019-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logistic 回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1021-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多元线性回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1026-poisson.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Poisson/负二项回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1036-anova.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">方差分析 (ANOVA)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="true">
+ <span class="menu-text">⏱️ 生存分析</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">生存分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1050-competing-risks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">竞争风险分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1027-rcs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">限制性立方样条 (RCS)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1017-timeseries.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">时间序列分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1055-tx-effects-survival.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">治疗效果分析 (TxEffects)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">🎯 因果推断</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">倾向性得分匹配</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1028-did.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双重差分法 (DiD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1023-mediation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">中介效应分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1054-subgroup.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">亚组分析与交互作用</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">📐 高级建模</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1024-multilevel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多水平模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1025-gam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">广义加性模型 (GAM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1032-sem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">结构方程模型 (SEM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1031-lca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">潜类别分析 (LCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1039-pca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">主成分分析 (PCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">因子分析 (EFA/CFA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1037-plspm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PLS-PM 路径模型</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false">
+ <span class="menu-text">🤖 机器学习</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1016-mlr3.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mlr3 机器学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1042-tidymodels.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidymodels 机器学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1044-lstm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LSTM 深度学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1052-bootstrap.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bootstrap与置换检验</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1051-bayesian.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">贝叶斯统计入门</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false">
+ <span class="menu-text">📋 数据预处理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1046-missing-data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">缺失值处理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1047-roc-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ROC 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1048-power-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">样本量计算</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1049-eda.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">探索性数据分析</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="false">
+ <span class="menu-text">📚 综述方法</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1041-network-meta.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">网状 Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1029-umbrella-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">伞状综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1040-scoping-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">范围综述</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔬 特殊方法</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-19" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">卫生经济学分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">质性研究与文本挖掘</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1033-dlnm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">分布滞后非线性模型 (DLNM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1034-nvmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">变分模态分解 (VMD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1035-fft-nvmd-gmm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FFT + VMD + GMM</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="true">
+ <span class="menu-text">实用操作</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-20" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="false">
+ <span class="menu-text">📥 数据输入输出</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-21" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">数据导入导出</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3002-datatable.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">data.table 完全指南</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3003-dplyr-tidyr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">dplyr/tidyr 数据处理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3004-web-scraping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">网络爬虫入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3005-pdf-reading.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PDF文件读取</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="false">
+ <span class="menu-text">📝 文档写作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-22" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RMarkdown 入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quarto vs RMarkdown</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false">
+ <span class="menu-text">💻 开发环境</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-23" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Positron IDE 教程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./4001-shiny.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Shiny Web 应用</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#什么是-txeffectssurvival" id="toc-什么是-txeffectssurvival" class="nav-link active" data-scroll-target="#什么是-txeffectssurvival">什么是 TxEffectsSurvival</a>
+  <ul class="collapse">
+  <li><a href="#核心方法" id="toc-核心方法" class="nav-link" data-scroll-target="#核心方法">核心方法</a></li>
+  <li><a href="#适用场景" id="toc-适用场景" class="nav-link" data-scroll-target="#适用场景">适用场景</a></li>
+  </ul></li>
+  <li><a href="#安装与加载" id="toc-安装与加载" class="nav-link" data-scroll-target="#安装与加载">安装与加载</a></li>
+  <li><a href="#基本概念" id="toc-基本概念" class="nav-link" data-scroll-target="#基本概念">基本概念</a>
+  <ul class="collapse">
+  <li><a href="#竞争风险" id="toc-竞争风险" class="nav-link" data-scroll-target="#竞争风险">竞争风险</a></li>
+  <li><a href="#win-ratio-胜率" id="toc-win-ratio-胜率" class="nav-link" data-scroll-target="#win-ratio-胜率">Win Ratio (胜率)</a></li>
+  <li><a href="#rich-和-ritch" id="toc-rich-和-ritch" class="nav-link" data-scroll-target="#rich-和-ritch">RICH 和 RITCH</a></li>
+  </ul></li>
+  <li><a href="#数据格式" id="toc-数据格式" class="nav-link" data-scroll-target="#数据格式">数据格式</a>
+  <ul class="collapse">
+  <li><a href="#变量说明" id="toc-变量说明" class="nav-link" data-scroll-target="#变量说明">变量说明</a></li>
+  </ul></li>
+  <li><a href="#基本分析" id="toc-基本分析" class="nav-link" data-scroll-target="#基本分析">基本分析</a>
+  <ul class="collapse">
+  <li><a href="#win-ratio-分析" id="toc-win-ratio-分析" class="nav-link" data-scroll-target="#win-ratio-分析">Win Ratio 分析</a></li>
+  <li><a href="#竞争风险累积发生率" id="toc-竞争风险累积发生率" class="nav-link" data-scroll-target="#竞争风险累积发生率">竞争风险累积发生率</a></li>
+  </ul></li>
+  <li><a href="#txeffectssurvival-核心函数" id="toc-txeffectssurvival-核心函数" class="nav-link" data-scroll-target="#txeffectssurvival-核心函数">TxEffectsSurvival 核心函数</a>
+  <ul class="collapse">
+  <li><a href="#主要分析函数" id="toc-主要分析函数" class="nav-link" data-scroll-target="#主要分析函数">主要分析函数</a></li>
+  <li><a href="#richritch-分析" id="toc-richritch-分析" class="nav-link" data-scroll-target="#richritch-分析">RICH/RITCH 分析</a></li>
+  </ul></li>
+  <li><a href="#统计检验" id="toc-统计检验" class="nav-link" data-scroll-target="#统计检验">统计检验</a>
+  <ul class="collapse">
+  <li><a href="#比例风险假设检验" id="toc-比例风险假设检验" class="nav-link" data-scroll-target="#比例风险假设检验">比例风险假设检验</a></li>
+  <li><a href="#全局零假设检验" id="toc-全局零假设检验" class="nav-link" data-scroll-target="#全局零假设检验">全局零假设检验</a></li>
+  </ul></li>
+  <li><a href="#实战案例心衰临床试验" id="toc-实战案例心衰临床试验" class="nav-link" data-scroll-target="#实战案例心衰临床试验">实战案例：心衰临床试验</a>
+  <ul class="collapse">
+  <li><a href="#描述性分析" id="toc-描述性分析" class="nav-link" data-scroll-target="#描述性分析">描述性分析</a></li>
+  <li><a href="#生存曲线" id="toc-生存曲线" class="nav-link" data-scroll-target="#生存曲线">生存曲线</a></li>
+  <li><a href="#cox-回归分析" id="toc-cox-回归分析" class="nav-link" data-scroll-target="#cox-回归分析">Cox 回归分析</a></li>
+  <li><a href="#结果可视化" id="toc-结果可视化" class="nav-link" data-scroll-target="#结果可视化">结果可视化</a></li>
+  </ul></li>
+  <li><a href="#结果解读" id="toc-结果解读" class="nav-link" data-scroll-target="#结果解读">结果解读</a>
+  <ul class="collapse">
+  <li><a href="#win-ratio-解读" id="toc-win-ratio-解读" class="nav-link" data-scroll-target="#win-ratio-解读">Win Ratio 解读</a></li>
+  <li><a href="#richritch-解读" id="toc-richritch-解读" class="nav-link" data-scroll-target="#richritch-解读">RICH/RITCH 解读</a></li>
+  </ul></li>
+  <li><a href="#报告模板" id="toc-报告模板" class="nav-link" data-scroll-target="#报告模板">报告模板</a></li>
+  <li><a href="#总结" id="toc-总结" class="nav-link" data-scroll-target="#总结">总结</a>
+  <ul class="collapse">
+  <li><a href="#推荐资源" id="toc-推荐资源" class="nav-link" data-scroll-target="#推荐资源">推荐资源</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content column-body" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">R 语言方法</li><li class="breadcrumb-item"><a href="./1020-survival.html">⏱️ 生存分析</a></li><li class="breadcrumb-item"><a href="./1055-tx-effects-survival.html">治疗效果分析 (TxEffects)</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">TxEffectsSurvival: 竞争风险下的治疗效果分析</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">R语言方法</div>
+    <div class="quarto-category">生存分析</div>
+    <div class="quarto-category">竞争风险</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    使用 TxEffectsSurvival 包进行终末事件和非终末事件的治疗效果推断，包括 Win Ratio、RICH 等方法。
+  </div>
+</div>
+
+
+<div class="quarto-title-meta column-body">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">January 14, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="什么是-txeffectssurvival" class="level2">
+<h2 class="anchored" data-anchor-id="什么是-txeffectssurvival">什么是 TxEffectsSurvival</h2>
+<p><strong>TxEffectsSurvival</strong> 是一个用于在<strong>竞争风险</strong>框架下评估治疗效果的 R 包。它提供了多种置信区间和检验方法，适用于同时存在终末事件（如死亡）和非终末事件（如疾病复发）的生存数据分析。</p>
+<section id="核心方法" class="level3">
+<h3 class="anchored" data-anchor-id="核心方法">核心方法</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>全称</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Win Ratio</strong></td>
+<td>胜率</td>
+<td>基于成对比较的半参数方法</td>
+</tr>
+<tr class="even">
+<td><strong>RICH</strong></td>
+<td>Ratio of Integrated Cumulative Hazard</td>
+<td>累积风险比的积分比</td>
+</tr>
+<tr class="odd">
+<td><strong>RITCH</strong></td>
+<td>Ratio of Integrated Transformed Cumulative Hazard</td>
+<td>变换累积风险的积分比</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="适用场景" class="level3">
+<h3 class="anchored" data-anchor-id="适用场景">适用场景</h3>
+<ul>
+<li><strong>临床试验</strong>：评估新治疗对多个终点的效果</li>
+<li><strong>心血管研究</strong>：心衰试验中的死亡和住院事件</li>
+<li><strong>肿瘤学</strong>：无进展生存和总生存的联合分析</li>
+<li><strong>竞争风险分析</strong>：存在多种结局类型的生存数据</li>
+</ul>
+<hr>
+</section>
+</section>
+<section id="安装与加载" class="level2">
+<h2 class="anchored" data-anchor-id="安装与加载">安装与加载</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 安装 TxEffectsSurvival</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># install.packages("TxEffectsSurvival")</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 加载包</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(TxEffectsSurvival)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(survival)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+<section id="基本概念" class="level2">
+<h2 class="anchored" data-anchor-id="基本概念">基本概念</h2>
+<section id="竞争风险" class="level3">
+<h3 class="anchored" data-anchor-id="竞争风险">竞争风险</h3>
+<p>在生存分析中，<strong>竞争风险</strong>是指多种事件类型相互竞争，一种事件的发生会阻止其他事件的观察：</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1055-tx-effects-survival_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="win-ratio-胜率" class="level3">
+<h3 class="anchored" data-anchor-id="win-ratio-胜率">Win Ratio (胜率)</h3>
+<p>Win Ratio 是一种非参数方法，通过成对比较治疗组和对照组的患者：</p>
+<ul>
+<li><strong>赢 (Win)</strong>：治疗组患者结局更好</li>
+<li><strong>输 (Loss)</strong>：对照组患者结局更好</li>
+<li><strong>平局 (Tie)</strong>：无法判断</li>
+</ul>
+<p><span class="math display">\[\text{Win Ratio} = \frac{\text{治疗组赢的次数}}{\text{对照组赢的次数}}\]</span></p>
+</section>
+<section id="rich-和-ritch" class="level3">
+<h3 class="anchored" data-anchor-id="rich-和-ritch">RICH 和 RITCH</h3>
+<ul>
+<li><strong>RICH</strong>：累积风险函数积分的比值（非参数）</li>
+<li><strong>RITCH</strong>：变换后累积风险积分的比值（更稳健）</li>
+</ul>
+<p>这些方法在<strong>非比例风险</strong>情况下仍然有效。</p>
+<hr>
+</section>
+</section>
+<section id="数据格式" class="level2">
+<h2 class="anchored" data-anchor-id="数据格式">数据格式</h2>
+<p>TxEffectsSurvival 需要以下格式的数据：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 模拟竞争风险数据</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2024</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">300</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建模拟数据</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>sim_data <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">id =</span> <span class="dv">1</span><span class="sc">:</span>n,</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 治疗组 (1) 或对照组 (0)</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>), n, <span class="at">replace =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 事件时间</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> <span class="fu">rexp</span>(n, <span class="at">rate =</span> <span class="fl">0.1</span>) <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">+</span> <span class="fl">0.3</span> <span class="sc">*</span> treatment),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 事件类型: 0=删失, 1=终末事件(死亡), 2=非终末事件(住院)</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">event_type =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>), n, <span class="at">replace =</span> <span class="cn">TRUE</span>, <span class="at">prob =</span> <span class="fu">c</span>(<span class="fl">0.4</span>, <span class="fl">0.3</span>, <span class="fl">0.3</span>))</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 限制随访时间</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">time =</span> <span class="fu">pmin</span>(time, <span class="dv">24</span>),</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">event_type =</span> <span class="fu">ifelse</span>(time <span class="sc">&gt;=</span> <span class="dv">24</span>, <span class="dv">0</span>, event_type)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看数据结构</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(sim_data, <span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 10 × 4
+      id treatment  time event_type
+   &lt;int&gt;     &lt;dbl&gt; &lt;dbl&gt;      &lt;dbl&gt;
+ 1     1         1 18.3           2
+ 2     2         0  2.62          2
+ 3     3         0 11.8           0
+ 4     4         1 24             0
+ 5     5         0  1.54          1
+ 6     6         0  6.75          0
+ 7     7         0 24             0
+ 8     8         1 10.2           0
+ 9     9         0  2.58          2
+10    10         1 14.4           2</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 事件分布</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(sim_data<span class="sc">$</span>event_type, sim_data<span class="sc">$</span>treatment)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   
+     0  1
+  0 66 66
+  1 51 34
+  2 40 43</code></pre>
+</div>
+</div>
+<section id="变量说明" class="level3">
+<h3 class="anchored" data-anchor-id="变量说明">变量说明</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>变量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>id</code></td>
+<td>患者标识</td>
+</tr>
+<tr class="even">
+<td><code>treatment</code></td>
+<td>治疗组 (1) 或对照组 (0)</td>
+</tr>
+<tr class="odd">
+<td><code>time</code></td>
+<td>事件时间或删失时间</td>
+</tr>
+<tr class="even">
+<td><code>event_type</code></td>
+<td>事件类型：0=删失, 1=终末事件, 2=非终末事件</td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+</section>
+<section id="基本分析" class="level2">
+<h2 class="anchored" data-anchor-id="基本分析">基本分析</h2>
+<section id="win-ratio-分析" class="level3">
+<h3 class="anchored" data-anchor-id="win-ratio-分析">Win Ratio 分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 TxEffectsSurvival 进行 Win Ratio 分析</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 注意：需要按照包的具体接口调用</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 首先进行传统生存分析作为参考</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(survival)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 终末事件的 Kaplan-Meier 曲线</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>km_terminal <span class="ot">&lt;-</span> <span class="fu">survfit</span>(</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Surv</span>(time, event_type <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">~</span> treatment,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> sim_data</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘制生存曲线</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(km_terminal,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">col =</span> <span class="fu">c</span>(<span class="st">"#4f46e5"</span>, <span class="st">"#10b981"</span>), <span class="at">lwd =</span> <span class="dv">2</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">xlab =</span> <span class="st">"时间 (月)"</span>, <span class="at">ylab =</span> <span class="st">"无终末事件生存概率"</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">main =</span> <span class="st">"终末事件：治疗组 vs 对照组"</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="fu">legend</span>(<span class="st">"topright"</span>, <span class="fu">c</span>(<span class="st">"对照组"</span>, <span class="st">"治疗组"</span>),</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">col =</span> <span class="fu">c</span>(<span class="st">"#4f46e5"</span>, <span class="st">"#10b981"</span>), <span class="at">lwd =</span> <span class="dv">2</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1055-tx-effects-survival_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="竞争风险累积发生率" class="level3">
+<h3 class="anchored" data-anchor-id="竞争风险累积发生率">竞争风险累积发生率</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 cmprsk 或相关方法计算累积发生率</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(survival)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建多状态生存对象</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>ms_surv <span class="ot">&lt;-</span> <span class="fu">Surv</span>(sim_data<span class="sc">$</span>time, <span class="fu">factor</span>(sim_data<span class="sc">$</span>event_type))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 按治疗组分层的生存曲线</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>km_fit <span class="ot">&lt;-</span> <span class="fu">survfit</span>(ms_surv <span class="sc">~</span> treatment, <span class="at">data =</span> sim_data)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看结果摘要</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(km_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Call: survfit(formula = ms_surv ~ treatment, data = sim_data)
+
+                treatment=0 
+    time n.risk n.event Pr((s0))   Pr(1)   Pr(2)
+  0.0175    157       1    0.994 0.00637 0.00000
+  0.0211    156       1    0.987 0.00637 0.00637
+  0.1023    154       1    0.981 0.00637 0.01278
+  0.2096    153       1    0.974 0.01278 0.01278
+  0.2121    152       1    0.968 0.01278 0.01919
+  0.3461    150       1    0.962 0.01923 0.01919
+  0.4555    148       1    0.955 0.02573 0.01919
+  0.5035    147       1    0.949 0.02573 0.02569
+  0.5507    146       1    0.942 0.03223 0.02569
+  0.6870    145       1    0.936 0.03223 0.03219
+  0.7619    143       1    0.929 0.03877 0.03219
+  0.8519    142       1    0.923 0.04531 0.03219
+  0.9365    141       1    0.916 0.04531 0.03873
+  1.0691    140       1    0.909 0.04531 0.04527
+  1.2570    138       1    0.903 0.05190 0.04527
+  1.3604    136       1    0.896 0.05190 0.05191
+  1.5352    134       1    0.890 0.05859 0.05191
+  1.5670    133       1    0.883 0.06528 0.05191
+  1.7215    130       1    0.876 0.07207 0.05191
+  1.7826    129       1    0.869 0.07207 0.05870
+  1.8726    128       1    0.862 0.07207 0.06549
+  1.8949    126       1    0.856 0.07891 0.06549
+  1.9090    125       1    0.849 0.08576 0.06549
+  1.9135    124       1    0.842 0.08576 0.07234
+  2.0347    123       1    0.835 0.09260 0.07234
+  2.0752    122       1    0.828 0.09945 0.07234
+  2.3451    121       1    0.821 0.09945 0.07918
+  2.5147    119       1    0.814 0.10635 0.07918
+  2.5803    118       1    0.808 0.10635 0.08608
+  2.6174    115       1    0.801 0.10635 0.09310
+  2.6485    113       1    0.793 0.10635 0.10019
+  2.7319    111       1    0.786 0.10635 0.10734
+  3.0151    109       1    0.779 0.11357 0.10734
+  3.0320    108       1    0.772 0.12078 0.10734
+  3.0946    107       1    0.765 0.12078 0.11455
+  3.1765    105       1    0.757 0.12806 0.11455
+  3.2775    104       1    0.750 0.13534 0.11455
+  3.4426    102       1    0.743 0.14270 0.11455
+  3.4586    101       1    0.735 0.14270 0.12191
+  3.8220     97       1    0.728 0.15028 0.12191
+  3.8724     96       1    0.720 0.15786 0.12191
+  3.9865     95       1    0.713 0.16544 0.12191
+  4.2134     94       1    0.705 0.17302 0.12191
+  4.3832     93       1    0.697 0.18061 0.12191
+  4.4043     92       1    0.690 0.18819 0.12191
+  4.4517     91       1    0.682 0.19577 0.12191
+  4.4540     90       1    0.675 0.19577 0.12949
+  4.6207     89       1    0.667 0.19577 0.13707
+  4.8642     88       1    0.660 0.20335 0.13707
+  4.9169     87       1    0.652 0.21093 0.13707
+  4.9717     86       1    0.644 0.21851 0.13707
+  5.2304     84       1    0.637 0.21851 0.14474
+  5.2963     83       1    0.629 0.21851 0.15241
+  5.3684     80       1    0.621 0.22638 0.15241
+  5.4810     79       1    0.613 0.23424 0.15241
+  5.5173     77       1    0.605 0.23424 0.16038
+  5.5993     76       1    0.597 0.24220 0.16038
+  5.7808     74       1    0.589 0.25028 0.16038
+  5.8223     73       1    0.581 0.25028 0.16845
+  5.8508     72       1    0.573 0.25835 0.16845
+  5.9459     71       1    0.565 0.25835 0.17652
+  6.2026     69       1    0.557 0.25835 0.18471
+  6.2144     68       1    0.549 0.25835 0.19290
+  6.9049     64       1    0.540 0.26693 0.19290
+  6.9796     63       1    0.532 0.26693 0.20148
+  7.4768     59       1    0.523 0.27594 0.20148
+  7.7972     56       1    0.513 0.27594 0.21081
+  7.9762     55       1    0.504 0.28527 0.21081
+  8.0530     54       1    0.495 0.29460 0.21081
+  8.0637     53       1    0.485 0.29460 0.22014
+  8.3772     52       1    0.476 0.30393 0.22014
+  8.8462     50       1    0.466 0.30393 0.22966
+  8.8659     49       1    0.457 0.31345 0.22966
+  9.0286     48       1    0.447 0.32297 0.22966
+  9.7061     46       1    0.438 0.33269 0.22966
+ 10.0322     44       1    0.428 0.34264 0.22966
+ 10.5045     43       1    0.418 0.34264 0.23961
+ 10.8279     41       1    0.408 0.34264 0.24980
+ 11.0571     40       1    0.397 0.34264 0.25999
+ 11.0830     38       1    0.387 0.35310 0.25999
+ 12.8922     32       1    0.375 0.35310 0.27208
+ 13.2323     30       1    0.362 0.35310 0.28457
+ 13.8934     29       1    0.350 0.35310 0.29706
+ 13.9879     26       1    0.336 0.36655 0.29706
+ 15.2754     22       1    0.321 0.38184 0.29706
+ 15.7918     21       1    0.306 0.38184 0.31235
+ 18.2352     17       1    0.288 0.38184 0.33034
+ 18.7762     16       1    0.270 0.39983 0.33034
+ 18.7984     15       1    0.252 0.41782 0.33034
+ 22.1936     12       1    0.231 0.43881 0.33034
+ 22.4589     11       1    0.210 0.43881 0.35133
+
+                treatment=1 
+   time n.risk n.event Pr((s0))   Pr(1)   Pr(2)
+  0.231    142       1    0.993 0.00000 0.00704
+  0.381    140       1    0.986 0.00000 0.01413
+  0.395    139       1    0.979 0.00709 0.01413
+  0.407    138       1    0.972 0.00709 0.02123
+  0.509    136       1    0.965 0.01424 0.02123
+  0.809    134       1    0.957 0.01424 0.02843
+  0.867    132       1    0.950 0.01424 0.03568
+  0.894    131       1    0.943 0.02149 0.03568
+  0.913    130       1    0.936 0.02149 0.04293
+  0.913    129       1    0.928 0.02874 0.04293
+  0.987    127       1    0.921 0.02874 0.05024
+  1.412    123       1    0.914 0.02874 0.05773
+  1.582    121       1    0.906 0.03629 0.05773
+  1.585    120       1    0.898 0.04384 0.05773
+  1.594    119       1    0.891 0.04384 0.06528
+  2.062    117       1    0.883 0.04384 0.07289
+  2.137    116       1    0.876 0.05146 0.07289
+  2.188    115       1    0.868 0.05146 0.08051
+  2.418    114       1    0.860 0.05146 0.08812
+  2.732    111       1    0.853 0.05146 0.09587
+  2.925    109       1    0.845 0.05928 0.09587
+  3.560    104       1    0.837 0.06740 0.09587
+  3.908    101       1    0.828 0.06740 0.10416
+  3.927    100       1    0.820 0.06740 0.11244
+  4.438     96       1    0.812 0.06740 0.12098
+  4.557     95       1    0.803 0.07595 0.12098
+  5.236     91       1    0.794 0.07595 0.12981
+  5.391     88       1    0.785 0.08497 0.12981
+  5.718     86       1    0.776 0.09410 0.12981
+  5.942     85       1    0.767 0.09410 0.13894
+  5.959     84       1    0.758 0.09410 0.14807
+  6.152     83       1    0.749 0.10323 0.14807
+  6.594     82       1    0.740 0.10323 0.15720
+  6.672     80       1    0.730 0.11248 0.15720
+  6.750     79       1    0.721 0.12172 0.15720
+  6.894     78       1    0.712 0.13097 0.15720
+  7.324     76       1    0.702 0.13097 0.16657
+  7.644     75       1    0.693 0.14033 0.16657
+  7.852     74       1    0.684 0.14970 0.16657
+  7.885     73       1    0.674 0.14970 0.17593
+  8.114     72       1    0.665 0.15906 0.17593
+  8.137     71       1    0.656 0.16843 0.17593
+  8.171     70       1    0.646 0.16843 0.18530
+  8.226     69       1    0.637 0.17780 0.18530
+  8.326     68       1    0.628 0.18716 0.18530
+  8.392     67       1    0.618 0.19653 0.18530
+  9.084     64       1    0.609 0.20619 0.18530
+  9.171     63       1    0.599 0.20619 0.19496
+  9.186     62       1    0.589 0.21585 0.19496
+  9.289     61       1    0.580 0.22551 0.19496
+  9.708     59       1    0.570 0.22551 0.20478
+  9.717     58       1    0.560 0.22551 0.21460
+  9.807     57       1    0.550 0.23533 0.21460
+  9.922     55       1    0.540 0.23533 0.22461
+ 10.906     53       1    0.530 0.23533 0.23479
+ 11.083     52       1    0.520 0.24552 0.23479
+ 11.305     51       1    0.509 0.25571 0.23479
+ 11.893     48       1    0.499 0.26632 0.23479
+ 12.103     46       1    0.488 0.26632 0.24564
+ 12.740     45       1    0.477 0.27717 0.24564
+ 14.086     42       1    0.466 0.27717 0.25700
+ 14.360     40       1    0.454 0.27717 0.26865
+ 14.452     39       1    0.443 0.27717 0.28029
+ 14.482     38       1    0.431 0.27717 0.29194
+ 14.611     37       1    0.419 0.27717 0.30358
+ 15.058     35       1    0.407 0.27717 0.31556
+ 15.742     32       1    0.395 0.27717 0.32829
+ 15.765     31       1    0.382 0.27717 0.34102
+ 16.859     30       1    0.369 0.27717 0.35374
+ 16.985     29       1    0.356 0.27717 0.36647
+ 17.489     27       1    0.343 0.27717 0.37967
+ 17.913     25       1    0.329 0.29090 0.37967
+ 18.269     21       1    0.314 0.30658 0.37967
+ 18.300     20       1    0.298 0.30658 0.39536
+ 19.855     18       1    0.282 0.30658 0.41192
+ 20.409     17       1    0.265 0.32314 0.41192
+ 23.270     13       1    0.245 0.32314 0.43230</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="txeffectssurvival-核心函数" class="level2">
+<h2 class="anchored" data-anchor-id="txeffectssurvival-核心函数">TxEffectsSurvival 核心函数</h2>
+<section id="主要分析函数" class="level3">
+<h3 class="anchored" data-anchor-id="主要分析函数">主要分析函数</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Win Ratio 分析</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 注意：以下为示例代码，具体函数名称请参考包文档</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算事件特定的 Win Ratio</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>wr_result <span class="ot">&lt;-</span> <span class="fu">win_ratio</span>(</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> sim_data<span class="sc">$</span>time,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">event =</span> sim_data<span class="sc">$</span>event_type,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> sim_data<span class="sc">$</span>treatment,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">terminal_event =</span> <span class="dv">1</span>, <span class="co"># 终末事件代码</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">nonterminal_event =</span> <span class="dv">2</span> <span class="co"># 非终末事件代码</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看结果</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(wr_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="richritch-分析" class="level3">
+<h3 class="anchored" data-anchor-id="richritch-分析">RICH/RITCH 分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># RICH 方法</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>rich_result <span class="ot">&lt;-</span> <span class="fu">rich_test</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> sim_data<span class="sc">$</span>time,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">event =</span> sim_data<span class="sc">$</span>event_type,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> sim_data<span class="sc">$</span>treatment</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co"># RITCH 方法</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>ritch_result <span class="ot">&lt;-</span> <span class="fu">ritch_test</span>(</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> sim_data<span class="sc">$</span>time,</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">event =</span> sim_data<span class="sc">$</span>event_type,</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> sim_data<span class="sc">$</span>treatment</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="统计检验" class="level2">
+<h2 class="anchored" data-anchor-id="统计检验">统计检验</h2>
+<section id="比例风险假设检验" class="level3">
+<h3 class="anchored" data-anchor-id="比例风险假设检验">比例风险假设检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 检验比例风险假设</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 在 PH 假设下，Win Ratio 收敛到风险比 (HR)</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>ph_test <span class="ot">&lt;-</span> <span class="fu">test_proportional_hazards</span>(</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> sim_data<span class="sc">$</span>time,</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">event =</span> sim_data<span class="sc">$</span>event_type,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> sim_data<span class="sc">$</span>treatment</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(ph_test)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="全局零假设检验" class="level3">
+<h3 class="anchored" data-anchor-id="全局零假设检验">全局零假设检验</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 检验无治疗效果的全局零假设</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>global_test <span class="ot">&lt;-</span> <span class="fu">global_null_test</span>(</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">time =</span> sim_data<span class="sc">$</span>time,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">event =</span> sim_data<span class="sc">$</span>event_type,</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> sim_data<span class="sc">$</span>treatment</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(global_test)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="实战案例心衰临床试验" class="level2">
+<h2 class="anchored" data-anchor-id="实战案例心衰临床试验">实战案例：心衰临床试验</h2>
+<p>模拟一个典型的心血管临床试验场景：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 模拟心衰临床试验数据</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">42</span>)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>n_patients <span class="ot">&lt;-</span> <span class="dv">500</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>hf_trial <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">patient_id =</span> <span class="dv">1</span><span class="sc">:</span>n_patients,</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 随机化到治疗组或安慰剂组</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">arm =</span> <span class="fu">sample</span>(<span class="fu">c</span>(<span class="st">"Treatment"</span>, <span class="st">"Placebo"</span>), n_patients, <span class="at">replace =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">treatment =</span> <span class="fu">as.numeric</span>(arm <span class="sc">==</span> <span class="st">"Treatment"</span>),</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 基线特征</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">age =</span> <span class="fu">round</span>(<span class="fu">rnorm</span>(n_patients, <span class="dv">65</span>, <span class="dv">10</span>)),</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">ef =</span> <span class="fu">round</span>(<span class="fu">rnorm</span>(n_patients, <span class="dv">30</span>, <span class="dv">8</span>)), <span class="co"># 射血分数</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">nyha =</span> <span class="fu">sample</span>(<span class="dv">2</span><span class="sc">:</span><span class="dv">4</span>, n_patients, <span class="at">replace =</span> <span class="cn">TRUE</span>, <span class="at">prob =</span> <span class="fu">c</span>(<span class="fl">0.3</span>, <span class="fl">0.5</span>, <span class="fl">0.2</span>))</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 生成事件时间（治疗组有更好的预后）</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">baseline_hazard =</span> <span class="fl">0.1</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">+</span> <span class="fl">0.02</span> <span class="sc">*</span> (age <span class="sc">-</span> <span class="dv">65</span>) <span class="sc">+</span> <span class="fl">0.5</span> <span class="sc">*</span> (nyha <span class="sc">==</span> <span class="dv">4</span>)),</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">hazard =</span> baseline_hazard <span class="sc">*</span> <span class="fu">ifelse</span>(treatment <span class="sc">==</span> <span class="dv">1</span>, <span class="fl">0.75</span>, <span class="dv">1</span>),</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">time_to_event =</span> <span class="fu">rexp</span>(n_patients, <span class="at">rate =</span> hazard),</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 事件类型</span></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        <span class="at">event_prob =</span> <span class="fu">runif</span>(n_patients),</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        <span class="at">event_type =</span> <span class="fu">case_when</span>(</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>            event_prob <span class="sc">&lt;</span> <span class="fl">0.25</span> <span class="sc">~</span> <span class="dv">1</span>, <span class="co"># 心血管死亡</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>            event_prob <span class="sc">&lt;</span> <span class="fl">0.50</span> <span class="sc">~</span> <span class="dv">2</span>, <span class="co"># 心衰住院</span></span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>            <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span> <span class="co"># 删失</span></span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 限制随访时间</span></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>        <span class="at">follow_up =</span> <span class="fu">pmin</span>(time_to_event, <span class="dv">36</span>),</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>        <span class="at">event_type =</span> <span class="fu">ifelse</span>(time_to_event <span class="sc">&gt;</span> <span class="dv">36</span>, <span class="dv">0</span>, event_type)</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(patient_id, arm, treatment, age, ef, nyha, follow_up, event_type)</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看数据</span></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(hf_trial, <span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 10 × 8
+   patient_id arm       treatment   age    ef  nyha follow_up event_type
+        &lt;int&gt; &lt;chr&gt;         &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt;     &lt;dbl&gt;      &lt;dbl&gt;
+ 1          1 Treatment         1    54    17     3     13.5           0
+ 2          2 Treatment         1    65    14     4      2.75          0
+ 3          3 Treatment         1    53    27     3     29.5           1
+ 4          4 Treatment         1    67    31     3      4.95          0
+ 5          5 Placebo           0    78    12     4      3.38          1
+ 6          6 Placebo           0    55    32     2      6.84          0
+ 7          7 Placebo           0    58    33     3     17.8           2
+ 8          8 Placebo           0    65    40     2      5.22          2
+ 9          9 Treatment         1    55    31     3     10.3           2
+10         10 Placebo           0    61    32     4      4.63          0</code></pre>
+</div>
+</div>
+<section id="描述性分析" class="level3">
+<h3 class="anchored" data-anchor-id="描述性分析">描述性分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 基线特征比较</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>hf_trial <span class="sc">|&gt;</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(arm) <span class="sc">|&gt;</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">n =</span> <span class="fu">n</span>(),</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">age_mean =</span> <span class="fu">mean</span>(age),</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">ef_mean =</span> <span class="fu">mean</span>(ef),</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">`</span><span class="at">NYHA III-IV (%)</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">mean</span>(nyha <span class="sc">&gt;=</span> <span class="dv">3</span>) <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">`</span><span class="at">CV Death (%)</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">mean</span>(event_type <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">`</span><span class="at">HF Hosp (%)</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">mean</span>(event_type <span class="sc">==</span> <span class="dv">2</span>) <span class="sc">*</span> <span class="dv">100</span>,</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 7
+  arm          n age_mean ef_mean `NYHA III-IV (%)` `CV Death (%)` `HF Hosp (%)`
+  &lt;chr&gt;    &lt;int&gt;    &lt;dbl&gt;   &lt;dbl&gt;             &lt;dbl&gt;          &lt;dbl&gt;         &lt;dbl&gt;
+1 Placebo    259     64.4    30.8              71.8           20.1          25.1
+2 Treatme…   241     64.6    29.1              72.6           20.7          25.3</code></pre>
+</div>
+</div>
+</section>
+<section id="生存曲线" class="level3">
+<h3 class="anchored" data-anchor-id="生存曲线">生存曲线</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 按治疗组绘制 Kaplan-Meier 曲线</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(survminer)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 复合终点（死亡或住院）</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>km_composite <span class="ot">&lt;-</span> <span class="fu">survfit</span>(</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Surv</span>(follow_up, event_type <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">~</span> arm,</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> hf_trial</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用 ggsurvplot</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="fu">ggsurvplot</span>(</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    km_composite,</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> hf_trial,</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">palette =</span> <span class="fu">c</span>(<span class="st">"#4f46e5"</span>, <span class="st">"#10b981"</span>),</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">risk.table =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">pval =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">conf.int =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">xlab =</span> <span class="st">"随访时间 (月)"</span>,</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">ylab =</span> <span class="st">"无事件生存概率"</span>,</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">"复合终点：心血管死亡或心衰住院"</span>,</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.labs =</span> <span class="fu">c</span>(<span class="st">"安慰剂"</span>, <span class="st">"治疗组"</span>),</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.title =</span> <span class="st">"治疗组"</span>,</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">ggtheme =</span> <span class="fu">theme_minimal</span>()</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1055-tx-effects-survival_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="cox-回归分析" class="level3">
+<h3 class="anchored" data-anchor-id="cox-回归分析">Cox 回归分析</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Cox 回归</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>cox_model <span class="ot">&lt;-</span> <span class="fu">coxph</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Surv</span>(follow_up, event_type <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">~</span> treatment <span class="sc">+</span> age <span class="sc">+</span> ef <span class="sc">+</span> nyha,</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> hf_trial</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 模型摘要</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(cox_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Call:
+coxph(formula = Surv(follow_up, event_type &gt; 0) ~ treatment + 
+    age + ef + nyha, data = hf_trial)
+
+  n= 500, number of events= 228 
+
+               coef exp(coef)  se(coef)      z Pr(&gt;|z|)  
+treatment -0.164161  0.848606  0.133508 -1.230   0.2188  
+age        0.008667  1.008705  0.006336  1.368   0.1714  
+ef         0.001495  1.001496  0.008285  0.180   0.8568  
+nyha       0.269384  1.309158  0.105448  2.555   0.0106 *
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+          exp(coef) exp(-coef) lower .95 upper .95
+treatment    0.8486     1.1784    0.6532     1.102
+age          1.0087     0.9914    0.9963     1.021
+ef           1.0015     0.9985    0.9854     1.018
+nyha         1.3092     0.7638    1.0647     1.610
+
+Concordance= 0.562  (se = 0.021 )
+Likelihood ratio test= 9.61  on 4 df,   p=0.05
+Wald test            = 9.61  on 4 df,   p=0.05
+Score (logrank) test = 9.64  on 4 df,   p=0.05</code></pre>
+</div>
+</div>
+</section>
+<section id="结果可视化" class="level3">
+<h3 class="anchored" data-anchor-id="结果可视化">结果可视化</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 森林图</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(broom)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>cox_results <span class="ot">&lt;-</span> <span class="fu">tidy</span>(cox_model, <span class="at">conf.int =</span> <span class="cn">TRUE</span>, <span class="at">exponentiate =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">term =</span> <span class="fu">case_when</span>(</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>            term <span class="sc">==</span> <span class="st">"treatment"</span> <span class="sc">~</span> <span class="st">"治疗 vs 安慰剂"</span>,</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>            term <span class="sc">==</span> <span class="st">"age"</span> <span class="sc">~</span> <span class="st">"年龄 (每增加1岁)"</span>,</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>            term <span class="sc">==</span> <span class="st">"ef"</span> <span class="sc">~</span> <span class="st">"射血分数 (每增加1%)"</span>,</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>            term <span class="sc">==</span> <span class="st">"nyha"</span> <span class="sc">~</span> <span class="st">"NYHA 分级 (每增加1级)"</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(cox_results, <span class="fu">aes</span>(<span class="at">x =</span> estimate, <span class="at">y =</span> <span class="fu">reorder</span>(term, estimate))) <span class="sc">+</span></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="dv">1</span>, <span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">color =</span> <span class="st">"grey50"</span>) <span class="sc">+</span></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_errorbarh</span>(<span class="fu">aes</span>(<span class="at">xmin =</span> conf.low, <span class="at">xmax =</span> conf.high), <span class="at">height =</span> <span class="fl">0.2</span>, <span class="at">linewidth =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>, <span class="at">color =</span> <span class="st">"#4f46e5"</span>) <span class="sc">+</span></span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_x_log10</span>() <span class="sc">+</span></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"Cox 回归：风险比 (HR) 及 95% CI"</span>,</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>        <span class="at">x =</span> <span class="st">"风险比 (HR)"</span>,</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>        <span class="at">y =</span> <span class="st">""</span></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_minimal</span>(<span class="at">base_size =</span> <span class="dv">12</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1055-tx-effects-survival_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="结果解读" class="level2">
+<h2 class="anchored" data-anchor-id="结果解读">结果解读</h2>
+<section id="win-ratio-解读" class="level3">
+<h3 class="anchored" data-anchor-id="win-ratio-解读">Win Ratio 解读</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Win Ratio</th>
+<th>解读</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>WR &gt; 1</td>
+<td>治疗组优于对照组</td>
+</tr>
+<tr class="even">
+<td>WR = 1</td>
+<td>无差异</td>
+</tr>
+<tr class="odd">
+<td>WR &lt; 1</td>
+<td>对照组优于治疗组</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="richritch-解读" class="level3">
+<h3 class="anchored" data-anchor-id="richritch-解读">RICH/RITCH 解读</h3>
+<ul>
+<li>RICH/RITCH &gt; 1：治疗组累积风险更高</li>
+<li>RICH/RITCH &lt; 1：治疗组累积风险更低</li>
+<li>提供的是事件负担的整体比较</li>
+</ul>
+<hr>
+</section>
+</section>
+<section id="报告模板" class="level2">
+<h2 class="anchored" data-anchor-id="报告模板">报告模板</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 生成分析报告表格</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>report_table <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    终点 <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"心血管死亡"</span>, <span class="st">"心衰住院"</span>, <span class="st">"复合终点"</span>),</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">治疗组 n (%)</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">c</span>(</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>        <span class="fu">sprintf</span>(</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">"%d (%.1f%%)"</span>, <span class="fu">sum</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">1</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">1</span>),</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>            <span class="fu">mean</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">1</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>        <span class="fu">sprintf</span>(</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">"%d (%.1f%%)"</span>, <span class="fu">sum</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">2</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">1</span>),</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>            <span class="fu">mean</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">2</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>        <span class="fu">sprintf</span>(</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">"%d (%.1f%%)"</span>, <span class="fu">sum</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">1</span>),</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>            <span class="fu">mean</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">安慰剂组 n (%)</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">c</span>(</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>        <span class="fu">sprintf</span>(</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>            <span class="st">"%d (%.1f%%)"</span>, <span class="fu">sum</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">1</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">0</span>),</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>            <span class="fu">mean</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">1</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>        <span class="fu">sprintf</span>(</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>            <span class="st">"%d (%.1f%%)"</span>, <span class="fu">sum</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">2</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">0</span>),</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>            <span class="fu">mean</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">==</span> <span class="dv">2</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>        <span class="fu">sprintf</span>(</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>            <span class="st">"%d (%.1f%%)"</span>, <span class="fu">sum</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">0</span>),</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>            <span class="fu">mean</span>(hf_trial<span class="sc">$</span>event_type <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> hf_trial<span class="sc">$</span>treatment <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(report_table, <span class="at">caption =</span> <span class="st">"主要终点事件发生率"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>主要终点事件发生率</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">终点</th>
+<th style="text-align: left;">治疗组 n (%)</th>
+<th style="text-align: left;">安慰剂组 n (%)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">心血管死亡</td>
+<td style="text-align: left;">50 (10.0%)</td>
+<td style="text-align: left;">52 (10.4%)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">心衰住院</td>
+<td style="text-align: left;">61 (12.2%)</td>
+<td style="text-align: left;">65 (13.0%)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">复合终点</td>
+<td style="text-align: left;">111 (22.2%)</td>
+<td style="text-align: left;">117 (23.4%)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<hr>
+</section>
+<section id="总结" class="level2">
+<h2 class="anchored" data-anchor-id="总结">总结</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>特点</th>
+<th>适用情况</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Win Ratio</strong></td>
+<td>直观易解释</td>
+<td>复合终点、有优先级</td>
+</tr>
+<tr class="even">
+<td><strong>RICH</strong></td>
+<td>非参数、稳健</td>
+<td>非比例风险</td>
+</tr>
+<tr class="odd">
+<td><strong>RITCH</strong></td>
+<td>变换后更稳健</td>
+<td>极端值影响大时</td>
+</tr>
+<tr class="even">
+<td><strong>Cox 回归</strong></td>
+<td>可调整协变量</td>
+<td>比例风险成立时</td>
+</tr>
+</tbody>
+</table>
+<section id="推荐资源" class="level3">
+<h3 class="anchored" data-anchor-id="推荐资源">推荐资源</h3>
+<ul>
+<li><a href="https://cran.r-project.org/package=TxEffectsSurvival">CRAN 包主页</a></li>
+<li>Yang et al.&nbsp;(2022) Statistics in Medicine - 半参数方法</li>
+<li>Yang (2025) Statistics in Medicine - 非参数方法</li>
+<li><a href="https://doi.org/10.1093/eurheartj/ehr352">Win Ratio 方法综述</a></li>
+</ul>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<!-- Back to Top Button -->
+
+<button id="back-to-top" aria-label="Back to Top">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <path d="M18 15l-6-6-6 6"></path>
+
+    </svg>
+
+</button>
+
+
+
+<!-- Floating TOC Button (Mobile Only) -->
+
+<button id="toc-floating-btn" aria-label="Table of Contents">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+
+        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+
+        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+
+        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+
+    </svg>
+
+</button>
+
+
+
+<!-- TOC Modal -->
+
+<div class="toc-modal-overlay">
+
+    <div class="toc-modal-content">
+
+        <div class="toc-modal-header">
+
+            <div class="toc-modal-title">目录</div>
+
+            <button class="toc-modal-close" aria-label="Close">×</button>
+
+        </div>
+
+        <div class="toc-modal-body" id="toc-modal-body">
+
+            <!-- TOC content will be injected here -->
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+    // Back to Top Logic
+
+    const backToTopBtn = document.getElementById('back-to-top');
+
+
+
+    window.addEventListener('scroll', () => {
+
+        if (window.scrollY > 300) {
+
+            backToTopBtn.classList.add('visible');
+
+        } else {
+
+            backToTopBtn.classList.remove('visible');
+
+        }
+
+    });
+
+
+
+    backToTopBtn.addEventListener('click', () => {
+
+        window.scrollTo({
+
+            top: 0,
+
+            behavior: 'smooth'
+
+        });
+
+    });
+
+
+
+    // Mobile Table Scrolling Logic
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const tables = document.querySelectorAll('table');
+
+        tables.forEach(table => {
+
+            if (!table.parentElement.classList.contains('table-responsive')) {
+
+                const wrapper = document.createElement('div');
+
+                wrapper.className = 'table-responsive';
+
+                wrapper.style.overflowX = 'auto'; // Force scroll
+
+                table.parentNode.insertBefore(wrapper, table);
+
+                wrapper.appendChild(table);
+
+            }
+
+        });
+
+
+
+        // Floating TOC Logic
+
+        const tocBtn = document.getElementById('toc-floating-btn');
+
+        const tocOverlay = document.querySelector('.toc-modal-overlay');
+
+        const tocClose = document.querySelector('.toc-modal-close');
+
+        const tocBody = document.getElementById('toc-modal-body');
+
+        const originalToc = document.getElementById('TOC');
+
+
+
+        if (originalToc && tocBtn) {
+
+            // Check if TOC has content
+
+            const tocLinks = originalToc.querySelectorAll('a');
+
+            if (tocLinks.length > 0) {
+
+                tocBtn.style.display = 'flex';
+
+
+
+                // Function to populate modal
+
+                const populateToc = () => {
+
+                    tocBody.innerHTML = '';
+
+                    const tocClone = originalToc.querySelector('ul').cloneNode(true);
+
+                    tocBody.appendChild(tocClone);
+
+
+
+                    // Add click listeners to close modal on link click
+
+                    tocBody.querySelectorAll('a').forEach(link => {
+
+                        link.addEventListener('click', () => {
+
+                            tocOverlay.classList.remove('active');
+
+                            // Smooth scroll to target (handled by browser usually, but ensure modal closes first)
+
+                        });
+
+                    });
+
+                };
+
+
+
+                tocBtn.addEventListener('click', () => {
+
+                    populateToc();
+
+                    tocOverlay.classList.add('active');
+
+                });
+
+
+
+                tocClose.addEventListener('click', () => {
+
+                    tocOverlay.classList.remove('active');
+
+                });
+
+
+
+                tocOverlay.addEventListener('click', (e) => {
+
+                    if (e.target === tocOverlay) {
+
+                        tocOverlay.classList.remove('active');
+
+                    }
+
+                });
+
+            } else {
+
+                tocBtn.style.display = 'none';
+
+            }
+
+        } else if (tocBtn) {
+
+            tocBtn.style.display = 'none';
+
+        }
+
+
+
+        // Article Footer Random Recommendation
+
+        // Only run on article pages (has sidebar and main content)
+
+        const sidebar = document.querySelector('#quarto-sidebar') || document.querySelector('.sidebar');
+
+        const mainContent = document.querySelector('main');
+
+
+
+        if (sidebar && mainContent) {
+
+            const links = Array.from(sidebar.querySelectorAll('a.sidebar-item-text'));
+
+
+
+            // If no links found with specific class, try generic anchor in sidebar
+
+            const allLinks = links.length > 0 ? links : Array.from(sidebar.querySelectorAll('a'));
+
+
+
+            // Filter out section headers if they are just toggles (usually href is # or empty)
+
+            const validLinks = allLinks.filter(a => a.href && !a.href.endsWith('#') && !a.href.includes('javascript:'));
+
+
+
+            // Article Footer Navigation (Prev/Next + Random)
+
+            const currentUrl = window.location.href.split('#')[0];
+
+            let currentIndex = -1;
+
+
+
+            // Find current article index
+
+            for (let i = 0; i < validLinks.length; i++) {
+
+                if (validLinks[i].href.split('#')[0] === currentUrl) {
+
+                    currentIndex = i;
+
+                    break;
+
+                }
+
+            }
+
+
+
+            // Create Container
+
+            const footerNav = document.createElement('div');
+
+            footerNav.className = 'article-footer-nav-container';
+
+            footerNav.style.marginTop = '4rem';
+
+            footerNav.style.paddingTop = '2rem';
+
+            footerNav.style.borderTop = '1px solid #e5e7eb';
+
+
+
+            // 1. Prev/Next Navigation
+
+            if (currentIndex !== -1) {
+
+                let navHtml = '<div class="article-footer-nav">';
+
+
+
+                // Previous
+
+                if (currentIndex > 0) {
+
+                    const prevLink = validLinks[currentIndex - 1];
+
+                    const prevTitle = prevLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${prevLink.href}" class="article-nav-link">
+
+                            <span class="nav-label">上一篇</span>
+
+                            <span class="nav-title">« ${prevTitle}</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                // Next
+
+                if (currentIndex < validLinks.length - 1) {
+
+                    const nextLink = validLinks[currentIndex + 1];
+
+                    const nextTitle = nextLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${nextLink.href}" class="article-nav-link" style="text-align: right;">
+
+                            <span class="nav-label">下一篇</span>
+
+                            <span class="nav-title">${nextTitle} »</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                navHtml += '</div>';
+
+
+
+                // Append Prev/Next HTML
+
+                const navDiv = document.createElement('div');
+
+                navDiv.innerHTML = navHtml;
+
+                footerNav.appendChild(navDiv);
+
+            }
+
+
+
+            // 2. Random Recommendation
+
+            const otherLinks = validLinks.filter((_, idx) => idx !== currentIndex);
+
+            if (otherLinks.length > 0) {
+
+                const randomIdx = Math.floor(Math.random() * otherLinks.length);
+
+                const randomLink = otherLinks[randomIdx];
+
+                const randomTitle = randomLink.innerText.trim(); // Use innerText for title
+
+
+
+                if (randomTitle) {
+
+                    const randomDiv = document.createElement('div');
+
+                    randomDiv.innerHTML = `
+
+                        <div class="random-recommendation">
+
+                            <h4>👋 随便看看</h4>
+
+                            <p>探索更多 R 语言精彩内容</p>
+
+                            <a href="${randomLink.href}" class="random-btn">
+
+                                🎲 ${randomTitle}
+
+                            </a>
+
+                        </div>
+
+                    `;
+
+                    footerNav.appendChild(randomDiv);
+
+                }
+
+            }
+
+
+
+            mainContent.appendChild(footerNav);
+
+        }
+
+    });
+
+</script>
+
+
+
+<!-- Like Button Styles -->
+
+<style>
+
+    .article-like-container {
+
+        display: flex;
+
+        justify-content: flex-start;
+
+        margin: 1.5rem 0 2rem 0;
+
+        padding: 0;
+
+    }
+
+
+
+    .like-wrapper {
+
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: flex-start;
+
+        gap: 0.4rem;
+
+    }
+
+
+
+    .like-btn {
+
+        display: inline-flex;
+
+        align-items: center;
+
+        gap: 0.5rem;
+
+        padding: 0.6rem 1.2rem;
+
+        border: 2px solid #e5e7eb;
+
+        border-radius: 50px;
+
+        background: white;
+
+        color: #6b7280;
+
+        font-size: 0.95rem;
+
+        font-weight: 500;
+
+        cursor: pointer;
+
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+        user-select: none;
+
+    }
+
+
+
+    .like-btn:hover {
+
+        border-color: #f472b6;
+
+        color: #ec4899;
+
+        background: #fdf2f8;
+
+    }
+
+
+
+    .like-btn.liked {
+
+        border-color: #ec4899;
+
+        color: #ec4899;
+
+        background: #fdf2f8;
+
+    }
+
+
+
+    .like-btn.pop {
+
+        animation: pop-animation 0.3s ease;
+
+    }
+
+
+
+    @keyframes pop-animation {
+
+        0% {
+
+            transform: scale(1);
+
+        }
+
+
+
+        50% {
+
+            transform: scale(1.15);
+
+        }
+
+
+
+        100% {
+
+            transform: scale(1);
+
+        }
+
+    }
+
+
+
+    .like-icon {
+
+        width: 20px;
+
+        height: 20px;
+
+        transition: transform 0.2s;
+
+    }
+
+
+
+    .like-btn:hover .like-icon {
+
+        transform: scale(1.1);
+
+    }
+
+
+
+    .like-icon .heart-outline {
+
+        fill: none;
+
+        stroke: currentColor;
+
+        stroke-width: 2;
+
+    }
+
+
+
+    .like-icon .heart-fill {
+
+        fill: currentColor;
+
+        opacity: 0;
+
+        transition: opacity 0.2s;
+
+    }
+
+
+
+    .like-btn.liked .heart-fill {
+
+        opacity: 1;
+
+    }
+
+
+
+    .like-btn.liked .heart-outline {
+
+        stroke: none;
+
+    }
+
+
+
+    .like-text {
+
+        font-size: 0.9rem;
+
+    }
+
+
+
+    .like-count {
+
+        font-size: 0.85rem;
+
+        min-width: 1rem;
+
+        text-align: center;
+
+    }
+
+
+
+    .like-hint {
+
+        font-size: 0.75rem;
+
+        color: #9ca3af;
+
+        padding-left: 0.25rem;
+
+    }
+
+
+
+    /* Mobile optimization */
+
+    @media (max-width: 768px) {
+
+        .article-like-container {
+
+            margin: 1rem 0 1.5rem 0;
+
+        }
+
+
+
+        .like-btn {
+
+            padding: 0.5rem 1rem;
+
+            font-size: 0.9rem;
+
+        }
+
+
+
+        .like-icon {
+
+            width: 18px;
+
+            height: 18px;
+
+        }
+
+    }
+
+</style>
+
+
+
+<!-- Like Section Script with Supabase Backend -->
+
+<script>
+
+    // Supabase Configuration
+
+    const SUPABASE_URL = 'https://zyfdzyifhvglibpganxt.supabase.co';
+
+    const SUPABASE_ANON_KEY = 'sb_publishable_XhaP4hFZ30sHZybEjVRQxg_iwlPTxz8';
+
+
+
+    document.addEventListener('DOMContentLoaded', async function () {
+
+        const mainContent = document.querySelector('main');
+
+
+
+        // Only show on article pages (not index, not sections)
+
+        const isArticlePage = !window.location.pathname.includes('index.html') &&
+
+            !window.location.pathname.includes('sections/') &&
+
+            !window.location.pathname.endsWith('/');
+
+
+
+        if (!isArticlePage || !mainContent) return;
+
+
+
+        const articleId = window.location.pathname.replace(/[^a-zA-Z0-9]/g, '_');
+
+        const likeKey = `article_like_${articleId}`; // localStorage key for current user's like state
+
+
+
+        // Create Like Section (at page bottom)
+
+        const likeSection = document.createElement('div');
+
+        likeSection.className = 'article-like-section';
+
+
+
+        // Initial state from localStorage (for immediate UI feedback)
+
+        const isLiked = localStorage.getItem(likeKey) === 'true';
+
+        let likeCount = 0;
+
+
+
+        likeSection.innerHTML = `
+
+            <div class="like-section-inner">
+
+                <p class="like-prompt">觉得有帮助？点赞支持一下 👇</p>
+
+                <button class="like-btn ${isLiked ? 'liked' : ''}" id="article-like-btn" aria-label="点赞">
+
+                    <svg class="like-icon" viewBox="0 0 24 24" width="24" height="24">
+
+                        <path class="heart-outline" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+
+                        <path class="heart-fill" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+
+                    </svg>
+
+                    <span class="like-text">${isLiked ? '已喜欢' : '喜欢这篇文章'}</span>
+
+                    <span class="like-count" id="like-count"><span class="loading-dots">...</span></span>
+
+                </button>
+
+            </div>
+
+        `;
+
+
+
+        mainContent.appendChild(likeSection);
+
+
+
+        const likeBtn = document.getElementById('article-like-btn');
+
+        const likeCountSpan = document.getElementById('like-count');
+
+        const likeText = likeBtn.querySelector('.like-text');
+
+
+
+        // Supabase API helper
+
+        async function supabaseRequest(method, endpoint, body = null) {
+
+            const options = {
+
+                method: method,
+
+                headers: {
+
+                    'apikey': SUPABASE_ANON_KEY,
+
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+
+                    'Content-Type': 'application/json',
+
+                    'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal'
+
+                }
+
+            };
+
+            if (body) options.body = JSON.stringify(body);
+
+
+
+            try {
+
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, options);
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const text = await response.text();
+
+                return text ? JSON.parse(text) : null;
+
+            } catch (error) {
+
+                console.error('Supabase error:', error);
+
+                return null;
+
+            }
+
+        }
+
+
+
+        // Fetch current like count from Supabase
+
+        async function fetchLikeCount() {
+
+            const data = await supabaseRequest('GET', `article_likes?article_id=eq.${articleId}&select=like_count`);
+
+            if (data && data.length > 0) {
+
+                return data[0].like_count;
+
+            }
+
+            return 0;
+
+        }
+
+
+
+        // Update like count in Supabase
+
+        async function updateLikeCount(newCount) {
+
+            // Try to update existing record
+
+            const existing = await supabaseRequest('GET', `article_likes?article_id=eq.${articleId}&select=id`);
+
+
+
+            if (existing && existing.length > 0) {
+
+                // Update existing
+
+                await supabaseRequest('PATCH', `article_likes?article_id=eq.${articleId}`, {
+
+                    like_count: newCount
+
+                });
+
+            } else {
+
+                // Insert new record
+
+                await supabaseRequest('POST', 'article_likes', {
+
+                    article_id: articleId,
+
+                    like_count: newCount
+
+                });
+
+            }
+
+        }
+
+
+
+        // Load initial like count
+
+        try {
+
+            likeCount = await fetchLikeCount();
+
+            likeCountSpan.textContent = likeCount > 0 ? likeCount : '';
+
+        } catch (e) {
+
+            console.error('Failed to fetch likes:', e);
+
+            likeCountSpan.textContent = '';
+
+        }
+
+
+
+        // Like button click handler
+
+        likeBtn.addEventListener('click', async function () {
+
+            const currentlyLiked = this.classList.contains('liked');
+
+
+
+            // Optimistic UI update
+
+            if (currentlyLiked) {
+
+                this.classList.remove('liked');
+
+                likeCount = Math.max(0, likeCount - 1);
+
+                likeText.textContent = '喜欢这篇文章';
+
+                localStorage.setItem(likeKey, 'false');
+
+            } else {
+
+                this.classList.add('liked');
+
+                likeCount++;
+
+                likeText.textContent = '已喜欢';
+
+                localStorage.setItem(likeKey, 'true');
+
+
+
+                this.classList.add('pop');
+
+                setTimeout(() => this.classList.remove('pop'), 300);
+
+            }
+
+
+
+            likeCountSpan.textContent = likeCount > 0 ? likeCount : '';
+
+
+
+            // Sync with Supabase in background
+
+            try {
+
+                await updateLikeCount(likeCount);
+
+            } catch (e) {
+
+                console.error('Failed to sync like:', e);
+
+            }
+
+        });
+
+
+
+        // ============================================
+
+        // Comment Section with Supabase
+
+        // ============================================
+
+
+
+        // Create comment section HTML
+
+        const commentSection = document.createElement('div');
+
+        commentSection.className = 'comment-section';
+
+        commentSection.innerHTML = `
+
+            <h4 class="comment-title">💬 评论区</h4>
+
+            <div class="comment-form">
+
+                <input type="text" id="comment-nickname" class="comment-nickname" placeholder="昵称（可选）" maxlength="20">
+
+                <textarea id="comment-content" class="comment-textarea" placeholder="写下你的想法..." maxlength="500" rows="3"></textarea>
+
+                <div class="comment-form-footer">
+
+                    <span class="char-count"><span id="char-count">0</span>/500</span>
+
+                    <button id="submit-comment" class="comment-submit-btn">发表评论</button>
+
+                </div>
+
+            </div>
+
+            <div id="comment-list" class="comment-list">
+
+                <div class="loading-comments">加载评论中...</div>
+
+            </div>
+
+        `;
+
+
+
+        // Append comment section after like section
+
+        const likeSectionEl = document.querySelector('.article-like-section');
+
+        if (likeSectionEl) {
+
+            likeSectionEl.after(commentSection);
+
+        } else {
+
+            mainContent.appendChild(commentSection);
+
+        }
+
+
+
+        const commentNickname = document.getElementById('comment-nickname');
+
+        const commentContent = document.getElementById('comment-content');
+
+        const submitBtn = document.getElementById('submit-comment');
+
+        const commentList = document.getElementById('comment-list');
+
+        const charCount = document.getElementById('char-count');
+
+
+
+        // Visitor ID for identifying own comments
+
+        let visitorId = localStorage.getItem('visitor_id');
+
+        if (!visitorId) {
+
+            visitorId = 'v_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+
+            localStorage.setItem('visitor_id', visitorId);
+
+        }
+
+
+
+        // Character counter
+
+        commentContent.addEventListener('input', () => {
+
+            charCount.textContent = commentContent.value.length;
+
+        });
+
+
+
+        // Format time helper
+
+        function formatTime(timestamp) {
+
+            const date = new Date(timestamp);
+
+            const now = new Date();
+
+            const diff = now - date;
+
+
+
+            if (diff < 60000) return '刚刚';
+
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+
+            if (diff < 604800000) return Math.floor(diff / 86400000) + ' 天前';
+
+
+
+            return date.toLocaleDateString('zh-CN');
+
+        }
+
+
+
+        // Escape HTML to prevent XSS
+
+        function escapeHtml(text) {
+
+            const div = document.createElement('div');
+
+            div.textContent = text;
+
+            return div.innerHTML;
+
+        }
+
+
+
+        // Fetch comments from Supabase
+
+        async function fetchComments() {
+
+            const data = await supabaseRequest('GET', `article_comments?article_id=eq.${articleId}&order=created_at.desc`);
+
+            return data || [];
+
+        }
+
+
+
+        // Post new comment
+
+        async function postComment(nickname, content) {
+
+            return await supabaseRequest('POST', 'article_comments', {
+
+                article_id: articleId,
+
+                nickname: nickname || '匿名用户',
+
+                content: content,
+
+                visitor_id: visitorId
+
+            });
+
+        }
+
+
+
+        // Delete comment
+
+        async function deleteComment(commentId) {
+
+            await supabaseRequest('DELETE', `article_comments?id=eq.${commentId}&visitor_id=eq.${visitorId}`);
+
+        }
+
+
+
+        // Render comments
+
+        function renderComments(comments) {
+
+            if (!comments || comments.length === 0) {
+
+                commentList.innerHTML = '<div class="no-comments">暂无评论，来做第一个留言的人吧 🎉</div>';
+
+                return;
+
+            }
+
+
+
+            commentList.innerHTML = comments.map(c => `
+
+                <div class="comment-item" data-id="${c.id}">
+
+                    <div class="comment-header">
+
+                        <span class="comment-author">${escapeHtml(c.nickname || '匿名用户')}</span>
+
+                        <span class="comment-time">${formatTime(c.created_at)}</span>
+
+                        ${c.visitor_id === visitorId ? `<button class="comment-delete" data-id="${c.id}">删除</button>` : ''}
+
+                    </div>
+
+                    <div class="comment-body">${escapeHtml(c.content)}</div>
+
+                </div>
+
+            `).join('');
+
+
+
+            // Add delete handlers
+
+            commentList.querySelectorAll('.comment-delete').forEach(btn => {
+
+                btn.addEventListener('click', async function () {
+
+                    const id = this.dataset.id;
+
+                    await deleteComment(id);
+
+                    loadComments();
+
+                });
+
+            });
+
+        }
+
+
+
+        // Load and display comments
+
+        async function loadComments() {
+
+            try {
+
+                const comments = await fetchComments();
+
+                renderComments(comments);
+
+            } catch (e) {
+
+                console.error('Failed to load comments:', e);
+
+                commentList.innerHTML = '<div class="no-comments">加载评论失败</div>';
+
+            }
+
+        }
+
+
+
+        // Submit comment handler
+
+        submitBtn.addEventListener('click', async function () {
+
+            const content = commentContent.value.trim();
+
+            if (!content) {
+
+                alert('请输入评论内容');
+
+                return;
+
+            }
+
+
+
+            submitBtn.disabled = true;
+
+            submitBtn.textContent = '发送中...';
+
+
+
+            try {
+
+                await postComment(commentNickname.value.trim(), content);
+
+                commentContent.value = '';
+
+                charCount.textContent = '0';
+
+                await loadComments();
+
+            } catch (e) {
+
+                console.error('Failed to post comment:', e);
+
+                alert('评论发送失败，请重试');
+
+            }
+
+
+
+            submitBtn.disabled = false;
+
+            submitBtn.textContent = '发表评论';
+
+        });
+
+
+
+        // Initial load
+
+        loadComments();
+
+    });
+
+</script>
+
+
+
+<!-- Interaction Section Styles -->
+
+<style>
+
+    .article-interaction-section {
+
+        margin-top: 3rem;
+
+        padding-top: 2rem;
+
+        border-top: 2px solid #e5e7eb;
+
+    }
+
+
+
+    .interaction-header {
+
+        text-align: center;
+
+        margin-bottom: 2rem;
+
+    }
+
+
+
+    .interaction-header h3 {
+
+        font-size: 1.4rem;
+
+        color: #1f2937;
+
+        margin: 0 0 0.5rem 0;
+
+    }
+
+
+
+    .interaction-header p {
+
+        color: #6b7280;
+
+        font-size: 0.95rem;
+
+        margin: 0;
+
+    }
+
+
+
+    /* Like Section at Bottom */
+
+    .article-like-section {
+
+        margin-top: 3rem;
+
+        padding: 2rem 0;
+
+        border-top: 2px solid #e5e7eb;
+
+        text-align: center;
+
+    }
+
+
+
+    .like-section-inner {
+
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: center;
+
+        gap: 1rem;
+
+    }
+
+
+
+    .like-prompt {
+
+        color: #6b7280;
+
+        font-size: 0.95rem;
+
+        margin: 0;
+
+    }
+
+
+
+    .article-like-section .like-btn {
+
+        padding: 0.75rem 2rem;
+
+        font-size: 1rem;
+
+    }
+
+
+
+    .article-like-section .like-icon {
+
+        width: 22px;
+
+        height: 22px;
+
+    }
+
+
+
+    /* Mobile */
+
+    @media (max-width: 768px) {
+
+        .article-like-section {
+
+            margin-top: 2rem;
+
+            padding: 1.5rem 0;
+
+        }
+
+
+
+        .like-prompt {
+
+            font-size: 0.9rem;
+
+        }
+
+    }
+
+
+
+    /* Comment Section */
+
+    .comment-section {
+
+        margin-top: 2rem;
+
+        padding: 1.5rem;
+
+        background: #f9fafb;
+
+        border-radius: 12px;
+
+    }
+
+
+
+    .comment-title {
+
+        font-size: 1.1rem;
+
+        color: #1f2937;
+
+        margin: 0 0 1rem 0;
+
+    }
+
+
+
+    .comment-form {
+
+        margin-bottom: 1.5rem;
+
+    }
+
+
+
+    .comment-nickname {
+
+        width: 200px;
+
+        padding: 0.5rem 0.75rem;
+
+        border: 1px solid #e5e7eb;
+
+        border-radius: 8px;
+
+        font-size: 0.9rem;
+
+        margin-bottom: 0.75rem;
+
+        background: white;
+
+    }
+
+
+
+    .comment-textarea {
+
+        width: 100%;
+
+        padding: 0.75rem;
+
+        border: 1px solid #e5e7eb;
+
+        border-radius: 8px;
+
+        font-size: 0.95rem;
+
+        resize: vertical;
+
+        min-height: 80px;
+
+        background: white;
+
+        font-family: inherit;
+
+        box-sizing: border-box;
+
+        margin-bottom: 0.5rem;
+
+    }
+
+
+
+    .comment-nickname:focus,
+
+    .comment-textarea:focus {
+
+        outline: none;
+
+        border-color: #4f46e5;
+
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+
+    }
+
+
+
+    .comment-form-footer {
+
+        display: flex;
+
+        justify-content: space-between;
+
+        align-items: center;
+
+    }
+
+
+
+    .char-count {
+
+        font-size: 0.8rem;
+
+        color: #9ca3af;
+
+    }
+
+
+
+    .comment-submit-btn {
+
+        padding: 0.6rem 1.5rem;
+
+        background: #4f46e5;
+
+        color: white;
+
+        border: none;
+
+        border-radius: 8px;
+
+        font-size: 0.9rem;
+
+        font-weight: 500;
+
+        cursor: pointer;
+
+        transition: all 0.2s;
+
+    }
+
+
+
+    .comment-submit-btn:hover:not(:disabled) {
+
+        background: #4338ca;
+
+        transform: translateY(-1px);
+
+    }
+
+
+
+    .comment-submit-btn:disabled {
+
+        opacity: 0.6;
+
+        cursor: not-allowed;
+
+    }
+
+
+
+    .comment-list {
+
+        margin-top: 1rem;
+
+    }
+
+
+
+    .loading-comments,
+
+    .no-comments {
+
+        text-align: center;
+
+        color: #9ca3af;
+
+        padding: 1.5rem;
+
+        font-size: 0.95rem;
+
+    }
+
+
+
+    .comment-item {
+
+        background: white;
+
+        border-radius: 8px;
+
+        padding: 1rem;
+
+        margin-bottom: 0.75rem;
+
+        border: 1px solid #e5e7eb;
+
+    }
+
+
+
+    .comment-header {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 0.75rem;
+
+        margin-bottom: 0.5rem;
+
+    }
+
+
+
+    .comment-author {
+
+        font-weight: 600;
+
+        color: #1f2937;
+
+        font-size: 0.9rem;
+
+    }
+
+
+
+    .comment-time {
+
+        font-size: 0.8rem;
+
+        color: #9ca3af;
+
+    }
+
+
+
+    .comment-delete {
+
+        margin-left: auto;
+
+        background: none;
+
+        border: none;
+
+        color: #ef4444;
+
+        font-size: 0.8rem;
+
+        cursor: pointer;
+
+        padding: 0.2rem 0.5rem;
+
+        border-radius: 4px;
+
+    }
+
+
+
+    .comment-delete:hover {
+
+        background: #fef2f2;
+
+    }
+
+
+
+    .comment-body {
+
+        color: #374151;
+
+        font-size: 0.95rem;
+
+        line-height: 1.6;
+
+        white-space: pre-wrap;
+
+        word-break: break-word;
+
+    }
+
+
+
+    /* Mobile Comment Styles */
+
+    @media (max-width: 768px) {
+
+        .comment-section {
+
+            padding: 1rem;
+
+        }
+
+
+
+        .comment-nickname {
+
+            width: 100%;
+
+        }
+
+
+
+        .comment-title {
+
+            font-size: 1rem;
+
+        }
+
+    }
+
+</style>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Made with <a href="https://quarto.org/">Quarto</a> | © 2024-2026</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

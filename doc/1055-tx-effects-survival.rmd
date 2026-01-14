@@ -1,0 +1,479 @@
+---
+title: "TxEffectsSurvival: 竞争风险下的治疗效果分析"
+date: "2026-01-14"
+categories: [R语言方法, 生存分析, 竞争风险]
+image: "images/tx_effects_cover.svg"
+description: "使用 TxEffectsSurvival 包进行终末事件和非终末事件的治疗效果推断，包括 Win Ratio、RICH 等方法。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是 TxEffectsSurvival
+
+**TxEffectsSurvival** 是一个用于在**竞争风险**框架下评估治疗效果的 R 包。它提供了多种置信区间和检验方法，适用于同时存在终末事件（如死亡）和非终末事件（如疾病复发）的生存数据分析。
+
+### 核心方法
+
+| 方法 | 全称 | 说明 |
+|------|------|------|
+| **Win Ratio** | 胜率 | 基于成对比较的半参数方法 |
+| **RICH** | Ratio of Integrated Cumulative Hazard | 累积风险比的积分比 |
+| **RITCH** | Ratio of Integrated Transformed Cumulative Hazard | 变换累积风险的积分比 |
+
+### 适用场景
+
+- **临床试验**：评估新治疗对多个终点的效果
+- **心血管研究**：心衰试验中的死亡和住院事件
+- **肿瘤学**：无进展生存和总生存的联合分析
+- **竞争风险分析**：存在多种结局类型的生存数据
+
+---
+
+## 安装与加载
+
+```{r}
+# 安装 TxEffectsSurvival
+# install.packages("TxEffectsSurvival")
+
+# 加载包
+library(TxEffectsSurvival)
+library(tidyverse)
+library(survival)
+```
+
+---
+
+## 基本概念
+
+### 竞争风险
+
+在生存分析中，**竞争风险**是指多种事件类型相互竞争，一种事件的发生会阻止其他事件的观察：
+
+```{r echo=FALSE, fig.height=4}
+# 简单示意图
+library(ggplot2)
+
+diagram_data <- tibble(
+    x = c(1, 2, 2, 3, 3),
+    y = c(2, 3, 1, 3, 1),
+    label = c("开始随访", "终末事件\n(死亡)", "非终末事件\n(住院)", "删失", "删失"),
+    type = c("start", "terminal", "non-terminal", "censor", "censor")
+)
+
+ggplot(diagram_data, aes(x, y)) +
+    geom_point(aes(color = type), size = 8) +
+    geom_text(aes(label = label), vjust = -1.5, size = 3.5) +
+    geom_segment(aes(x = 1, y = 2, xend = 1.9, yend = 2.9),
+        arrow = arrow(length = unit(0.3, "cm")), color = "grey50"
+    ) +
+    geom_segment(aes(x = 1, y = 2, xend = 1.9, yend = 1.1),
+        arrow = arrow(length = unit(0.3, "cm")), color = "grey50"
+    ) +
+    scale_color_manual(values = c(
+        "start" = "#4f46e5",
+        "terminal" = "#ef4444",
+        "non-terminal" = "#f59e0b",
+        "censor" = "#9ca3af"
+    )) +
+    theme_void() +
+    theme(legend.position = "none") +
+    labs(title = "竞争风险示意图")
+```
+
+### Win Ratio (胜率)
+
+Win Ratio 是一种非参数方法，通过成对比较治疗组和对照组的患者：
+
+- **赢 (Win)**：治疗组患者结局更好
+- **输 (Loss)**：对照组患者结局更好
+- **平局 (Tie)**：无法判断
+
+$$\text{Win Ratio} = \frac{\text{治疗组赢的次数}}{\text{对照组赢的次数}}$$
+
+### RICH 和 RITCH
+
+- **RICH**：累积风险函数积分的比值（非参数）
+- **RITCH**：变换后累积风险积分的比值（更稳健）
+
+这些方法在**非比例风险**情况下仍然有效。
+
+---
+
+## 数据格式
+
+TxEffectsSurvival 需要以下格式的数据：
+
+```{r}
+# 模拟竞争风险数据
+set.seed(2024)
+n <- 300
+
+# 创建模拟数据
+sim_data <- tibble(
+    id = 1:n,
+    # 治疗组 (1) 或对照组 (0)
+    treatment = sample(c(0, 1), n, replace = TRUE),
+    # 事件时间
+    time = rexp(n, rate = 0.1) * (1 + 0.3 * treatment),
+    # 事件类型: 0=删失, 1=终末事件(死亡), 2=非终末事件(住院)
+    event_type = sample(c(0, 1, 2), n, replace = TRUE, prob = c(0.4, 0.3, 0.3))
+) |>
+    mutate(
+        # 限制随访时间
+        time = pmin(time, 24),
+        event_type = ifelse(time >= 24, 0, event_type)
+    )
+
+# 查看数据结构
+head(sim_data, 10)
+
+# 事件分布
+table(sim_data$event_type, sim_data$treatment)
+```
+
+### 变量说明
+
+| 变量 | 说明 |
+|------|------|
+| `id` | 患者标识 |
+| `treatment` | 治疗组 (1) 或对照组 (0) |
+| `time` | 事件时间或删失时间 |
+| `event_type` | 事件类型：0=删失, 1=终末事件, 2=非终末事件 |
+
+---
+
+## 基本分析
+
+### Win Ratio 分析
+
+```{r}
+# 使用 TxEffectsSurvival 进行 Win Ratio 分析
+# 注意：需要按照包的具体接口调用
+
+# 首先进行传统生存分析作为参考
+library(survival)
+
+# 终末事件的 Kaplan-Meier 曲线
+km_terminal <- survfit(
+    Surv(time, event_type == 1) ~ treatment,
+    data = sim_data
+)
+
+# 绘制生存曲线
+plot(km_terminal,
+    col = c("#4f46e5", "#10b981"), lwd = 2,
+    xlab = "时间 (月)", ylab = "无终末事件生存概率",
+    main = "终末事件：治疗组 vs 对照组"
+)
+legend("topright", c("对照组", "治疗组"),
+    col = c("#4f46e5", "#10b981"), lwd = 2
+)
+```
+
+### 竞争风险累积发生率
+
+```{r}
+# 使用 cmprsk 或相关方法计算累积发生率
+library(survival)
+
+# 创建多状态生存对象
+ms_surv <- Surv(sim_data$time, factor(sim_data$event_type))
+
+# 按治疗组分层的生存曲线
+km_fit <- survfit(ms_surv ~ treatment, data = sim_data)
+
+# 查看结果摘要
+summary(km_fit)
+```
+
+---
+
+## TxEffectsSurvival 核心函数
+
+### 主要分析函数
+
+```{r eval=FALSE}
+# Win Ratio 分析
+# 注意：以下为示例代码，具体函数名称请参考包文档
+
+# 计算事件特定的 Win Ratio
+wr_result <- win_ratio(
+    time = sim_data$time,
+    event = sim_data$event_type,
+    treatment = sim_data$treatment,
+    terminal_event = 1, # 终末事件代码
+    nonterminal_event = 2 # 非终末事件代码
+)
+
+# 查看结果
+print(wr_result)
+```
+
+### RICH/RITCH 分析
+
+```{r eval=FALSE}
+# RICH 方法
+rich_result <- rich_test(
+    time = sim_data$time,
+    event = sim_data$event_type,
+    treatment = sim_data$treatment
+)
+
+# RITCH 方法
+ritch_result <- ritch_test(
+    time = sim_data$time,
+    event = sim_data$event_type,
+    treatment = sim_data$treatment
+)
+```
+
+---
+
+## 统计检验
+
+### 比例风险假设检验
+
+```{r eval=FALSE}
+# 检验比例风险假设
+# 在 PH 假设下，Win Ratio 收敛到风险比 (HR)
+
+ph_test <- test_proportional_hazards(
+    time = sim_data$time,
+    event = sim_data$event_type,
+    treatment = sim_data$treatment
+)
+
+print(ph_test)
+```
+
+### 全局零假设检验
+
+```{r eval=FALSE}
+# 检验无治疗效果的全局零假设
+global_test <- global_null_test(
+    time = sim_data$time,
+    event = sim_data$event_type,
+    treatment = sim_data$treatment
+)
+
+print(global_test)
+```
+
+---
+
+## 实战案例：心衰临床试验
+
+模拟一个典型的心血管临床试验场景：
+
+```{r}
+# 模拟心衰临床试验数据
+set.seed(42)
+n_patients <- 500
+
+hf_trial <- tibble(
+    patient_id = 1:n_patients,
+    # 随机化到治疗组或安慰剂组
+    arm = sample(c("Treatment", "Placebo"), n_patients, replace = TRUE),
+    treatment = as.numeric(arm == "Treatment"),
+    # 基线特征
+    age = round(rnorm(n_patients, 65, 10)),
+    ef = round(rnorm(n_patients, 30, 8)), # 射血分数
+    nyha = sample(2:4, n_patients, replace = TRUE, prob = c(0.3, 0.5, 0.2))
+) |>
+    mutate(
+        # 生成事件时间（治疗组有更好的预后）
+        baseline_hazard = 0.1 * (1 + 0.02 * (age - 65) + 0.5 * (nyha == 4)),
+        hazard = baseline_hazard * ifelse(treatment == 1, 0.75, 1),
+        time_to_event = rexp(n_patients, rate = hazard),
+        # 事件类型
+        event_prob = runif(n_patients),
+        event_type = case_when(
+            event_prob < 0.25 ~ 1, # 心血管死亡
+            event_prob < 0.50 ~ 2, # 心衰住院
+            TRUE ~ 0 # 删失
+        ),
+        # 限制随访时间
+        follow_up = pmin(time_to_event, 36),
+        event_type = ifelse(time_to_event > 36, 0, event_type)
+    ) |>
+    select(patient_id, arm, treatment, age, ef, nyha, follow_up, event_type)
+
+# 查看数据
+head(hf_trial, 10)
+```
+
+### 描述性分析
+
+```{r}
+# 基线特征比较
+hf_trial |>
+    group_by(arm) |>
+    summarise(
+        n = n(),
+        age_mean = mean(age),
+        ef_mean = mean(ef),
+        `NYHA III-IV (%)` = mean(nyha >= 3) * 100,
+        `CV Death (%)` = mean(event_type == 1) * 100,
+        `HF Hosp (%)` = mean(event_type == 2) * 100,
+        .groups = "drop"
+    )
+```
+
+### 生存曲线
+
+```{r}
+# 按治疗组绘制 Kaplan-Meier 曲线
+library(survminer)
+
+# 复合终点（死亡或住院）
+km_composite <- survfit(
+    Surv(follow_up, event_type > 0) ~ arm,
+    data = hf_trial
+)
+
+# 使用 ggsurvplot
+ggsurvplot(
+    km_composite,
+    data = hf_trial,
+    palette = c("#4f46e5", "#10b981"),
+    risk.table = TRUE,
+    pval = TRUE,
+    conf.int = TRUE,
+    xlab = "随访时间 (月)",
+    ylab = "无事件生存概率",
+    title = "复合终点：心血管死亡或心衰住院",
+    legend.labs = c("安慰剂", "治疗组"),
+    legend.title = "治疗组",
+    ggtheme = theme_minimal()
+)
+```
+
+### Cox 回归分析
+
+```{r}
+# Cox 回归
+cox_model <- coxph(
+    Surv(follow_up, event_type > 0) ~ treatment + age + ef + nyha,
+    data = hf_trial
+)
+
+# 模型摘要
+summary(cox_model)
+```
+
+### 结果可视化
+
+```{r}
+# 森林图
+library(broom)
+
+cox_results <- tidy(cox_model, conf.int = TRUE, exponentiate = TRUE) |>
+    mutate(
+        term = case_when(
+            term == "treatment" ~ "治疗 vs 安慰剂",
+            term == "age" ~ "年龄 (每增加1岁)",
+            term == "ef" ~ "射血分数 (每增加1%)",
+            term == "nyha" ~ "NYHA 分级 (每增加1级)"
+        )
+    )
+
+ggplot(cox_results, aes(x = estimate, y = reorder(term, estimate))) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, linewidth = 0.8) +
+    geom_point(size = 3, color = "#4f46e5") +
+    scale_x_log10() +
+    labs(
+        title = "Cox 回归：风险比 (HR) 及 95% CI",
+        x = "风险比 (HR)",
+        y = ""
+    ) +
+    theme_minimal(base_size = 12)
+```
+
+---
+
+## 结果解读
+
+### Win Ratio 解读
+
+| Win Ratio | 解读 |
+|-----------|------|
+| WR > 1 | 治疗组优于对照组 |
+| WR = 1 | 无差异 |
+| WR < 1 | 对照组优于治疗组 |
+
+### RICH/RITCH 解读
+
+- RICH/RITCH > 1：治疗组累积风险更高
+- RICH/RITCH < 1：治疗组累积风险更低
+- 提供的是事件负担的整体比较
+
+---
+
+## 报告模板
+
+```{r}
+# 生成分析报告表格
+report_table <- tibble(
+    终点 = c("心血管死亡", "心衰住院", "复合终点"),
+    `治疗组 n (%)` = c(
+        sprintf(
+            "%d (%.1f%%)", sum(hf_trial$event_type == 1 & hf_trial$treatment == 1),
+            mean(hf_trial$event_type == 1 & hf_trial$treatment == 1) * 100
+        ),
+        sprintf(
+            "%d (%.1f%%)", sum(hf_trial$event_type == 2 & hf_trial$treatment == 1),
+            mean(hf_trial$event_type == 2 & hf_trial$treatment == 1) * 100
+        ),
+        sprintf(
+            "%d (%.1f%%)", sum(hf_trial$event_type > 0 & hf_trial$treatment == 1),
+            mean(hf_trial$event_type > 0 & hf_trial$treatment == 1) * 100
+        )
+    ),
+    `安慰剂组 n (%)` = c(
+        sprintf(
+            "%d (%.1f%%)", sum(hf_trial$event_type == 1 & hf_trial$treatment == 0),
+            mean(hf_trial$event_type == 1 & hf_trial$treatment == 0) * 100
+        ),
+        sprintf(
+            "%d (%.1f%%)", sum(hf_trial$event_type == 2 & hf_trial$treatment == 0),
+            mean(hf_trial$event_type == 2 & hf_trial$treatment == 0) * 100
+        ),
+        sprintf(
+            "%d (%.1f%%)", sum(hf_trial$event_type > 0 & hf_trial$treatment == 0),
+            mean(hf_trial$event_type > 0 & hf_trial$treatment == 0) * 100
+        )
+    )
+)
+
+knitr::kable(report_table, caption = "主要终点事件发生率")
+```
+
+---
+
+## 总结
+
+| 方法 | 特点 | 适用情况 |
+|------|------|----------|
+| **Win Ratio** | 直观易解释 | 复合终点、有优先级 |
+| **RICH** | 非参数、稳健 | 非比例风险 |
+| **RITCH** | 变换后更稳健 | 极端值影响大时 |
+| **Cox 回归** | 可调整协变量 | 比例风险成立时 |
+
+### 推荐资源
+
+- [CRAN 包主页](https://cran.r-project.org/package=TxEffectsSurvival)
+- Yang et al. (2022) Statistics in Medicine - 半参数方法
+- Yang (2025) Statistics in Medicine - 非参数方法
+- [Win Ratio 方法综述](https://doi.org/10.1093/eurheartj/ehr352)
