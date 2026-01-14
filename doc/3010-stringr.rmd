@@ -1,0 +1,577 @@
+---
+title: "stringr 字符串处理完全指南"
+date: "2026-01-14"
+categories: [实用操作, 数据处理, 字符串处理]
+image: "images/3010-stringr-cover.svg"
+description: "stringr 包是 tidyverse 生态中处理字符串的核心工具，提供统一、直观的函数接口，让字符串操作变得简单高效。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 6,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 为什么选择 stringr？
+
+在 R 语言中处理字符串，传统方法使用 Base R 的 `paste()`、`substr()`、`gsub()` 等函数。这些函数功能强大，但存在以下问题：
+
+- **参数顺序不一致**：有时字符串在前，有时模式在前
+- **命名不统一**：函数名称难以记忆
+- **缺少向量化支持**：部分操作需要手动循环
+
+`stringr` 包完美解决了这些问题：
+
+| 特性 | 说明 |
+|------|------|
+| **统一前缀** | 所有函数以 `str_` 开头，便于自动补全 |
+| **参数一致** | 字符串永远是第一个参数 |
+| **向量化** | 天然支持向量操作 |
+| **管道友好** | 与 `%>%` 和 `|>` 完美配合 |
+
+```{r}
+# 安装并加载必要的包
+if (!require("stringr")) install.packages("stringr")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("tibble")) install.packages("tibble")
+
+library(stringr)
+library(dplyr)
+library(tibble)
+```
+
+---
+
+## 基础字符串操作
+
+### 获取字符串长度：str_length
+
+`str_length()` 返回字符串中的字符数量，正确处理 UTF-8 编码的中文字符。
+
+```{r}
+# 基本用法
+str_length("Hello World")
+
+# 中文字符
+str_length("你好世界")
+
+# 向量操作
+fruits <- c("apple", "banana", "cherry")
+str_length(fruits)
+
+# 与 nchar() 对比
+nchar("你好") # Base R
+str_length("你好") # stringr - 结果相同，但处理 NA 更优雅
+
+# NA 处理
+str_length(c("hello", NA, "world"))
+```
+
+### 提取子字符串：str_sub
+
+`str_sub()` 用于提取或替换字符串的一部分，支持负数索引（从末尾计数）。
+
+```{r}
+text <- "Hello World"
+
+# 提取前5个字符
+str_sub(text, 1, 5)
+
+# 提取后5个字符（负数索引）
+str_sub(text, -5, -1)
+
+# 从第7个字符到末尾
+str_sub(text, 7)
+
+# 向量操作
+words <- c("apple", "banana", "cherry")
+str_sub(words, 1, 3)
+
+# 替换子字符串
+text2 <- "Hello World"
+str_sub(text2, 1, 5) <- "Hi"
+text2
+```
+
+### 字符串拼接：str_c
+
+`str_c()` 用于拼接字符串，功能类似 `paste0()`，但更灵活。
+
+```{r}
+# 基本拼接
+str_c("Hello", "World")
+
+# 使用分隔符
+str_c("Hello", "World", sep = " ")
+
+# 向量拼接
+first_names <- c("张", "李", "王")
+last_names <- c("三", "四", "五")
+str_c(first_names, last_names)
+
+# 折叠为单个字符串
+str_c(c("a", "b", "c"), collapse = "-")
+
+# 处理 NA（默认传播 NA）
+str_c("Hello", NA, "World")
+
+# 组合使用 sep 和 collapse
+str_c(c("A", "B"), c("1", "2"), sep = "-", collapse = "; ")
+```
+
+### 去除空白：str_trim 和 str_squish
+
+```{r}
+# 带空白的字符串
+messy <- "   Hello   World   "
+
+# str_trim：去除两端空白
+str_trim(messy)
+
+# 只去除左侧或右侧
+str_trim(messy, side = "left")
+str_trim(messy, side = "right")
+
+# str_squish：去除两端空白 + 压缩内部空白
+str_squish(messy)
+
+# 实际应用：清理问卷数据
+responses <- c("  Yes ", " No", "  Maybe  ", "Yes  ")
+str_trim(responses)
+```
+
+### 填充与截断：str_pad 和 str_trunc
+
+```{r}
+# str_pad：填充字符串到指定长度
+str_pad("42", width = 5, side = "left", pad = "0")
+
+# 不同填充方向
+str_pad("hi", 5, "left")
+str_pad("hi", 5, "right")
+str_pad("hi", 5, "both")
+
+# 批量处理编号
+ids <- c("1", "12", "123")
+str_pad(ids, width = 4, pad = "0")
+
+# str_trunc：截断过长字符串
+long_text <- "这是一段非常长的文本，需要被截断显示"
+str_trunc(long_text, 10)
+
+# 指定省略号位置
+str_trunc(long_text, 15, side = "left")
+str_trunc(long_text, 15, side = "center")
+```
+
+---
+
+## 大小写转换
+
+```{r}
+text <- "Hello World"
+
+# 转换为大写
+str_to_upper(text)
+
+# 转换为小写
+str_to_lower(text)
+
+# 转换为标题格式（每个单词首字母大写）
+str_to_title("hello world from r")
+
+# 转换为句子格式（只有第一个字母大写）
+str_to_sentence("hello world from r")
+
+# 实际应用：标准化姓名
+names <- c("john DOE", "JANE smith", "bob JONES")
+str_to_title(names)
+```
+
+---
+
+## 模式检测与计数
+
+### 检测模式：str_detect
+
+`str_detect()` 检查字符串是否包含特定模式，返回逻辑值。
+
+```{r}
+fruits <- c("apple", "banana", "apricot", "cherry", "avocado")
+
+# 检测是否包含 "a"
+str_detect(fruits, "a")
+
+# 检测是否以 "a" 开头
+str_detect(fruits, "^a")
+
+# 检测是否以 "o" 结尾
+str_detect(fruits, "o$")
+
+# 在 dplyr 中筛选数据
+tibble(fruit = fruits) %>%
+    filter(str_detect(fruit, "^a"))
+
+# 否定检测
+str_detect(fruits, "a", negate = TRUE)
+```
+
+### 计数匹配：str_count
+
+```{r}
+# 统计字母出现次数
+str_count("banana", "a")
+
+# 向量操作
+str_count(c("apple", "banana", "cherry"), "a")
+
+# 统计单词数量（空格分隔）
+text <- "The quick brown fox jumps over the lazy dog"
+str_count(text, "\\w+")
+
+# 统计数字出现次数
+str_count("ID123-456-789", "\\d")
+```
+
+### 定位匹配：str_locate
+
+```{r}
+text <- "The cat sat on the mat"
+
+# 找到第一个匹配的位置
+str_locate(text, "at")
+
+# 找到所有匹配的位置
+str_locate_all(text, "at")
+
+# 实际应用：找到特定模式的位置
+email <- "contact@example.com"
+str_locate(email, "@")
+```
+---
+
+## 提取与替换
+
+### 提取匹配内容：str_extract
+
+```{r}
+# 提取第一个匹配
+texts <- c("ID: 12345", "Code: ABC123", "Ref: XYZ789")
+
+# 提取数字
+str_extract(texts, "\\d+")
+
+# 提取所有匹配
+str_extract_all(texts, "\\d+")
+
+# 提取字母
+str_extract(texts, "[A-Z]+")
+
+# 医学数据示例：提取剂量
+prescriptions <- c(
+    "Aspirin 100mg daily",
+    "Metformin 500mg twice",
+    "Vitamin D 1000IU"
+)
+str_extract(prescriptions, "\\d+")
+```
+
+### 替换内容：str_replace
+
+```{r}
+# 替换第一个匹配
+text <- "The cat and the cat"
+str_replace(text, "cat", "dog")
+
+# 替换所有匹配
+str_replace_all(text, "cat", "dog")
+
+# 使用正则表达式替换
+dates <- c("2024/01/15", "2024/02/20", "2024/03/25")
+str_replace_all(dates, "/", "-")
+
+# 使用分组进行复杂替换
+str_replace(dates, "(\\d{4})/(\\d{2})/(\\d{2})", "\\3-\\2-\\1")
+
+# 批量替换多个模式
+messy_text <- "Hello!!! How are you???"
+messy_text %>%
+    str_replace_all("!", ".") %>%
+    str_replace_all("\\?", ".")
+```
+
+### 删除匹配内容：str_remove
+
+```{r}
+# 删除第一个匹配
+str_remove("Hello World World", "World")
+
+# 删除所有匹配
+str_remove_all("Hello World World", "World")
+
+# 删除空格
+str_remove_all("H e l l o", " ")
+
+# 删除特殊字符
+str_remove_all("Price: $100.00", "[^\\d.]")
+```
+
+---
+
+## 分割与合并
+
+### 分割字符串：str_split
+
+```{r}
+# 基本分割
+str_split("a-b-c", "-")
+
+# 返回矩阵格式（指定列数）
+str_split_fixed("a-b-c-d", "-", n = 3)
+
+# 分割多个字符串
+addresses <- c("北京市|海淀区|中关村", "上海市|浦东区|陆家嘴")
+str_split(addresses, "\\|")
+
+# 限制分割次数
+str_split("a-b-c-d", "-", n = 2)
+
+# 转为数据框（配合 tidyr）
+tibble(address = addresses) %>%
+    tidyr::separate(address, into = c("省市", "区县", "街道"), sep = "\\|")
+```
+
+### 合并字符串：str_flatten
+
+```{r}
+# 将向量合并为单个字符串
+words <- c("apple", "banana", "cherry")
+str_flatten(words, collapse = ", ")
+
+# 添加最后一个分隔符
+str_flatten(words, collapse = ", ", last = " and ")
+
+# 与 str_c(collapse=) 的区别
+# str_flatten 专门用于折叠，更加语义化
+```
+
+---
+
+## 字符串排序与去重
+
+```{r}
+# 排序
+fruits <- c("cherry", "apple", "banana")
+str_sort(fruits)
+
+# 降序排序
+str_sort(fruits, decreasing = TRUE)
+
+# 按数字排序
+files <- c("file2.txt", "file10.txt", "file1.txt")
+str_sort(files) # 字母顺序
+str_sort(files, numeric = TRUE) # 数字顺序
+
+# 获取排序后的索引
+str_order(fruits)
+
+# 去重
+str_unique(c("a", "b", "a", "c", "b"))
+```
+
+---
+
+## 实战案例
+
+### 案例一：清理姓名数据
+
+```{r}
+# 模拟杂乱的姓名数据
+raw_names <- tibble(
+    id = 1:6,
+    name = c(
+        "  张 三  ",
+        "李四",
+        "WANG WU",
+        "赵六  ",
+        "  钱七",
+        "sun ba"
+    )
+)
+
+# 清理姓名
+clean_names <- raw_names %>%
+    mutate(
+        name_clean = name %>%
+            str_squish() %>% # 去除多余空白
+            str_to_title() %>% # 标准化大小写
+            str_replace_all(" ", "") # 去除中间空格（中文姓名）
+    )
+
+clean_names
+```
+
+### 案例二：提取医学数据
+
+```{r}
+# 模拟医学记录
+medical_records <- tibble(
+    patient_id = 1:5,
+    record = c(
+        "BP: 120/80 mmHg, HR: 72 bpm",
+        "Blood Pressure 130/85, Heart Rate 80",
+        "收缩压: 125, 舒张压: 82, 心率: 68",
+        "SBP=140, DBP=90, Pulse: 88",
+        "Blood pressure reading: 115/75 mmHg"
+    )
+)
+
+# 提取血压和心率数据
+extracted <- medical_records %>%
+    mutate(
+        # 提取收缩压（第一个数字）
+        sbp = str_extract(record, "\\d{2,3}(?=/)") %>% as.numeric(),
+        # 提取舒张压（斜杠后的数字）
+        dbp = str_extract(record, "(?<=/)\\d{2,3}") %>% as.numeric(),
+        # 提取心率（各种格式）
+        hr = str_extract(record, "(?i)(?<=HR:|heart rate |心率:|Pulse:| )\\d{2,3}") %>%
+            as.numeric()
+    )
+
+extracted %>% select(patient_id, sbp, dbp, hr)
+```
+
+### 案例三：标准化地址
+
+```{r}
+# 杂乱地址数据
+addresses <- tibble(
+    id = 1:4,
+    address = c(
+        "北京市 海淀区 中关村大街1号",
+        "上海市浦东新区陆家嘴环路100号",
+        "广州市  天河区  体育西路  200号",
+        "深圳市南山区科技园路50号"
+    )
+)
+
+# 标准化地址
+standardized <- addresses %>%
+    mutate(
+        address_clean = address %>%
+            str_squish() %>% # 压缩空白
+            str_replace_all("\\s+", ""), # 去除所有空格
+
+        # 提取各级行政区
+        province = str_extract(address_clean, "^.+?(?=市)"),
+        city = str_extract(address_clean, "(?<=省|^).+?(?=市)"),
+        district = str_extract(address_clean, "(?<=市).+?(?=区)"),
+        street = str_extract(address_clean, "(?<=区).+")
+    )
+
+standardized %>% select(id, province, district, street)
+```
+
+### 案例四：处理问卷开放题
+
+```{r}
+# 模拟问卷开放题回答
+survey_responses <- tibble(
+    respondent = 1:5,
+    feedback = c(
+        "服务很好！！！非常满意~~~",
+        "还可以吧，没什么特别的",
+        "太差了。。。不会再来",
+        "VERY GOOD, will come again!",
+        "价格便宜，质量也不错"
+    )
+)
+
+# 清理和分析反馈
+analyzed <- survey_responses %>%
+    mutate(
+        # 清理特殊符号
+        feedback_clean = feedback %>%
+            str_replace_all("[!！~。.]+", "") %>%
+            str_replace_all("[,，]+", "，"),
+
+        # 情感词检测
+        positive = str_detect(feedback, "(?i)好|满意|不错|good|great"),
+        negative = str_detect(feedback, "(?i)差|不满|terrible|bad"),
+
+        # 字数统计
+        word_count = str_length(feedback_clean)
+    )
+
+analyzed
+```
+
+---
+
+## 与正则表达式配合
+
+stringr 的所有模式匹配函数都支持正则表达式，详细语法请参考 [正则表达式教程](3008-regexp.html)。
+
+```{r}
+# 使用 regex() 添加选项
+text <- "Hello WORLD"
+
+# 忽略大小写
+str_detect(text, regex("world", ignore_case = TRUE))
+
+# 多行模式
+multiline <- "Line 1\nLine 2\nLine 3"
+str_extract_all(multiline, regex("^Line", multiline = TRUE))
+
+# fixed() 用于精确匹配（不使用正则）
+str_detect("a.b.c", fixed(".")) # 匹配字面点号
+str_detect("a.b.c", ".") # 匹配任意字符
+```
+
+---
+
+## stringr 与 Base R 对照表
+
+| 功能 | stringr | Base R |
+|------|---------|--------|
+| 长度 | `str_length()` | `nchar()` |
+| 子串 | `str_sub()` | `substr()` |
+| 拼接 | `str_c()` | `paste0()` |
+| 检测 | `str_detect()` | `grepl()` |
+| 提取 | `str_extract()` | `regmatches()` |
+| 替换 | `str_replace()` | `sub()` |
+| 全部替换 | `str_replace_all()` | `gsub()` |
+| 分割 | `str_split()` | `strsplit()` |
+| 大写 | `str_to_upper()` | `toupper()` |
+| 小写 | `str_to_lower()` | `tolower()` |
+
+---
+
+## 总结
+
+`stringr` 包是 R 语言中处理字符串的首选工具：
+
+| 优势 | 说明 |
+|------|------|
+| **一致性** | 所有函数 `str_` 开头，字符串总是第一个参数 |
+| **向量化** | 天然支持向量操作，无需循环 |
+| **管道友好** | 与 tidyverse 生态完美集成 |
+| **正则支持** | 内置强大的正则表达式支持 |
+
+掌握 stringr 后，你将能够高效处理各种字符串操作任务！
+
+---
+
+## 参考资源
+
+- [stringr 官方文档](https://stringr.tidyverse.org/)
+- [R for Data Science - Strings](https://r4ds.hadley.nz/strings)
+- [stringr cheatsheet](https://github.com/rstudio/cheatsheets/blob/main/strings.pdf)
+- [正则表达式教程](3008-regexp.html)

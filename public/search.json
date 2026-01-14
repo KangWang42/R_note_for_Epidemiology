@@ -14203,5 +14203,1058 @@
       "📥 数据输入输出",
       "日期时间处理"
     ]
+  },
+  {
+    "objectID": "index.html#什么是因子",
+    "href": "index.html#什么是因子",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "什么是因子？",
+    "text": "什么是因子？\n在 R 语言中，因子（factor） 是用于表示分类数据的特殊数据类型。与字符型不同，因子有预定义的水平（levels），这些水平决定了数据的取值范围和顺序。\n因子在以下场景中非常重要：\n\n\n\n应用场景\n说明\n\n\n\n\n统计建模\n回归分析中自动生成哑变量\n\n\n可视化\n控制图例和坐标轴的顺序\n\n\n数据验证\n限制变量只能取特定值\n\n\n分组分析\n按类别进行汇总统计\n\n\n\n# 安装并加载必要的包\nif (!require(\"forcats\")) install.packages(\"forcats\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"ggplot2\")) install.packages(\"ggplot2\")\nif (!require(\"tibble\")) install.packages(\"tibble\")\n\nlibrary(forcats)\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(tibble)"
+  },
+  {
+    "objectID": "index.html#因子基础",
+    "href": "index.html#因子基础",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "因子基础",
+    "text": "因子基础\n\n创建因子\n# 从字符向量创建因子\neducation &lt;- c(\"本科\", \"硕士\", \"博士\", \"本科\", \"高中\", \"硕士\")\nedu_factor &lt;- factor(education)\nedu_factor\n\n# 查看因子水平\nlevels(edu_factor)\n\n# 指定水平顺序（有序因子）\nedu_ordered &lt;- factor(\n    education,\n    levels = c(\"高中\", \"本科\", \"硕士\", \"博士\"),\n    ordered = TRUE\n)\nedu_ordered\n\n\n因子的问题\nBase R 的因子操作存在一些痛点：\n# 问题1：默认按字母顺序排序\ntreatment &lt;- factor(c(\"Control\", \"Treatment A\", \"Treatment B\"))\nlevels(treatment) # 字母顺序，而非逻辑顺序\n\n# 问题2：修改水平顺序繁琐\n# 需要重新创建因子或使用复杂的索引操作\n\n# 问题3：添加新水平容易出错\n# 直接赋值可能产生 NA\nforcats 包完美解决了这些问题！"
+  },
+  {
+    "objectID": "index.html#forcats-核心函数",
+    "href": "index.html#forcats-核心函数",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "forcats 核心函数",
+    "text": "forcats 核心函数\n\n查看因子信息：fct_count 和 fct_unique\n# 创建示例数据\nresponses &lt;- factor(c(\"同意\", \"中立\", \"反对\", \"同意\", \"同意\", \"中立\", \"反对\", \"同意\"))\n\n# 统计各水平频数\nfct_count(responses)\n\n# 获取唯一水平（类似 levels() 但返回因子）\nfct_unique(responses)"
+  },
+  {
+    "objectID": "index.html#重新排序水平",
+    "href": "index.html#重新排序水平",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "重新排序水平",
+    "text": "重新排序水平\n\n手动排序：fct_relevel\nfct_relevel() 允许手动指定水平顺序。\n# 原始因子\nsize &lt;- factor(c(\"Small\", \"Medium\", \"Large\", \"Small\", \"Large\"))\nlevels(size) # 字母顺序\n\n# 重新排序\nsize_ordered &lt;- fct_relevel(size, \"Small\", \"Medium\", \"Large\")\nlevels(size_ordered)\n\n# 只移动特定水平到开头\nsize_small_first &lt;- fct_relevel(size, \"Small\")\nlevels(size_small_first)\n\n# 移动到末尾（使用 after 参数）\nsize_large_last &lt;- fct_relevel(size, \"Large\", after = Inf)\nlevels(size_large_last)\n\n# 移动到特定位置\nsize_medium_second &lt;- fct_relevel(size, \"Medium\", after = 1)\nlevels(size_medium_second)\n\n\n按频率排序：fct_infreq 和 fct_inseq\n# 示例数据\ncolors &lt;- factor(c(\"红\", \"蓝\", \"红\", \"绿\", \"红\", \"蓝\", \"红\", \"绿\", \"绿\"))\n\n# 按频率降序排序\ncolors_freq &lt;- fct_infreq(colors)\nlevels(colors_freq)\n\n# 按频率升序\ncolors_freq_asc &lt;- fct_rev(fct_infreq(colors))\nlevels(colors_freq_asc)\n\n# 按数字顺序（适用于 \"1\", \"2\", \"10\" 等）\nnums &lt;- factor(c(\"1\", \"2\", \"10\", \"20\", \"3\"))\nlevels(fct_inseq(nums))\n\n\n按另一变量排序：fct_reorder\nfct_reorder() 是可视化中最常用的函数，根据另一个变量的统计值重排因子。\n# 创建示例数据\nsales &lt;- tibble(\n    product = factor(c(\"A\", \"B\", \"C\", \"D\", \"E\")),\n    revenue = c(100, 250, 180, 300, 150)\n)\n\n# 按收入排序\nsales &lt;- sales %&gt;%\n    mutate(product = fct_reorder(product, revenue))\n\nlevels(sales$product)\n\n# 可视化效果\nggplot(sales, aes(x = revenue, y = product)) +\n    geom_col(fill = \"#667eea\") +\n    labs(title = \"按收入排序的产品\", x = \"收入\", y = \"产品\") +\n    theme_minimal()\n# 使用自定义函数排序\n# 例如：按收入的中位数排序\nmulti_sales &lt;- tibble(\n    product = factor(rep(c(\"A\", \"B\", \"C\"), each = 3)),\n    revenue = c(100, 120, 110, 200, 250, 220, 150, 160, 155)\n)\n\nmulti_sales &lt;- multi_sales %&gt;%\n    mutate(product = fct_reorder(product, revenue, .fun = median))\n\nlevels(multi_sales$product)\n\n\n按出现顺序：fct_inorder\n# 按数据中首次出现的顺序排列\nfirst_appearance &lt;- factor(c(\"C\", \"A\", \"B\", \"C\", \"A\"))\nlevels(first_appearance) # 默认字母顺序\n\nlevels(fct_inorder(first_appearance)) # 按出现顺序\n\n\n反转顺序：fct_rev\nsize &lt;- factor(c(\"Small\", \"Medium\", \"Large\"),\n    levels = c(\"Small\", \"Medium\", \"Large\")\n)\n\n# 反转水平顺序\nsize_rev &lt;- fct_rev(size)\nlevels(size_rev)\n\n\n移动特定水平：fct_shift\ndays &lt;- factor(c(\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\"),\n    levels = c(\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\")\n)\n\n# 向左移动（Mon 变成最后一个）\ndays_shift &lt;- fct_shift(days, n = 1)\nlevels(days_shift)\n\n# 向右移动\ndays_shift_right &lt;- fct_shift(days, n = -1)\nlevels(days_shift_right)"
+  },
+  {
+    "objectID": "index.html#重新编码水平",
+    "href": "index.html#重新编码水平",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "重新编码水平",
+    "text": "重新编码水平\n\n修改水平名称：fct_recode\n# 原始数据\nsatisfaction &lt;- factor(c(\"1\", \"2\", \"3\", \"4\", \"5\", \"3\", \"4\", \"5\"))\n\n# 重新编码\nsatisfaction_named &lt;- fct_recode(satisfaction,\n    \"非常不满意\" = \"1\",\n    \"不满意\" = \"2\",\n    \"中立\" = \"3\",\n    \"满意\" = \"4\",\n    \"非常满意\" = \"5\"\n)\n\nlevels(satisfaction_named)\nfct_count(satisfaction_named)\n\n\n合并水平：fct_collapse\n# 详细分类\neducation &lt;- factor(c(\"小学\", \"初中\", \"高中\", \"本科\", \"硕士\", \"博士\", \"高中\", \"本科\"))\n\n# 合并为粗略分类\neducation_collapsed &lt;- fct_collapse(education,\n    \"初等教育\" = c(\"小学\", \"初中\"),\n    \"中等教育\" = \"高中\",\n    \"高等教育\" = c(\"本科\", \"硕士\", \"博士\")\n)\n\nlevels(education_collapsed)\nfct_count(education_collapsed)\n\n\n合并低频水平：fct_lump\nfct_lump 系列函数用于将低频水平合并为 “Other”。\n# 示例数据\ncountries &lt;- factor(c(\n    rep(\"中国\", 50), rep(\"美国\", 30), rep(\"英国\", 10),\n    rep(\"法国\", 5), rep(\"德国\", 3), rep(\"日本\", 2)\n))\n\n# 保留前 n 个最常见的水平\nfct_count(fct_lump_n(countries, n = 3))\n\n# 保留至少占比 p 的水平\nfct_count(fct_lump_prop(countries, prop = 0.1))\n\n# 保留至少出现 min 次的水平\nfct_count(fct_lump_min(countries, min = 5))\n\n# 自定义 \"Other\" 的名称\nfct_count(fct_lump_n(countries, n = 3, other_level = \"其他国家\"))\n\n\n匿名化水平：fct_anon\n# 原始敏感数据\npatients &lt;- factor(c(\"张三\", \"李四\", \"王五\", \"张三\", \"李四\"))\n\n# 匿名化\npatients_anon &lt;- fct_anon(patients, prefix = \"Patient_\")\nlevels(patients_anon)"
+  },
+  {
+    "objectID": "index.html#添加和删除水平",
+    "href": "index.html#添加和删除水平",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "添加和删除水平",
+    "text": "添加和删除水平\n\n删除未使用的水平：fct_drop\n# 创建有多余水平的因子\ncolors &lt;- factor(c(\"红\", \"蓝\", \"红\"), levels = c(\"红\", \"蓝\", \"绿\", \"黄\"))\nlevels(colors) # 包含未使用的 \"绿\" 和 \"黄\"\n\n# 删除未使用的水平\ncolors_clean &lt;- fct_drop(colors)\nlevels(colors_clean)\n\n# 只删除特定水平\ncolors_keep_green &lt;- fct_drop(colors, only = \"黄\")\nlevels(colors_keep_green)\n\n\n添加水平：fct_expand\n# 原始因子\nsizes &lt;- factor(c(\"S\", \"M\", \"L\"))\n\n# 添加新水平\nsizes_expanded &lt;- fct_expand(sizes, \"XS\", \"XL\")\nlevels(sizes_expanded)\n\n\n统一多个因子的水平：fct_unify\n# 两个来自不同数据源的因子\nsurvey1 &lt;- factor(c(\"同意\", \"中立\", \"反对\"))\nsurvey2 &lt;- factor(c(\"同意\", \"反对\", \"强烈反对\"))\n\n# 统一水平\nunified &lt;- fct_unify(list(survey1, survey2))\nlapply(unified, levels)"
+  },
+  {
+    "objectID": "index.html#与-ggplot2-联动",
+    "href": "index.html#与-ggplot2-联动",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "与 ggplot2 联动",
+    "text": "与 ggplot2 联动\n因子在可视化中最重要的作用是控制元素的顺序。\n\n控制柱状图顺序\n# 示例数据\nsales_data &lt;- tibble(\n    product = c(\"产品A\", \"产品B\", \"产品C\", \"产品D\"),\n    sales = c(120, 300, 180, 250)\n)\n\n# 默认顺序（字母序）\np1 &lt;- ggplot(sales_data, aes(x = product, y = sales)) +\n    geom_col(fill = \"#667eea\") +\n    labs(title = \"默认顺序\") +\n    theme_minimal()\n\n# 按销量排序\np2 &lt;- sales_data %&gt;%\n    mutate(product = fct_reorder(product, sales)) %&gt;%\n    ggplot(aes(x = product, y = sales)) +\n    geom_col(fill = \"#764ba2\") +\n    labs(title = \"按销量升序\") +\n    theme_minimal()\n\n# 按销量降序\np3 &lt;- sales_data %&gt;%\n    mutate(product = fct_reorder(product, sales, .desc = TRUE)) %&gt;%\n    ggplot(aes(x = product, y = sales)) +\n    geom_col(fill = \"#f093fb\") +\n    labs(title = \"按销量降序\") +\n    theme_minimal()\n\nlibrary(patchwork)\np1 | p2 | p3\n\n\n控制图例顺序\n# 分组数据\ngroup_data &lt;- tibble(\n    category = rep(c(\"A组\", \"B组\", \"C组\"), each = 10),\n    value = c(rnorm(10, 5), rnorm(10, 8), rnorm(10, 6))\n)\n\n# 按均值排序图例\ngroup_data %&gt;%\n    mutate(category = fct_reorder(category, value, .fun = mean)) %&gt;%\n    ggplot(aes(x = value, fill = category)) +\n    geom_density(alpha = 0.5) +\n    scale_fill_manual(values = c(\"#667eea\", \"#764ba2\", \"#f093fb\")) +\n    labs(title = \"按均值排序的密度图\", fill = \"分组\") +\n    theme_minimal()\n\n\n控制分面顺序\n# 使用 fct_reorder2 按最后一个值排序（适合折线图）\ntrend_data &lt;- tibble(\n    year = rep(2020:2024, 3),\n    group = rep(c(\"A\", \"B\", \"C\"), each = 5),\n    value = c(\n        c(10, 15, 18, 22, 25), # A: 上升趋势\n        c(20, 18, 22, 19, 21), # B: 平稳\n        c(15, 20, 25, 30, 35) # C: 快速上升\n    )\n)\n\n# 按最后一个值排序\ntrend_data %&gt;%\n    mutate(group = fct_reorder2(group, year, value)) %&gt;%\n    ggplot(aes(x = year, y = value, color = group)) +\n    geom_line(linewidth = 1) +\n    geom_point(size = 2) +\n    scale_color_manual(values = c(\"#f093fb\", \"#667eea\", \"#764ba2\")) +\n    labs(title = \"按2024年值排序的趋势图\") +\n    theme_minimal()"
+  },
+  {
+    "objectID": "index.html#与-dplyr-联动",
+    "href": "index.html#与-dplyr-联动",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "与 dplyr 联动",
+    "text": "与 dplyr 联动\n\n在分组统计中使用\n# 示例数据\nsurvey &lt;- tibble(\n    region = factor(c(\"北\", \"南\", \"东\", \"西\", \"北\", \"南\", \"东\", \"西\", \"北\", \"南\")),\n    score = c(85, 92, 78, 88, 90, 95, 82, 85, 88, 91)\n)\n\n# 按平均分排序后分组统计\nsurvey %&gt;%\n    mutate(region = fct_reorder(region, score, .fun = mean)) %&gt;%\n    group_by(region) %&gt;%\n    summarise(\n        mean_score = mean(score),\n        n = n()\n    ) %&gt;%\n    arrange(desc(mean_score))\n\n\n在 case_when 中使用\n# 根据条件创建有序因子\npatients &lt;- tibble(\n    id = 1:10,\n    age = c(25, 45, 67, 38, 72, 55, 29, 61, 43, 80)\n)\n\npatients &lt;- patients %&gt;%\n    mutate(\n        age_group = case_when(\n            age &lt; 30 ~ \"青年\",\n            age &lt; 60 ~ \"中年\",\n            TRUE ~ \"老年\"\n        ),\n        # 转为有序因子\n        age_group = factor(age_group, levels = c(\"青年\", \"中年\", \"老年\"))\n    )\n\nfct_count(patients$age_group)"
+  },
+  {
+    "objectID": "index.html#实战案例",
+    "href": "index.html#实战案例",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "实战案例",
+    "text": "实战案例\n\n案例一：问卷数据处理\n# 模拟问卷数据\nsurvey_data &lt;- tibble(\n    id = 1:100,\n    education = sample(c(\"高中\", \"本科\", \"硕士\", \"博士\", \"其他\"), 100,\n        replace = TRUE, prob = c(0.2, 0.4, 0.25, 0.1, 0.05)\n    ),\n    satisfaction = sample(1:5, 100, replace = TRUE),\n    income = sample(c(\"3000以下\", \"3000-5000\", \"5000-10000\", \"10000-20000\", \"20000以上\"),\n        100,\n        replace = TRUE\n    )\n)\n\n# 处理因子\nsurvey_clean &lt;- survey_data %&gt;%\n    mutate(\n        # 教育程度：合并 \"其他\" 并排序\n        education = factor(education) %&gt;%\n            fct_relevel(\"高中\", \"本科\", \"硕士\", \"博士\", \"其他\") %&gt;%\n            fct_recode(\"本科及以下\" = \"其他\"),\n\n        # 满意度：编码并排序\n        satisfaction = factor(satisfaction) %&gt;%\n            fct_recode(\n                \"非常不满\" = \"1\", \"不满\" = \"2\", \"中立\" = \"3\",\n                \"满意\" = \"4\", \"非常满意\" = \"5\"\n            ),\n\n        # 收入：排序\n        income = factor(income) %&gt;%\n            fct_relevel(\"3000以下\", \"3000-5000\", \"5000-10000\", \"10000-20000\", \"20000以上\")\n    )\n\n# 查看处理结果\nsurvey_clean %&gt;%\n    count(education, satisfaction) %&gt;%\n    head(10)\n\n\n案例二：医学分级数据\n# 模拟疾病严重程度数据\nclinical_data &lt;- tibble(\n    patient_id = 1:50,\n    severity = sample(c(\"Mild\", \"Moderate\", \"Severe\", \"Critical\"), 50,\n        replace = TRUE, prob = c(0.3, 0.35, 0.25, 0.1)\n    ),\n    treatment = sample(c(\"Standard\", \"Intensive\", \"Experimental\"), 50, replace = TRUE)\n)\n\n# 处理严重程度（确保正确顺序）\nclinical_clean &lt;- clinical_data %&gt;%\n    mutate(\n        severity = factor(severity) %&gt;%\n            fct_relevel(\"Mild\", \"Moderate\", \"Severe\", \"Critical\") %&gt;%\n            fct_recode(\n                \"轻度\" = \"Mild\",\n                \"中度\" = \"Moderate\",\n                \"重度\" = \"Severe\",\n                \"危重\" = \"Critical\"\n            )\n    )\n\n# 统计并可视化\nclinical_clean %&gt;%\n    count(severity, treatment) %&gt;%\n    ggplot(aes(x = severity, y = n, fill = treatment)) +\n    geom_col(position = \"dodge\") +\n    scale_fill_manual(values = c(\"#667eea\", \"#764ba2\", \"#f093fb\")) +\n    labs(title = \"各严重程度的治疗方案分布\", x = \"严重程度\", y = \"人数\") +\n    theme_minimal()\n\n\n案例三：时间序列中的月份处理\n# 模拟月度销售数据\nmonthly_sales &lt;- tibble(\n    month = factor(month.abb, levels = month.abb),\n    sales = c(120, 135, 150, 180, 200, 220, 250, 240, 210, 190, 160, 145)\n)\n\n# 从某个月份开始（如财年从4月开始）\nmonthly_sales_fy &lt;- monthly_sales %&gt;%\n    mutate(month = fct_shift(month, n = 3)) # Apr 成为第一个\n\nlevels(monthly_sales_fy$month)\n\n# 可视化\nggplot(monthly_sales, aes(x = month, y = sales, group = 1)) +\n    geom_line(color = \"#667eea\", linewidth = 1) +\n    geom_point(color = \"#764ba2\", size = 3) +\n    labs(title = \"月度销售趋势\", x = \"月份\", y = \"销售额\") +\n    theme_minimal()"
+  },
+  {
+    "objectID": "index.html#forcats-函数速查表",
+    "href": "index.html#forcats-函数速查表",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "forcats 函数速查表",
+    "text": "forcats 函数速查表\n\n\n\n功能\n函数\n说明\n\n\n\n\n查看\nfct_count()\n统计各水平频数\n\n\n\nfct_unique()\n获取唯一水平\n\n\n排序\nfct_relevel()\n手动指定顺序\n\n\n\nfct_infreq()\n按频率降序\n\n\n\nfct_inorder()\n按出现顺序\n\n\n\nfct_reorder()\n按另一变量排序\n\n\n\nfct_reorder2()\n按两变量关系排序\n\n\n\nfct_rev()\n反转顺序\n\n\n\nfct_shift()\n循环移动\n\n\n编码\nfct_recode()\n重命名水平\n\n\n\nfct_collapse()\n合并水平\n\n\n\nfct_lump_n()\n保留前 n 个\n\n\n\nfct_lump_prop()\n按比例保留\n\n\n\nfct_lump_min()\n按最小频数保留\n\n\n\nfct_anon()\n匿名化\n\n\n修改\nfct_drop()\n删除未用水平\n\n\n\nfct_expand()\n添加新水平\n\n\n\nfct_unify()\n统一多因子水平"
+  },
+  {
+    "objectID": "index.html#总结",
+    "href": "index.html#总结",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "总结",
+    "text": "总结\nforcats 包让 R 中的因子处理变得直观高效：\n\n\n\n优势\n说明\n\n\n\n\n语义化命名\n函数名清晰表达功能\n\n\n管道友好\n与 dplyr、ggplot2 完美集成\n\n\n功能全面\n覆盖因子操作的各种需求\n\n\n避免陷阱\n安全处理水平变更\n\n\n\n掌握 forcats 后，你将能够优雅地处理各种分类数据！"
+  },
+  {
+    "objectID": "index.html#参考资源",
+    "href": "index.html#参考资源",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nforcats 官方文档\nR for Data Science - Factors\nforcats cheatsheet\n\n{r setup, include=FALSE} knitr::opts_chunk$set(     echo = TRUE,     warning = FALSE,     message = FALSE,     fig.width = 10,     fig.height = 6,     fig.retina = 2,     out.width = \"100%\",     dpi = 150 )"
+  },
+  {
+    "objectID": "index.html#为什么选择-readr-和-readxl",
+    "href": "index.html#为什么选择-readr-和-readxl",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "为什么选择 readr 和 readxl？",
+    "text": "为什么选择 readr 和 readxl？\nR 语言内置的 read.csv() 等函数虽然可用，但存在一些问题：\n\n\n\n问题\n说明\n\n\n\n\n速度慢\n大文件读取效率低\n\n\n类型猜测差\n常将字符串错误转为因子\n\n\n编码问题\n中文乱码常见\n\n\n行为不一致\n不同函数参数差异大\n\n\n\nreadr 和 readxl 完美解决了这些问题：\n\n\n\n特性\nreadr/readxl\nBase R\n\n\n\n\n速度\n⚡ 快 10 倍以上\n慢\n\n\n类型推断\n智能准确\n常出错\n\n\n编码\n默认 UTF-8\n依赖系统\n\n\n输出格式\ntibble\ndata.frame\n\n\n进度条\n有\n无\n\n\n\n# 安装并加载必要的包\nif (!require(\"readr\")) install.packages(\"readr\")\nif (!require(\"readxl\")) install.packages(\"readxl\")\nif (!require(\"writexl\")) install.packages(\"writexl\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"purrr\")) install.packages(\"purrr\")\n\nlibrary(readr)\nlibrary(readxl)\nlibrary(writexl)\nlibrary(dplyr)\nlibrary(purrr)"
+  },
+  {
+    "objectID": "index.html#readr-基础读取文本文件",
+    "href": "index.html#readr-基础读取文本文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readr 基础：读取文本文件",
+    "text": "readr 基础：读取文本文件\n\nread_csv：读取 CSV 文件\nread_csv() 是最常用的函数，用于读取逗号分隔的文件。\n# 创建示例数据用于演示\ndemo_data &lt;- tibble(\n    id = 1:5,\n    name = c(\"张三\", \"李四\", \"王五\", \"赵六\", \"钱七\"),\n    age = c(25, 30, 28, 35, 42),\n    score = c(85.5, 92.3, 78.9, 88.1, 95.0),\n    date = as.Date(c(\"2024-01-15\", \"2024-02-20\", \"2024-03-10\", \"2024-04-05\", \"2024-05-18\"))\n)\n\n# 写入临时文件\ntemp_csv &lt;- tempfile(fileext = \".csv\")\nwrite_csv(demo_data, temp_csv)\n\n# 读取 CSV 文件\ndf &lt;- read_csv(temp_csv)\ndf\n\n# 查看列类型推断结果\nspec(df)\n\n\nread_tsv：读取制表符分隔文件\n# 创建 TSV 文件\ntemp_tsv &lt;- tempfile(fileext = \".tsv\")\nwrite_tsv(demo_data, temp_tsv)\n\n# 读取 TSV\ndf_tsv &lt;- read_tsv(temp_tsv)\ndf_tsv\n\n\nread_delim：读取任意分隔符文件\n# 使用分号分隔（欧洲常用格式）\ntemp_delim &lt;- tempfile(fileext = \".txt\")\nwrite_delim(demo_data, temp_delim, delim = \";\")\n\n# 读取自定义分隔符文件\ndf_delim &lt;- read_delim(temp_delim, delim = \";\")\ndf_delim\n\n\nread_fwf：读取固定宽度文件\n# 固定宽度格式示例\nfwf_content &lt;- \"张三  25  85.5\n李四  30  92.3\n王五  28  78.9\"\n\n# 写入临时文件\ntemp_fwf &lt;- tempfile(fileext = \".txt\")\nwriteLines(fwf_content, temp_fwf)\n\n# 读取固定宽度文件\ndf_fwf &lt;- read_fwf(\n    temp_fwf,\n    col_positions = fwf_widths(\n        widths = c(4, 4, 4),\n        col_names = c(\"name\", \"age\", \"score\")\n    )\n)\ndf_fwf"
+  },
+  {
+    "objectID": "index.html#列类型规范",
+    "href": "index.html#列类型规范",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "列类型规范",
+    "text": "列类型规范\n\n自动类型推断\nreadr 会自动推断列类型，使用前 1000 行数据进行猜测：\n# 查看默认推断\ndf &lt;- read_csv(temp_csv)\nspec(df)\n\n\n手动指定列类型\n使用 col_types 参数精确控制列类型：\n# 方法1：使用简写字符串\ndf &lt;- read_csv(temp_csv, col_types = \"icdnD\")\n# i=integer, c=character, d=double, n=number, D=date\ndf\n\n# 方法2：使用 cols() 函数（推荐，更清晰）\ndf &lt;- read_csv(temp_csv, col_types = cols(\n    id = col_integer(),\n    name = col_character(),\n    age = col_integer(),\n    score = col_double(),\n    date = col_date()\n))\ndf\n\n\n常用列类型函数\n\n\n\n函数\n简写\n说明\n\n\n\n\ncol_logical()\nl\n逻辑值 TRUE/FALSE\n\n\ncol_integer()\ni\n整数\n\n\ncol_double()\nd\n双精度浮点数\n\n\ncol_character()\nc\n字符串\n\n\ncol_factor()\nf\n因子\n\n\ncol_date()\nD\n日期\n\n\ncol_datetime()\nT\n日期时间\n\n\ncol_time()\nt\n时间\n\n\ncol_number()\nn\n灵活数字（处理千分位、货币符号）\n\n\ncol_skip()\n_ 或 -\n跳过该列\n\n\ncol_guess()\n?\n自动猜测\n\n\n\n# 跳过不需要的列\ndf &lt;- read_csv(temp_csv, col_types = cols(\n    id = col_skip(),\n    name = col_character(),\n    age = col_integer(),\n    score = col_skip(),\n    date = col_date()\n))\ndf\n\n\n处理特殊格式\n# 创建包含特殊格式的数据\nspecial_data &lt;- \"价格,百分比,日期\n$1,234.56,45.6%,2024/01/15\n$2,345.67,78.9%,2024/02/20\n$3,456.78,12.3%,2024/03/25\"\n\ntemp_special &lt;- tempfile(fileext = \".csv\")\nwriteLines(special_data, temp_special)\n\n# col_number() 可以处理货币符号和千分位\ndf_special &lt;- read_csv(temp_special, col_types = cols(\n    价格 = col_number(),\n    百分比 = col_number(),\n    日期 = col_date(format = \"%Y/%m/%d\")\n))\ndf_special"
+  },
+  {
+    "objectID": "index.html#读取选项",
+    "href": "index.html#读取选项",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "读取选项",
+    "text": "读取选项\n\n跳过行和限制行数\n# 跳过前 n 行（常用于跳过注释或标题）\ndf &lt;- read_csv(temp_csv, skip = 1) # 跳过第一行\nhead(df, 3)\n\n# 只读取前 n 行（预览大文件）\ndf &lt;- read_csv(temp_csv, n_max = 3)\ndf\n\n\n处理列名\n# 创建无表头数据\nno_header &lt;- \"张三,25,85.5\n李四,30,92.3\"\ntemp_no_header &lt;- tempfile(fileext = \".csv\")\nwriteLines(no_header, temp_no_header)\n\n# 指定无表头\ndf &lt;- read_csv(temp_no_header, col_names = FALSE)\ndf\n\n# 自定义列名\ndf &lt;- read_csv(temp_no_header, col_names = c(\"姓名\", \"年龄\", \"分数\"))\ndf\n\n\n处理缺失值\n# 创建包含缺失值的数据\nmissing_data &lt;- \"id,name,score\n1,张三,85\n2,李四,NA\n3,王五,\n4,赵六,N/A\n5,钱七,missing\"\n\ntemp_missing &lt;- tempfile(fileext = \".csv\")\nwriteLines(missing_data, temp_missing)\n\n# 指定缺失值标记\ndf &lt;- read_csv(temp_missing, na = c(\"\", \"NA\", \"N/A\", \"missing\"))\ndf\n\n\n编码设置\n# 指定文件编码（中文文件常用）\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"GBK\"))\n\n# 默认使用 UTF-8\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"UTF-8\"))\n\n# 查看当前 locale 设置\ndefault_locale()"
+  },
+  {
+    "objectID": "index.html#readxl读取-excel-文件",
+    "href": "index.html#readxl读取-excel-文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readxl：读取 Excel 文件",
+    "text": "readxl：读取 Excel 文件\n\nread_excel：通用读取函数\n# 创建示例 Excel 文件\ndemo_excel &lt;- tibble(\n    产品 = c(\"苹果\", \"香蕉\", \"橙子\", \"葡萄\"),\n    数量 = c(100, 150, 80, 200),\n    单价 = c(5.5, 3.2, 4.8, 8.0),\n    总价 = c(550, 480, 384, 1600)\n)\n\ntemp_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(demo_excel, temp_xlsx)\n\n# 读取 Excel 文件\ndf_excel &lt;- read_excel(temp_xlsx)\ndf_excel\n\n\n读取特定工作表\n# 查看工作表名称\nexcel_sheets(temp_xlsx)\n\n# 按名称读取\ndf &lt;- read_excel(temp_xlsx, sheet = \"Sheet1\")\n\n# 按索引读取（从1开始）\ndf &lt;- read_excel(temp_xlsx, sheet = 1)\ndf\n\n\n读取特定区域\n# 读取特定单元格区域\ndf &lt;- read_excel(temp_xlsx, range = \"A1:C3\")\ndf\n\n# 读取特定行列范围\ndf &lt;- read_excel(temp_xlsx, range = cell_cols(\"A:B\")) # 只读取 A、B 列\ndf\n\n\n指定列类型\n# 手动指定列类型\ndf &lt;- read_excel(temp_xlsx, col_types = c(\"text\", \"numeric\", \"numeric\", \"numeric\"))\ndf\n\n# 跳过某些列\ndf &lt;- read_excel(temp_xlsx, col_types = c(\"text\", \"skip\", \"numeric\", \"numeric\"))\ndf\n\n\n处理日期\nExcel 中的日期存储为数字，readxl 会自动转换：\n# 创建包含日期的数据\ndate_data &lt;- tibble(\n    事件 = c(\"会议\", \"培训\", \"考试\"),\n    日期 = as.Date(c(\"2024-01-15\", \"2024-02-20\", \"2024-03-10\"))\n)\n\ntemp_date_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(date_data, temp_date_xlsx)\n\n# 读取会自动识别日期\ndf &lt;- read_excel(temp_date_xlsx)\ndf\nclass(df$日期)"
+  },
+  {
+    "objectID": "index.html#写出数据",
+    "href": "index.html#写出数据",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "写出数据",
+    "text": "写出数据\n\nwrite_csv：写出 CSV\n# 基本写出\noutput_csv &lt;- tempfile(fileext = \".csv\")\nwrite_csv(demo_data, output_csv)\n\n# 不写入列名\nwrite_csv(demo_data, output_csv, col_names = FALSE)\n\n# 追加模式\nwrite_csv(demo_data[1:2, ], output_csv) # 先写入部分数据\nwrite_csv(demo_data[3:5, ], output_csv, append = TRUE) # 追加\n\n\nwrite_excel_csv：Excel 兼容的 CSV\n当需要在 Excel 中打开 CSV 文件时，使用此函数避免中文乱码：\n# 添加 BOM 头，Excel 能正确识别 UTF-8\noutput_excel_csv &lt;- tempfile(fileext = \".csv\")\nwrite_excel_csv(demo_data, output_excel_csv)\n\n\nwrite_xlsx：写出 Excel\n# 单个工作表\noutput_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(demo_data, output_xlsx)\n\n# 多个工作表\nmulti_sheet_data &lt;- list(\n    \"销售数据\" = demo_data,\n    \"产品数据\" = demo_excel\n)\nwrite_xlsx(multi_sheet_data, output_xlsx)"
+  },
+  {
+    "objectID": "index.html#批量读取文件",
+    "href": "index.html#批量读取文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "批量读取文件",
+    "text": "批量读取文件\n\n使用 purrr::map 批量读取\n# 创建多个临时文件用于演示\ntemp_files &lt;- sapply(1:3, function(i) {\n    temp &lt;- tempfile(fileext = \".csv\")\n    write_csv(demo_data[sample(5, 3), ], temp)\n    temp\n})\n\n# 批量读取并合并\nall_data &lt;- temp_files %&gt;%\n    map(read_csv, show_col_types = FALSE) %&gt;% # 读取每个文件\n    list_rbind() # 合并为一个数据框\n\nall_data\n\n# 添加来源信息\nall_data_with_source &lt;- temp_files %&gt;%\n    set_names(basename) %&gt;% # 用文件名作为列表名\n    map(read_csv, show_col_types = FALSE) %&gt;%\n    list_rbind(names_to = \"source\") # 添加来源列\n\nall_data_with_source\n\n\n批量读取 Excel 工作表\n# 创建多工作表 Excel\nmulti_sheets &lt;- list(\n    \"2022\" = demo_data,\n    \"2023\" = demo_data %&gt;% mutate(score = score * 1.1),\n    \"2024\" = demo_data %&gt;% mutate(score = score * 1.2)\n)\n\ntemp_multi &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(multi_sheets, temp_multi)\n\n# 读取所有工作表\nsheet_names &lt;- excel_sheets(temp_multi)\nall_sheets &lt;- sheet_names %&gt;%\n    set_names() %&gt;%\n    map(~ read_excel(temp_multi, sheet = .x)) %&gt;%\n    list_rbind(names_to = \"year\")\n\nall_sheets\n\n\n实用批量读取函数\n# 封装一个批量读取函数\nread_all_csv &lt;- function(folder, pattern = \"\\\\.csv$\") {\n    # 获取所有匹配的文件\n    files &lt;- list.files(folder, pattern = pattern, full.names = TRUE)\n\n    if (length(files) == 0) {\n        warning(\"未找到匹配的文件\")\n        return(tibble())\n    }\n\n    # 读取并合并\n    files %&gt;%\n        set_names(basename) %&gt;%\n        map(read_csv, show_col_types = FALSE) %&gt;%\n        list_rbind(names_to = \"file\")\n}\n\n# 使用示例（需要实际文件夹）\n# all_data &lt;- read_all_csv(\"data/\")"
+  },
+  {
+    "objectID": "index.html#性能优化",
+    "href": "index.html#性能优化",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "性能优化",
+    "text": "性能优化\n\n延迟读取（Lazy Reading）\n对于超大文件，可以使用延迟读取减少内存占用：\n# 使用 vroom 包进行延迟读取（更高效）\n# install.packages(\"vroom\")\n# library(vroom)\n# df &lt;- vroom(\"large_file.csv\", altrep = TRUE)\n\n\n只读取需要的列\n# 跳过不需要的列可以显著提升速度\ndf &lt;- read_csv(temp_csv, col_types = cols_only(\n    name = col_character(),\n    score = col_double()\n))\ndf\n\n\n并行读取\n对于多个文件，可以使用并行处理：\n# 使用 furrr 包并行读取\n# install.packages(\"furrr\")\n# library(furrr)\n# plan(multisession, workers = 4)\n# all_data &lt;- files %&gt;%\n#   future_map(read_csv) %&gt;%\n#   list_rbind()"
+  },
+  {
+    "objectID": "index.html#性能对比",
+    "href": "index.html#性能对比",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "性能对比",
+    "text": "性能对比\n# 创建较大的测试数据\nlarge_data &lt;- tibble(\n    id = 1:10000,\n    name = paste0(\"Name_\", 1:10000),\n    value1 = rnorm(10000),\n    value2 = rnorm(10000),\n    value3 = rnorm(10000)\n)\n\ntemp_large &lt;- tempfile(fileext = \".csv\")\nwrite_csv(large_data, temp_large)\n\n# 性能对比（简化演示）\nsystem.time({\n    df1 &lt;- read.csv(temp_large) # Base R\n})\n\nsystem.time({\n    df2 &lt;- read_csv(temp_large, show_col_types = FALSE) # readr\n})"
+  },
+  {
+    "objectID": "index.html#实战案例-1",
+    "href": "index.html#实战案例-1",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "实战案例",
+    "text": "实战案例\n\n案例一：处理中文 CSV 文件\n# 创建中文数据\nchinese_data &lt;- tibble(\n    姓名 = c(\"张三\", \"李四\", \"王五\"),\n    部门 = c(\"研发部\", \"市场部\", \"财务部\"),\n    工资 = c(15000, 12000, 10000)\n)\n\n# 写出为 Excel 兼容格式\ntemp_cn &lt;- tempfile(fileext = \".csv\")\nwrite_excel_csv(chinese_data, temp_cn)\n\n# 读取\ndf &lt;- read_csv(temp_cn, show_col_types = FALSE)\ndf\n\n\n案例二：读取科研数据\n# 模拟科研数据格式（带注释行和单位行）\nresearch_data &lt;- \"# 实验数据文件\n# 日期: 2024-01-15\n# 实验员: 张三\n样本ID,浓度(μg/mL),吸光度,温度(°C)\nunit,μg/mL,OD450,°C\nS001,10.5,0.245,25.0\nS002,20.3,0.456,25.1\nS003,30.1,0.678,24.9\nS004,40.8,0.891,25.2\"\n\ntemp_research &lt;- tempfile(fileext = \".csv\")\nwriteLines(research_data, temp_research)\n\n# 跳过注释行和单位行\ndf &lt;- read_csv(temp_research,\n    skip = 4, # 跳过前4行\n    col_names = c(\"样本ID\", \"浓度\", \"吸光度\", \"温度\"),\n    show_col_types = FALSE\n)\ndf\n\n\n案例三：合并多个月度报表\n# 创建模拟月度数据\nmonths &lt;- c(\"2024-01\", \"2024-02\", \"2024-03\")\ntemp_monthly &lt;- sapply(months, function(m) {\n    temp &lt;- tempfile(fileext = \".csv\")\n    data &lt;- tibble(\n        月份 = m,\n        产品 = c(\"A\", \"B\", \"C\"),\n        销量 = sample(100:500, 3)\n    )\n    write_csv(data, temp)\n    temp\n})\n\n# 批量读取并合并\nmonthly_report &lt;- temp_monthly %&gt;%\n    map(read_csv, show_col_types = FALSE) %&gt;%\n    list_rbind()\n\nmonthly_report\n\n# 按月份汇总\nmonthly_report %&gt;%\n    group_by(月份) %&gt;%\n    summarise(总销量 = sum(销量))\n\n\n案例四：处理大型日志文件\n# 模拟日志数据\nlog_data &lt;- tibble(\n    timestamp = seq(as.POSIXct(\"2024-01-01\"),\n        by = \"min\",\n        length.out = 1000\n    ),\n    level = sample(c(\"INFO\", \"WARN\", \"ERROR\"), 1000,\n        replace = TRUE, prob = c(0.8, 0.15, 0.05)\n    ),\n    message = paste(\"Event\", 1:1000)\n)\n\ntemp_log &lt;- tempfile(fileext = \".csv\")\nwrite_csv(log_data, temp_log)\n\n# 只读取 ERROR 级别（先读取再过滤）\nerrors &lt;- read_csv(temp_log, show_col_types = FALSE) %&gt;%\n    filter(level == \"ERROR\")\n\nerrors"
+  },
+  {
+    "objectID": "index.html#readr-与-base-r-对照表",
+    "href": "index.html#readr-与-base-r-对照表",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readr 与 Base R 对照表",
+    "text": "readr 与 Base R 对照表\n\n\n\n功能\nreadr\nBase R\n\n\n\n\n读取 CSV\nread_csv()\nread.csv()\n\n\n读取 TSV\nread_tsv()\nread.delim()\n\n\n自定义分隔符\nread_delim()\nread.table()\n\n\n固定宽度\nread_fwf()\nread.fwf()\n\n\n写出 CSV\nwrite_csv()\nwrite.csv()\n\n\n类型规范\ncol_types = cols()\ncolClasses = c()\n\n\n默认输出\ntibble\ndata.frame\n\n\n默认编码\nUTF-8\n系统依赖\n\n\n字符串处理\n保持字符串\n可能转为因子"
+  },
+  {
+    "objectID": "index.html#常见问题解决",
+    "href": "index.html#常见问题解决",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "常见问题解决",
+    "text": "常见问题解决\n\n问题1：中文乱码\n# 解决方案：指定正确的编码\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"GBK\"))\n# 或使用 write_excel_csv 写出\n\n\n问题2：列类型推断错误\n# 解决方案：增加猜测行数或手动指定类型\n# df &lt;- read_csv(\"data.csv\", guess_max = 5000)\n# 或\n# df &lt;- read_csv(\"data.csv\", col_types = cols(\n#   问题列 = col_character()\n# ))\n\n\n问题3：科学计数法问题\n# 解决方案：使用 col_character() 保持原样\n# df &lt;- read_csv(\"data.csv\", col_types = cols(\n#   id = col_character()  # 避免 1234567890 变成 1.23e+09\n# ))"
+  },
+  {
+    "objectID": "index.html#总结-1",
+    "href": "index.html#总结-1",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "总结",
+    "text": "总结\nreadr 和 readxl 是 R 语言中读取数据的最佳选择：\n\n\n\n优势\n说明\n\n\n\n\n速度快\n比 Base R 快 10 倍以上\n\n\n类型智能\n自动准确推断列类型\n\n\n编码友好\n默认 UTF-8，中文无忧\n\n\n输出一致\n统一输出 tibble 格式\n\n\n功能全面\n覆盖各种数据格式\n\n\n\n掌握这两个包后，你的数据导入工作将变得高效便捷！"
+  },
+  {
+    "objectID": "index.html#参考资源-1",
+    "href": "index.html#参考资源-1",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nreadr 官方文档\nreadxl 官方文档\nR for Data Science - Data Import\nvroom 包（超大文件）"
+  },
+  {
+    "objectID": "3010-stringr.html",
+    "href": "3010-stringr.html",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "",
+    "text": "在 R 语言中处理字符串，传统方法使用 Base R 的 paste()、substr()、gsub() 等函数。这些函数功能强大，但存在以下问题：\n\n参数顺序不一致：有时字符串在前，有时模式在前\n命名不统一：函数名称难以记忆\n缺少向量化支持：部分操作需要手动循环\n\nstringr 包完美解决了这些问题：\n\n\n\n特性\n说明\n\n\n\n\n统一前缀\n所有函数以 str_ 开头，便于自动补全\n\n\n参数一致\n字符串永远是第一个参数\n\n\n向量化\n天然支持向量操作\n\n\n管道友好\n与 %&gt;% 和 |&gt; 完美配合\n\n\n\n\n# 安装并加载必要的包\nif (!require(\"stringr\")) install.packages(\"stringr\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"tibble\")) install.packages(\"tibble\")\n\nlibrary(stringr)\nlibrary(dplyr)\nlibrary(tibble)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#为什么选择-stringr",
+    "href": "3010-stringr.html#为什么选择-stringr",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "",
+    "text": "在 R 语言中处理字符串，传统方法使用 Base R 的 paste()、substr()、gsub() 等函数。这些函数功能强大，但存在以下问题：\n\n参数顺序不一致：有时字符串在前，有时模式在前\n命名不统一：函数名称难以记忆\n缺少向量化支持：部分操作需要手动循环\n\nstringr 包完美解决了这些问题：\n\n\n\n特性\n说明\n\n\n\n\n统一前缀\n所有函数以 str_ 开头，便于自动补全\n\n\n参数一致\n字符串永远是第一个参数\n\n\n向量化\n天然支持向量操作\n\n\n管道友好\n与 %&gt;% 和 |&gt; 完美配合\n\n\n\n\n# 安装并加载必要的包\nif (!require(\"stringr\")) install.packages(\"stringr\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"tibble\")) install.packages(\"tibble\")\n\nlibrary(stringr)\nlibrary(dplyr)\nlibrary(tibble)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#基础字符串操作",
+    "href": "3010-stringr.html#基础字符串操作",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "基础字符串操作",
+    "text": "基础字符串操作\n\n获取字符串长度：str_length\nstr_length() 返回字符串中的字符数量，正确处理 UTF-8 编码的中文字符。\n\n# 基本用法\nstr_length(\"Hello World\")\n\n[1] 11\n\n# 中文字符\nstr_length(\"你好世界\")\n\n[1] 4\n\n# 向量操作\nfruits &lt;- c(\"apple\", \"banana\", \"cherry\")\nstr_length(fruits)\n\n[1] 5 6 6\n\n# 与 nchar() 对比\nnchar(\"你好\") # Base R\n\n[1] 2\n\nstr_length(\"你好\") # stringr - 结果相同，但处理 NA 更优雅\n\n[1] 2\n\n# NA 处理\nstr_length(c(\"hello\", NA, \"world\"))\n\n[1]  5 NA  5\n\n\n\n\n提取子字符串：str_sub\nstr_sub() 用于提取或替换字符串的一部分，支持负数索引（从末尾计数）。\n\ntext &lt;- \"Hello World\"\n\n# 提取前5个字符\nstr_sub(text, 1, 5)\n\n[1] \"Hello\"\n\n# 提取后5个字符（负数索引）\nstr_sub(text, -5, -1)\n\n[1] \"World\"\n\n# 从第7个字符到末尾\nstr_sub(text, 7)\n\n[1] \"World\"\n\n# 向量操作\nwords &lt;- c(\"apple\", \"banana\", \"cherry\")\nstr_sub(words, 1, 3)\n\n[1] \"app\" \"ban\" \"che\"\n\n# 替换子字符串\ntext2 &lt;- \"Hello World\"\nstr_sub(text2, 1, 5) &lt;- \"Hi\"\ntext2\n\n[1] \"Hi World\"\n\n\n\n\n字符串拼接：str_c\nstr_c() 用于拼接字符串，功能类似 paste0()，但更灵活。\n\n# 基本拼接\nstr_c(\"Hello\", \"World\")\n\n[1] \"HelloWorld\"\n\n# 使用分隔符\nstr_c(\"Hello\", \"World\", sep = \" \")\n\n[1] \"Hello World\"\n\n# 向量拼接\nfirst_names &lt;- c(\"张\", \"李\", \"王\")\nlast_names &lt;- c(\"三\", \"四\", \"五\")\nstr_c(first_names, last_names)\n\n[1] \"张三\" \"李四\" \"王五\"\n\n# 折叠为单个字符串\nstr_c(c(\"a\", \"b\", \"c\"), collapse = \"-\")\n\n[1] \"a-b-c\"\n\n# 处理 NA（默认传播 NA）\nstr_c(\"Hello\", NA, \"World\")\n\n[1] NA\n\n# 组合使用 sep 和 collapse\nstr_c(c(\"A\", \"B\"), c(\"1\", \"2\"), sep = \"-\", collapse = \"; \")\n\n[1] \"A-1; B-2\"\n\n\n\n\n去除空白：str_trim 和 str_squish\n\n# 带空白的字符串\nmessy &lt;- \"   Hello   World   \"\n\n# str_trim：去除两端空白\nstr_trim(messy)\n\n[1] \"Hello   World\"\n\n# 只去除左侧或右侧\nstr_trim(messy, side = \"left\")\n\n[1] \"Hello   World   \"\n\nstr_trim(messy, side = \"right\")\n\n[1] \"   Hello   World\"\n\n# str_squish：去除两端空白 + 压缩内部空白\nstr_squish(messy)\n\n[1] \"Hello World\"\n\n# 实际应用：清理问卷数据\nresponses &lt;- c(\"  Yes \", \" No\", \"  Maybe  \", \"Yes  \")\nstr_trim(responses)\n\n[1] \"Yes\"   \"No\"    \"Maybe\" \"Yes\"  \n\n\n\n\n填充与截断：str_pad 和 str_trunc\n\n# str_pad：填充字符串到指定长度\nstr_pad(\"42\", width = 5, side = \"left\", pad = \"0\")\n\n[1] \"00042\"\n\n# 不同填充方向\nstr_pad(\"hi\", 5, \"left\")\n\n[1] \"   hi\"\n\nstr_pad(\"hi\", 5, \"right\")\n\n[1] \"hi   \"\n\nstr_pad(\"hi\", 5, \"both\")\n\n[1] \" hi  \"\n\n# 批量处理编号\nids &lt;- c(\"1\", \"12\", \"123\")\nstr_pad(ids, width = 4, pad = \"0\")\n\n[1] \"0001\" \"0012\" \"0123\"\n\n# str_trunc：截断过长字符串\nlong_text &lt;- \"这是一段非常长的文本，需要被截断显示\"\nstr_trunc(long_text, 10)\n\n[1] \"这是一段非常长...\"\n\n# 指定省略号位置\nstr_trunc(long_text, 15, side = \"left\")\n\n[1] \"...长的文本，需要被截断显示\"\n\nstr_trunc(long_text, 15, side = \"center\")\n\n[1] \"这是一段非常...要被截断显示\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#大小写转换",
+    "href": "3010-stringr.html#大小写转换",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "大小写转换",
+    "text": "大小写转换\n\ntext &lt;- \"Hello World\"\n\n# 转换为大写\nstr_to_upper(text)\n\n[1] \"HELLO WORLD\"\n\n# 转换为小写\nstr_to_lower(text)\n\n[1] \"hello world\"\n\n# 转换为标题格式（每个单词首字母大写）\nstr_to_title(\"hello world from r\")\n\n[1] \"Hello World From R\"\n\n# 转换为句子格式（只有第一个字母大写）\nstr_to_sentence(\"hello world from r\")\n\n[1] \"Hello world from r\"\n\n# 实际应用：标准化姓名\nnames &lt;- c(\"john DOE\", \"JANE smith\", \"bob JONES\")\nstr_to_title(names)\n\n[1] \"John Doe\"   \"Jane Smith\" \"Bob Jones\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#模式检测与计数",
+    "href": "3010-stringr.html#模式检测与计数",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "模式检测与计数",
+    "text": "模式检测与计数\n\n检测模式：str_detect\nstr_detect() 检查字符串是否包含特定模式，返回逻辑值。\n\nfruits &lt;- c(\"apple\", \"banana\", \"apricot\", \"cherry\", \"avocado\")\n\n# 检测是否包含 \"a\"\nstr_detect(fruits, \"a\")\n\n[1]  TRUE  TRUE  TRUE FALSE  TRUE\n\n# 检测是否以 \"a\" 开头\nstr_detect(fruits, \"^a\")\n\n[1]  TRUE FALSE  TRUE FALSE  TRUE\n\n# 检测是否以 \"o\" 结尾\nstr_detect(fruits, \"o$\")\n\n[1] FALSE FALSE FALSE FALSE  TRUE\n\n# 在 dplyr 中筛选数据\ntibble(fruit = fruits) %&gt;%\n    filter(str_detect(fruit, \"^a\"))\n\n# A tibble: 3 × 1\n  fruit  \n  &lt;chr&gt;  \n1 apple  \n2 apricot\n3 avocado\n\n# 否定检测\nstr_detect(fruits, \"a\", negate = TRUE)\n\n[1] FALSE FALSE FALSE  TRUE FALSE\n\n\n\n\n计数匹配：str_count\n\n# 统计字母出现次数\nstr_count(\"banana\", \"a\")\n\n[1] 3\n\n# 向量操作\nstr_count(c(\"apple\", \"banana\", \"cherry\"), \"a\")\n\n[1] 1 3 0\n\n# 统计单词数量（空格分隔）\ntext &lt;- \"The quick brown fox jumps over the lazy dog\"\nstr_count(text, \"\\\\w+\")\n\n[1] 9\n\n# 统计数字出现次数\nstr_count(\"ID123-456-789\", \"\\\\d\")\n\n[1] 9\n\n\n\n\n定位匹配：str_locate\n\ntext &lt;- \"The cat sat on the mat\"\n\n# 找到第一个匹配的位置\nstr_locate(text, \"at\")\n\n     start end\n[1,]     6   7\n\n# 找到所有匹配的位置\nstr_locate_all(text, \"at\")\n\n[[1]]\n     start end\n[1,]     6   7\n[2,]    10  11\n[3,]    21  22\n\n# 实际应用：找到特定模式的位置\nemail &lt;- \"contact@example.com\"\nstr_locate(email, \"@\")\n\n     start end\n[1,]     8   8",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#提取与替换",
+    "href": "3010-stringr.html#提取与替换",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "提取与替换",
+    "text": "提取与替换\n\n提取匹配内容：str_extract\n\n# 提取第一个匹配\ntexts &lt;- c(\"ID: 12345\", \"Code: ABC123\", \"Ref: XYZ789\")\n\n# 提取数字\nstr_extract(texts, \"\\\\d+\")\n\n[1] \"12345\" \"123\"   \"789\"  \n\n# 提取所有匹配\nstr_extract_all(texts, \"\\\\d+\")\n\n[[1]]\n[1] \"12345\"\n\n[[2]]\n[1] \"123\"\n\n[[3]]\n[1] \"789\"\n\n# 提取字母\nstr_extract(texts, \"[A-Z]+\")\n\n[1] \"ID\" \"C\"  \"R\" \n\n# 医学数据示例：提取剂量\nprescriptions &lt;- c(\n    \"Aspirin 100mg daily\",\n    \"Metformin 500mg twice\",\n    \"Vitamin D 1000IU\"\n)\nstr_extract(prescriptions, \"\\\\d+\")\n\n[1] \"100\"  \"500\"  \"1000\"\n\n\n\n\n替换内容：str_replace\n\n# 替换第一个匹配\ntext &lt;- \"The cat and the cat\"\nstr_replace(text, \"cat\", \"dog\")\n\n[1] \"The dog and the cat\"\n\n# 替换所有匹配\nstr_replace_all(text, \"cat\", \"dog\")\n\n[1] \"The dog and the dog\"\n\n# 使用正则表达式替换\ndates &lt;- c(\"2024/01/15\", \"2024/02/20\", \"2024/03/25\")\nstr_replace_all(dates, \"/\", \"-\")\n\n[1] \"2024-01-15\" \"2024-02-20\" \"2024-03-25\"\n\n# 使用分组进行复杂替换\nstr_replace(dates, \"(\\\\d{4})/(\\\\d{2})/(\\\\d{2})\", \"\\\\3-\\\\2-\\\\1\")\n\n[1] \"15-01-2024\" \"20-02-2024\" \"25-03-2024\"\n\n# 批量替换多个模式\nmessy_text &lt;- \"Hello!!! How are you???\"\nmessy_text %&gt;%\n    str_replace_all(\"!\", \".\") %&gt;%\n    str_replace_all(\"\\\\?\", \".\")\n\n[1] \"Hello... How are you...\"\n\n\n\n\n删除匹配内容：str_remove\n\n# 删除第一个匹配\nstr_remove(\"Hello World World\", \"World\")\n\n[1] \"Hello  World\"\n\n# 删除所有匹配\nstr_remove_all(\"Hello World World\", \"World\")\n\n[1] \"Hello  \"\n\n# 删除空格\nstr_remove_all(\"H e l l o\", \" \")\n\n[1] \"Hello\"\n\n# 删除特殊字符\nstr_remove_all(\"Price: $100.00\", \"[^\\\\d.]\")\n\n[1] \"100.00\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#分割与合并",
+    "href": "3010-stringr.html#分割与合并",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "分割与合并",
+    "text": "分割与合并\n\n分割字符串：str_split\n\n# 基本分割\nstr_split(\"a-b-c\", \"-\")\n\n[[1]]\n[1] \"a\" \"b\" \"c\"\n\n# 返回矩阵格式（指定列数）\nstr_split_fixed(\"a-b-c-d\", \"-\", n = 3)\n\n     [,1] [,2] [,3] \n[1,] \"a\"  \"b\"  \"c-d\"\n\n# 分割多个字符串\naddresses &lt;- c(\"北京市|海淀区|中关村\", \"上海市|浦东区|陆家嘴\")\nstr_split(addresses, \"\\\\|\")\n\n[[1]]\n[1] \"北京市\" \"海淀区\" \"中关村\"\n\n[[2]]\n[1] \"上海市\" \"浦东区\" \"陆家嘴\"\n\n# 限制分割次数\nstr_split(\"a-b-c-d\", \"-\", n = 2)\n\n[[1]]\n[1] \"a\"     \"b-c-d\"\n\n# 转为数据框（配合 tidyr）\ntibble(address = addresses) %&gt;%\n    tidyr::separate(address, into = c(\"省市\", \"区县\", \"街道\"), sep = \"\\\\|\")\n\n# A tibble: 2 × 3\n  省市   区县   街道  \n  &lt;chr&gt;  &lt;chr&gt;  &lt;chr&gt; \n1 北京市 海淀区 中关村\n2 上海市 浦东区 陆家嘴\n\n\n\n\n合并字符串：str_flatten\n\n# 将向量合并为单个字符串\nwords &lt;- c(\"apple\", \"banana\", \"cherry\")\nstr_flatten(words, collapse = \", \")\n\n[1] \"apple, banana, cherry\"\n\n# 添加最后一个分隔符\nstr_flatten(words, collapse = \", \", last = \" and \")\n\n[1] \"apple, banana and cherry\"\n\n# 与 str_c(collapse=) 的区别\n# str_flatten 专门用于折叠，更加语义化",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#字符串排序与去重",
+    "href": "3010-stringr.html#字符串排序与去重",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "字符串排序与去重",
+    "text": "字符串排序与去重\n\n# 排序\nfruits &lt;- c(\"cherry\", \"apple\", \"banana\")\nstr_sort(fruits)\n\n[1] \"apple\"  \"banana\" \"cherry\"\n\n# 降序排序\nstr_sort(fruits, decreasing = TRUE)\n\n[1] \"cherry\" \"banana\" \"apple\" \n\n# 按数字排序\nfiles &lt;- c(\"file2.txt\", \"file10.txt\", \"file1.txt\")\nstr_sort(files) # 字母顺序\n\n[1] \"file1.txt\"  \"file10.txt\" \"file2.txt\" \n\nstr_sort(files, numeric = TRUE) # 数字顺序\n\n[1] \"file1.txt\"  \"file2.txt\"  \"file10.txt\"\n\n# 获取排序后的索引\nstr_order(fruits)\n\n[1] 2 3 1\n\n# 去重\nstr_unique(c(\"a\", \"b\", \"a\", \"c\", \"b\"))\n\n[1] \"a\" \"b\" \"c\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#实战案例",
+    "href": "3010-stringr.html#实战案例",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "实战案例",
+    "text": "实战案例\n\n案例一：清理姓名数据\n\n# 模拟杂乱的姓名数据\nraw_names &lt;- tibble(\n    id = 1:6,\n    name = c(\n        \"  张 三  \",\n        \"李四\",\n        \"WANG WU\",\n        \"赵六  \",\n        \"  钱七\",\n        \"sun ba\"\n    )\n)\n\n# 清理姓名\nclean_names &lt;- raw_names %&gt;%\n    mutate(\n        name_clean = name %&gt;%\n            str_squish() %&gt;% # 去除多余空白\n            str_to_title() %&gt;% # 标准化大小写\n            str_replace_all(\" \", \"\") # 去除中间空格（中文姓名）\n    )\n\nclean_names\n\n# A tibble: 6 × 3\n     id name        name_clean\n  &lt;int&gt; &lt;chr&gt;       &lt;chr&gt;     \n1     1 \"  张 三  \" 张三      \n2     2 \"李四\"      李四      \n3     3 \"WANG WU\"   WangWu    \n4     4 \"赵六  \"    赵六      \n5     5 \"  钱七\"    钱七      \n6     6 \"sun ba\"    SunBa     \n\n\n\n\n案例二：提取医学数据\n\n# 模拟医学记录\nmedical_records &lt;- tibble(\n    patient_id = 1:5,\n    record = c(\n        \"BP: 120/80 mmHg, HR: 72 bpm\",\n        \"Blood Pressure 130/85, Heart Rate 80\",\n        \"收缩压: 125, 舒张压: 82, 心率: 68\",\n        \"SBP=140, DBP=90, Pulse: 88\",\n        \"Blood pressure reading: 115/75 mmHg\"\n    )\n)\n\n# 提取血压和心率数据\nextracted &lt;- medical_records %&gt;%\n    mutate(\n        # 提取收缩压（第一个数字）\n        sbp = str_extract(record, \"\\\\d{2,3}(?=/)\") %&gt;% as.numeric(),\n        # 提取舒张压（斜杠后的数字）\n        dbp = str_extract(record, \"(?&lt;=/)\\\\d{2,3}\") %&gt;% as.numeric(),\n        # 提取心率（各种格式）\n        hr = str_extract(record, \"(?i)(?&lt;=HR:|heart rate |心率:|Pulse:| )\\\\d{2,3}\") %&gt;%\n            as.numeric()\n    )\n\nextracted %&gt;% select(patient_id, sbp, dbp, hr)\n\n# A tibble: 5 × 4\n  patient_id   sbp   dbp    hr\n       &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;\n1          1   120    80   120\n2          2   130    85   130\n3          3    NA    NA   125\n4          4    NA    NA    88\n5          5   115    75   115\n\n\n\n\n案例三：标准化地址\n\n# 杂乱地址数据\naddresses &lt;- tibble(\n    id = 1:4,\n    address = c(\n        \"北京市 海淀区 中关村大街1号\",\n        \"上海市浦东新区陆家嘴环路100号\",\n        \"广州市  天河区  体育西路  200号\",\n        \"深圳市南山区科技园路50号\"\n    )\n)\n\n# 标准化地址\nstandardized &lt;- addresses %&gt;%\n    mutate(\n        address_clean = address %&gt;%\n            str_squish() %&gt;% # 压缩空白\n            str_replace_all(\"\\\\s+\", \"\"), # 去除所有空格\n\n        # 提取各级行政区\n        province = str_extract(address_clean, \"^.+?(?=市)\"),\n        city = str_extract(address_clean, \"(?&lt;=省|^).+?(?=市)\"),\n        district = str_extract(address_clean, \"(?&lt;=市).+?(?=区)\"),\n        street = str_extract(address_clean, \"(?&lt;=区).+\")\n    )\n\nstandardized %&gt;% select(id, province, district, street)\n\n# A tibble: 4 × 4\n     id province district street         \n  &lt;int&gt; &lt;chr&gt;    &lt;chr&gt;    &lt;chr&gt;          \n1     1 北京     海淀     中关村大街1号  \n2     2 上海     浦东新   陆家嘴环路100号\n3     3 广州     天河     体育西路200号  \n4     4 深圳     南山     科技园路50号   \n\n\n\n\n案例四：处理问卷开放题\n\n# 模拟问卷开放题回答\nsurvey_responses &lt;- tibble(\n    respondent = 1:5,\n    feedback = c(\n        \"服务很好！！！非常满意~~~\",\n        \"还可以吧，没什么特别的\",\n        \"太差了。。。不会再来\",\n        \"VERY GOOD, will come again!\",\n        \"价格便宜，质量也不错\"\n    )\n)\n\n# 清理和分析反馈\nanalyzed &lt;- survey_responses %&gt;%\n    mutate(\n        # 清理特殊符号\n        feedback_clean = feedback %&gt;%\n            str_replace_all(\"[!！~。.]+\", \"\") %&gt;%\n            str_replace_all(\"[,，]+\", \"，\"),\n\n        # 情感词检测\n        positive = str_detect(feedback, \"(?i)好|满意|不错|good|great\"),\n        negative = str_detect(feedback, \"(?i)差|不满|terrible|bad\"),\n\n        # 字数统计\n        word_count = str_length(feedback_clean)\n    )\n\nanalyzed\n\n# A tibble: 5 × 6\n  respondent feedback                feedback_clean positive negative word_count\n       &lt;int&gt; &lt;chr&gt;                   &lt;chr&gt;          &lt;lgl&gt;    &lt;lgl&gt;         &lt;int&gt;\n1          1 服务很好！！！非常满意~~~…… 服务很好非常满意…… TRUE     FALSE             8\n2          2 还可以吧，没什么特别的  还可以吧，没什么特别的…… FALSE    FALSE            11\n3          3 太差了。。。不会再来    太差了不会再来 FALSE    TRUE              7\n4          4 VERY GOOD, will come a… VERY GOOD， wi… TRUE     FALSE            26\n5          5 价格便宜，质量也不错    价格便宜，质量也不错…… TRUE     FALSE            10",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#与正则表达式配合",
+    "href": "3010-stringr.html#与正则表达式配合",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "与正则表达式配合",
+    "text": "与正则表达式配合\nstringr 的所有模式匹配函数都支持正则表达式，详细语法请参考 正则表达式教程。\n\n# 使用 regex() 添加选项\ntext &lt;- \"Hello WORLD\"\n\n# 忽略大小写\nstr_detect(text, regex(\"world\", ignore_case = TRUE))\n\n[1] TRUE\n\n# 多行模式\nmultiline &lt;- \"Line 1\\nLine 2\\nLine 3\"\nstr_extract_all(multiline, regex(\"^Line\", multiline = TRUE))\n\n[[1]]\n[1] \"Line\" \"Line\" \"Line\"\n\n# fixed() 用于精确匹配（不使用正则）\nstr_detect(\"a.b.c\", fixed(\".\")) # 匹配字面点号\n\n[1] TRUE\n\nstr_detect(\"a.b.c\", \".\") # 匹配任意字符\n\n[1] TRUE",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#stringr-与-base-r-对照表",
+    "href": "3010-stringr.html#stringr-与-base-r-对照表",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "stringr 与 Base R 对照表",
+    "text": "stringr 与 Base R 对照表\n\n\n\n功能\nstringr\nBase R\n\n\n\n\n长度\nstr_length()\nnchar()\n\n\n子串\nstr_sub()\nsubstr()\n\n\n拼接\nstr_c()\npaste0()\n\n\n检测\nstr_detect()\ngrepl()\n\n\n提取\nstr_extract()\nregmatches()\n\n\n替换\nstr_replace()\nsub()\n\n\n全部替换\nstr_replace_all()\ngsub()\n\n\n分割\nstr_split()\nstrsplit()\n\n\n大写\nstr_to_upper()\ntoupper()\n\n\n小写\nstr_to_lower()\ntolower()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#总结",
+    "href": "3010-stringr.html#总结",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "总结",
+    "text": "总结\nstringr 包是 R 语言中处理字符串的首选工具：\n\n\n\n优势\n说明\n\n\n\n\n一致性\n所有函数 str_ 开头，字符串总是第一个参数\n\n\n向量化\n天然支持向量操作，无需循环\n\n\n管道友好\n与 tidyverse 生态完美集成\n\n\n正则支持\n内置强大的正则表达式支持\n\n\n\n掌握 stringr 后，你将能够高效处理各种字符串操作任务！",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#参考资源",
+    "href": "3010-stringr.html#参考资源",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nstringr 官方文档\nR for Data Science - Strings\nstringr cheatsheet\n正则表达式教程\n\n\n\n{r setup, include=FALSE} knitr::opts_chunk$set(     echo = TRUE,     warning = FALSE,     message = FALSE,     fig.width = 10,     fig.height = 6,     fig.retina = 2,     out.width = \"100%\",     dpi = 150 )",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#什么是因子",
+    "href": "3010-stringr.html#什么是因子",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "什么是因子？",
+    "text": "什么是因子？\n在 R 语言中，因子（factor） 是用于表示分类数据的特殊数据类型。与字符型不同，因子有预定义的水平（levels），这些水平决定了数据的取值范围和顺序。\n因子在以下场景中非常重要：\n\n\n\n应用场景\n说明\n\n\n\n\n统计建模\n回归分析中自动生成哑变量\n\n\n可视化\n控制图例和坐标轴的顺序\n\n\n数据验证\n限制变量只能取特定值\n\n\n分组分析\n按类别进行汇总统计\n\n\n\n# 安装并加载必要的包\nif (!require(\"forcats\")) install.packages(\"forcats\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"ggplot2\")) install.packages(\"ggplot2\")\nif (!require(\"tibble\")) install.packages(\"tibble\")\n\nlibrary(forcats)\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(tibble)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#因子基础",
+    "href": "3010-stringr.html#因子基础",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "因子基础",
+    "text": "因子基础\n\n创建因子\n# 从字符向量创建因子\neducation &lt;- c(\"本科\", \"硕士\", \"博士\", \"本科\", \"高中\", \"硕士\")\nedu_factor &lt;- factor(education)\nedu_factor\n\n# 查看因子水平\nlevels(edu_factor)\n\n# 指定水平顺序（有序因子）\nedu_ordered &lt;- factor(\n    education,\n    levels = c(\"高中\", \"本科\", \"硕士\", \"博士\"),\n    ordered = TRUE\n)\nedu_ordered\n\n\n因子的问题\nBase R 的因子操作存在一些痛点：\n# 问题1：默认按字母顺序排序\ntreatment &lt;- factor(c(\"Control\", \"Treatment A\", \"Treatment B\"))\nlevels(treatment) # 字母顺序，而非逻辑顺序\n\n# 问题2：修改水平顺序繁琐\n# 需要重新创建因子或使用复杂的索引操作\n\n# 问题3：添加新水平容易出错\n# 直接赋值可能产生 NA\nforcats 包完美解决了这些问题！",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#forcats-核心函数",
+    "href": "3010-stringr.html#forcats-核心函数",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "forcats 核心函数",
+    "text": "forcats 核心函数\n\n查看因子信息：fct_count 和 fct_unique\n# 创建示例数据\nresponses &lt;- factor(c(\"同意\", \"中立\", \"反对\", \"同意\", \"同意\", \"中立\", \"反对\", \"同意\"))\n\n# 统计各水平频数\nfct_count(responses)\n\n# 获取唯一水平（类似 levels() 但返回因子）\nfct_unique(responses)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#重新排序水平",
+    "href": "3010-stringr.html#重新排序水平",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "重新排序水平",
+    "text": "重新排序水平\n\n手动排序：fct_relevel\nfct_relevel() 允许手动指定水平顺序。\n# 原始因子\nsize &lt;- factor(c(\"Small\", \"Medium\", \"Large\", \"Small\", \"Large\"))\nlevels(size) # 字母顺序\n\n# 重新排序\nsize_ordered &lt;- fct_relevel(size, \"Small\", \"Medium\", \"Large\")\nlevels(size_ordered)\n\n# 只移动特定水平到开头\nsize_small_first &lt;- fct_relevel(size, \"Small\")\nlevels(size_small_first)\n\n# 移动到末尾（使用 after 参数）\nsize_large_last &lt;- fct_relevel(size, \"Large\", after = Inf)\nlevels(size_large_last)\n\n# 移动到特定位置\nsize_medium_second &lt;- fct_relevel(size, \"Medium\", after = 1)\nlevels(size_medium_second)\n\n\n按频率排序：fct_infreq 和 fct_inseq\n# 示例数据\ncolors &lt;- factor(c(\"红\", \"蓝\", \"红\", \"绿\", \"红\", \"蓝\", \"红\", \"绿\", \"绿\"))\n\n# 按频率降序排序\ncolors_freq &lt;- fct_infreq(colors)\nlevels(colors_freq)\n\n# 按频率升序\ncolors_freq_asc &lt;- fct_rev(fct_infreq(colors))\nlevels(colors_freq_asc)\n\n# 按数字顺序（适用于 \"1\", \"2\", \"10\" 等）\nnums &lt;- factor(c(\"1\", \"2\", \"10\", \"20\", \"3\"))\nlevels(fct_inseq(nums))\n\n\n按另一变量排序：fct_reorder\nfct_reorder() 是可视化中最常用的函数，根据另一个变量的统计值重排因子。\n# 创建示例数据\nsales &lt;- tibble(\n    product = factor(c(\"A\", \"B\", \"C\", \"D\", \"E\")),\n    revenue = c(100, 250, 180, 300, 150)\n)\n\n# 按收入排序\nsales &lt;- sales %&gt;%\n    mutate(product = fct_reorder(product, revenue))\n\nlevels(sales$product)\n\n# 可视化效果\nggplot(sales, aes(x = revenue, y = product)) +\n    geom_col(fill = \"#667eea\") +\n    labs(title = \"按收入排序的产品\", x = \"收入\", y = \"产品\") +\n    theme_minimal()\n# 使用自定义函数排序\n# 例如：按收入的中位数排序\nmulti_sales &lt;- tibble(\n    product = factor(rep(c(\"A\", \"B\", \"C\"), each = 3)),\n    revenue = c(100, 120, 110, 200, 250, 220, 150, 160, 155)\n)\n\nmulti_sales &lt;- multi_sales %&gt;%\n    mutate(product = fct_reorder(product, revenue, .fun = median))\n\nlevels(multi_sales$product)\n\n\n按出现顺序：fct_inorder\n# 按数据中首次出现的顺序排列\nfirst_appearance &lt;- factor(c(\"C\", \"A\", \"B\", \"C\", \"A\"))\nlevels(first_appearance) # 默认字母顺序\n\nlevels(fct_inorder(first_appearance)) # 按出现顺序\n\n\n反转顺序：fct_rev\nsize &lt;- factor(c(\"Small\", \"Medium\", \"Large\"),\n    levels = c(\"Small\", \"Medium\", \"Large\")\n)\n\n# 反转水平顺序\nsize_rev &lt;- fct_rev(size)\nlevels(size_rev)\n\n\n移动特定水平：fct_shift\ndays &lt;- factor(c(\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\"),\n    levels = c(\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\")\n)\n\n# 向左移动（Mon 变成最后一个）\ndays_shift &lt;- fct_shift(days, n = 1)\nlevels(days_shift)\n\n# 向右移动\ndays_shift_right &lt;- fct_shift(days, n = -1)\nlevels(days_shift_right)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#重新编码水平",
+    "href": "3010-stringr.html#重新编码水平",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "重新编码水平",
+    "text": "重新编码水平\n\n修改水平名称：fct_recode\n# 原始数据\nsatisfaction &lt;- factor(c(\"1\", \"2\", \"3\", \"4\", \"5\", \"3\", \"4\", \"5\"))\n\n# 重新编码\nsatisfaction_named &lt;- fct_recode(satisfaction,\n    \"非常不满意\" = \"1\",\n    \"不满意\" = \"2\",\n    \"中立\" = \"3\",\n    \"满意\" = \"4\",\n    \"非常满意\" = \"5\"\n)\n\nlevels(satisfaction_named)\nfct_count(satisfaction_named)\n\n\n合并水平：fct_collapse\n# 详细分类\neducation &lt;- factor(c(\"小学\", \"初中\", \"高中\", \"本科\", \"硕士\", \"博士\", \"高中\", \"本科\"))\n\n# 合并为粗略分类\neducation_collapsed &lt;- fct_collapse(education,\n    \"初等教育\" = c(\"小学\", \"初中\"),\n    \"中等教育\" = \"高中\",\n    \"高等教育\" = c(\"本科\", \"硕士\", \"博士\")\n)\n\nlevels(education_collapsed)\nfct_count(education_collapsed)\n\n\n合并低频水平：fct_lump\nfct_lump 系列函数用于将低频水平合并为 “Other”。\n# 示例数据\ncountries &lt;- factor(c(\n    rep(\"中国\", 50), rep(\"美国\", 30), rep(\"英国\", 10),\n    rep(\"法国\", 5), rep(\"德国\", 3), rep(\"日本\", 2)\n))\n\n# 保留前 n 个最常见的水平\nfct_count(fct_lump_n(countries, n = 3))\n\n# 保留至少占比 p 的水平\nfct_count(fct_lump_prop(countries, prop = 0.1))\n\n# 保留至少出现 min 次的水平\nfct_count(fct_lump_min(countries, min = 5))\n\n# 自定义 \"Other\" 的名称\nfct_count(fct_lump_n(countries, n = 3, other_level = \"其他国家\"))\n\n\n匿名化水平：fct_anon\n# 原始敏感数据\npatients &lt;- factor(c(\"张三\", \"李四\", \"王五\", \"张三\", \"李四\"))\n\n# 匿名化\npatients_anon &lt;- fct_anon(patients, prefix = \"Patient_\")\nlevels(patients_anon)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#添加和删除水平",
+    "href": "3010-stringr.html#添加和删除水平",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "添加和删除水平",
+    "text": "添加和删除水平\n\n删除未使用的水平：fct_drop\n# 创建有多余水平的因子\ncolors &lt;- factor(c(\"红\", \"蓝\", \"红\"), levels = c(\"红\", \"蓝\", \"绿\", \"黄\"))\nlevels(colors) # 包含未使用的 \"绿\" 和 \"黄\"\n\n# 删除未使用的水平\ncolors_clean &lt;- fct_drop(colors)\nlevels(colors_clean)\n\n# 只删除特定水平\ncolors_keep_green &lt;- fct_drop(colors, only = \"黄\")\nlevels(colors_keep_green)\n\n\n添加水平：fct_expand\n# 原始因子\nsizes &lt;- factor(c(\"S\", \"M\", \"L\"))\n\n# 添加新水平\nsizes_expanded &lt;- fct_expand(sizes, \"XS\", \"XL\")\nlevels(sizes_expanded)\n\n\n统一多个因子的水平：fct_unify\n# 两个来自不同数据源的因子\nsurvey1 &lt;- factor(c(\"同意\", \"中立\", \"反对\"))\nsurvey2 &lt;- factor(c(\"同意\", \"反对\", \"强烈反对\"))\n\n# 统一水平\nunified &lt;- fct_unify(list(survey1, survey2))\nlapply(unified, levels)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#与-ggplot2-联动",
+    "href": "3010-stringr.html#与-ggplot2-联动",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "与 ggplot2 联动",
+    "text": "与 ggplot2 联动\n因子在可视化中最重要的作用是控制元素的顺序。\n\n控制柱状图顺序\n# 示例数据\nsales_data &lt;- tibble(\n    product = c(\"产品A\", \"产品B\", \"产品C\", \"产品D\"),\n    sales = c(120, 300, 180, 250)\n)\n\n# 默认顺序（字母序）\np1 &lt;- ggplot(sales_data, aes(x = product, y = sales)) +\n    geom_col(fill = \"#667eea\") +\n    labs(title = \"默认顺序\") +\n    theme_minimal()\n\n# 按销量排序\np2 &lt;- sales_data %&gt;%\n    mutate(product = fct_reorder(product, sales)) %&gt;%\n    ggplot(aes(x = product, y = sales)) +\n    geom_col(fill = \"#764ba2\") +\n    labs(title = \"按销量升序\") +\n    theme_minimal()\n\n# 按销量降序\np3 &lt;- sales_data %&gt;%\n    mutate(product = fct_reorder(product, sales, .desc = TRUE)) %&gt;%\n    ggplot(aes(x = product, y = sales)) +\n    geom_col(fill = \"#f093fb\") +\n    labs(title = \"按销量降序\") +\n    theme_minimal()\n\nlibrary(patchwork)\np1 | p2 | p3\n\n\n控制图例顺序\n# 分组数据\ngroup_data &lt;- tibble(\n    category = rep(c(\"A组\", \"B组\", \"C组\"), each = 10),\n    value = c(rnorm(10, 5), rnorm(10, 8), rnorm(10, 6))\n)\n\n# 按均值排序图例\ngroup_data %&gt;%\n    mutate(category = fct_reorder(category, value, .fun = mean)) %&gt;%\n    ggplot(aes(x = value, fill = category)) +\n    geom_density(alpha = 0.5) +\n    scale_fill_manual(values = c(\"#667eea\", \"#764ba2\", \"#f093fb\")) +\n    labs(title = \"按均值排序的密度图\", fill = \"分组\") +\n    theme_minimal()\n\n\n控制分面顺序\n# 使用 fct_reorder2 按最后一个值排序（适合折线图）\ntrend_data &lt;- tibble(\n    year = rep(2020:2024, 3),\n    group = rep(c(\"A\", \"B\", \"C\"), each = 5),\n    value = c(\n        c(10, 15, 18, 22, 25), # A: 上升趋势\n        c(20, 18, 22, 19, 21), # B: 平稳\n        c(15, 20, 25, 30, 35) # C: 快速上升\n    )\n)\n\n# 按最后一个值排序\ntrend_data %&gt;%\n    mutate(group = fct_reorder2(group, year, value)) %&gt;%\n    ggplot(aes(x = year, y = value, color = group)) +\n    geom_line(linewidth = 1) +\n    geom_point(size = 2) +\n    scale_color_manual(values = c(\"#f093fb\", \"#667eea\", \"#764ba2\")) +\n    labs(title = \"按2024年值排序的趋势图\") +\n    theme_minimal()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#与-dplyr-联动",
+    "href": "3010-stringr.html#与-dplyr-联动",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "与 dplyr 联动",
+    "text": "与 dplyr 联动\n\n在分组统计中使用\n# 示例数据\nsurvey &lt;- tibble(\n    region = factor(c(\"北\", \"南\", \"东\", \"西\", \"北\", \"南\", \"东\", \"西\", \"北\", \"南\")),\n    score = c(85, 92, 78, 88, 90, 95, 82, 85, 88, 91)\n)\n\n# 按平均分排序后分组统计\nsurvey %&gt;%\n    mutate(region = fct_reorder(region, score, .fun = mean)) %&gt;%\n    group_by(region) %&gt;%\n    summarise(\n        mean_score = mean(score),\n        n = n()\n    ) %&gt;%\n    arrange(desc(mean_score))\n\n\n在 case_when 中使用\n# 根据条件创建有序因子\npatients &lt;- tibble(\n    id = 1:10,\n    age = c(25, 45, 67, 38, 72, 55, 29, 61, 43, 80)\n)\n\npatients &lt;- patients %&gt;%\n    mutate(\n        age_group = case_when(\n            age &lt; 30 ~ \"青年\",\n            age &lt; 60 ~ \"中年\",\n            TRUE ~ \"老年\"\n        ),\n        # 转为有序因子\n        age_group = factor(age_group, levels = c(\"青年\", \"中年\", \"老年\"))\n    )\n\nfct_count(patients$age_group)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#实战案例-1",
+    "href": "3010-stringr.html#实战案例-1",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "实战案例",
+    "text": "实战案例\n\n案例一：问卷数据处理\n# 模拟问卷数据\nsurvey_data &lt;- tibble(\n    id = 1:100,\n    education = sample(c(\"高中\", \"本科\", \"硕士\", \"博士\", \"其他\"), 100,\n        replace = TRUE, prob = c(0.2, 0.4, 0.25, 0.1, 0.05)\n    ),\n    satisfaction = sample(1:5, 100, replace = TRUE),\n    income = sample(c(\"3000以下\", \"3000-5000\", \"5000-10000\", \"10000-20000\", \"20000以上\"),\n        100,\n        replace = TRUE\n    )\n)\n\n# 处理因子\nsurvey_clean &lt;- survey_data %&gt;%\n    mutate(\n        # 教育程度：合并 \"其他\" 并排序\n        education = factor(education) %&gt;%\n            fct_relevel(\"高中\", \"本科\", \"硕士\", \"博士\", \"其他\") %&gt;%\n            fct_recode(\"本科及以下\" = \"其他\"),\n\n        # 满意度：编码并排序\n        satisfaction = factor(satisfaction) %&gt;%\n            fct_recode(\n                \"非常不满\" = \"1\", \"不满\" = \"2\", \"中立\" = \"3\",\n                \"满意\" = \"4\", \"非常满意\" = \"5\"\n            ),\n\n        # 收入：排序\n        income = factor(income) %&gt;%\n            fct_relevel(\"3000以下\", \"3000-5000\", \"5000-10000\", \"10000-20000\", \"20000以上\")\n    )\n\n# 查看处理结果\nsurvey_clean %&gt;%\n    count(education, satisfaction) %&gt;%\n    head(10)\n\n\n案例二：医学分级数据\n# 模拟疾病严重程度数据\nclinical_data &lt;- tibble(\n    patient_id = 1:50,\n    severity = sample(c(\"Mild\", \"Moderate\", \"Severe\", \"Critical\"), 50,\n        replace = TRUE, prob = c(0.3, 0.35, 0.25, 0.1)\n    ),\n    treatment = sample(c(\"Standard\", \"Intensive\", \"Experimental\"), 50, replace = TRUE)\n)\n\n# 处理严重程度（确保正确顺序）\nclinical_clean &lt;- clinical_data %&gt;%\n    mutate(\n        severity = factor(severity) %&gt;%\n            fct_relevel(\"Mild\", \"Moderate\", \"Severe\", \"Critical\") %&gt;%\n            fct_recode(\n                \"轻度\" = \"Mild\",\n                \"中度\" = \"Moderate\",\n                \"重度\" = \"Severe\",\n                \"危重\" = \"Critical\"\n            )\n    )\n\n# 统计并可视化\nclinical_clean %&gt;%\n    count(severity, treatment) %&gt;%\n    ggplot(aes(x = severity, y = n, fill = treatment)) +\n    geom_col(position = \"dodge\") +\n    scale_fill_manual(values = c(\"#667eea\", \"#764ba2\", \"#f093fb\")) +\n    labs(title = \"各严重程度的治疗方案分布\", x = \"严重程度\", y = \"人数\") +\n    theme_minimal()\n\n\n案例三：时间序列中的月份处理\n# 模拟月度销售数据\nmonthly_sales &lt;- tibble(\n    month = factor(month.abb, levels = month.abb),\n    sales = c(120, 135, 150, 180, 200, 220, 250, 240, 210, 190, 160, 145)\n)\n\n# 从某个月份开始（如财年从4月开始）\nmonthly_sales_fy &lt;- monthly_sales %&gt;%\n    mutate(month = fct_shift(month, n = 3)) # Apr 成为第一个\n\nlevels(monthly_sales_fy$month)\n\n# 可视化\nggplot(monthly_sales, aes(x = month, y = sales, group = 1)) +\n    geom_line(color = \"#667eea\", linewidth = 1) +\n    geom_point(color = \"#764ba2\", size = 3) +\n    labs(title = \"月度销售趋势\", x = \"月份\", y = \"销售额\") +\n    theme_minimal()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#forcats-函数速查表",
+    "href": "3010-stringr.html#forcats-函数速查表",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "forcats 函数速查表",
+    "text": "forcats 函数速查表\n\n\n\n功能\n函数\n说明\n\n\n\n\n查看\nfct_count()\n统计各水平频数\n\n\n\nfct_unique()\n获取唯一水平\n\n\n排序\nfct_relevel()\n手动指定顺序\n\n\n\nfct_infreq()\n按频率降序\n\n\n\nfct_inorder()\n按出现顺序\n\n\n\nfct_reorder()\n按另一变量排序\n\n\n\nfct_reorder2()\n按两变量关系排序\n\n\n\nfct_rev()\n反转顺序\n\n\n\nfct_shift()\n循环移动\n\n\n编码\nfct_recode()\n重命名水平\n\n\n\nfct_collapse()\n合并水平\n\n\n\nfct_lump_n()\n保留前 n 个\n\n\n\nfct_lump_prop()\n按比例保留\n\n\n\nfct_lump_min()\n按最小频数保留\n\n\n\nfct_anon()\n匿名化\n\n\n修改\nfct_drop()\n删除未用水平\n\n\n\nfct_expand()\n添加新水平\n\n\n\nfct_unify()\n统一多因子水平",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#总结-1",
+    "href": "3010-stringr.html#总结-1",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "总结",
+    "text": "总结\nforcats 包让 R 中的因子处理变得直观高效：\n\n\n\n优势\n说明\n\n\n\n\n语义化命名\n函数名清晰表达功能\n\n\n管道友好\n与 dplyr、ggplot2 完美集成\n\n\n功能全面\n覆盖因子操作的各种需求\n\n\n避免陷阱\n安全处理水平变更\n\n\n\n掌握 forcats 后，你将能够优雅地处理各种分类数据！",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#参考资源-1",
+    "href": "3010-stringr.html#参考资源-1",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nforcats 官方文档\nR for Data Science - Factors\nforcats cheatsheet\n\n{r setup, include=FALSE} knitr::opts_chunk$set(     echo = TRUE,     warning = FALSE,     message = FALSE,     fig.width = 10,     fig.height = 6,     fig.retina = 2,     out.width = \"100%\",     dpi = 150 )",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#为什么选择-readr-和-readxl",
+    "href": "3010-stringr.html#为什么选择-readr-和-readxl",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "为什么选择 readr 和 readxl？",
+    "text": "为什么选择 readr 和 readxl？\nR 语言内置的 read.csv() 等函数虽然可用，但存在一些问题：\n\n\n\n问题\n说明\n\n\n\n\n速度慢\n大文件读取效率低\n\n\n类型猜测差\n常将字符串错误转为因子\n\n\n编码问题\n中文乱码常见\n\n\n行为不一致\n不同函数参数差异大\n\n\n\nreadr 和 readxl 完美解决了这些问题：\n\n\n\n特性\nreadr/readxl\nBase R\n\n\n\n\n速度\n⚡ 快 10 倍以上\n慢\n\n\n类型推断\n智能准确\n常出错\n\n\n编码\n默认 UTF-8\n依赖系统\n\n\n输出格式\ntibble\ndata.frame\n\n\n进度条\n有\n无\n\n\n\n# 安装并加载必要的包\nif (!require(\"readr\")) install.packages(\"readr\")\nif (!require(\"readxl\")) install.packages(\"readxl\")\nif (!require(\"writexl\")) install.packages(\"writexl\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"purrr\")) install.packages(\"purrr\")\n\nlibrary(readr)\nlibrary(readxl)\nlibrary(writexl)\nlibrary(dplyr)\nlibrary(purrr)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#readr-基础读取文本文件",
+    "href": "3010-stringr.html#readr-基础读取文本文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readr 基础：读取文本文件",
+    "text": "readr 基础：读取文本文件\n\nread_csv：读取 CSV 文件\nread_csv() 是最常用的函数，用于读取逗号分隔的文件。\n# 创建示例数据用于演示\ndemo_data &lt;- tibble(\n    id = 1:5,\n    name = c(\"张三\", \"李四\", \"王五\", \"赵六\", \"钱七\"),\n    age = c(25, 30, 28, 35, 42),\n    score = c(85.5, 92.3, 78.9, 88.1, 95.0),\n    date = as.Date(c(\"2024-01-15\", \"2024-02-20\", \"2024-03-10\", \"2024-04-05\", \"2024-05-18\"))\n)\n\n# 写入临时文件\ntemp_csv &lt;- tempfile(fileext = \".csv\")\nwrite_csv(demo_data, temp_csv)\n\n# 读取 CSV 文件\ndf &lt;- read_csv(temp_csv)\ndf\n\n# 查看列类型推断结果\nspec(df)\n\n\nread_tsv：读取制表符分隔文件\n# 创建 TSV 文件\ntemp_tsv &lt;- tempfile(fileext = \".tsv\")\nwrite_tsv(demo_data, temp_tsv)\n\n# 读取 TSV\ndf_tsv &lt;- read_tsv(temp_tsv)\ndf_tsv\n\n\nread_delim：读取任意分隔符文件\n# 使用分号分隔（欧洲常用格式）\ntemp_delim &lt;- tempfile(fileext = \".txt\")\nwrite_delim(demo_data, temp_delim, delim = \";\")\n\n# 读取自定义分隔符文件\ndf_delim &lt;- read_delim(temp_delim, delim = \";\")\ndf_delim\n\n\nread_fwf：读取固定宽度文件\n# 固定宽度格式示例\nfwf_content &lt;- \"张三  25  85.5\n李四  30  92.3\n王五  28  78.9\"\n\n# 写入临时文件\ntemp_fwf &lt;- tempfile(fileext = \".txt\")\nwriteLines(fwf_content, temp_fwf)\n\n# 读取固定宽度文件\ndf_fwf &lt;- read_fwf(\n    temp_fwf,\n    col_positions = fwf_widths(\n        widths = c(4, 4, 4),\n        col_names = c(\"name\", \"age\", \"score\")\n    )\n)\ndf_fwf",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#列类型规范",
+    "href": "3010-stringr.html#列类型规范",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "列类型规范",
+    "text": "列类型规范\n\n自动类型推断\nreadr 会自动推断列类型，使用前 1000 行数据进行猜测：\n# 查看默认推断\ndf &lt;- read_csv(temp_csv)\nspec(df)\n\n\n手动指定列类型\n使用 col_types 参数精确控制列类型：\n# 方法1：使用简写字符串\ndf &lt;- read_csv(temp_csv, col_types = \"icdnD\")\n# i=integer, c=character, d=double, n=number, D=date\ndf\n\n# 方法2：使用 cols() 函数（推荐，更清晰）\ndf &lt;- read_csv(temp_csv, col_types = cols(\n    id = col_integer(),\n    name = col_character(),\n    age = col_integer(),\n    score = col_double(),\n    date = col_date()\n))\ndf\n\n\n常用列类型函数\n\n\n\n函数\n简写\n说明\n\n\n\n\ncol_logical()\nl\n逻辑值 TRUE/FALSE\n\n\ncol_integer()\ni\n整数\n\n\ncol_double()\nd\n双精度浮点数\n\n\ncol_character()\nc\n字符串\n\n\ncol_factor()\nf\n因子\n\n\ncol_date()\nD\n日期\n\n\ncol_datetime()\nT\n日期时间\n\n\ncol_time()\nt\n时间\n\n\ncol_number()\nn\n灵活数字（处理千分位、货币符号）\n\n\ncol_skip()\n_ 或 -\n跳过该列\n\n\ncol_guess()\n?\n自动猜测\n\n\n\n# 跳过不需要的列\ndf &lt;- read_csv(temp_csv, col_types = cols(\n    id = col_skip(),\n    name = col_character(),\n    age = col_integer(),\n    score = col_skip(),\n    date = col_date()\n))\ndf\n\n\n处理特殊格式\n# 创建包含特殊格式的数据\nspecial_data &lt;- \"价格,百分比,日期\n$1,234.56,45.6%,2024/01/15\n$2,345.67,78.9%,2024/02/20\n$3,456.78,12.3%,2024/03/25\"\n\ntemp_special &lt;- tempfile(fileext = \".csv\")\nwriteLines(special_data, temp_special)\n\n# col_number() 可以处理货币符号和千分位\ndf_special &lt;- read_csv(temp_special, col_types = cols(\n    价格 = col_number(),\n    百分比 = col_number(),\n    日期 = col_date(format = \"%Y/%m/%d\")\n))\ndf_special",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#读取选项",
+    "href": "3010-stringr.html#读取选项",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "读取选项",
+    "text": "读取选项\n\n跳过行和限制行数\n# 跳过前 n 行（常用于跳过注释或标题）\ndf &lt;- read_csv(temp_csv, skip = 1) # 跳过第一行\nhead(df, 3)\n\n# 只读取前 n 行（预览大文件）\ndf &lt;- read_csv(temp_csv, n_max = 3)\ndf\n\n\n处理列名\n# 创建无表头数据\nno_header &lt;- \"张三,25,85.5\n李四,30,92.3\"\ntemp_no_header &lt;- tempfile(fileext = \".csv\")\nwriteLines(no_header, temp_no_header)\n\n# 指定无表头\ndf &lt;- read_csv(temp_no_header, col_names = FALSE)\ndf\n\n# 自定义列名\ndf &lt;- read_csv(temp_no_header, col_names = c(\"姓名\", \"年龄\", \"分数\"))\ndf\n\n\n处理缺失值\n# 创建包含缺失值的数据\nmissing_data &lt;- \"id,name,score\n1,张三,85\n2,李四,NA\n3,王五,\n4,赵六,N/A\n5,钱七,missing\"\n\ntemp_missing &lt;- tempfile(fileext = \".csv\")\nwriteLines(missing_data, temp_missing)\n\n# 指定缺失值标记\ndf &lt;- read_csv(temp_missing, na = c(\"\", \"NA\", \"N/A\", \"missing\"))\ndf\n\n\n编码设置\n# 指定文件编码（中文文件常用）\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"GBK\"))\n\n# 默认使用 UTF-8\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"UTF-8\"))\n\n# 查看当前 locale 设置\ndefault_locale()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#readxl读取-excel-文件",
+    "href": "3010-stringr.html#readxl读取-excel-文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readxl：读取 Excel 文件",
+    "text": "readxl：读取 Excel 文件\n\nread_excel：通用读取函数\n# 创建示例 Excel 文件\ndemo_excel &lt;- tibble(\n    产品 = c(\"苹果\", \"香蕉\", \"橙子\", \"葡萄\"),\n    数量 = c(100, 150, 80, 200),\n    单价 = c(5.5, 3.2, 4.8, 8.0),\n    总价 = c(550, 480, 384, 1600)\n)\n\ntemp_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(demo_excel, temp_xlsx)\n\n# 读取 Excel 文件\ndf_excel &lt;- read_excel(temp_xlsx)\ndf_excel\n\n\n读取特定工作表\n# 查看工作表名称\nexcel_sheets(temp_xlsx)\n\n# 按名称读取\ndf &lt;- read_excel(temp_xlsx, sheet = \"Sheet1\")\n\n# 按索引读取（从1开始）\ndf &lt;- read_excel(temp_xlsx, sheet = 1)\ndf\n\n\n读取特定区域\n# 读取特定单元格区域\ndf &lt;- read_excel(temp_xlsx, range = \"A1:C3\")\ndf\n\n# 读取特定行列范围\ndf &lt;- read_excel(temp_xlsx, range = cell_cols(\"A:B\")) # 只读取 A、B 列\ndf\n\n\n指定列类型\n# 手动指定列类型\ndf &lt;- read_excel(temp_xlsx, col_types = c(\"text\", \"numeric\", \"numeric\", \"numeric\"))\ndf\n\n# 跳过某些列\ndf &lt;- read_excel(temp_xlsx, col_types = c(\"text\", \"skip\", \"numeric\", \"numeric\"))\ndf\n\n\n处理日期\nExcel 中的日期存储为数字，readxl 会自动转换：\n# 创建包含日期的数据\ndate_data &lt;- tibble(\n    事件 = c(\"会议\", \"培训\", \"考试\"),\n    日期 = as.Date(c(\"2024-01-15\", \"2024-02-20\", \"2024-03-10\"))\n)\n\ntemp_date_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(date_data, temp_date_xlsx)\n\n# 读取会自动识别日期\ndf &lt;- read_excel(temp_date_xlsx)\ndf\nclass(df$日期)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#写出数据",
+    "href": "3010-stringr.html#写出数据",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "写出数据",
+    "text": "写出数据\n\nwrite_csv：写出 CSV\n# 基本写出\noutput_csv &lt;- tempfile(fileext = \".csv\")\nwrite_csv(demo_data, output_csv)\n\n# 不写入列名\nwrite_csv(demo_data, output_csv, col_names = FALSE)\n\n# 追加模式\nwrite_csv(demo_data[1:2, ], output_csv) # 先写入部分数据\nwrite_csv(demo_data[3:5, ], output_csv, append = TRUE) # 追加\n\n\nwrite_excel_csv：Excel 兼容的 CSV\n当需要在 Excel 中打开 CSV 文件时，使用此函数避免中文乱码：\n# 添加 BOM 头，Excel 能正确识别 UTF-8\noutput_excel_csv &lt;- tempfile(fileext = \".csv\")\nwrite_excel_csv(demo_data, output_excel_csv)\n\n\nwrite_xlsx：写出 Excel\n# 单个工作表\noutput_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(demo_data, output_xlsx)\n\n# 多个工作表\nmulti_sheet_data &lt;- list(\n    \"销售数据\" = demo_data,\n    \"产品数据\" = demo_excel\n)\nwrite_xlsx(multi_sheet_data, output_xlsx)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#批量读取文件",
+    "href": "3010-stringr.html#批量读取文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "批量读取文件",
+    "text": "批量读取文件\n\n使用 purrr::map 批量读取\n# 创建多个临时文件用于演示\ntemp_files &lt;- sapply(1:3, function(i) {\n    temp &lt;- tempfile(fileext = \".csv\")\n    write_csv(demo_data[sample(5, 3), ], temp)\n    temp\n})\n\n# 批量读取并合并\nall_data &lt;- temp_files %&gt;%\n    map(read_csv, show_col_types = FALSE) %&gt;% # 读取每个文件\n    list_rbind() # 合并为一个数据框\n\nall_data\n\n# 添加来源信息\nall_data_with_source &lt;- temp_files %&gt;%\n    set_names(basename) %&gt;% # 用文件名作为列表名\n    map(read_csv, show_col_types = FALSE) %&gt;%\n    list_rbind(names_to = \"source\") # 添加来源列\n\nall_data_with_source\n\n\n批量读取 Excel 工作表\n# 创建多工作表 Excel\nmulti_sheets &lt;- list(\n    \"2022\" = demo_data,\n    \"2023\" = demo_data %&gt;% mutate(score = score * 1.1),\n    \"2024\" = demo_data %&gt;% mutate(score = score * 1.2)\n)\n\ntemp_multi &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(multi_sheets, temp_multi)\n\n# 读取所有工作表\nsheet_names &lt;- excel_sheets(temp_multi)\nall_sheets &lt;- sheet_names %&gt;%\n    set_names() %&gt;%\n    map(~ read_excel(temp_multi, sheet = .x)) %&gt;%\n    list_rbind(names_to = \"year\")\n\nall_sheets\n\n\n实用批量读取函数\n# 封装一个批量读取函数\nread_all_csv &lt;- function(folder, pattern = \"\\\\.csv$\") {\n    # 获取所有匹配的文件\n    files &lt;- list.files(folder, pattern = pattern, full.names = TRUE)\n\n    if (length(files) == 0) {\n        warning(\"未找到匹配的文件\")\n        return(tibble())\n    }\n\n    # 读取并合并\n    files %&gt;%\n        set_names(basename) %&gt;%\n        map(read_csv, show_col_types = FALSE) %&gt;%\n        list_rbind(names_to = \"file\")\n}\n\n# 使用示例（需要实际文件夹）\n# all_data &lt;- read_all_csv(\"data/\")",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#性能优化",
+    "href": "3010-stringr.html#性能优化",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "性能优化",
+    "text": "性能优化\n\n延迟读取（Lazy Reading）\n对于超大文件，可以使用延迟读取减少内存占用：\n# 使用 vroom 包进行延迟读取（更高效）\n# install.packages(\"vroom\")\n# library(vroom)\n# df &lt;- vroom(\"large_file.csv\", altrep = TRUE)\n\n\n只读取需要的列\n# 跳过不需要的列可以显著提升速度\ndf &lt;- read_csv(temp_csv, col_types = cols_only(\n    name = col_character(),\n    score = col_double()\n))\ndf\n\n\n并行读取\n对于多个文件，可以使用并行处理：\n# 使用 furrr 包并行读取\n# install.packages(\"furrr\")\n# library(furrr)\n# plan(multisession, workers = 4)\n# all_data &lt;- files %&gt;%\n#   future_map(read_csv) %&gt;%\n#   list_rbind()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#性能对比",
+    "href": "3010-stringr.html#性能对比",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "性能对比",
+    "text": "性能对比\n# 创建较大的测试数据\nlarge_data &lt;- tibble(\n    id = 1:10000,\n    name = paste0(\"Name_\", 1:10000),\n    value1 = rnorm(10000),\n    value2 = rnorm(10000),\n    value3 = rnorm(10000)\n)\n\ntemp_large &lt;- tempfile(fileext = \".csv\")\nwrite_csv(large_data, temp_large)\n\n# 性能对比（简化演示）\nsystem.time({\n    df1 &lt;- read.csv(temp_large) # Base R\n})\n\nsystem.time({\n    df2 &lt;- read_csv(temp_large, show_col_types = FALSE) # readr\n})",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#实战案例-2",
+    "href": "3010-stringr.html#实战案例-2",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "实战案例",
+    "text": "实战案例\n\n案例一：处理中文 CSV 文件\n# 创建中文数据\nchinese_data &lt;- tibble(\n    姓名 = c(\"张三\", \"李四\", \"王五\"),\n    部门 = c(\"研发部\", \"市场部\", \"财务部\"),\n    工资 = c(15000, 12000, 10000)\n)\n\n# 写出为 Excel 兼容格式\ntemp_cn &lt;- tempfile(fileext = \".csv\")\nwrite_excel_csv(chinese_data, temp_cn)\n\n# 读取\ndf &lt;- read_csv(temp_cn, show_col_types = FALSE)\ndf\n\n\n案例二：读取科研数据\n# 模拟科研数据格式（带注释行和单位行）\nresearch_data &lt;- \"# 实验数据文件\n# 日期: 2024-01-15\n# 实验员: 张三\n样本ID,浓度(μg/mL),吸光度,温度(°C)\nunit,μg/mL,OD450,°C\nS001,10.5,0.245,25.0\nS002,20.3,0.456,25.1\nS003,30.1,0.678,24.9\nS004,40.8,0.891,25.2\"\n\ntemp_research &lt;- tempfile(fileext = \".csv\")\nwriteLines(research_data, temp_research)\n\n# 跳过注释行和单位行\ndf &lt;- read_csv(temp_research,\n    skip = 4, # 跳过前4行\n    col_names = c(\"样本ID\", \"浓度\", \"吸光度\", \"温度\"),\n    show_col_types = FALSE\n)\ndf\n\n\n案例三：合并多个月度报表\n# 创建模拟月度数据\nmonths &lt;- c(\"2024-01\", \"2024-02\", \"2024-03\")\ntemp_monthly &lt;- sapply(months, function(m) {\n    temp &lt;- tempfile(fileext = \".csv\")\n    data &lt;- tibble(\n        月份 = m,\n        产品 = c(\"A\", \"B\", \"C\"),\n        销量 = sample(100:500, 3)\n    )\n    write_csv(data, temp)\n    temp\n})\n\n# 批量读取并合并\nmonthly_report &lt;- temp_monthly %&gt;%\n    map(read_csv, show_col_types = FALSE) %&gt;%\n    list_rbind()\n\nmonthly_report\n\n# 按月份汇总\nmonthly_report %&gt;%\n    group_by(月份) %&gt;%\n    summarise(总销量 = sum(销量))\n\n\n案例四：处理大型日志文件\n# 模拟日志数据\nlog_data &lt;- tibble(\n    timestamp = seq(as.POSIXct(\"2024-01-01\"),\n        by = \"min\",\n        length.out = 1000\n    ),\n    level = sample(c(\"INFO\", \"WARN\", \"ERROR\"), 1000,\n        replace = TRUE, prob = c(0.8, 0.15, 0.05)\n    ),\n    message = paste(\"Event\", 1:1000)\n)\n\ntemp_log &lt;- tempfile(fileext = \".csv\")\nwrite_csv(log_data, temp_log)\n\n# 只读取 ERROR 级别（先读取再过滤）\nerrors &lt;- read_csv(temp_log, show_col_types = FALSE) %&gt;%\n    filter(level == \"ERROR\")\n\nerrors",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#readr-与-base-r-对照表",
+    "href": "3010-stringr.html#readr-与-base-r-对照表",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readr 与 Base R 对照表",
+    "text": "readr 与 Base R 对照表\n\n\n\n功能\nreadr\nBase R\n\n\n\n\n读取 CSV\nread_csv()\nread.csv()\n\n\n读取 TSV\nread_tsv()\nread.delim()\n\n\n自定义分隔符\nread_delim()\nread.table()\n\n\n固定宽度\nread_fwf()\nread.fwf()\n\n\n写出 CSV\nwrite_csv()\nwrite.csv()\n\n\n类型规范\ncol_types = cols()\ncolClasses = c()\n\n\n默认输出\ntibble\ndata.frame\n\n\n默认编码\nUTF-8\n系统依赖\n\n\n字符串处理\n保持字符串\n可能转为因子",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#常见问题解决",
+    "href": "3010-stringr.html#常见问题解决",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "常见问题解决",
+    "text": "常见问题解决\n\n问题1：中文乱码\n# 解决方案：指定正确的编码\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"GBK\"))\n# 或使用 write_excel_csv 写出\n\n\n问题2：列类型推断错误\n# 解决方案：增加猜测行数或手动指定类型\n# df &lt;- read_csv(\"data.csv\", guess_max = 5000)\n# 或\n# df &lt;- read_csv(\"data.csv\", col_types = cols(\n#   问题列 = col_character()\n# ))\n\n\n问题3：科学计数法问题\n# 解决方案：使用 col_character() 保持原样\n# df &lt;- read_csv(\"data.csv\", col_types = cols(\n#   id = col_character()  # 避免 1234567890 变成 1.23e+09\n# ))",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#总结-2",
+    "href": "3010-stringr.html#总结-2",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "总结",
+    "text": "总结\nreadr 和 readxl 是 R 语言中读取数据的最佳选择：\n\n\n\n优势\n说明\n\n\n\n\n速度快\n比 Base R 快 10 倍以上\n\n\n类型智能\n自动准确推断列类型\n\n\n编码友好\n默认 UTF-8，中文无忧\n\n\n输出一致\n统一输出 tibble 格式\n\n\n功能全面\n覆盖各种数据格式\n\n\n\n掌握这两个包后，你的数据导入工作将变得高效便捷！",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3010-stringr.html#参考资源-2",
+    "href": "3010-stringr.html#参考资源-2",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nreadr 官方文档\nreadxl 官方文档\nR for Data Science - Data Import\nvroom 包（超大文件）",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "stringr - 字符串处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html",
+    "href": "3011-forcats.html",
+    "title": "forcats 因子处理完全指南",
+    "section": "",
+    "text": "在 R 语言中，因子（factor） 是用于表示分类数据的特殊数据类型。与字符型不同，因子有预定义的水平（levels），这些水平决定了数据的取值范围和顺序。\n因子在以下场景中非常重要：\n\n\n\n应用场景\n说明\n\n\n\n\n统计建模\n回归分析中自动生成哑变量\n\n\n可视化\n控制图例和坐标轴的顺序\n\n\n数据验证\n限制变量只能取特定值\n\n\n分组分析\n按类别进行汇总统计\n\n\n\n\n# 安装并加载必要的包\nif (!require(\"forcats\")) install.packages(\"forcats\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"ggplot2\")) install.packages(\"ggplot2\")\nif (!require(\"tibble\")) install.packages(\"tibble\")\n\nlibrary(forcats)\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(tibble)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#什么是因子",
+    "href": "3011-forcats.html#什么是因子",
+    "title": "forcats 因子处理完全指南",
+    "section": "",
+    "text": "在 R 语言中，因子（factor） 是用于表示分类数据的特殊数据类型。与字符型不同，因子有预定义的水平（levels），这些水平决定了数据的取值范围和顺序。\n因子在以下场景中非常重要：\n\n\n\n应用场景\n说明\n\n\n\n\n统计建模\n回归分析中自动生成哑变量\n\n\n可视化\n控制图例和坐标轴的顺序\n\n\n数据验证\n限制变量只能取特定值\n\n\n分组分析\n按类别进行汇总统计\n\n\n\n\n# 安装并加载必要的包\nif (!require(\"forcats\")) install.packages(\"forcats\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"ggplot2\")) install.packages(\"ggplot2\")\nif (!require(\"tibble\")) install.packages(\"tibble\")\n\nlibrary(forcats)\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(tibble)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#因子基础",
+    "href": "3011-forcats.html#因子基础",
+    "title": "forcats 因子处理完全指南",
+    "section": "因子基础",
+    "text": "因子基础\n\n创建因子\n\n# 从字符向量创建因子\neducation &lt;- c(\"本科\", \"硕士\", \"博士\", \"本科\", \"高中\", \"硕士\")\nedu_factor &lt;- factor(education)\nedu_factor\n\n[1] 本科 硕士 博士 本科 高中 硕士\nLevels: 本科 博士 高中 硕士\n\n# 查看因子水平\nlevels(edu_factor)\n\n[1] \"本科\" \"博士\" \"高中\" \"硕士\"\n\n# 指定水平顺序（有序因子）\nedu_ordered &lt;- factor(\n    education,\n    levels = c(\"高中\", \"本科\", \"硕士\", \"博士\"),\n    ordered = TRUE\n)\nedu_ordered\n\n[1] 本科 硕士 博士 本科 高中 硕士\nLevels: 高中 &lt; 本科 &lt; 硕士 &lt; 博士\n\n\n\n\n因子的问题\nBase R 的因子操作存在一些痛点：\n\n# 问题1：默认按字母顺序排序\ntreatment &lt;- factor(c(\"Control\", \"Treatment A\", \"Treatment B\"))\nlevels(treatment) # 字母顺序，而非逻辑顺序\n\n[1] \"Control\"     \"Treatment A\" \"Treatment B\"\n\n# 问题2：修改水平顺序繁琐\n# 需要重新创建因子或使用复杂的索引操作\n\n# 问题3：添加新水平容易出错\n# 直接赋值可能产生 NA\n\nforcats 包完美解决了这些问题！",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#forcats-核心函数",
+    "href": "3011-forcats.html#forcats-核心函数",
+    "title": "forcats 因子处理完全指南",
+    "section": "forcats 核心函数",
+    "text": "forcats 核心函数\n\n查看因子信息：fct_count 和 fct_unique\n\n# 创建示例数据\nresponses &lt;- factor(c(\"同意\", \"中立\", \"反对\", \"同意\", \"同意\", \"中立\", \"反对\", \"同意\"))\n\n# 统计各水平频数\nfct_count(responses)\n\n# A tibble: 3 × 2\n  f         n\n  &lt;fct&gt; &lt;int&gt;\n1 反对      2\n2 同意      4\n3 中立      2\n\n# 获取唯一水平（类似 levels() 但返回因子）\nfct_unique(responses)\n\n[1] 反对 同意 中立\nLevels: 反对 同意 中立",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#重新排序水平",
+    "href": "3011-forcats.html#重新排序水平",
+    "title": "forcats 因子处理完全指南",
+    "section": "重新排序水平",
+    "text": "重新排序水平\n\n手动排序：fct_relevel\nfct_relevel() 允许手动指定水平顺序。\n\n# 原始因子\nsize &lt;- factor(c(\"Small\", \"Medium\", \"Large\", \"Small\", \"Large\"))\nlevels(size) # 字母顺序\n\n[1] \"Large\"  \"Medium\" \"Small\" \n\n# 重新排序\nsize_ordered &lt;- fct_relevel(size, \"Small\", \"Medium\", \"Large\")\nlevels(size_ordered)\n\n[1] \"Small\"  \"Medium\" \"Large\" \n\n# 只移动特定水平到开头\nsize_small_first &lt;- fct_relevel(size, \"Small\")\nlevels(size_small_first)\n\n[1] \"Small\"  \"Large\"  \"Medium\"\n\n# 移动到末尾（使用 after 参数）\nsize_large_last &lt;- fct_relevel(size, \"Large\", after = Inf)\nlevels(size_large_last)\n\n[1] \"Medium\" \"Small\"  \"Large\" \n\n# 移动到特定位置\nsize_medium_second &lt;- fct_relevel(size, \"Medium\", after = 1)\nlevels(size_medium_second)\n\n[1] \"Large\"  \"Medium\" \"Small\" \n\n\n\n\n按频率排序：fct_infreq 和 fct_inseq\n\n# 示例数据\ncolors &lt;- factor(c(\"红\", \"蓝\", \"红\", \"绿\", \"红\", \"蓝\", \"红\", \"绿\", \"绿\"))\n\n# 按频率降序排序\ncolors_freq &lt;- fct_infreq(colors)\nlevels(colors_freq)\n\n[1] \"红\" \"绿\" \"蓝\"\n\n# 按频率升序\ncolors_freq_asc &lt;- fct_rev(fct_infreq(colors))\nlevels(colors_freq_asc)\n\n[1] \"蓝\" \"绿\" \"红\"\n\n# 按数字顺序（适用于 \"1\", \"2\", \"10\" 等）\nnums &lt;- factor(c(\"1\", \"2\", \"10\", \"20\", \"3\"))\nlevels(fct_inseq(nums))\n\n[1] \"1\"  \"2\"  \"3\"  \"10\" \"20\"\n\n\n\n\n按另一变量排序：fct_reorder\nfct_reorder() 是可视化中最常用的函数，根据另一个变量的统计值重排因子。\n\n# 创建示例数据\nsales &lt;- tibble(\n    product = factor(c(\"A\", \"B\", \"C\", \"D\", \"E\")),\n    revenue = c(100, 250, 180, 300, 150)\n)\n\n# 按收入排序\nsales &lt;- sales %&gt;%\n    mutate(product = fct_reorder(product, revenue))\n\nlevels(sales$product)\n\n[1] \"A\" \"E\" \"C\" \"B\" \"D\"\n\n# 可视化效果\nggplot(sales, aes(x = revenue, y = product)) +\n    geom_col(fill = \"#667eea\") +\n    labs(title = \"按收入排序的产品\", x = \"收入\", y = \"产品\") +\n    theme_minimal()\n\n\n\n\n\n\n\n\n\n# 使用自定义函数排序\n# 例如：按收入的中位数排序\nmulti_sales &lt;- tibble(\n    product = factor(rep(c(\"A\", \"B\", \"C\"), each = 3)),\n    revenue = c(100, 120, 110, 200, 250, 220, 150, 160, 155)\n)\n\nmulti_sales &lt;- multi_sales %&gt;%\n    mutate(product = fct_reorder(product, revenue, .fun = median))\n\nlevels(multi_sales$product)\n\n[1] \"A\" \"C\" \"B\"\n\n\n\n\n按出现顺序：fct_inorder\n\n# 按数据中首次出现的顺序排列\nfirst_appearance &lt;- factor(c(\"C\", \"A\", \"B\", \"C\", \"A\"))\nlevels(first_appearance) # 默认字母顺序\n\n[1] \"A\" \"B\" \"C\"\n\nlevels(fct_inorder(first_appearance)) # 按出现顺序\n\n[1] \"C\" \"A\" \"B\"\n\n\n\n\n反转顺序：fct_rev\n\nsize &lt;- factor(c(\"Small\", \"Medium\", \"Large\"),\n    levels = c(\"Small\", \"Medium\", \"Large\")\n)\n\n# 反转水平顺序\nsize_rev &lt;- fct_rev(size)\nlevels(size_rev)\n\n[1] \"Large\"  \"Medium\" \"Small\" \n\n\n\n\n移动特定水平：fct_shift\n\ndays &lt;- factor(c(\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\"),\n    levels = c(\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\")\n)\n\n# 向左移动（Mon 变成最后一个）\ndays_shift &lt;- fct_shift(days, n = 1)\nlevels(days_shift)\n\n[1] \"Tue\" \"Wed\" \"Thu\" \"Fri\" \"Mon\"\n\n# 向右移动\ndays_shift_right &lt;- fct_shift(days, n = -1)\nlevels(days_shift_right)\n\n[1] \"Fri\" \"Mon\" \"Tue\" \"Wed\" \"Thu\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#重新编码水平",
+    "href": "3011-forcats.html#重新编码水平",
+    "title": "forcats 因子处理完全指南",
+    "section": "重新编码水平",
+    "text": "重新编码水平\n\n修改水平名称：fct_recode\n\n# 原始数据\nsatisfaction &lt;- factor(c(\"1\", \"2\", \"3\", \"4\", \"5\", \"3\", \"4\", \"5\"))\n\n# 重新编码\nsatisfaction_named &lt;- fct_recode(satisfaction,\n    \"非常不满意\" = \"1\",\n    \"不满意\" = \"2\",\n    \"中立\" = \"3\",\n    \"满意\" = \"4\",\n    \"非常满意\" = \"5\"\n)\n\nlevels(satisfaction_named)\n\n[1] \"非常不满意\" \"不满意\"     \"中立\"       \"满意\"       \"非常满意\"  \n\nfct_count(satisfaction_named)\n\n# A tibble: 5 × 2\n  f              n\n  &lt;fct&gt;      &lt;int&gt;\n1 非常不满意     1\n2 不满意         1\n3 中立           2\n4 满意           2\n5 非常满意       2\n\n\n\n\n合并水平：fct_collapse\n\n# 详细分类\neducation &lt;- factor(c(\"小学\", \"初中\", \"高中\", \"本科\", \"硕士\", \"博士\", \"高中\", \"本科\"))\n\n# 合并为粗略分类\neducation_collapsed &lt;- fct_collapse(education,\n    \"初等教育\" = c(\"小学\", \"初中\"),\n    \"中等教育\" = \"高中\",\n    \"高等教育\" = c(\"本科\", \"硕士\", \"博士\")\n)\n\nlevels(education_collapsed)\n\n[1] \"高等教育\" \"初等教育\" \"中等教育\"\n\nfct_count(education_collapsed)\n\n# A tibble: 3 × 2\n  f            n\n  &lt;fct&gt;    &lt;int&gt;\n1 高等教育     4\n2 初等教育     2\n3 中等教育     2\n\n\n\n\n合并低频水平：fct_lump\nfct_lump 系列函数用于将低频水平合并为 “Other”。\n\n# 示例数据\ncountries &lt;- factor(c(\n    rep(\"中国\", 50), rep(\"美国\", 30), rep(\"英国\", 10),\n    rep(\"法国\", 5), rep(\"德国\", 3), rep(\"日本\", 2)\n))\n\n# 保留前 n 个最常见的水平\nfct_count(fct_lump_n(countries, n = 3))\n\n# A tibble: 4 × 2\n  f         n\n  &lt;fct&gt; &lt;int&gt;\n1 美国     30\n2 英国     10\n3 中国     50\n4 Other    10\n\n# 保留至少占比 p 的水平\nfct_count(fct_lump_prop(countries, prop = 0.1))\n\n# A tibble: 3 × 2\n  f         n\n  &lt;fct&gt; &lt;int&gt;\n1 美国     30\n2 中国     50\n3 Other    20\n\n# 保留至少出现 min 次的水平\nfct_count(fct_lump_min(countries, min = 5))\n\n# A tibble: 5 × 2\n  f         n\n  &lt;fct&gt; &lt;int&gt;\n1 法国      5\n2 美国     30\n3 英国     10\n4 中国     50\n5 Other     5\n\n# 自定义 \"Other\" 的名称\nfct_count(fct_lump_n(countries, n = 3, other_level = \"其他国家\"))\n\n# A tibble: 4 × 2\n  f            n\n  &lt;fct&gt;    &lt;int&gt;\n1 美国        30\n2 英国        10\n3 中国        50\n4 其他国家    10\n\n\n\n\n匿名化水平：fct_anon\n\n# 原始敏感数据\npatients &lt;- factor(c(\"张三\", \"李四\", \"王五\", \"张三\", \"李四\"))\n\n# 匿名化\npatients_anon &lt;- fct_anon(patients, prefix = \"Patient_\")\nlevels(patients_anon)\n\n[1] \"Patient_1\" \"Patient_2\" \"Patient_3\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#添加和删除水平",
+    "href": "3011-forcats.html#添加和删除水平",
+    "title": "forcats 因子处理完全指南",
+    "section": "添加和删除水平",
+    "text": "添加和删除水平\n\n删除未使用的水平：fct_drop\n\n# 创建有多余水平的因子\ncolors &lt;- factor(c(\"红\", \"蓝\", \"红\"), levels = c(\"红\", \"蓝\", \"绿\", \"黄\"))\nlevels(colors) # 包含未使用的 \"绿\" 和 \"黄\"\n\n[1] \"红\" \"蓝\" \"绿\" \"黄\"\n\n# 删除未使用的水平\ncolors_clean &lt;- fct_drop(colors)\nlevels(colors_clean)\n\n[1] \"红\" \"蓝\"\n\n# 只删除特定水平\ncolors_keep_green &lt;- fct_drop(colors, only = \"黄\")\nlevels(colors_keep_green)\n\n[1] \"红\" \"蓝\" \"绿\"\n\n\n\n\n添加水平：fct_expand\n\n# 原始因子\nsizes &lt;- factor(c(\"S\", \"M\", \"L\"))\n\n# 添加新水平\nsizes_expanded &lt;- fct_expand(sizes, \"XS\", \"XL\")\nlevels(sizes_expanded)\n\n[1] \"L\"  \"M\"  \"S\"  \"XS\" \"XL\"\n\n\n\n\n统一多个因子的水平：fct_unify\n\n# 两个来自不同数据源的因子\nsurvey1 &lt;- factor(c(\"同意\", \"中立\", \"反对\"))\nsurvey2 &lt;- factor(c(\"同意\", \"反对\", \"强烈反对\"))\n\n# 统一水平\nunified &lt;- fct_unify(list(survey1, survey2))\nlapply(unified, levels)\n\n[[1]]\n[1] \"反对\"     \"同意\"     \"中立\"     \"强烈反对\"\n\n[[2]]\n[1] \"反对\"     \"同意\"     \"中立\"     \"强烈反对\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#与-ggplot2-联动",
+    "href": "3011-forcats.html#与-ggplot2-联动",
+    "title": "forcats 因子处理完全指南",
+    "section": "与 ggplot2 联动",
+    "text": "与 ggplot2 联动\n因子在可视化中最重要的作用是控制元素的顺序。\n\n控制柱状图顺序\n\n# 示例数据\nsales_data &lt;- tibble(\n    product = c(\"产品A\", \"产品B\", \"产品C\", \"产品D\"),\n    sales = c(120, 300, 180, 250)\n)\n\n# 默认顺序（字母序）\np1 &lt;- ggplot(sales_data, aes(x = product, y = sales)) +\n    geom_col(fill = \"#667eea\") +\n    labs(title = \"默认顺序\") +\n    theme_minimal()\n\n# 按销量排序\np2 &lt;- sales_data %&gt;%\n    mutate(product = fct_reorder(product, sales)) %&gt;%\n    ggplot(aes(x = product, y = sales)) +\n    geom_col(fill = \"#764ba2\") +\n    labs(title = \"按销量升序\") +\n    theme_minimal()\n\n# 按销量降序\np3 &lt;- sales_data %&gt;%\n    mutate(product = fct_reorder(product, sales, .desc = TRUE)) %&gt;%\n    ggplot(aes(x = product, y = sales)) +\n    geom_col(fill = \"#f093fb\") +\n    labs(title = \"按销量降序\") +\n    theme_minimal()\n\nlibrary(patchwork)\np1 | p2 | p3\n\n\n\n\n\n\n\n\n\n\n控制图例顺序\n\n# 分组数据\ngroup_data &lt;- tibble(\n    category = rep(c(\"A组\", \"B组\", \"C组\"), each = 10),\n    value = c(rnorm(10, 5), rnorm(10, 8), rnorm(10, 6))\n)\n\n# 按均值排序图例\ngroup_data %&gt;%\n    mutate(category = fct_reorder(category, value, .fun = mean)) %&gt;%\n    ggplot(aes(x = value, fill = category)) +\n    geom_density(alpha = 0.5) +\n    scale_fill_manual(values = c(\"#667eea\", \"#764ba2\", \"#f093fb\")) +\n    labs(title = \"按均值排序的密度图\", fill = \"分组\") +\n    theme_minimal()\n\n\n\n\n\n\n\n\n\n\n控制分面顺序\n\n# 使用 fct_reorder2 按最后一个值排序（适合折线图）\ntrend_data &lt;- tibble(\n    year = rep(2020:2024, 3),\n    group = rep(c(\"A\", \"B\", \"C\"), each = 5),\n    value = c(\n        c(10, 15, 18, 22, 25), # A: 上升趋势\n        c(20, 18, 22, 19, 21), # B: 平稳\n        c(15, 20, 25, 30, 35) # C: 快速上升\n    )\n)\n\n# 按最后一个值排序\ntrend_data %&gt;%\n    mutate(group = fct_reorder2(group, year, value)) %&gt;%\n    ggplot(aes(x = year, y = value, color = group)) +\n    geom_line(linewidth = 1) +\n    geom_point(size = 2) +\n    scale_color_manual(values = c(\"#f093fb\", \"#667eea\", \"#764ba2\")) +\n    labs(title = \"按2024年值排序的趋势图\") +\n    theme_minimal()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#与-dplyr-联动",
+    "href": "3011-forcats.html#与-dplyr-联动",
+    "title": "forcats 因子处理完全指南",
+    "section": "与 dplyr 联动",
+    "text": "与 dplyr 联动\n\n在分组统计中使用\n\n# 示例数据\nsurvey &lt;- tibble(\n    region = factor(c(\"北\", \"南\", \"东\", \"西\", \"北\", \"南\", \"东\", \"西\", \"北\", \"南\")),\n    score = c(85, 92, 78, 88, 90, 95, 82, 85, 88, 91)\n)\n\n# 按平均分排序后分组统计\nsurvey %&gt;%\n    mutate(region = fct_reorder(region, score, .fun = mean)) %&gt;%\n    group_by(region) %&gt;%\n    summarise(\n        mean_score = mean(score),\n        n = n()\n    ) %&gt;%\n    arrange(desc(mean_score))\n\n# A tibble: 4 × 3\n  region mean_score     n\n  &lt;fct&gt;       &lt;dbl&gt; &lt;int&gt;\n1 南           92.7     3\n2 北           87.7     3\n3 西           86.5     2\n4 东           80       2\n\n\n\n\n在 case_when 中使用\n\n# 根据条件创建有序因子\npatients &lt;- tibble(\n    id = 1:10,\n    age = c(25, 45, 67, 38, 72, 55, 29, 61, 43, 80)\n)\n\npatients &lt;- patients %&gt;%\n    mutate(\n        age_group = case_when(\n            age &lt; 30 ~ \"青年\",\n            age &lt; 60 ~ \"中年\",\n            TRUE ~ \"老年\"\n        ),\n        # 转为有序因子\n        age_group = factor(age_group, levels = c(\"青年\", \"中年\", \"老年\"))\n    )\n\nfct_count(patients$age_group)\n\n# A tibble: 3 × 2\n  f         n\n  &lt;fct&gt; &lt;int&gt;\n1 青年      2\n2 中年      4\n3 老年      4",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#实战案例",
+    "href": "3011-forcats.html#实战案例",
+    "title": "forcats 因子处理完全指南",
+    "section": "实战案例",
+    "text": "实战案例\n\n案例一：问卷数据处理\n\n# 模拟问卷数据\nsurvey_data &lt;- tibble(\n    id = 1:100,\n    education = sample(c(\"高中\", \"本科\", \"硕士\", \"博士\", \"其他\"), 100,\n        replace = TRUE, prob = c(0.2, 0.4, 0.25, 0.1, 0.05)\n    ),\n    satisfaction = sample(1:5, 100, replace = TRUE),\n    income = sample(c(\"3000以下\", \"3000-5000\", \"5000-10000\", \"10000-20000\", \"20000以上\"),\n        100,\n        replace = TRUE\n    )\n)\n\n# 处理因子\nsurvey_clean &lt;- survey_data %&gt;%\n    mutate(\n        # 教育程度：合并 \"其他\" 并排序\n        education = factor(education) %&gt;%\n            fct_relevel(\"高中\", \"本科\", \"硕士\", \"博士\", \"其他\") %&gt;%\n            fct_recode(\"本科及以下\" = \"其他\"),\n\n        # 满意度：编码并排序\n        satisfaction = factor(satisfaction) %&gt;%\n            fct_recode(\n                \"非常不满\" = \"1\", \"不满\" = \"2\", \"中立\" = \"3\",\n                \"满意\" = \"4\", \"非常满意\" = \"5\"\n            ),\n\n        # 收入：排序\n        income = factor(income) %&gt;%\n            fct_relevel(\"3000以下\", \"3000-5000\", \"5000-10000\", \"10000-20000\", \"20000以上\")\n    )\n\n# 查看处理结果\nsurvey_clean %&gt;%\n    count(education, satisfaction) %&gt;%\n    head(10)\n\n# A tibble: 10 × 3\n   education satisfaction     n\n   &lt;fct&gt;     &lt;fct&gt;        &lt;int&gt;\n 1 高中      非常不满         6\n 2 高中      不满             4\n 3 高中      中立             4\n 4 高中      满意             1\n 5 高中      非常满意         5\n 6 本科      非常不满         9\n 7 本科      不满            10\n 8 本科      中立             7\n 9 本科      满意             8\n10 本科      非常满意         3\n\n\n\n\n案例二：医学分级数据\n\n# 模拟疾病严重程度数据\nclinical_data &lt;- tibble(\n    patient_id = 1:50,\n    severity = sample(c(\"Mild\", \"Moderate\", \"Severe\", \"Critical\"), 50,\n        replace = TRUE, prob = c(0.3, 0.35, 0.25, 0.1)\n    ),\n    treatment = sample(c(\"Standard\", \"Intensive\", \"Experimental\"), 50, replace = TRUE)\n)\n\n# 处理严重程度（确保正确顺序）\nclinical_clean &lt;- clinical_data %&gt;%\n    mutate(\n        severity = factor(severity) %&gt;%\n            fct_relevel(\"Mild\", \"Moderate\", \"Severe\", \"Critical\") %&gt;%\n            fct_recode(\n                \"轻度\" = \"Mild\",\n                \"中度\" = \"Moderate\",\n                \"重度\" = \"Severe\",\n                \"危重\" = \"Critical\"\n            )\n    )\n\n# 统计并可视化\nclinical_clean %&gt;%\n    count(severity, treatment) %&gt;%\n    ggplot(aes(x = severity, y = n, fill = treatment)) +\n    geom_col(position = \"dodge\") +\n    scale_fill_manual(values = c(\"#667eea\", \"#764ba2\", \"#f093fb\")) +\n    labs(title = \"各严重程度的治疗方案分布\", x = \"严重程度\", y = \"人数\") +\n    theme_minimal()\n\n\n\n\n\n\n\n\n\n\n案例三：时间序列中的月份处理\n\n# 模拟月度销售数据\nmonthly_sales &lt;- tibble(\n    month = factor(month.abb, levels = month.abb),\n    sales = c(120, 135, 150, 180, 200, 220, 250, 240, 210, 190, 160, 145)\n)\n\n# 从某个月份开始（如财年从4月开始）\nmonthly_sales_fy &lt;- monthly_sales %&gt;%\n    mutate(month = fct_shift(month, n = 3)) # Apr 成为第一个\n\nlevels(monthly_sales_fy$month)\n\n [1] \"Apr\" \"May\" \"Jun\" \"Jul\" \"Aug\" \"Sep\" \"Oct\" \"Nov\" \"Dec\" \"Jan\" \"Feb\" \"Mar\"\n\n# 可视化\nggplot(monthly_sales, aes(x = month, y = sales, group = 1)) +\n    geom_line(color = \"#667eea\", linewidth = 1) +\n    geom_point(color = \"#764ba2\", size = 3) +\n    labs(title = \"月度销售趋势\", x = \"月份\", y = \"销售额\") +\n    theme_minimal()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#forcats-函数速查表",
+    "href": "3011-forcats.html#forcats-函数速查表",
+    "title": "forcats 因子处理完全指南",
+    "section": "forcats 函数速查表",
+    "text": "forcats 函数速查表\n\n\n\n功能\n函数\n说明\n\n\n\n\n查看\nfct_count()\n统计各水平频数\n\n\n\nfct_unique()\n获取唯一水平\n\n\n排序\nfct_relevel()\n手动指定顺序\n\n\n\nfct_infreq()\n按频率降序\n\n\n\nfct_inorder()\n按出现顺序\n\n\n\nfct_reorder()\n按另一变量排序\n\n\n\nfct_reorder2()\n按两变量关系排序\n\n\n\nfct_rev()\n反转顺序\n\n\n\nfct_shift()\n循环移动\n\n\n编码\nfct_recode()\n重命名水平\n\n\n\nfct_collapse()\n合并水平\n\n\n\nfct_lump_n()\n保留前 n 个\n\n\n\nfct_lump_prop()\n按比例保留\n\n\n\nfct_lump_min()\n按最小频数保留\n\n\n\nfct_anon()\n匿名化\n\n\n修改\nfct_drop()\n删除未用水平\n\n\n\nfct_expand()\n添加新水平\n\n\n\nfct_unify()\n统一多因子水平",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#总结",
+    "href": "3011-forcats.html#总结",
+    "title": "forcats 因子处理完全指南",
+    "section": "总结",
+    "text": "总结\nforcats 包让 R 中的因子处理变得直观高效：\n\n\n\n优势\n说明\n\n\n\n\n语义化命名\n函数名清晰表达功能\n\n\n管道友好\n与 dplyr、ggplot2 完美集成\n\n\n功能全面\n覆盖因子操作的各种需求\n\n\n避免陷阱\n安全处理水平变更\n\n\n\n掌握 forcats 后，你将能够优雅地处理各种分类数据！",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3011-forcats.html#参考资源",
+    "href": "3011-forcats.html#参考资源",
+    "title": "forcats 因子处理完全指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nforcats 官方文档\nR for Data Science - Factors\nforcats cheatsheet",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "forcats - 因子处理"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html",
+    "href": "3012-readr-readxl.html",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "",
+    "text": "R 语言内置的 read.csv() 等函数虽然可用，但存在一些问题：\n\n\n\n问题\n说明\n\n\n\n\n速度慢\n大文件读取效率低\n\n\n类型猜测差\n常将字符串错误转为因子\n\n\n编码问题\n中文乱码常见\n\n\n行为不一致\n不同函数参数差异大\n\n\n\nreadr 和 readxl 完美解决了这些问题：\n\n\n\n特性\nreadr/readxl\nBase R\n\n\n\n\n速度\n⚡ 快 10 倍以上\n慢\n\n\n类型推断\n智能准确\n常出错\n\n\n编码\n默认 UTF-8\n依赖系统\n\n\n输出格式\ntibble\ndata.frame\n\n\n进度条\n有\n无\n\n\n\n\n# 安装并加载必要的包\nif (!require(\"readr\")) install.packages(\"readr\")\nif (!require(\"readxl\")) install.packages(\"readxl\")\nif (!require(\"writexl\")) install.packages(\"writexl\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"purrr\")) install.packages(\"purrr\")\n\nlibrary(readr)\nlibrary(readxl)\nlibrary(writexl)\nlibrary(dplyr)\nlibrary(purrr)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#为什么选择-readr-和-readxl",
+    "href": "3012-readr-readxl.html#为什么选择-readr-和-readxl",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "",
+    "text": "R 语言内置的 read.csv() 等函数虽然可用，但存在一些问题：\n\n\n\n问题\n说明\n\n\n\n\n速度慢\n大文件读取效率低\n\n\n类型猜测差\n常将字符串错误转为因子\n\n\n编码问题\n中文乱码常见\n\n\n行为不一致\n不同函数参数差异大\n\n\n\nreadr 和 readxl 完美解决了这些问题：\n\n\n\n特性\nreadr/readxl\nBase R\n\n\n\n\n速度\n⚡ 快 10 倍以上\n慢\n\n\n类型推断\n智能准确\n常出错\n\n\n编码\n默认 UTF-8\n依赖系统\n\n\n输出格式\ntibble\ndata.frame\n\n\n进度条\n有\n无\n\n\n\n\n# 安装并加载必要的包\nif (!require(\"readr\")) install.packages(\"readr\")\nif (!require(\"readxl\")) install.packages(\"readxl\")\nif (!require(\"writexl\")) install.packages(\"writexl\")\nif (!require(\"dplyr\")) install.packages(\"dplyr\")\nif (!require(\"purrr\")) install.packages(\"purrr\")\n\nlibrary(readr)\nlibrary(readxl)\nlibrary(writexl)\nlibrary(dplyr)\nlibrary(purrr)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#readr-基础读取文本文件",
+    "href": "3012-readr-readxl.html#readr-基础读取文本文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readr 基础：读取文本文件",
+    "text": "readr 基础：读取文本文件\n\nread_csv：读取 CSV 文件\nread_csv() 是最常用的函数，用于读取逗号分隔的文件。\n\n# 创建示例数据用于演示\ndemo_data &lt;- tibble(\n    id = 1:5,\n    name = c(\"张三\", \"李四\", \"王五\", \"赵六\", \"钱七\"),\n    age = c(25, 30, 28, 35, 42),\n    score = c(85.5, 92.3, 78.9, 88.1, 95.0),\n    date = as.Date(c(\"2024-01-15\", \"2024-02-20\", \"2024-03-10\", \"2024-04-05\", \"2024-05-18\"))\n)\n\n# 写入临时文件\ntemp_csv &lt;- tempfile(fileext = \".csv\")\nwrite_csv(demo_data, temp_csv)\n\n# 读取 CSV 文件\ndf &lt;- read_csv(temp_csv)\ndf\n\n# A tibble: 5 × 5\n     id name    age score date      \n  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;    \n1     1 张三     25  85.5 2024-01-15\n2     2 李四     30  92.3 2024-02-20\n3     3 王五     28  78.9 2024-03-10\n4     4 赵六     35  88.1 2024-04-05\n5     5 钱七     42  95   2024-05-18\n\n# 查看列类型推断结果\nspec(df)\n\ncols(\n  id = col_double(),\n  name = col_character(),\n  age = col_double(),\n  score = col_double(),\n  date = col_date(format = \"\")\n)\n\n\n\n\nread_tsv：读取制表符分隔文件\n\n# 创建 TSV 文件\ntemp_tsv &lt;- tempfile(fileext = \".tsv\")\nwrite_tsv(demo_data, temp_tsv)\n\n# 读取 TSV\ndf_tsv &lt;- read_tsv(temp_tsv)\ndf_tsv\n\n# A tibble: 5 × 5\n     id name    age score date      \n  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;    \n1     1 张三     25  85.5 2024-01-15\n2     2 李四     30  92.3 2024-02-20\n3     3 王五     28  78.9 2024-03-10\n4     4 赵六     35  88.1 2024-04-05\n5     5 钱七     42  95   2024-05-18\n\n\n\n\nread_delim：读取任意分隔符文件\n\n# 使用分号分隔（欧洲常用格式）\ntemp_delim &lt;- tempfile(fileext = \".txt\")\nwrite_delim(demo_data, temp_delim, delim = \";\")\n\n# 读取自定义分隔符文件\ndf_delim &lt;- read_delim(temp_delim, delim = \";\")\ndf_delim\n\n# A tibble: 5 × 5\n     id name    age score date      \n  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;    \n1     1 张三     25  85.5 2024-01-15\n2     2 李四     30  92.3 2024-02-20\n3     3 王五     28  78.9 2024-03-10\n4     4 赵六     35  88.1 2024-04-05\n5     5 钱七     42  95   2024-05-18\n\n\n\n\nread_fwf：读取固定宽度文件\n\n# 固定宽度格式示例\nfwf_content &lt;- \"张三  25  85.5\n李四  30  92.3\n王五  28  78.9\"\n\n# 写入临时文件\ntemp_fwf &lt;- tempfile(fileext = \".txt\")\nwriteLines(fwf_content, temp_fwf)\n\n# 读取固定宽度文件\ndf_fwf &lt;- read_fwf(\n    temp_fwf,\n    col_positions = fwf_widths(\n        widths = c(4, 4, 4),\n        col_names = c(\"name\", \"age\", \"score\")\n    )\n)\ndf_fwf\n\n# A tibble: 3 × 3\n  name               age        score\n  &lt;chr&gt;              &lt;chr&gt;      &lt;dbl&gt;\n1 \"\\xe5\\xbc\\xa0\\xe4\" \"\\xb8\\x89\"    25\n2 \"\\xe6\\x9d\\x8e\\xe5\" \"\\x9b\\x9b\"    30\n3 \"\\xe7\\x8e\\x8b\\xe4\" \"\\xba\\x94\"    28",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#列类型规范",
+    "href": "3012-readr-readxl.html#列类型规范",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "列类型规范",
+    "text": "列类型规范\n\n自动类型推断\nreadr 会自动推断列类型，使用前 1000 行数据进行猜测：\n\n# 查看默认推断\ndf &lt;- read_csv(temp_csv)\nspec(df)\n\ncols(\n  id = col_double(),\n  name = col_character(),\n  age = col_double(),\n  score = col_double(),\n  date = col_date(format = \"\")\n)\n\n\n\n\n手动指定列类型\n使用 col_types 参数精确控制列类型：\n\n# 方法1：使用简写字符串\ndf &lt;- read_csv(temp_csv, col_types = \"icdnD\")\n# i=integer, c=character, d=double, n=number, D=date\ndf\n\n# A tibble: 5 × 5\n     id name    age score date      \n  &lt;int&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;    \n1     1 张三     25  85.5 2024-01-15\n2     2 李四     30  92.3 2024-02-20\n3     3 王五     28  78.9 2024-03-10\n4     4 赵六     35  88.1 2024-04-05\n5     5 钱七     42  95   2024-05-18\n\n# 方法2：使用 cols() 函数（推荐，更清晰）\ndf &lt;- read_csv(temp_csv, col_types = cols(\n    id = col_integer(),\n    name = col_character(),\n    age = col_integer(),\n    score = col_double(),\n    date = col_date()\n))\ndf\n\n# A tibble: 5 × 5\n     id name    age score date      \n  &lt;int&gt; &lt;chr&gt; &lt;int&gt; &lt;dbl&gt; &lt;date&gt;    \n1     1 张三     25  85.5 2024-01-15\n2     2 李四     30  92.3 2024-02-20\n3     3 王五     28  78.9 2024-03-10\n4     4 赵六     35  88.1 2024-04-05\n5     5 钱七     42  95   2024-05-18\n\n\n\n\n常用列类型函数\n\n\n\n函数\n简写\n说明\n\n\n\n\ncol_logical()\nl\n逻辑值 TRUE/FALSE\n\n\ncol_integer()\ni\n整数\n\n\ncol_double()\nd\n双精度浮点数\n\n\ncol_character()\nc\n字符串\n\n\ncol_factor()\nf\n因子\n\n\ncol_date()\nD\n日期\n\n\ncol_datetime()\nT\n日期时间\n\n\ncol_time()\nt\n时间\n\n\ncol_number()\nn\n灵活数字（处理千分位、货币符号）\n\n\ncol_skip()\n_ 或 -\n跳过该列\n\n\ncol_guess()\n?\n自动猜测\n\n\n\n\n# 跳过不需要的列\ndf &lt;- read_csv(temp_csv, col_types = cols(\n    id = col_skip(),\n    name = col_character(),\n    age = col_integer(),\n    score = col_skip(),\n    date = col_date()\n))\ndf\n\n# A tibble: 5 × 3\n  name    age date      \n  &lt;chr&gt; &lt;int&gt; &lt;date&gt;    \n1 张三     25 2024-01-15\n2 李四     30 2024-02-20\n3 王五     28 2024-03-10\n4 赵六     35 2024-04-05\n5 钱七     42 2024-05-18\n\n\n\n\n处理特殊格式\n\n# 创建包含特殊格式的数据\nspecial_data &lt;- \"价格,百分比,日期\n$1,234.56,45.6%,2024/01/15\n$2,345.67,78.9%,2024/02/20\n$3,456.78,12.3%,2024/03/25\"\n\ntemp_special &lt;- tempfile(fileext = \".csv\")\nwriteLines(special_data, temp_special)\n\n# col_number() 可以处理货币符号和千分位\ndf_special &lt;- read_csv(temp_special, col_types = cols(\n    价格 = col_number(),\n    百分比 = col_number(),\n    日期 = col_date(format = \"%Y/%m/%d\")\n))\ndf_special\n\n# A tibble: 3 × 3\n   价格 百分比 日期  \n  &lt;dbl&gt;  &lt;dbl&gt; &lt;date&gt;\n1     1   235. NA    \n2     2   346. NA    \n3     3   457. NA",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#读取选项",
+    "href": "3012-readr-readxl.html#读取选项",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "读取选项",
+    "text": "读取选项\n\n跳过行和限制行数\n\n# 跳过前 n 行（常用于跳过注释或标题）\ndf &lt;- read_csv(temp_csv, skip = 1) # 跳过第一行\nhead(df, 3)\n\n# A tibble: 3 × 5\n    `1` 张三   `25` `85.5` `2024-01-15`\n  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;date&gt;      \n1     2 李四     30   92.3 2024-02-20  \n2     3 王五     28   78.9 2024-03-10  \n3     4 赵六     35   88.1 2024-04-05  \n\n# 只读取前 n 行（预览大文件）\ndf &lt;- read_csv(temp_csv, n_max = 3)\ndf\n\n# A tibble: 3 × 5\n     id name    age score date      \n  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;    \n1     1 张三     25  85.5 2024-01-15\n2     2 李四     30  92.3 2024-02-20\n3     3 王五     28  78.9 2024-03-10\n\n\n\n\n处理列名\n\n# 创建无表头数据\nno_header &lt;- \"张三,25,85.5\n李四,30,92.3\"\ntemp_no_header &lt;- tempfile(fileext = \".csv\")\nwriteLines(no_header, temp_no_header)\n\n# 指定无表头\ndf &lt;- read_csv(temp_no_header, col_names = FALSE)\ndf\n\n# A tibble: 2 × 3\n  X1       X2    X3\n  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;\n1 张三     25  85.5\n2 李四     30  92.3\n\n# 自定义列名\ndf &lt;- read_csv(temp_no_header, col_names = c(\"姓名\", \"年龄\", \"分数\"))\ndf\n\n# A tibble: 2 × 3\n  姓名   年龄  分数\n  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;\n1 张三     25  85.5\n2 李四     30  92.3\n\n\n\n\n处理缺失值\n\n# 创建包含缺失值的数据\nmissing_data &lt;- \"id,name,score\n1,张三,85\n2,李四,NA\n3,王五,\n4,赵六,N/A\n5,钱七,missing\"\n\ntemp_missing &lt;- tempfile(fileext = \".csv\")\nwriteLines(missing_data, temp_missing)\n\n# 指定缺失值标记\ndf &lt;- read_csv(temp_missing, na = c(\"\", \"NA\", \"N/A\", \"missing\"))\ndf\n\n# A tibble: 5 × 3\n     id name  score\n  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt;\n1     1 张三     85\n2     2 李四     NA\n3     3 王五     NA\n4     4 赵六     NA\n5     5 钱七     NA\n\n\n\n\n编码设置\n\n# 指定文件编码（中文文件常用）\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"GBK\"))\n\n# 默认使用 UTF-8\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"UTF-8\"))\n\n# 查看当前 locale 设置\ndefault_locale()\n\n&lt;locale&gt;\nNumbers:  123,456.78\nFormats:  %AD / %AT\nTimezone: UTC\nEncoding: UTF-8\n&lt;date_names&gt;\nDays:   Sunday (Sun), Monday (Mon), Tuesday (Tue), Wednesday (Wed), Thursday\n        (Thu), Friday (Fri), Saturday (Sat)\nMonths: January (Jan), February (Feb), March (Mar), April (Apr), May (May),\n        June (Jun), July (Jul), August (Aug), September (Sep), October\n        (Oct), November (Nov), December (Dec)\nAM/PM:  AM/PM",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#readxl读取-excel-文件",
+    "href": "3012-readr-readxl.html#readxl读取-excel-文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readxl：读取 Excel 文件",
+    "text": "readxl：读取 Excel 文件\n\nread_excel：通用读取函数\n\n# 创建示例 Excel 文件\ndemo_excel &lt;- tibble(\n    产品 = c(\"苹果\", \"香蕉\", \"橙子\", \"葡萄\"),\n    数量 = c(100, 150, 80, 200),\n    单价 = c(5.5, 3.2, 4.8, 8.0),\n    总价 = c(550, 480, 384, 1600)\n)\n\ntemp_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(demo_excel, temp_xlsx)\n\n# 读取 Excel 文件\ndf_excel &lt;- read_excel(temp_xlsx)\ndf_excel\n\n# A tibble: 4 × 4\n  产品   数量  单价  总价\n  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;\n1 苹果    100   5.5   550\n2 香蕉    150   3.2   480\n3 橙子     80   4.8   384\n4 葡萄    200   8    1600\n\n\n\n\n读取特定工作表\n\n# 查看工作表名称\nexcel_sheets(temp_xlsx)\n\n[1] \"Sheet1\"\n\n# 按名称读取\ndf &lt;- read_excel(temp_xlsx, sheet = \"Sheet1\")\n\n# 按索引读取（从1开始）\ndf &lt;- read_excel(temp_xlsx, sheet = 1)\ndf\n\n# A tibble: 4 × 4\n  产品   数量  单价  总价\n  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;\n1 苹果    100   5.5   550\n2 香蕉    150   3.2   480\n3 橙子     80   4.8   384\n4 葡萄    200   8    1600\n\n\n\n\n读取特定区域\n\n# 读取特定单元格区域\ndf &lt;- read_excel(temp_xlsx, range = \"A1:C3\")\ndf\n\n# A tibble: 2 × 3\n  产品   数量  单价\n  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;\n1 苹果    100   5.5\n2 香蕉    150   3.2\n\n# 读取特定行列范围\ndf &lt;- read_excel(temp_xlsx, range = cell_cols(\"A:B\")) # 只读取 A、B 列\ndf\n\n# A tibble: 4 × 2\n  产品   数量\n  &lt;chr&gt; &lt;dbl&gt;\n1 苹果    100\n2 香蕉    150\n3 橙子     80\n4 葡萄    200\n\n\n\n\n指定列类型\n\n# 手动指定列类型\ndf &lt;- read_excel(temp_xlsx, col_types = c(\"text\", \"numeric\", \"numeric\", \"numeric\"))\ndf\n\n# A tibble: 4 × 4\n  产品   数量  单价  总价\n  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;\n1 苹果    100   5.5   550\n2 香蕉    150   3.2   480\n3 橙子     80   4.8   384\n4 葡萄    200   8    1600\n\n# 跳过某些列\ndf &lt;- read_excel(temp_xlsx, col_types = c(\"text\", \"skip\", \"numeric\", \"numeric\"))\ndf\n\n# A tibble: 4 × 3\n  产品   单价  总价\n  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;\n1 苹果    5.5   550\n2 香蕉    3.2   480\n3 橙子    4.8   384\n4 葡萄    8    1600\n\n\n\n\n处理日期\nExcel 中的日期存储为数字，readxl 会自动转换：\n\n# 创建包含日期的数据\ndate_data &lt;- tibble(\n    事件 = c(\"会议\", \"培训\", \"考试\"),\n    日期 = as.Date(c(\"2024-01-15\", \"2024-02-20\", \"2024-03-10\"))\n)\n\ntemp_date_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(date_data, temp_date_xlsx)\n\n# 读取会自动识别日期\ndf &lt;- read_excel(temp_date_xlsx)\ndf\n\n# A tibble: 3 × 2\n  事件  日期               \n  &lt;chr&gt; &lt;dttm&gt;             \n1 会议  2024-01-15 00:00:00\n2 培训  2024-02-20 00:00:00\n3 考试  2024-03-10 00:00:00\n\nclass(df$日期)\n\n[1] \"POSIXct\" \"POSIXt\"",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#写出数据",
+    "href": "3012-readr-readxl.html#写出数据",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "写出数据",
+    "text": "写出数据\n\nwrite_csv：写出 CSV\n\n# 基本写出\noutput_csv &lt;- tempfile(fileext = \".csv\")\nwrite_csv(demo_data, output_csv)\n\n# 不写入列名\nwrite_csv(demo_data, output_csv, col_names = FALSE)\n\n# 追加模式\nwrite_csv(demo_data[1:2, ], output_csv) # 先写入部分数据\nwrite_csv(demo_data[3:5, ], output_csv, append = TRUE) # 追加\n\n\n\nwrite_excel_csv：Excel 兼容的 CSV\n当需要在 Excel 中打开 CSV 文件时，使用此函数避免中文乱码：\n\n# 添加 BOM 头，Excel 能正确识别 UTF-8\noutput_excel_csv &lt;- tempfile(fileext = \".csv\")\nwrite_excel_csv(demo_data, output_excel_csv)\n\n\n\nwrite_xlsx：写出 Excel\n\n# 单个工作表\noutput_xlsx &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(demo_data, output_xlsx)\n\n# 多个工作表\nmulti_sheet_data &lt;- list(\n    \"销售数据\" = demo_data,\n    \"产品数据\" = demo_excel\n)\nwrite_xlsx(multi_sheet_data, output_xlsx)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#批量读取文件",
+    "href": "3012-readr-readxl.html#批量读取文件",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "批量读取文件",
+    "text": "批量读取文件\n\n使用 purrr::map 批量读取\n\n# 创建多个临时文件用于演示\ntemp_files &lt;- sapply(1:3, function(i) {\n    temp &lt;- tempfile(fileext = \".csv\")\n    write_csv(demo_data[sample(5, 3), ], temp)\n    temp\n})\n\n# 批量读取并合并\nall_data &lt;- temp_files %&gt;%\n    map(read_csv, show_col_types = FALSE) %&gt;% # 读取每个文件\n    list_rbind() # 合并为一个数据框\n\nall_data\n\n# A tibble: 9 × 5\n     id name    age score date      \n  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;    \n1     5 钱七     42  95   2024-05-18\n2     1 张三     25  85.5 2024-01-15\n3     2 李四     30  92.3 2024-02-20\n4     5 钱七     42  95   2024-05-18\n5     1 张三     25  85.5 2024-01-15\n6     4 赵六     35  88.1 2024-04-05\n7     1 张三     25  85.5 2024-01-15\n8     4 赵六     35  88.1 2024-04-05\n9     3 王五     28  78.9 2024-03-10\n\n# 添加来源信息\nall_data_with_source &lt;- temp_files %&gt;%\n    set_names(basename) %&gt;% # 用文件名作为列表名\n    map(read_csv, show_col_types = FALSE) %&gt;%\n    list_rbind(names_to = \"source\") # 添加来源列\n\nall_data_with_source\n\n# A tibble: 9 × 6\n  source                  id name    age score date      \n  &lt;chr&gt;                &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;    \n1 file6514601a47f6.csv     5 钱七     42  95   2024-05-18\n2 file6514601a47f6.csv     1 张三     25  85.5 2024-01-15\n3 file6514601a47f6.csv     2 李四     30  92.3 2024-02-20\n4 file651420a646bc.csv     5 钱七     42  95   2024-05-18\n5 file651420a646bc.csv     1 张三     25  85.5 2024-01-15\n6 file651420a646bc.csv     4 赵六     35  88.1 2024-04-05\n7 file6514613953f4.csv     1 张三     25  85.5 2024-01-15\n8 file6514613953f4.csv     4 赵六     35  88.1 2024-04-05\n9 file6514613953f4.csv     3 王五     28  78.9 2024-03-10\n\n\n\n\n批量读取 Excel 工作表\n\n# 创建多工作表 Excel\nmulti_sheets &lt;- list(\n    \"2022\" = demo_data,\n    \"2023\" = demo_data %&gt;% mutate(score = score * 1.1),\n    \"2024\" = demo_data %&gt;% mutate(score = score * 1.2)\n)\n\ntemp_multi &lt;- tempfile(fileext = \".xlsx\")\nwrite_xlsx(multi_sheets, temp_multi)\n\n# 读取所有工作表\nsheet_names &lt;- excel_sheets(temp_multi)\nall_sheets &lt;- sheet_names %&gt;%\n    set_names() %&gt;%\n    map(~ read_excel(temp_multi, sheet = .x)) %&gt;%\n    list_rbind(names_to = \"year\")\n\nall_sheets\n\n# A tibble: 15 × 6\n   year     id name    age score date               \n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dttm&gt;             \n 1 2022      1 张三     25  85.5 2024-01-15 00:00:00\n 2 2022      2 李四     30  92.3 2024-02-20 00:00:00\n 3 2022      3 王五     28  78.9 2024-03-10 00:00:00\n 4 2022      4 赵六     35  88.1 2024-04-05 00:00:00\n 5 2022      5 钱七     42  95   2024-05-18 00:00:00\n 6 2023      1 张三     25  94.1 2024-01-15 00:00:00\n 7 2023      2 李四     30 102.  2024-02-20 00:00:00\n 8 2023      3 王五     28  86.8 2024-03-10 00:00:00\n 9 2023      4 赵六     35  96.9 2024-04-05 00:00:00\n10 2023      5 钱七     42 104.  2024-05-18 00:00:00\n11 2024      1 张三     25 103.  2024-01-15 00:00:00\n12 2024      2 李四     30 111.  2024-02-20 00:00:00\n13 2024      3 王五     28  94.7 2024-03-10 00:00:00\n14 2024      4 赵六     35 106.  2024-04-05 00:00:00\n15 2024      5 钱七     42 114   2024-05-18 00:00:00\n\n\n\n\n实用批量读取函数\n\n# 封装一个批量读取函数\nread_all_csv &lt;- function(folder, pattern = \"\\\\.csv$\") {\n    # 获取所有匹配的文件\n    files &lt;- list.files(folder, pattern = pattern, full.names = TRUE)\n\n    if (length(files) == 0) {\n        warning(\"未找到匹配的文件\")\n        return(tibble())\n    }\n\n    # 读取并合并\n    files %&gt;%\n        set_names(basename) %&gt;%\n        map(read_csv, show_col_types = FALSE) %&gt;%\n        list_rbind(names_to = \"file\")\n}\n\n# 使用示例（需要实际文件夹）\n# all_data &lt;- read_all_csv(\"data/\")",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#性能优化",
+    "href": "3012-readr-readxl.html#性能优化",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "性能优化",
+    "text": "性能优化\n\n延迟读取（Lazy Reading）\n对于超大文件，可以使用延迟读取减少内存占用：\n\n# 使用 vroom 包进行延迟读取（更高效）\n# install.packages(\"vroom\")\n# library(vroom)\n# df &lt;- vroom(\"large_file.csv\", altrep = TRUE)\n\n\n\n只读取需要的列\n\n# 跳过不需要的列可以显著提升速度\ndf &lt;- read_csv(temp_csv, col_types = cols_only(\n    name = col_character(),\n    score = col_double()\n))\ndf\n\n# A tibble: 5 × 2\n  name  score\n  &lt;chr&gt; &lt;dbl&gt;\n1 张三   85.5\n2 李四   92.3\n3 王五   78.9\n4 赵六   88.1\n5 钱七   95  \n\n\n\n\n并行读取\n对于多个文件，可以使用并行处理：\n\n# 使用 furrr 包并行读取\n# install.packages(\"furrr\")\n# library(furrr)\n# plan(multisession, workers = 4)\n# all_data &lt;- files %&gt;%\n#   future_map(read_csv) %&gt;%\n#   list_rbind()",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#性能对比",
+    "href": "3012-readr-readxl.html#性能对比",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "性能对比",
+    "text": "性能对比\n\n# 创建较大的测试数据\nlarge_data &lt;- tibble(\n    id = 1:10000,\n    name = paste0(\"Name_\", 1:10000),\n    value1 = rnorm(10000),\n    value2 = rnorm(10000),\n    value3 = rnorm(10000)\n)\n\ntemp_large &lt;- tempfile(fileext = \".csv\")\nwrite_csv(large_data, temp_large)\n\n# 性能对比（简化演示）\nsystem.time({\n    df1 &lt;- read.csv(temp_large) # Base R\n})\n\n用户 系统 流逝 \n0.03 0.00 0.03 \n\nsystem.time({\n    df2 &lt;- read_csv(temp_large, show_col_types = FALSE) # readr\n})\n\n用户 系统 流逝 \n0.04 0.03 0.02",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#实战案例",
+    "href": "3012-readr-readxl.html#实战案例",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "实战案例",
+    "text": "实战案例\n\n案例一：处理中文 CSV 文件\n\n# 创建中文数据\nchinese_data &lt;- tibble(\n    姓名 = c(\"张三\", \"李四\", \"王五\"),\n    部门 = c(\"研发部\", \"市场部\", \"财务部\"),\n    工资 = c(15000, 12000, 10000)\n)\n\n# 写出为 Excel 兼容格式\ntemp_cn &lt;- tempfile(fileext = \".csv\")\nwrite_excel_csv(chinese_data, temp_cn)\n\n# 读取\ndf &lt;- read_csv(temp_cn, show_col_types = FALSE)\ndf\n\n# A tibble: 3 × 3\n  姓名  部门    工资\n  &lt;chr&gt; &lt;chr&gt;  &lt;dbl&gt;\n1 张三  研发部 15000\n2 李四  市场部 12000\n3 王五  财务部 10000\n\n\n\n\n案例二：读取科研数据\n\n# 模拟科研数据格式（带注释行和单位行）\nresearch_data &lt;- \"# 实验数据文件\n# 日期: 2024-01-15\n# 实验员: 张三\n样本ID,浓度(μg/mL),吸光度,温度(°C)\nunit,μg/mL,OD450,°C\nS001,10.5,0.245,25.0\nS002,20.3,0.456,25.1\nS003,30.1,0.678,24.9\nS004,40.8,0.891,25.2\"\n\ntemp_research &lt;- tempfile(fileext = \".csv\")\nwriteLines(research_data, temp_research)\n\n# 跳过注释行和单位行\ndf &lt;- read_csv(temp_research,\n    skip = 4, # 跳过前4行\n    col_names = c(\"样本ID\", \"浓度\", \"吸光度\", \"温度\"),\n    show_col_types = FALSE\n)\ndf\n\n# A tibble: 5 × 4\n  样本ID 浓度  吸光度 温度 \n  &lt;chr&gt;  &lt;chr&gt; &lt;chr&gt;  &lt;chr&gt;\n1 unit   μg/mL OD450  °C   \n2 S001   10.5  0.245  25.0 \n3 S002   20.3  0.456  25.1 \n4 S003   30.1  0.678  24.9 \n5 S004   40.8  0.891  25.2 \n\n\n\n\n案例三：合并多个月度报表\n\n# 创建模拟月度数据\nmonths &lt;- c(\"2024-01\", \"2024-02\", \"2024-03\")\ntemp_monthly &lt;- sapply(months, function(m) {\n    temp &lt;- tempfile(fileext = \".csv\")\n    data &lt;- tibble(\n        月份 = m,\n        产品 = c(\"A\", \"B\", \"C\"),\n        销量 = sample(100:500, 3)\n    )\n    write_csv(data, temp)\n    temp\n})\n\n# 批量读取并合并\nmonthly_report &lt;- temp_monthly %&gt;%\n    map(read_csv, show_col_types = FALSE) %&gt;%\n    list_rbind()\n\nmonthly_report\n\n# A tibble: 9 × 3\n  月份    产品   销量\n  &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;\n1 2024-01 A       246\n2 2024-01 B       106\n3 2024-01 C       300\n4 2024-02 A       261\n5 2024-02 B       406\n6 2024-02 C       354\n7 2024-03 A       385\n8 2024-03 B       290\n9 2024-03 C       185\n\n# 按月份汇总\nmonthly_report %&gt;%\n    group_by(月份) %&gt;%\n    summarise(总销量 = sum(销量))\n\n# A tibble: 3 × 2\n  月份    总销量\n  &lt;chr&gt;    &lt;dbl&gt;\n1 2024-01    652\n2 2024-02   1021\n3 2024-03    860\n\n\n\n\n案例四：处理大型日志文件\n\n# 模拟日志数据\nlog_data &lt;- tibble(\n    timestamp = seq(as.POSIXct(\"2024-01-01\"),\n        by = \"min\",\n        length.out = 1000\n    ),\n    level = sample(c(\"INFO\", \"WARN\", \"ERROR\"), 1000,\n        replace = TRUE, prob = c(0.8, 0.15, 0.05)\n    ),\n    message = paste(\"Event\", 1:1000)\n)\n\ntemp_log &lt;- tempfile(fileext = \".csv\")\nwrite_csv(log_data, temp_log)\n\n# 只读取 ERROR 级别（先读取再过滤）\nerrors &lt;- read_csv(temp_log, show_col_types = FALSE) %&gt;%\n    filter(level == \"ERROR\")\n\nerrors\n\n# A tibble: 70 × 3\n   timestamp           level message  \n   &lt;dttm&gt;              &lt;chr&gt; &lt;chr&gt;    \n 1 2023-12-31 16:32:00 ERROR Event 33 \n 2 2023-12-31 16:38:00 ERROR Event 39 \n 3 2023-12-31 16:54:00 ERROR Event 55 \n 4 2023-12-31 17:03:00 ERROR Event 64 \n 5 2023-12-31 17:12:00 ERROR Event 73 \n 6 2023-12-31 17:17:00 ERROR Event 78 \n 7 2023-12-31 17:19:00 ERROR Event 80 \n 8 2023-12-31 17:23:00 ERROR Event 84 \n 9 2023-12-31 17:26:00 ERROR Event 87 \n10 2023-12-31 17:53:00 ERROR Event 114\n# ℹ 60 more rows",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#readr-与-base-r-对照表",
+    "href": "3012-readr-readxl.html#readr-与-base-r-对照表",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "readr 与 Base R 对照表",
+    "text": "readr 与 Base R 对照表\n\n\n\n功能\nreadr\nBase R\n\n\n\n\n读取 CSV\nread_csv()\nread.csv()\n\n\n读取 TSV\nread_tsv()\nread.delim()\n\n\n自定义分隔符\nread_delim()\nread.table()\n\n\n固定宽度\nread_fwf()\nread.fwf()\n\n\n写出 CSV\nwrite_csv()\nwrite.csv()\n\n\n类型规范\ncol_types = cols()\ncolClasses = c()\n\n\n默认输出\ntibble\ndata.frame\n\n\n默认编码\nUTF-8\n系统依赖\n\n\n字符串处理\n保持字符串\n可能转为因子",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#常见问题解决",
+    "href": "3012-readr-readxl.html#常见问题解决",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "常见问题解决",
+    "text": "常见问题解决\n\n问题1：中文乱码\n\n# 解决方案：指定正确的编码\n# df &lt;- read_csv(\"data.csv\", locale = locale(encoding = \"GBK\"))\n# 或使用 write_excel_csv 写出\n\n\n\n问题2：列类型推断错误\n\n# 解决方案：增加猜测行数或手动指定类型\n# df &lt;- read_csv(\"data.csv\", guess_max = 5000)\n# 或\n# df &lt;- read_csv(\"data.csv\", col_types = cols(\n#   问题列 = col_character()\n# ))\n\n\n\n问题3：科学计数法问题\n\n# 解决方案：使用 col_character() 保持原样\n# df &lt;- read_csv(\"data.csv\", col_types = cols(\n#   id = col_character()  # 避免 1234567890 变成 1.23e+09\n# ))",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#总结",
+    "href": "3012-readr-readxl.html#总结",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "总结",
+    "text": "总结\nreadr 和 readxl 是 R 语言中读取数据的最佳选择：\n\n\n\n优势\n说明\n\n\n\n\n速度快\n比 Base R 快 10 倍以上\n\n\n类型智能\n自动准确推断列类型\n\n\n编码友好\n默认 UTF-8，中文无忧\n\n\n输出一致\n统一输出 tibble 格式\n\n\n功能全面\n覆盖各种数据格式\n\n\n\n掌握这两个包后，你的数据导入工作将变得高效便捷！",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
+  },
+  {
+    "objectID": "3012-readr-readxl.html#参考资源",
+    "href": "3012-readr-readxl.html#参考资源",
+    "title": "readr/readxl 高效数据读取指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nreadr 官方文档\nreadxl 官方文档\nR for Data Science - Data Import\nvroom 包（超大文件）",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "📥 数据输入输出",
+      "readr/readxl - 高效读取"
+    ]
   }
 ]

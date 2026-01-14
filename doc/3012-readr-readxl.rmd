@@ -1,0 +1,728 @@
+---
+title: "readr/readxl 高效数据读取指南"
+date: "2026-01-14"
+categories: [实用操作, 数据导入, 数据处理]
+image: "images/3012-readr-readxl-cover.svg"
+description: "readr 和 readxl 是 tidyverse 生态中高效读取数据的核心工具，提供快速、一致、智能的数据导入体验。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 6,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 为什么选择 readr 和 readxl？
+
+R 语言内置的 `read.csv()` 等函数虽然可用，但存在一些问题：
+
+| 问题 | 说明 |
+|------|------|
+| **速度慢** | 大文件读取效率低 |
+| **类型猜测差** | 常将字符串错误转为因子 |
+| **编码问题** | 中文乱码常见 |
+| **行为不一致** | 不同函数参数差异大 |
+
+`readr` 和 `readxl` 完美解决了这些问题：
+
+| 特性 | readr/readxl | Base R |
+|------|--------------|--------|
+| 速度 | ⚡ 快 10 倍以上 | 慢 |
+| 类型推断 | 智能准确 | 常出错 |
+| 编码 | 默认 UTF-8 | 依赖系统 |
+| 输出格式 | tibble | data.frame |
+| 进度条 | 有 | 无 |
+
+```{r}
+# 安装并加载必要的包
+if (!require("readr")) install.packages("readr")
+if (!require("readxl")) install.packages("readxl")
+if (!require("writexl")) install.packages("writexl")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("purrr")) install.packages("purrr")
+
+library(readr)
+library(readxl)
+library(writexl)
+library(dplyr)
+library(purrr)
+```
+
+---
+
+## readr 基础：读取文本文件
+
+### read_csv：读取 CSV 文件
+
+`read_csv()` 是最常用的函数，用于读取逗号分隔的文件。
+
+```{r}
+# 创建示例数据用于演示
+demo_data <- tibble(
+    id = 1:5,
+    name = c("张三", "李四", "王五", "赵六", "钱七"),
+    age = c(25, 30, 28, 35, 42),
+    score = c(85.5, 92.3, 78.9, 88.1, 95.0),
+    date = as.Date(c("2024-01-15", "2024-02-20", "2024-03-10", "2024-04-05", "2024-05-18"))
+)
+
+# 写入临时文件
+temp_csv <- tempfile(fileext = ".csv")
+write_csv(demo_data, temp_csv)
+
+# 读取 CSV 文件
+df <- read_csv(temp_csv)
+df
+
+# 查看列类型推断结果
+spec(df)
+```
+
+### read_tsv：读取制表符分隔文件
+
+```{r}
+# 创建 TSV 文件
+temp_tsv <- tempfile(fileext = ".tsv")
+write_tsv(demo_data, temp_tsv)
+
+# 读取 TSV
+df_tsv <- read_tsv(temp_tsv)
+df_tsv
+```
+
+### read_delim：读取任意分隔符文件
+
+```{r}
+# 使用分号分隔（欧洲常用格式）
+temp_delim <- tempfile(fileext = ".txt")
+write_delim(demo_data, temp_delim, delim = ";")
+
+# 读取自定义分隔符文件
+df_delim <- read_delim(temp_delim, delim = ";")
+df_delim
+```
+
+### read_fwf：读取固定宽度文件
+
+```{r}
+# 固定宽度格式示例
+fwf_content <- "张三  25  85.5
+李四  30  92.3
+王五  28  78.9"
+
+# 写入临时文件
+temp_fwf <- tempfile(fileext = ".txt")
+writeLines(fwf_content, temp_fwf)
+
+# 读取固定宽度文件
+df_fwf <- read_fwf(
+    temp_fwf,
+    col_positions = fwf_widths(
+        widths = c(4, 4, 4),
+        col_names = c("name", "age", "score")
+    )
+)
+df_fwf
+```
+
+---
+
+## 列类型规范
+
+### 自动类型推断
+
+readr 会自动推断列类型，使用前 1000 行数据进行猜测：
+
+```{r}
+# 查看默认推断
+df <- read_csv(temp_csv)
+spec(df)
+```
+
+### 手动指定列类型
+
+使用 `col_types` 参数精确控制列类型：
+
+```{r}
+# 方法1：使用简写字符串
+df <- read_csv(temp_csv, col_types = "icdnD")
+# i=integer, c=character, d=double, n=number, D=date
+df
+
+# 方法2：使用 cols() 函数（推荐，更清晰）
+df <- read_csv(temp_csv, col_types = cols(
+    id = col_integer(),
+    name = col_character(),
+    age = col_integer(),
+    score = col_double(),
+    date = col_date()
+))
+df
+```
+
+### 常用列类型函数
+
+| 函数 | 简写 | 说明 |
+|------|------|------|
+| `col_logical()` | l | 逻辑值 TRUE/FALSE |
+| `col_integer()` | i | 整数 |
+| `col_double()` | d | 双精度浮点数 |
+| `col_character()` | c | 字符串 |
+| `col_factor()` | f | 因子 |
+| `col_date()` | D | 日期 |
+| `col_datetime()` | T | 日期时间 |
+| `col_time()` | t | 时间 |
+| `col_number()` | n | 灵活数字（处理千分位、货币符号） |
+| `col_skip()` | _ 或 - | 跳过该列 |
+| `col_guess()` | ? | 自动猜测 |
+
+```{r}
+# 跳过不需要的列
+df <- read_csv(temp_csv, col_types = cols(
+    id = col_skip(),
+    name = col_character(),
+    age = col_integer(),
+    score = col_skip(),
+    date = col_date()
+))
+df
+```
+
+### 处理特殊格式
+
+```{r}
+# 创建包含特殊格式的数据
+special_data <- "价格,百分比,日期
+$1,234.56,45.6%,2024/01/15
+$2,345.67,78.9%,2024/02/20
+$3,456.78,12.3%,2024/03/25"
+
+temp_special <- tempfile(fileext = ".csv")
+writeLines(special_data, temp_special)
+
+# col_number() 可以处理货币符号和千分位
+df_special <- read_csv(temp_special, col_types = cols(
+    价格 = col_number(),
+    百分比 = col_number(),
+    日期 = col_date(format = "%Y/%m/%d")
+))
+df_special
+```
+
+---
+
+## 读取选项
+
+### 跳过行和限制行数
+
+```{r}
+# 跳过前 n 行（常用于跳过注释或标题）
+df <- read_csv(temp_csv, skip = 1) # 跳过第一行
+head(df, 3)
+
+# 只读取前 n 行（预览大文件）
+df <- read_csv(temp_csv, n_max = 3)
+df
+```
+
+### 处理列名
+
+```{r}
+# 创建无表头数据
+no_header <- "张三,25,85.5
+李四,30,92.3"
+temp_no_header <- tempfile(fileext = ".csv")
+writeLines(no_header, temp_no_header)
+
+# 指定无表头
+df <- read_csv(temp_no_header, col_names = FALSE)
+df
+
+# 自定义列名
+df <- read_csv(temp_no_header, col_names = c("姓名", "年龄", "分数"))
+df
+```
+
+### 处理缺失值
+
+```{r}
+# 创建包含缺失值的数据
+missing_data <- "id,name,score
+1,张三,85
+2,李四,NA
+3,王五,
+4,赵六,N/A
+5,钱七,missing"
+
+temp_missing <- tempfile(fileext = ".csv")
+writeLines(missing_data, temp_missing)
+
+# 指定缺失值标记
+df <- read_csv(temp_missing, na = c("", "NA", "N/A", "missing"))
+df
+```
+
+### 编码设置
+
+```{r}
+# 指定文件编码（中文文件常用）
+# df <- read_csv("data.csv", locale = locale(encoding = "GBK"))
+
+# 默认使用 UTF-8
+# df <- read_csv("data.csv", locale = locale(encoding = "UTF-8"))
+
+# 查看当前 locale 设置
+default_locale()
+```
+
+---
+
+## readxl：读取 Excel 文件
+
+### read_excel：通用读取函数
+
+```{r}
+# 创建示例 Excel 文件
+demo_excel <- tibble(
+    产品 = c("苹果", "香蕉", "橙子", "葡萄"),
+    数量 = c(100, 150, 80, 200),
+    单价 = c(5.5, 3.2, 4.8, 8.0),
+    总价 = c(550, 480, 384, 1600)
+)
+
+temp_xlsx <- tempfile(fileext = ".xlsx")
+write_xlsx(demo_excel, temp_xlsx)
+
+# 读取 Excel 文件
+df_excel <- read_excel(temp_xlsx)
+df_excel
+```
+
+### 读取特定工作表
+
+```{r}
+# 查看工作表名称
+excel_sheets(temp_xlsx)
+
+# 按名称读取
+df <- read_excel(temp_xlsx, sheet = "Sheet1")
+
+# 按索引读取（从1开始）
+df <- read_excel(temp_xlsx, sheet = 1)
+df
+```
+
+### 读取特定区域
+
+```{r}
+# 读取特定单元格区域
+df <- read_excel(temp_xlsx, range = "A1:C3")
+df
+
+# 读取特定行列范围
+df <- read_excel(temp_xlsx, range = cell_cols("A:B")) # 只读取 A、B 列
+df
+```
+
+### 指定列类型
+
+```{r}
+# 手动指定列类型
+df <- read_excel(temp_xlsx, col_types = c("text", "numeric", "numeric", "numeric"))
+df
+
+# 跳过某些列
+df <- read_excel(temp_xlsx, col_types = c("text", "skip", "numeric", "numeric"))
+df
+```
+
+### 处理日期
+
+Excel 中的日期存储为数字，readxl 会自动转换：
+
+```{r}
+# 创建包含日期的数据
+date_data <- tibble(
+    事件 = c("会议", "培训", "考试"),
+    日期 = as.Date(c("2024-01-15", "2024-02-20", "2024-03-10"))
+)
+
+temp_date_xlsx <- tempfile(fileext = ".xlsx")
+write_xlsx(date_data, temp_date_xlsx)
+
+# 读取会自动识别日期
+df <- read_excel(temp_date_xlsx)
+df
+class(df$日期)
+```
+
+---
+
+## 写出数据
+
+### write_csv：写出 CSV
+
+```{r}
+# 基本写出
+output_csv <- tempfile(fileext = ".csv")
+write_csv(demo_data, output_csv)
+
+# 不写入列名
+write_csv(demo_data, output_csv, col_names = FALSE)
+
+# 追加模式
+write_csv(demo_data[1:2, ], output_csv) # 先写入部分数据
+write_csv(demo_data[3:5, ], output_csv, append = TRUE) # 追加
+```
+
+### write_excel_csv：Excel 兼容的 CSV
+
+当需要在 Excel 中打开 CSV 文件时，使用此函数避免中文乱码：
+
+```{r}
+# 添加 BOM 头，Excel 能正确识别 UTF-8
+output_excel_csv <- tempfile(fileext = ".csv")
+write_excel_csv(demo_data, output_excel_csv)
+```
+
+### write_xlsx：写出 Excel
+
+```{r}
+# 单个工作表
+output_xlsx <- tempfile(fileext = ".xlsx")
+write_xlsx(demo_data, output_xlsx)
+
+# 多个工作表
+multi_sheet_data <- list(
+    "销售数据" = demo_data,
+    "产品数据" = demo_excel
+)
+write_xlsx(multi_sheet_data, output_xlsx)
+```
+
+---
+
+## 批量读取文件
+
+### 使用 purrr::map 批量读取
+
+```{r}
+# 创建多个临时文件用于演示
+temp_files <- sapply(1:3, function(i) {
+    temp <- tempfile(fileext = ".csv")
+    write_csv(demo_data[sample(5, 3), ], temp)
+    temp
+})
+
+# 批量读取并合并
+all_data <- temp_files %>%
+    map(read_csv, show_col_types = FALSE) %>% # 读取每个文件
+    list_rbind() # 合并为一个数据框
+
+all_data
+
+# 添加来源信息
+all_data_with_source <- temp_files %>%
+    set_names(basename) %>% # 用文件名作为列表名
+    map(read_csv, show_col_types = FALSE) %>%
+    list_rbind(names_to = "source") # 添加来源列
+
+all_data_with_source
+```
+
+### 批量读取 Excel 工作表
+
+```{r}
+# 创建多工作表 Excel
+multi_sheets <- list(
+    "2022" = demo_data,
+    "2023" = demo_data %>% mutate(score = score * 1.1),
+    "2024" = demo_data %>% mutate(score = score * 1.2)
+)
+
+temp_multi <- tempfile(fileext = ".xlsx")
+write_xlsx(multi_sheets, temp_multi)
+
+# 读取所有工作表
+sheet_names <- excel_sheets(temp_multi)
+all_sheets <- sheet_names %>%
+    set_names() %>%
+    map(~ read_excel(temp_multi, sheet = .x)) %>%
+    list_rbind(names_to = "year")
+
+all_sheets
+```
+
+### 实用批量读取函数
+
+```{r}
+# 封装一个批量读取函数
+read_all_csv <- function(folder, pattern = "\\.csv$") {
+    # 获取所有匹配的文件
+    files <- list.files(folder, pattern = pattern, full.names = TRUE)
+
+    if (length(files) == 0) {
+        warning("未找到匹配的文件")
+        return(tibble())
+    }
+
+    # 读取并合并
+    files %>%
+        set_names(basename) %>%
+        map(read_csv, show_col_types = FALSE) %>%
+        list_rbind(names_to = "file")
+}
+
+# 使用示例（需要实际文件夹）
+# all_data <- read_all_csv("data/")
+```
+
+---
+
+## 性能优化
+
+### 延迟读取（Lazy Reading）
+
+对于超大文件，可以使用延迟读取减少内存占用：
+
+```{r}
+# 使用 vroom 包进行延迟读取（更高效）
+# install.packages("vroom")
+# library(vroom)
+# df <- vroom("large_file.csv", altrep = TRUE)
+```
+
+### 只读取需要的列
+
+```{r}
+# 跳过不需要的列可以显著提升速度
+df <- read_csv(temp_csv, col_types = cols_only(
+    name = col_character(),
+    score = col_double()
+))
+df
+```
+
+### 并行读取
+
+对于多个文件，可以使用并行处理：
+
+```{r}
+# 使用 furrr 包并行读取
+# install.packages("furrr")
+# library(furrr)
+# plan(multisession, workers = 4)
+# all_data <- files %>%
+#   future_map(read_csv) %>%
+#   list_rbind()
+```
+
+---
+
+## 性能对比
+
+```{r}
+# 创建较大的测试数据
+large_data <- tibble(
+    id = 1:10000,
+    name = paste0("Name_", 1:10000),
+    value1 = rnorm(10000),
+    value2 = rnorm(10000),
+    value3 = rnorm(10000)
+)
+
+temp_large <- tempfile(fileext = ".csv")
+write_csv(large_data, temp_large)
+
+# 性能对比（简化演示）
+system.time({
+    df1 <- read.csv(temp_large) # Base R
+})
+
+system.time({
+    df2 <- read_csv(temp_large, show_col_types = FALSE) # readr
+})
+```
+
+---
+
+## 实战案例
+
+### 案例一：处理中文 CSV 文件
+
+```{r}
+# 创建中文数据
+chinese_data <- tibble(
+    姓名 = c("张三", "李四", "王五"),
+    部门 = c("研发部", "市场部", "财务部"),
+    工资 = c(15000, 12000, 10000)
+)
+
+# 写出为 Excel 兼容格式
+temp_cn <- tempfile(fileext = ".csv")
+write_excel_csv(chinese_data, temp_cn)
+
+# 读取
+df <- read_csv(temp_cn, show_col_types = FALSE)
+df
+```
+
+### 案例二：读取科研数据
+
+```{r}
+# 模拟科研数据格式（带注释行和单位行）
+research_data <- "# 实验数据文件
+# 日期: 2024-01-15
+# 实验员: 张三
+样本ID,浓度(μg/mL),吸光度,温度(°C)
+unit,μg/mL,OD450,°C
+S001,10.5,0.245,25.0
+S002,20.3,0.456,25.1
+S003,30.1,0.678,24.9
+S004,40.8,0.891,25.2"
+
+temp_research <- tempfile(fileext = ".csv")
+writeLines(research_data, temp_research)
+
+# 跳过注释行和单位行
+df <- read_csv(temp_research,
+    skip = 4, # 跳过前4行
+    col_names = c("样本ID", "浓度", "吸光度", "温度"),
+    show_col_types = FALSE
+)
+df
+```
+
+### 案例三：合并多个月度报表
+
+```{r}
+# 创建模拟月度数据
+months <- c("2024-01", "2024-02", "2024-03")
+temp_monthly <- sapply(months, function(m) {
+    temp <- tempfile(fileext = ".csv")
+    data <- tibble(
+        月份 = m,
+        产品 = c("A", "B", "C"),
+        销量 = sample(100:500, 3)
+    )
+    write_csv(data, temp)
+    temp
+})
+
+# 批量读取并合并
+monthly_report <- temp_monthly %>%
+    map(read_csv, show_col_types = FALSE) %>%
+    list_rbind()
+
+monthly_report
+
+# 按月份汇总
+monthly_report %>%
+    group_by(月份) %>%
+    summarise(总销量 = sum(销量))
+```
+
+### 案例四：处理大型日志文件
+
+```{r}
+# 模拟日志数据
+log_data <- tibble(
+    timestamp = seq(as.POSIXct("2024-01-01"),
+        by = "min",
+        length.out = 1000
+    ),
+    level = sample(c("INFO", "WARN", "ERROR"), 1000,
+        replace = TRUE, prob = c(0.8, 0.15, 0.05)
+    ),
+    message = paste("Event", 1:1000)
+)
+
+temp_log <- tempfile(fileext = ".csv")
+write_csv(log_data, temp_log)
+
+# 只读取 ERROR 级别（先读取再过滤）
+errors <- read_csv(temp_log, show_col_types = FALSE) %>%
+    filter(level == "ERROR")
+
+errors
+```
+
+---
+
+## readr 与 Base R 对照表
+
+| 功能 | readr | Base R |
+|------|-------|--------|
+| 读取 CSV | `read_csv()` | `read.csv()` |
+| 读取 TSV | `read_tsv()` | `read.delim()` |
+| 自定义分隔符 | `read_delim()` | `read.table()` |
+| 固定宽度 | `read_fwf()` | `read.fwf()` |
+| 写出 CSV | `write_csv()` | `write.csv()` |
+| 类型规范 | `col_types = cols()` | `colClasses = c()` |
+| 默认输出 | tibble | data.frame |
+| 默认编码 | UTF-8 | 系统依赖 |
+| 字符串处理 | 保持字符串 | 可能转为因子 |
+
+---
+
+## 常见问题解决
+
+### 问题1：中文乱码
+
+```{r}
+# 解决方案：指定正确的编码
+# df <- read_csv("data.csv", locale = locale(encoding = "GBK"))
+# 或使用 write_excel_csv 写出
+```
+
+### 问题2：列类型推断错误
+
+```{r}
+# 解决方案：增加猜测行数或手动指定类型
+# df <- read_csv("data.csv", guess_max = 5000)
+# 或
+# df <- read_csv("data.csv", col_types = cols(
+#   问题列 = col_character()
+# ))
+```
+
+### 问题3：科学计数法问题
+
+```{r}
+# 解决方案：使用 col_character() 保持原样
+# df <- read_csv("data.csv", col_types = cols(
+#   id = col_character()  # 避免 1234567890 变成 1.23e+09
+# ))
+```
+
+---
+
+## 总结
+
+`readr` 和 `readxl` 是 R 语言中读取数据的最佳选择：
+
+| 优势 | 说明 |
+|------|------|
+| **速度快** | 比 Base R 快 10 倍以上 |
+| **类型智能** | 自动准确推断列类型 |
+| **编码友好** | 默认 UTF-8，中文无忧 |
+| **输出一致** | 统一输出 tibble 格式 |
+| **功能全面** | 覆盖各种数据格式 |
+
+掌握这两个包后，你的数据导入工作将变得高效便捷！
+
+---
+
+## 参考资源
+
+- [readr 官方文档](https://readr.tidyverse.org/)
+- [readxl 官方文档](https://readxl.tidyverse.org/)
+- [R for Data Science - Data Import](https://r4ds.hadley.nz/data-import)
+- [vroom 包（超大文件）](https://vroom.r-lib.org/)
