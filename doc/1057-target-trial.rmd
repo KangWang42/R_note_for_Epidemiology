@@ -1,0 +1,492 @@
+---
+title: "目标试验模拟 (Target Trial Emulation)"
+date: "2026-01-14"
+categories: [R语言方法, 因果推断, 观察性研究]
+image: "images/target_trial_cover.svg"
+description: "使用观察性数据模拟随机对照试验，遵循TARGET报告指南进行严谨的因果推断。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是目标试验模拟
+
+**目标试验模拟（Target Trial Emulation, TTE）** 是一种利用观察性数据来模拟假想的随机对照试验（RCT）的方法框架。其核心思想是：
+
+> 在分析观察性数据之前，首先明确描述一个理想的RCT（目标试验），然后使用观察数据尽可能地模拟这个试验。
+
+### 为什么需要目标试验模拟
+
+| 传统观察性研究 | 目标试验模拟 |
+|----------------|--------------|
+| 容易产生时间相关偏倚 | 明确定义时间零点 |
+| 选择偏倚难以识别 | 清晰的入组标准 |
+| 因果解释模糊 | 明确的因果问题 |
+| 报告不规范 | 遵循TARGET指南 |
+
+> **2025年JAMA发布了TARGET报告指南**，包含21条报告清单，推动了目标试验模拟的标准化。
+
+---
+
+## 安装与加载
+
+```{r}
+# 加载必要的包
+library(tidyverse)
+library(survival)
+library(survminer)
+library(broom)
+library(tableone)
+library(WeightIt)
+library(cobalt)
+```
+
+---
+
+## 目标试验协议的7个组成部分
+
+一个完整的目标试验协议包含以下7个部分：
+
+```{r echo=FALSE}
+protocol <- tibble(
+    组成部分 = c(
+        "1. 入组标准 (Eligibility)",
+        "2. 治疗策略 (Treatment)",
+        "3. 分配策略 (Assignment)",
+        "4. 随访起点 (Time zero)",
+        "5. 结局 (Outcome)",
+        "6. 因果对比 (Causal contrast)",
+        "7. 分析计划 (Analysis)"
+    ),
+    说明 = c(
+        "谁可以入组试验？",
+        "比较哪些治疗方案？",
+        "如何分配到治疗组？",
+        "何时开始随访（基线）？",
+        "主要和次要结局是什么？",
+        "ITT还是Per-protocol效应？",
+        "统计分析方法"
+    ),
+    模拟策略 = c(
+        "使用观察数据中符合条件的患者",
+        "基于实际治疗记录定义",
+        "使用统计方法调整混杂",
+        "治疗开始时作为时间零点",
+        "从电子健康记录提取",
+        "调整依从性偏离",
+        "IPW、克隆-审查-加权等"
+    )
+)
+knitr::kable(protocol, caption = "目标试验协议组成")
+```
+
+---
+
+## 案例研究：他汀类药物与心血管事件
+
+### 研究问题
+
+**在有高血压的成年人中，启动他汀治疗与不使用他汀相比，是否降低5年内心血管事件风险？**
+
+### 步骤1：定义目标试验协议
+
+```{r echo=FALSE}
+statin_protocol <- tibble(
+    组成部分 = c(
+        "入组标准",
+        "治疗策略",
+        "分配策略",
+        "随访起点",
+        "结局",
+        "因果对比",
+        "分析计划"
+    ),
+    目标试验 = c(
+        "40-75岁；有高血压；无CVD史；未使用他汀",
+        "策略A：启动他汀并持续使用\n策略B：不使用他汀",
+        "随机分配",
+        "随机化当天",
+        "首次CVD事件或心血管死亡",
+        "ITT效应",
+        "Kaplan-Meier + Cox回归"
+    ),
+    模拟方案 = c(
+        "选择符合条件的电子健康记录",
+        "基于处方记录定义",
+        "IPW调整混杂",
+        "首次满足入组标准的日期",
+        "诊断代码识别CVD事件",
+        "使用IPW估计ITT效应",
+        "加权Cox回归"
+    )
+)
+knitr::kable(statin_protocol, caption = "他汀研究的目标试验协议")
+```
+
+---
+
+## 模拟数据准备
+
+```{r}
+# 模拟观察性队列数据
+set.seed(2024)
+n <- 2000
+
+# 基线协变量
+data_obs <- tibble(
+    id = 1:n,
+    age = round(rnorm(n, 55, 10)),
+    male = rbinom(n, 1, 0.45),
+    diabetes = rbinom(n, 1, 0.25),
+    smoking = rbinom(n, 1, 0.30),
+    sbp = round(rnorm(n, 145, 15)),
+    ldl = round(rnorm(n, 140, 30)),
+    bmi = round(rnorm(n, 27, 5), 1)
+) %>%
+    # 限制年龄范围
+    filter(age >= 40, age <= 75)
+
+# 治疗分配（基于协变量的选择偏倚）
+data_obs <- data_obs %>%
+    mutate(
+        # 治疗倾向（高风险更可能使用他汀）
+        ps_logit = -3 + 0.05 * age + 0.3 * diabetes + 0.2 * smoking +
+            0.02 * ldl + 0.5 * male,
+        ps = plogis(ps_logit),
+        statin = rbinom(n(), 1, ps)
+    )
+
+# 生成结局
+data_obs <- data_obs %>%
+    mutate(
+        # 事件风险
+        risk_logit = -5 + 0.05 * age + 0.8 * diabetes + 0.6 * smoking +
+            0.02 * sbp + 0.01 * ldl - 0.4 * statin,
+        event_prob = plogis(risk_logit),
+        event = rbinom(n(), 1, event_prob),
+        # 随访时间
+        time = ifelse(event == 1,
+            rexp(n(), rate = 0.3) * 12, # 事件时间
+            runif(n(), 36, 60)
+        ), # 删失时间
+        time = pmin(time, 60) # 最长5年
+    ) %>%
+    select(-ps_logit, -risk_logit, -event_prob, -ps)
+
+head(data_obs)
+```
+
+---
+
+## 步骤2：检查入组标准
+
+```{r}
+# 基线特征表
+baseline_vars <- c("age", "male", "diabetes", "smoking", "sbp", "ldl", "bmi")
+
+table1 <- CreateTableOne(
+    vars = baseline_vars,
+    strata = "statin",
+    data = data_obs,
+    test = TRUE
+)
+
+print(table1, smd = TRUE)
+```
+
+**观察**：治疗组和对照组存在基线差异（SMD > 0.1），说明存在选择偏倚，需要调整。
+
+---
+
+## 步骤3：倾向评分加权
+
+### 估计倾向评分
+
+```{r}
+# 拟合倾向评分模型
+ps_model <- glm(
+    statin ~ age + male + diabetes + smoking + sbp + ldl + bmi,
+    data = data_obs,
+    family = binomial
+)
+
+# 计算倾向评分和权重
+data_obs <- data_obs %>%
+    mutate(
+        ps = predict(ps_model, type = "response"),
+        # ATE权重
+        ipw = ifelse(statin == 1, 1 / ps, 1 / (1 - ps)),
+        # 截断极端权重
+        ipw_truncated = pmin(pmax(ipw, quantile(ipw, 0.01)), quantile(ipw, 0.99))
+    )
+```
+
+### 检验协变量平衡
+
+```{r}
+# 使用WeightIt检验平衡
+bal_tab <- bal.tab(
+    statin ~ age + male + diabetes + smoking + sbp + ldl + bmi,
+    data = data_obs,
+    weights = data_obs$ipw_truncated,
+    method = "weighting"
+)
+print(bal_tab)
+```
+
+```{r}
+# 可视化平衡
+love.plot(
+    statin ~ age + male + diabetes + smoking + sbp + ldl + bmi,
+    data = data_obs,
+    weights = data_obs$ipw_truncated,
+    threshold = 0.1
+) +
+    labs(title = "加权前后协变量平衡（Love图）")
+```
+
+---
+
+## 步骤4：加权生存分析
+
+### Kaplan-Meier曲线
+
+```{r}
+# 创建生存对象
+data_obs$surv_obj <- Surv(data_obs$time, data_obs$event)
+
+# 加权KM曲线（使用survey包更准确，这里简化演示）
+km_fit <- survfit(
+    surv_obj ~ statin,
+    data = data_obs,
+    weights = ipw_truncated
+)
+
+# 绘制生存曲线
+ggsurvplot(
+    km_fit,
+    data = data_obs,
+    palette = c("#4f46e5", "#10b981"),
+    risk.table = TRUE,
+    xlab = "随访时间（月）",
+    ylab = "无事件生存概率",
+    legend.labs = c("未使用他汀", "使用他汀"),
+    legend.title = "治疗组",
+    title = "加权Kaplan-Meier生存曲线",
+    ggtheme = theme_minimal()
+)
+```
+
+### 加权Cox回归
+
+```{r}
+# 加权Cox回归
+cox_weighted <- coxph(
+    surv_obj ~ statin,
+    data = data_obs,
+    weights = ipw_truncated,
+    robust = TRUE # 稳健标准误
+)
+
+# 结果摘要
+tidy(cox_weighted, conf.int = TRUE, exponentiate = TRUE)
+```
+
+### 结果解读
+
+```{r}
+hr <- exp(coef(cox_weighted))
+ci <- exp(confint(cox_weighted))
+
+cat(sprintf(
+    "使用他汀与不使用相比，心血管事件的风险比为 %.2f (95%% CI: %.2f-%.2f)\n",
+    hr, ci[1], ci[2]
+))
+```
+
+---
+
+## 处理时间相关偏倚
+
+### 不朽时间偏倚
+
+**不朽时间偏倚（Immortal Time Bias）** 是目标试验模拟中最常见的偏倚：
+
+```{r echo=FALSE, fig.height=4}
+# 简单示意图
+immortal_data <- tibble(
+    患者 = c("A", "A", "B", "B"),
+    状态 = c("等待期（不正确归入治疗组）", "治疗期", "未治疗", "未治疗"),
+    开始 = c(0, 6, 0, 0),
+    结束 = c(6, 18, 12, 12),
+    y = c(2, 2, 1, 1)
+)
+
+ggplot(immortal_data, aes(y = factor(患者))) +
+    geom_segment(aes(x = 开始, xend = 结束, yend = 患者, color = 状态),
+        linewidth = 6
+    ) +
+    scale_color_manual(values = c("#ef4444", "#4f46e5", "#9ca3af")) +
+    labs(
+        title = "不朽时间偏倚示意",
+        subtitle = "患者A在治疗前的等待期被错误归入治疗组",
+        x = "随访时间（月）",
+        y = "患者"
+    ) +
+    theme_minimal()
+```
+
+### 使用克隆-审查-加权法
+
+```{r eval=FALSE}
+# 克隆-审查-加权法伪代码
+
+# 1. 克隆：每个符合条件的患者复制两份
+cloned_data <- bind_rows(
+    data_obs %>% mutate(assigned = 0), # 分配到未治疗组
+    data_obs %>% mutate(assigned = 1) # 分配到治疗组
+)
+
+# 2. 审查：当实际治疗与分配不符时审查
+cloned_data <- cloned_data %>%
+    mutate(
+        # 如果分配到治疗组但实际未治疗，在治疗时间审查
+        # 如果分配到未治疗组但实际接受治疗，在治疗时间审查
+        artificial_censoring = case_when(
+            assigned == 1 & statin == 0 ~ TRUE,
+            assigned == 0 & statin == 1 ~ TRUE,
+            TRUE ~ FALSE
+        )
+    )
+
+# 3. 加权：使用IPCW校正人为审查
+```
+
+---
+
+## TARGET报告清单
+
+2025年JAMA发布的TARGET指南包含21条报告项目：
+
+```{r echo=FALSE}
+target_items <- tibble(
+    类别 = c(
+        rep("标题与摘要", 2),
+        rep("引言", 2),
+        rep("方法", 10),
+        rep("结果", 4),
+        rep("讨论", 3)
+    ),
+    条目 = c(
+        "1. 标题表明使用目标试验框架",
+        "2. 摘要描述目标试验和模拟方法",
+        "3. 说明研究问题和理由",
+        "4. 说明为何使用观察数据",
+        "5. 描述目标试验协议",
+        "6. 描述数据来源",
+        "7. 描述入组标准的操作化定义",
+        "8. 描述治疗策略的定义",
+        "9. 描述时间零点的确定",
+        "10. 描述结局的测量",
+        "11. 描述随访方式",
+        "12. 描述因果对比",
+        "13. 描述统计分析方法",
+        "14. 描述敏感性分析",
+        "15. 报告符合入组标准的人数",
+        "16. 报告基线特征",
+        "17. 报告主要分析结果",
+        "18. 报告敏感性分析结果",
+        "19. 讨论目标试验与模拟的差异",
+        "20. 讨论结果的因果解释",
+        "21. 讨论局限性和未来方向"
+    )
+)
+
+knitr::kable(target_items, caption = "TARGET报告清单（简化版）")
+```
+
+---
+
+## 完整分析流程
+
+### 第1步：定义并记录目标试验
+
+```{r}
+# 记录目标试验协议
+protocol_doc <- "
+## 目标试验协议
+
+### 入组标准
+- 年龄40-75岁
+- 诊断高血压
+- 无心血管疾病史
+- 过去12个月未使用他汀
+
+### 治疗策略
+- 策略A：启动他汀治疗
+- 策略B：不启动他汀治疗
+
+### 分配策略
+- 随机分配（1:1）
+
+### 随访起点
+- 随机化日期
+
+### 结局
+- 主要结局：首次主要不良心血管事件（MACE）
+- 随访时间：5年
+
+### 因果对比
+- 意向性治疗（ITT）效应
+
+### 分析计划
+- IPW调整混杂
+- Cox比例风险回归
+- 敏感性分析：E值、不同权重截断点
+"
+cat(protocol_doc)
+```
+
+### 第2步：选择符合条件的观察数据
+
+### 第3步：倾向评分加权
+
+### 第4步：加权Cox回归
+
+### 第5步：敏感性分析
+
+```{r}
+# E值敏感性分析
+library(EValue)
+hr_result <- exp(coef(cox_weighted))
+evalue(est = HR(hr_result, rare = TRUE))
+```
+
+---
+
+## 总结
+
+| 步骤 | 关键点 |
+|------|--------|
+| 1. 定义目标试验 | 明确7个协议组成部分 |
+| 2. 识别数据源 | 评估数据能否模拟目标试验 |
+| 3. 操作化定义 | 将协议转化为可测量的变量 |
+| 4. 处理偏倚 | 使用IPW、克隆-审查-加权等方法 |
+| 5. 分析与报告 | 遵循TARGET指南 |
+
+### 推荐资源
+
+- Hernán MA, Robins JM. Using Big Data to Emulate a Target Trial
+- [TARGET Reporting Guideline (2025)](https://jamanetwork.com/)
+- [CAUSALab Harvard](https://www.hsph.harvard.edu/causallab/)
+- Hernán & Robins《Causal Inference: What If》

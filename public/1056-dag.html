@@ -1,0 +1,3974 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-01-14">
+<meta name="description" content="使用DAG（有向无环图）识别混杂、中介与碰撞偏倚，确定变量调整策略，满足高水平期刊要求。">
+
+<title>DAG 因果图与混杂控制 – R 语言学习笔记</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-234273d1456647dabc34a594ac50e507.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-374967827064a263f620006ef06629b3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">R 语言学习笔记</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">主页</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-r-包" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">实用 R 包</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-r-包">    
+        <li>
+    <a class="dropdown-item" href="./sections/packages.html#表格制作">
+ <span class="dropdown-text">📊 表格制作</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/packages.html#数据处理">
+ <span class="dropdown-text">🔄 数据处理</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/packages.html#模型整理">
+ <span class="dropdown-text">📈 模型整理</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">可视化教程</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-">    
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#图形基础">
+ <span class="dropdown-text">🏗️ 图形基础</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#图形组合">
+ <span class="dropdown-text">🔀 图形组合</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#统计图表">
+ <span class="dropdown-text">📊 统计图表</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#专题图类">
+ <span class="dropdown-text">🗺️ 专题图类</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html#进阶美化">
+ <span class="dropdown-text">✨ 进阶美化</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-r-语言方法" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">R 语言方法</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-r-语言方法">    
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#回归分析">
+ <span class="dropdown-text">🔢 回归分析</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#生存分析">
+ <span class="dropdown-text">⏱️ 生存分析</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#因果推断">
+ <span class="dropdown-text">🎯 因果推断</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#高级建模">
+ <span class="dropdown-text">📐 高级建模</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#机器学习">
+ <span class="dropdown-text">🤖 机器学习</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#数据预处理">
+ <span class="dropdown-text">📋 数据预处理</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#综述方法">
+ <span class="dropdown-text">📚 综述方法</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/methods.html#特殊方法">
+ <span class="dropdown-text">🔬 特殊方法</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu--1" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">实用操作</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu--1">    
+        <li>
+    <a class="dropdown-item" href="./sections/operation.html#数据输入输出">
+ <span class="dropdown-text">📥 数据输入输出</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/operation.html#文档写作">
+ <span class="dropdown-text">📝 文档写作</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/operation.html#开发环境">
+ <span class="dropdown-text">💻 开发环境</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">R 语言方法</li><li class="breadcrumb-item"><a href="./1018-psm.html">🎯 因果推断</a></li><li class="breadcrumb-item"><a href="./1056-dag.html">DAG 因果图</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">实用 R 包</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">📊 表格制作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bruceR - 统计分析工具</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1012-comparegroups.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">compareGroups - 描述性表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1013-scitb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scitb - 快速基线表</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1053-gtsummary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">gtsummary - 发表级表格</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔄 数据处理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">purrr - 函数式编程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1014-future.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">future - 并行计算</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1045-rstatix.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">rstatix - 管道式统计</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">📈 模型整理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1043-broom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">broom - 模型整理</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">可视化教程</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">🏗️ 图形基础</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2032-ggplot2-intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggplot2 可视化入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2033-ggplot2-styling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggplot2 样式设置详解</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2011-viscolor.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">配色方案</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2013-legend.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">图例自定义</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔀 图形组合</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">patchwork - 图片拼接</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2021-cowplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cowplot - 图形组合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2031-bindcomplex.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">复杂组合图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">📊 统计图表</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">箱线图与小提琴图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">散点图与趋势线</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2027-bindhistogram.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">直方图与密度图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">柱状图与饼图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2029-bindlineplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">折线图与时间序列</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2030-bindareaplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">面积图与堆叠图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false">
+ <span class="menu-text">🗺️ 专题图类</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">地图绑制</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2014-sankey.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">桑基图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2016-forestplot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">森林图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2020-heatmap.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">热图绑制完全指南</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2024-venn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">韦恩图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2023-radar.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">雷达图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
+ <span class="menu-text">✨ 进阶美化</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggtext - 中英文字体混合</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2018-tidyplots.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidyplots - 极简可视化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2022-ggally.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GGally - 可视化扩展</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2019-dualaxis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双坐标轴</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./2034-ggguides.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ggguides - 图例简化</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true">
+ <span class="menu-text">R 语言方法</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔢 回归分析</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1019-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logistic 回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1021-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多元线性回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1026-poisson.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Poisson/负二项回归</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1036-anova.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">方差分析 (ANOVA)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">⏱️ 生存分析</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">生存分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1050-competing-risks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">竞争风险分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1027-rcs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">限制性立方样条 (RCS)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1017-timeseries.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">时间序列分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1055-tx-effects-survival.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">治疗效果分析 (TxEffects)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="true">
+ <span class="menu-text">🎯 因果推断</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">倾向性得分匹配</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1028-did.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">双重差分法 (DiD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1023-mediation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">中介效应分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1054-subgroup.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">亚组分析与交互作用</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1056-dag.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">DAG 因果图</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1057-target-trial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">目标试验模拟</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1058-mendelian-randomization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">孟德尔随机化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1059-evalue.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">E值敏感性分析</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">📐 高级建模</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1024-multilevel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">多水平模型</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1025-gam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">广义加性模型 (GAM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1032-sem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">结构方程模型 (SEM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1031-lca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">潜类别分析 (LCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1039-pca.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">主成分分析 (PCA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">因子分析 (EFA/CFA)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1037-plspm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PLS-PM 路径模型</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false">
+ <span class="menu-text">🤖 机器学习</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1016-mlr3.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mlr3 机器学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1042-tidymodels.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tidymodels 机器学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1044-lstm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LSTM 深度学习</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1052-bootstrap.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bootstrap与置换检验</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1051-bayesian.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">贝叶斯统计入门</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false">
+ <span class="menu-text">📋 数据预处理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1046-missing-data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">缺失值处理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1047-roc-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ROC 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1048-power-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">样本量计算</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1049-eda.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">探索性数据分析</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="false">
+ <span class="menu-text">📚 综述方法</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1041-network-meta.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">网状 Meta 分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1029-umbrella-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">伞状综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1040-scoping-review.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">范围综述</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false">
+ <span class="menu-text">🔬 特殊方法</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-19" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">卫生经济学分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">质性研究与文本挖掘</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1033-dlnm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">分布滞后非线性模型 (DLNM)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1034-nvmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">变分模态分解 (VMD)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1035-fft-nvmd-gmm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FFT + VMD + GMM</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="true">
+ <span class="menu-text">实用操作</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-20" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="false">
+ <span class="menu-text">📥 数据输入输出</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-21" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">数据导入导出</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3002-datatable.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">data.table 完全指南</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3003-dplyr-tidyr.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">dplyr/tidyr 数据处理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3004-web-scraping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">网络爬虫入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3005-pdf-reading.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PDF文件读取</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="false">
+ <span class="menu-text">📝 文档写作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-22" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RMarkdown 入门</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quarto vs RMarkdown</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false">
+ <span class="menu-text">💻 开发环境</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-23" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Positron IDE 教程</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./4001-shiny.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Shiny Web 应用</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./3006-reproducible-research.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">可重复研究工作流</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#什么是dag" id="toc-什么是dag" class="nav-link active" data-scroll-target="#什么是dag">什么是DAG</a>
+  <ul class="collapse">
+  <li><a href="#为什么需要dag" id="toc-为什么需要dag" class="nav-link" data-scroll-target="#为什么需要dag">为什么需要DAG</a></li>
+  </ul></li>
+  <li><a href="#安装与加载" id="toc-安装与加载" class="nav-link" data-scroll-target="#安装与加载">安装与加载</a></li>
+  <li><a href="#dag基础概念" id="toc-dag基础概念" class="nav-link" data-scroll-target="#dag基础概念">DAG基础概念</a>
+  <ul class="collapse">
+  <li><a href="#节点类型" id="toc-节点类型" class="nav-link" data-scroll-target="#节点类型">节点类型</a></li>
+  <li><a href="#路径类型" id="toc-路径类型" class="nav-link" data-scroll-target="#路径类型">路径类型</a></li>
+  </ul></li>
+  <li><a href="#使用-dagitty-创建dag" id="toc-使用-dagitty-创建dag" class="nav-link" data-scroll-target="#使用-dagitty-创建dag">使用 dagitty 创建DAG</a>
+  <ul class="collapse">
+  <li><a href="#基础语法" id="toc-基础语法" class="nav-link" data-scroll-target="#基础语法">基础语法</a></li>
+  <li><a href="#实际研究案例" id="toc-实际研究案例" class="nav-link" data-scroll-target="#实际研究案例">实际研究案例</a></li>
+  </ul></li>
+  <li><a href="#识别混杂路径" id="toc-识别混杂路径" class="nav-link" data-scroll-target="#识别混杂路径">识别混杂路径</a>
+  <ul class="collapse">
+  <li><a href="#后门路径" id="toc-后门路径" class="nav-link" data-scroll-target="#后门路径">后门路径</a></li>
+  <li><a href="#识别混杂因素" id="toc-识别混杂因素" class="nav-link" data-scroll-target="#识别混杂因素">识别混杂因素</a></li>
+  </ul></li>
+  <li><a href="#确定调整集" id="toc-确定调整集" class="nav-link" data-scroll-target="#确定调整集">确定调整集</a>
+  <ul class="collapse">
+  <li><a href="#最小充分调整集" id="toc-最小充分调整集" class="nav-link" data-scroll-target="#最小充分调整集">最小充分调整集</a></li>
+  <li><a href="#总效应-vs-直接效应" id="toc-总效应-vs-直接效应" class="nav-link" data-scroll-target="#总效应-vs-直接效应">总效应 vs 直接效应</a></li>
+  </ul></li>
+  <li><a href="#碰撞偏倚" id="toc-碰撞偏倚" class="nav-link" data-scroll-target="#碰撞偏倚">碰撞偏倚</a>
+  <ul class="collapse">
+  <li><a href="#什么是碰撞" id="toc-什么是碰撞" class="nav-link" data-scroll-target="#什么是碰撞">什么是碰撞</a></li>
+  <li><a href="#经典案例出生体重悖论" id="toc-经典案例出生体重悖论" class="nav-link" data-scroll-target="#经典案例出生体重悖论">经典案例：出生体重悖论</a></li>
+  </ul></li>
+  <li><a href="#d-分离规则" id="toc-d-分离规则" class="nav-link" data-scroll-target="#d-分离规则">d-分离规则</a>
+  <ul class="collapse">
+  <li><a href="#三条基本规则" id="toc-三条基本规则" class="nav-link" data-scroll-target="#三条基本规则">三条基本规则</a></li>
+  <li><a href="#检验d-分离" id="toc-检验d-分离" class="nav-link" data-scroll-target="#检验d-分离">检验d-分离</a></li>
+  </ul></li>
+  <li><a href="#dag的验证" id="toc-dag的验证" class="nav-link" data-scroll-target="#dag的验证">DAG的验证</a>
+  <ul class="collapse">
+  <li><a href="#检验可测试的蕴含" id="toc-检验可测试的蕴含" class="nav-link" data-scroll-target="#检验可测试的蕴含">检验可测试的蕴含</a></li>
+  </ul></li>
+  <li><a href="#论文中的dag报告" id="toc-论文中的dag报告" class="nav-link" data-scroll-target="#论文中的dag报告">论文中的DAG报告</a>
+  <ul class="collapse">
+  <li><a href="#报告格式" id="toc-报告格式" class="nav-link" data-scroll-target="#报告格式">报告格式</a></li>
+  <li><a href="#dag报告的标准语言" id="toc-dag报告的标准语言" class="nav-link" data-scroll-target="#dag报告的标准语言">DAG报告的标准语言</a></li>
+  </ul></li>
+  <li><a href="#在线工具" id="toc-在线工具" class="nav-link" data-scroll-target="#在线工具">在线工具</a>
+  <ul class="collapse">
+  <li><a href="#dagitty网站" id="toc-dagitty网站" class="nav-link" data-scroll-target="#dagitty网站">DAGitty网站</a></li>
+  </ul></li>
+  <li><a href="#常见错误" id="toc-常见错误" class="nav-link" data-scroll-target="#常见错误">常见错误</a>
+  <ul class="collapse">
+  <li><a href="#调整中介变量" id="toc-调整中介变量" class="nav-link" data-scroll-target="#调整中介变量">1. 调整中介变量</a></li>
+  <li><a href="#调整碰撞因素" id="toc-调整碰撞因素" class="nav-link" data-scroll-target="#调整碰撞因素">2. 调整碰撞因素</a></li>
+  <li><a href="#选择偏倚" id="toc-选择偏倚" class="nav-link" data-scroll-target="#选择偏倚">3. 选择偏倚</a></li>
+  </ul></li>
+  <li><a href="#总结" id="toc-总结" class="nav-link" data-scroll-target="#总结">总结</a>
+  <ul class="collapse">
+  <li><a href="#推荐资源" id="toc-推荐资源" class="nav-link" data-scroll-target="#推荐资源">推荐资源</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content column-body" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">R 语言方法</li><li class="breadcrumb-item"><a href="./1018-psm.html">🎯 因果推断</a></li><li class="breadcrumb-item"><a href="./1056-dag.html">DAG 因果图</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">DAG 因果图与混杂控制</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">R语言方法</div>
+    <div class="quarto-category">因果推断</div>
+    <div class="quarto-category">DAG</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    使用DAG（有向无环图）识别混杂、中介与碰撞偏倚，确定变量调整策略，满足高水平期刊要求。
+  </div>
+</div>
+
+
+<div class="quarto-title-meta column-body">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">January 14, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="什么是dag" class="level2">
+<h2 class="anchored" data-anchor-id="什么是dag">什么是DAG</h2>
+<p><strong>DAG（Directed Acyclic Graph，有向无环图）</strong> 是表示变量间因果关系的图形工具。在流行病学和因果推断中，DAG 用于：</p>
+<ul>
+<li>清晰表达因果假设</li>
+<li>识别混杂因素、中介变量、碰撞因素</li>
+<li>确定需要调整的最小变量集</li>
+<li>发现潜在的偏倚来源</li>
+</ul>
+<section id="为什么需要dag" class="level3">
+<h3 class="anchored" data-anchor-id="为什么需要dag">为什么需要DAG</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>传统方法</th>
+<th>DAG方法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>基于统计学显著性选择协变量</td>
+<td>基于因果理论选择协变量</td>
+</tr>
+<tr class="even">
+<td>可能过度调整或调整不足</td>
+<td>精确识别最小充分调整集</td>
+</tr>
+<tr class="odd">
+<td>难以识别碰撞偏倚</td>
+<td>明确避免调整碰撞因素</td>
+</tr>
+<tr class="even">
+<td>主观性强</td>
+<td>假设透明可讨论</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<p><strong>JAMA、BMJ、Lancet</strong> 等高水平期刊越来越要求报告研究的因果假设DAG</p>
+</blockquote>
+<hr>
+</section>
+</section>
+<section id="安装与加载" class="level2">
+<h2 class="anchored" data-anchor-id="安装与加载">安装与加载</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 安装必要的包</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># install.packages(c("dagitty", "ggdag"))</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dagitty)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggdag)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+<section id="dag基础概念" class="level2">
+<h2 class="anchored" data-anchor-id="dag基础概念">DAG基础概念</h2>
+<section id="节点类型" class="level3">
+<h3 class="anchored" data-anchor-id="节点类型">节点类型</h3>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>节点类型</th>
+<th>定义</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>暴露 (Exposure)</strong></td>
+<td>研究的主要自变量</td>
+<td>吸烟</td>
+</tr>
+<tr class="even">
+<td><strong>结局 (Outcome)</strong></td>
+<td>研究的因变量</td>
+<td>肺癌</td>
+</tr>
+<tr class="odd">
+<td><strong>混杂 (Confounder)</strong></td>
+<td>同时影响暴露和结局的变量</td>
+<td>年龄</td>
+</tr>
+<tr class="even">
+<td><strong>中介 (Mediator)</strong></td>
+<td>暴露通过它影响结局的变量</td>
+<td>肺功能</td>
+</tr>
+<tr class="odd">
+<td><strong>碰撞 (Collider)</strong></td>
+<td>同时被两个变量影响的变量</td>
+<td>住院</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="路径类型" class="level3">
+<h3 class="anchored" data-anchor-id="路径类型">路径类型</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建包含不同路径的DAG</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>path_dag <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    Y <span class="sc">~</span> X <span class="sc">+</span> U,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    X <span class="sc">~</span> U,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    M <span class="sc">~</span> X,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    Y <span class="sc">~</span> M,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(<span class="at">X =</span> <span class="st">"暴露"</span>, <span class="at">Y =</span> <span class="st">"结局"</span>, <span class="at">U =</span> <span class="st">"混杂"</span>, <span class="at">M =</span> <span class="st">"中介"</span>),</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"X"</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"Y"</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 识别所有路径</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="fu">paths</span>(path_dag)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$paths
+[1] "X -&gt; M -&gt; Y" "X -&gt; Y"      "X &lt;- U -&gt; Y"
+
+$open
+[1] TRUE TRUE TRUE</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="使用-dagitty-创建dag" class="level2">
+<h2 class="anchored" data-anchor-id="使用-dagitty-创建dag">使用 dagitty 创建DAG</h2>
+<section id="基础语法" class="level3">
+<h3 class="anchored" data-anchor-id="基础语法">基础语法</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 方法1：使用 dagify 函数</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>dag1 <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> exposure <span class="sc">+</span> confounder,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    exposure <span class="sc">~</span> confounder,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"exposure"</span>,</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"outcome"</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 方法2：使用 dagitty 语法</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>dag2 <span class="ot">&lt;-</span> <span class="fu">dagitty</span>(<span class="st">"dag {</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="st">  exposure -&gt; outcome</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="st">  confounder -&gt; exposure</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="st">  confounder -&gt; outcome</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="st">}"</span>)</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看DAG结构</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>dag1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>dag {
+confounder
+exposure [exposure]
+outcome [outcome]
+confounder -&gt; exposure
+confounder -&gt; outcome
+exposure -&gt; outcome
+}</code></pre>
+</div>
+</div>
+</section>
+<section id="实际研究案例" class="level3">
+<h3 class="anchored" data-anchor-id="实际研究案例">实际研究案例</h3>
+<p>创建一个研究”体力活动与心血管疾病”关系的DAG：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>cvd_dag <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    cvd <span class="sc">~</span> activity <span class="sc">+</span> age <span class="sc">+</span> bmi <span class="sc">+</span> smoking <span class="sc">+</span> ses <span class="sc">+</span> genetics,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    activity <span class="sc">~</span> age <span class="sc">+</span> ses <span class="sc">+</span> bmi,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    bmi <span class="sc">~</span> age <span class="sc">+</span> ses <span class="sc">+</span> genetics,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    smoking <span class="sc">~</span> ses <span class="sc">+</span> age,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">cvd =</span> <span class="st">"心血管疾病"</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">activity =</span> <span class="st">"体力活动"</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">age =</span> <span class="st">"年龄"</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">bmi =</span> <span class="st">"BMI"</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">smoking =</span> <span class="st">"吸烟"</span>,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">ses =</span> <span class="st">"社会经济地位"</span>,</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">genetics =</span> <span class="st">"遗传因素"</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"activity"</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"cvd"</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 绑制DAG</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag</span>(cvd_dag, <span class="at">text =</span> <span class="cn">FALSE</span>, <span class="at">use_labels =</span> <span class="st">"label"</span>) <span class="sc">+</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"体力活动与心血管疾病的因果图"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="识别混杂路径" class="level2">
+<h2 class="anchored" data-anchor-id="识别混杂路径">识别混杂路径</h2>
+<section id="后门路径" class="level3">
+<h3 class="anchored" data-anchor-id="后门路径">后门路径</h3>
+<p><strong>后门路径</strong>是从暴露到结局的非因果路径（从暴露的”后门”出发）。这些路径会造成混杂偏倚。</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 识别后门路径</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag_paths</span>(cvd_dag) <span class="sc">+</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"暴露到结局的所有路径"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看具体路径</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">paths</span>(cvd_dag)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$paths
+ [1] "activity -&gt; cvd"                                            
+ [2] "activity &lt;- age -&gt; bmi -&gt; cvd"                              
+ [3] "activity &lt;- age -&gt; bmi &lt;- genetics -&gt; cvd"                  
+ [4] "activity &lt;- age -&gt; bmi &lt;- ses -&gt; cvd"                       
+ [5] "activity &lt;- age -&gt; bmi &lt;- ses -&gt; smoking -&gt; cvd"            
+ [6] "activity &lt;- age -&gt; cvd"                                     
+ [7] "activity &lt;- age -&gt; smoking -&gt; cvd"                          
+ [8] "activity &lt;- age -&gt; smoking &lt;- ses -&gt; bmi -&gt; cvd"            
+ [9] "activity &lt;- age -&gt; smoking &lt;- ses -&gt; bmi &lt;- genetics -&gt; cvd"
+[10] "activity &lt;- age -&gt; smoking &lt;- ses -&gt; cvd"                   
+[11] "activity &lt;- bmi -&gt; cvd"                                     
+[12] "activity &lt;- bmi &lt;- age -&gt; cvd"                              
+[13] "activity &lt;- bmi &lt;- age -&gt; smoking -&gt; cvd"                   
+[14] "activity &lt;- bmi &lt;- age -&gt; smoking &lt;- ses -&gt; cvd"            
+[15] "activity &lt;- bmi &lt;- genetics -&gt; cvd"                         
+[16] "activity &lt;- bmi &lt;- ses -&gt; cvd"                              
+[17] "activity &lt;- bmi &lt;- ses -&gt; smoking -&gt; cvd"                   
+[18] "activity &lt;- bmi &lt;- ses -&gt; smoking &lt;- age -&gt; cvd"            
+[19] "activity &lt;- ses -&gt; bmi -&gt; cvd"                              
+[20] "activity &lt;- ses -&gt; bmi &lt;- age -&gt; cvd"                       
+[21] "activity &lt;- ses -&gt; bmi &lt;- age -&gt; smoking -&gt; cvd"            
+[22] "activity &lt;- ses -&gt; bmi &lt;- genetics -&gt; cvd"                  
+[23] "activity &lt;- ses -&gt; cvd"                                     
+[24] "activity &lt;- ses -&gt; smoking -&gt; cvd"                          
+[25] "activity &lt;- ses -&gt; smoking &lt;- age -&gt; bmi -&gt; cvd"            
+[26] "activity &lt;- ses -&gt; smoking &lt;- age -&gt; bmi &lt;- genetics -&gt; cvd"
+[27] "activity &lt;- ses -&gt; smoking &lt;- age -&gt; cvd"                   
+
+$open
+ [1]  TRUE  TRUE FALSE FALSE FALSE  TRUE  TRUE FALSE FALSE FALSE  TRUE  TRUE
+[13]  TRUE FALSE  TRUE  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE  TRUE
+[25] FALSE FALSE FALSE</code></pre>
+</div>
+</div>
+</section>
+<section id="识别混杂因素" class="level3">
+<h3 class="anchored" data-anchor-id="识别混杂因素">识别混杂因素</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘制混杂因素</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag_adjustment_set</span>(cvd_dag, <span class="at">shadow =</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"需要调整的混杂因素（蓝色）"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="确定调整集" class="level2">
+<h2 class="anchored" data-anchor-id="确定调整集">确定调整集</h2>
+<section id="最小充分调整集" class="level3">
+<h3 class="anchored" data-anchor-id="最小充分调整集">最小充分调整集</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算最小充分调整集</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">adjustmentSets</span>(cvd_dag, <span class="at">effect =</span> <span class="st">"total"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>{ age, bmi, ses }</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 可视化调整集</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag_adjustment_set</span>(cvd_dag) <span class="sc">+</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"#4f46e5"</span>, <span class="st">"#ef4444"</span>)) <span class="sc">+</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"最小充分调整集"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="总效应-vs-直接效应" class="level3">
+<h3 class="anchored" data-anchor-id="总效应-vs-直接效应">总效应 vs 直接效应</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 总效应：activity -&gt; cvd 的所有路径</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>total_adj <span class="ot">&lt;-</span> <span class="fu">adjustmentSets</span>(cvd_dag, <span class="at">effect =</span> <span class="st">"total"</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"总效应调整集:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>总效应调整集:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(total_adj)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>{ age, bmi, ses }</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 直接效应：排除中介路径</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>direct_adj <span class="ot">&lt;-</span> <span class="fu">adjustmentSets</span>(cvd_dag, <span class="at">effect =</span> <span class="st">"direct"</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">直接效应调整集:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+直接效应调整集:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(direct_adj)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>{ age, bmi, ses }</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="碰撞偏倚" class="level2">
+<h2 class="anchored" data-anchor-id="碰撞偏倚">碰撞偏倚</h2>
+<section id="什么是碰撞" class="level3">
+<h3 class="anchored" data-anchor-id="什么是碰撞">什么是碰撞</h3>
+<p>当一个变量同时被两个变量影响时，它就是<strong>碰撞因素（Collider）</strong>。调整碰撞因素会<strong>打开</strong>原本关闭的路径，造成偏倚。</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建包含碰撞的DAG</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>collider_dag <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    C <span class="sc">~</span> X <span class="sc">+</span> Y,</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    Y <span class="sc">~</span> X,</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(<span class="at">X =</span> <span class="st">"暴露"</span>, <span class="at">Y =</span> <span class="st">"结局"</span>, <span class="at">C =</span> <span class="st">"碰撞"</span>),</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"X"</span>,</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"Y"</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 标记碰撞</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag_collider</span>(collider_dag, <span class="at">text =</span> <span class="cn">FALSE</span>, <span class="at">use_labels =</span> <span class="st">"label"</span>) <span class="sc">+</span></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"碰撞因素示例"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="经典案例出生体重悖论" class="level3">
+<h3 class="anchored" data-anchor-id="经典案例出生体重悖论">经典案例：出生体重悖论</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 出生体重悖论</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>birthweight_dag <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    death <span class="sc">~</span> smoking <span class="sc">+</span> lowbw <span class="sc">+</span> defect,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    lowbw <span class="sc">~</span> smoking <span class="sc">+</span> defect,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">death =</span> <span class="st">"婴儿死亡"</span>,</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">smoking =</span> <span class="st">"母亲吸烟"</span>,</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">lowbw =</span> <span class="st">"低出生体重"</span>,</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">defect =</span> <span class="st">"先天缺陷"</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"smoking"</span>,</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"death"</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag</span>(birthweight_dag, <span class="at">text =</span> <span class="cn">FALSE</span>, <span class="at">use_labels =</span> <span class="st">"label"</span>) <span class="sc">+</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"出生体重悖论"</span>,</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">subtitle =</span> <span class="st">"低出生体重是碰撞因素，调整后会产生偏倚"</span></span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-13-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="d-分离规则" class="level2">
+<h2 class="anchored" data-anchor-id="d-分离规则">d-分离规则</h2>
+<p><strong>d-分离（d-separation）</strong> 是判断两变量在给定条件下是否独立的规则。</p>
+<section id="三条基本规则" class="level3">
+<h3 class="anchored" data-anchor-id="三条基本规则">三条基本规则</h3>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>d-分离规则</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">结构</th>
+<th style="text-align: left;">形式</th>
+<th style="text-align: left;">自然状态</th>
+<th style="text-align: left;">调整B后</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">链 (Chain)</td>
+<td style="text-align: left;">A → B → C</td>
+<td style="text-align: left;">关联</td>
+<td style="text-align: left;">独立</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">叉 (Fork)</td>
+<td style="text-align: left;">A ← B → C</td>
+<td style="text-align: left;">关联</td>
+<td style="text-align: left;">独立</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">碰撞 (Inverted Fork)</td>
+<td style="text-align: left;">A → B ← C</td>
+<td style="text-align: left;">独立</td>
+<td style="text-align: left;">关联</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section id="检验d-分离" class="level3">
+<h3 class="anchored" data-anchor-id="检验d-分离">检验d-分离</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建测试DAG</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>test_dag <span class="ot">&lt;-</span> <span class="fu">dagitty</span>(<span class="st">"dag {</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="st">  X -&gt; M -&gt; Y</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="st">  X -&gt; Y</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="st">  C -&gt; X</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="st">  C -&gt; Y</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="st">}"</span>)</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 检验条件独立性</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="fu">impliedConditionalIndependencies</span>(test_dag)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>C _||_ M | X</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="dag的验证" class="level2">
+<h2 class="anchored" data-anchor-id="dag的验证">DAG的验证</h2>
+<section id="检验可测试的蕴含" class="level3">
+<h3 class="anchored" data-anchor-id="检验可测试的蕴含">检验可测试的蕴含</h3>
+<p>如果DAG正确，某些条件独立关系应该在数据中成立：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 模拟数据</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">42</span>)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">1000</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>C <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>X <span class="ot">&lt;-</span> <span class="fl">0.5</span> <span class="sc">*</span> C <span class="sc">+</span> <span class="fu">rnorm</span>(n)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>M <span class="ot">&lt;-</span> <span class="fl">0.7</span> <span class="sc">*</span> X <span class="sc">+</span> <span class="fu">rnorm</span>(n)</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>Y <span class="ot">&lt;-</span> <span class="fl">0.3</span> <span class="sc">*</span> X <span class="sc">+</span> <span class="fl">0.6</span> <span class="sc">*</span> M <span class="sc">+</span> <span class="fl">0.4</span> <span class="sc">*</span> C <span class="sc">+</span> <span class="fu">rnorm</span>(n)</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>sim_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(C, X, M, Y)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 根据DAG，调整C后，X和Y在给定M时应该条件独立</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 简化测试：偏相关应该接近0</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>partial_cor <span class="ot">&lt;-</span> <span class="fu">cor</span>(</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">residuals</span>(<span class="fu">lm</span>(X <span class="sc">~</span> M <span class="sc">+</span> C, <span class="at">data =</span> sim_data)),</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">residuals</span>(<span class="fu">lm</span>(Y <span class="sc">~</span> M <span class="sc">+</span> C, <span class="at">data =</span> sim_data))</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"调整M和C后，X与Y的偏相关:"</span>, <span class="fu">round</span>(partial_cor, <span class="dv">3</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>调整M和C后，X与Y的偏相关: 0.298 </code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="论文中的dag报告" class="level2">
+<h2 class="anchored" data-anchor-id="论文中的dag报告">论文中的DAG报告</h2>
+<section id="报告格式" class="level3">
+<h3 class="anchored" data-anchor-id="报告格式">报告格式</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建论文级别的DAG</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>publication_dag <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    outcome <span class="sc">~</span> exposure <span class="sc">+</span> age <span class="sc">+</span> sex <span class="sc">+</span> ses <span class="sc">+</span> comorbidity,</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    exposure <span class="sc">~</span> age <span class="sc">+</span> sex <span class="sc">+</span> ses,</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    comorbidity <span class="sc">~</span> age <span class="sc">+</span> sex,</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">outcome =</span> <span class="st">"主要结局"</span>,</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">exposure =</span> <span class="st">"暴露因素"</span>,</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">age =</span> <span class="st">"年龄"</span>,</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">sex =</span> <span class="st">"性别"</span>,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">ses =</span> <span class="st">"社会经济</span><span class="sc">\n</span><span class="st">地位"</span>,</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">comorbidity =</span> <span class="st">"合并症"</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"exposure"</span>,</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"outcome"</span></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 设置节点位置（更清晰的布局）</span></span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>coords <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="fu">c</span>(<span class="at">exposure =</span> <span class="dv">0</span>, <span class="at">outcome =</span> <span class="dv">2</span>, <span class="at">age =</span> <span class="fl">0.5</span>, <span class="at">sex =</span> <span class="dv">1</span>, <span class="at">ses =</span> <span class="fl">1.5</span>, <span class="at">comorbidity =</span> <span class="dv">1</span>),</span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="fu">c</span>(<span class="at">exposure =</span> <span class="dv">0</span>, <span class="at">outcome =</span> <span class="dv">0</span>, <span class="at">age =</span> <span class="dv">1</span>, <span class="at">sex =</span> <span class="dv">1</span>, <span class="at">ses =</span> <span class="dv">1</span>, <span class="at">comorbidity =</span> <span class="sc">-</span><span class="dv">1</span>)</span>
+<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-24"><a href="#cb28-24" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag</span>(publication_dag, <span class="at">text =</span> <span class="cn">FALSE</span>, <span class="at">use_labels =</span> <span class="st">"label"</span>) <span class="sc">+</span></span>
+<span id="cb28-25"><a href="#cb28-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag_blank</span>() <span class="sc">+</span></span>
+<span id="cb28-26"><a href="#cb28-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb28-27"><a href="#cb28-27" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"图1. 研究假设的有向无环图（DAG）"</span>,</span>
+<span id="cb28-28"><a href="#cb28-28" aria-hidden="true" tabindex="-1"></a>        <span class="at">caption =</span> <span class="st">"节点表示变量，箭头表示假设的因果方向"</span></span>
+<span id="cb28-29"><a href="#cb28-29" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb28-30"><a href="#cb28-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(</span>
+<span id="cb28-31"><a href="#cb28-31" aria-hidden="true" tabindex="-1"></a>        <span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">size =</span> <span class="dv">14</span>),</span>
+<span id="cb28-32"><a href="#cb28-32" aria-hidden="true" tabindex="-1"></a>        <span class="at">plot.caption =</span> <span class="fu">element_text</span>(<span class="at">hjust =</span> <span class="dv">0</span>)</span>
+<span id="cb28-33"><a href="#cb28-33" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-17-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="dag报告的标准语言" class="level3">
+<h3 class="anchored" data-anchor-id="dag报告的标准语言">DAG报告的标准语言</h3>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+**因果假设**
+
+图1展示了本研究假设的因果关系有向无环图（DAG）。基于先验知识和文献回顾，
+我们假设年龄、性别和社会经济地位是暴露因素和主要结局之间的混杂因素。
+合并症被认为是暴露通过影响健康状态到达结局的中介变量，因此在主分析中
+未予调整。
+
+根据后门准则，最小充分调整集为{年龄，性别，社会经济地位}。敏感性分析
+中，我们进一步调整合并症以估计暴露的直接效应。</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="在线工具" class="level2">
+<h2 class="anchored" data-anchor-id="在线工具">在线工具</h2>
+<section id="dagitty网站" class="level3">
+<h3 class="anchored" data-anchor-id="dagitty网站">DAGitty网站</h3>
+<p><a href="https://www.dagitty.net/dags.html">DAGitty</a> 提供可视化的DAG编辑器：</p>
+<ol type="1">
+<li>拖拽创建节点</li>
+<li>连线定义因果关系</li>
+<li>自动计算调整集</li>
+<li>导出R代码</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 从DAGitty网站导入DAG</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>online_dag <span class="ot">&lt;-</span> <span class="fu">downloadGraph</span>(<span class="st">"dagitty.net/mxXyzzy"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="常见错误" class="level2">
+<h2 class="anchored" data-anchor-id="常见错误">常见错误</h2>
+<section id="调整中介变量" class="level3">
+<h3 class="anchored" data-anchor-id="调整中介变量">1. 调整中介变量</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 错误示例：想估计总效应但调整了中介</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>bad_adjustment <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    Y <span class="sc">~</span> X <span class="sc">+</span> M,</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    M <span class="sc">~</span> X,</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"X"</span>,</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"Y"</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果调整M，会阻断X-&gt;M-&gt;Y路径</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag_paths</span>(bad_adjustment, <span class="at">adjust_for =</span> <span class="st">"M"</span>) <span class="sc">+</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"警告：调整中介变量会阻断因果路径"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="调整碰撞因素" class="level3">
+<h3 class="anchored" data-anchor-id="调整碰撞因素">2. 调整碰撞因素</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 开放本应关闭的关联</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag_dseparated</span>(collider_dag, <span class="at">controlling_for =</span> <span class="st">"C"</span>) <span class="sc">+</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"警告：调整碰撞因素打开了偏倚路径"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-21-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="选择偏倚" class="level3">
+<h3 class="anchored" data-anchor-id="选择偏倚">3. 选择偏倚</h3>
+<p>当样本选择与暴露和结局都相关时，会产生选择偏倚：</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>selection_dag <span class="ot">&lt;-</span> <span class="fu">dagify</span>(</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    S <span class="sc">~</span> X <span class="sc">+</span> Y,</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    Y <span class="sc">~</span> X,</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(<span class="at">X =</span> <span class="st">"暴露"</span>, <span class="at">Y =</span> <span class="st">"结局"</span>, <span class="at">S =</span> <span class="st">"选择入组"</span>),</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">exposure =</span> <span class="st">"X"</span>,</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="st">"Y"</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="fu">ggdag</span>(selection_dag, <span class="at">text =</span> <span class="cn">FALSE</span>, <span class="at">use_labels =</span> <span class="st">"label"</span>) <span class="sc">+</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_dag</span>() <span class="sc">+</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">title =</span> <span class="st">"选择偏倚"</span>,</span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">subtitle =</span> <span class="st">"如果只分析S=1的人群，相当于调整了碰撞因素"</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1056-dag_files/figure-html/unnamed-chunk-22-1.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="总结" class="level2">
+<h2 class="anchored" data-anchor-id="总结">总结</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>任务</th>
+<th>函数/方法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>创建DAG</td>
+<td><code>dagify()</code> 或 <code>dagitty()</code></td>
+</tr>
+<tr class="even">
+<td>可视化</td>
+<td><code>ggdag()</code></td>
+</tr>
+<tr class="odd">
+<td>识别调整集</td>
+<td><code>adjustmentSets()</code></td>
+</tr>
+<tr class="even">
+<td>识别路径</td>
+<td><code>paths()</code></td>
+</tr>
+<tr class="odd">
+<td>检验d-分离</td>
+<td><code>impliedConditionalIndependencies()</code></td>
+</tr>
+<tr class="even">
+<td>识别碰撞</td>
+<td><code>ggdag_collider()</code></td>
+</tr>
+</tbody>
+</table>
+<section id="推荐资源" class="level3">
+<h3 class="anchored" data-anchor-id="推荐资源">推荐资源</h3>
+<ul>
+<li><a href="https://www.dagitty.net/">DAGitty 在线工具</a></li>
+<li><a href="https://ggdag.malco.io/">ggdag 文档</a></li>
+<li>Hernán &amp; Robins《因果推断》</li>
+<li>Greenland et al.&nbsp;(1999) Epidemiology - DAG基础论文</li>
+</ul>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<!-- Back to Top Button -->
+
+<button id="back-to-top" aria-label="Back to Top">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <path d="M18 15l-6-6-6 6"></path>
+
+    </svg>
+
+</button>
+
+
+
+<!-- Floating TOC Button (Mobile Only) -->
+
+<button id="toc-floating-btn" aria-label="Table of Contents">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+
+        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+
+        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+
+        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+
+    </svg>
+
+</button>
+
+
+
+<!-- TOC Modal -->
+
+<div class="toc-modal-overlay">
+
+    <div class="toc-modal-content">
+
+        <div class="toc-modal-header">
+
+            <div class="toc-modal-title">目录</div>
+
+            <button class="toc-modal-close" aria-label="Close">×</button>
+
+        </div>
+
+        <div class="toc-modal-body" id="toc-modal-body">
+
+            <!-- TOC content will be injected here -->
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+    // Back to Top Logic
+
+    const backToTopBtn = document.getElementById('back-to-top');
+
+
+
+    window.addEventListener('scroll', () => {
+
+        if (window.scrollY > 300) {
+
+            backToTopBtn.classList.add('visible');
+
+        } else {
+
+            backToTopBtn.classList.remove('visible');
+
+        }
+
+    });
+
+
+
+    backToTopBtn.addEventListener('click', () => {
+
+        window.scrollTo({
+
+            top: 0,
+
+            behavior: 'smooth'
+
+        });
+
+    });
+
+
+
+    // Mobile Table Scrolling Logic
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const tables = document.querySelectorAll('table');
+
+        tables.forEach(table => {
+
+            if (!table.parentElement.classList.contains('table-responsive')) {
+
+                const wrapper = document.createElement('div');
+
+                wrapper.className = 'table-responsive';
+
+                wrapper.style.overflowX = 'auto'; // Force scroll
+
+                table.parentNode.insertBefore(wrapper, table);
+
+                wrapper.appendChild(table);
+
+            }
+
+        });
+
+
+
+        // Floating TOC Logic
+
+        const tocBtn = document.getElementById('toc-floating-btn');
+
+        const tocOverlay = document.querySelector('.toc-modal-overlay');
+
+        const tocClose = document.querySelector('.toc-modal-close');
+
+        const tocBody = document.getElementById('toc-modal-body');
+
+        const originalToc = document.getElementById('TOC');
+
+
+
+        if (originalToc && tocBtn) {
+
+            // Check if TOC has content
+
+            const tocLinks = originalToc.querySelectorAll('a');
+
+            if (tocLinks.length > 0) {
+
+                tocBtn.style.display = 'flex';
+
+
+
+                // Function to populate modal
+
+                const populateToc = () => {
+
+                    tocBody.innerHTML = '';
+
+                    const tocClone = originalToc.querySelector('ul').cloneNode(true);
+
+                    tocBody.appendChild(tocClone);
+
+
+
+                    // Add click listeners to close modal on link click
+
+                    tocBody.querySelectorAll('a').forEach(link => {
+
+                        link.addEventListener('click', () => {
+
+                            tocOverlay.classList.remove('active');
+
+                            // Smooth scroll to target (handled by browser usually, but ensure modal closes first)
+
+                        });
+
+                    });
+
+                };
+
+
+
+                tocBtn.addEventListener('click', () => {
+
+                    populateToc();
+
+                    tocOverlay.classList.add('active');
+
+                });
+
+
+
+                tocClose.addEventListener('click', () => {
+
+                    tocOverlay.classList.remove('active');
+
+                });
+
+
+
+                tocOverlay.addEventListener('click', (e) => {
+
+                    if (e.target === tocOverlay) {
+
+                        tocOverlay.classList.remove('active');
+
+                    }
+
+                });
+
+            } else {
+
+                tocBtn.style.display = 'none';
+
+            }
+
+        } else if (tocBtn) {
+
+            tocBtn.style.display = 'none';
+
+        }
+
+
+
+        // Article Footer Random Recommendation
+
+        // Only run on article pages (has sidebar and main content)
+
+        const sidebar = document.querySelector('#quarto-sidebar') || document.querySelector('.sidebar');
+
+        const mainContent = document.querySelector('main');
+
+
+
+        if (sidebar && mainContent) {
+
+            const links = Array.from(sidebar.querySelectorAll('a.sidebar-item-text'));
+
+
+
+            // If no links found with specific class, try generic anchor in sidebar
+
+            const allLinks = links.length > 0 ? links : Array.from(sidebar.querySelectorAll('a'));
+
+
+
+            // Filter out section headers if they are just toggles (usually href is # or empty)
+
+            const validLinks = allLinks.filter(a => a.href && !a.href.endsWith('#') && !a.href.includes('javascript:'));
+
+
+
+            // Article Footer Navigation (Prev/Next + Random)
+
+            const currentUrl = window.location.href.split('#')[0];
+
+            let currentIndex = -1;
+
+
+
+            // Find current article index
+
+            for (let i = 0; i < validLinks.length; i++) {
+
+                if (validLinks[i].href.split('#')[0] === currentUrl) {
+
+                    currentIndex = i;
+
+                    break;
+
+                }
+
+            }
+
+
+
+            // Create Container
+
+            const footerNav = document.createElement('div');
+
+            footerNav.className = 'article-footer-nav-container';
+
+            footerNav.style.marginTop = '4rem';
+
+            footerNav.style.paddingTop = '2rem';
+
+            footerNav.style.borderTop = '1px solid #e5e7eb';
+
+
+
+            // 1. Prev/Next Navigation
+
+            if (currentIndex !== -1) {
+
+                let navHtml = '<div class="article-footer-nav">';
+
+
+
+                // Previous
+
+                if (currentIndex > 0) {
+
+                    const prevLink = validLinks[currentIndex - 1];
+
+                    const prevTitle = prevLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${prevLink.href}" class="article-nav-link">
+
+                            <span class="nav-label">上一篇</span>
+
+                            <span class="nav-title">« ${prevTitle}</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                // Next
+
+                if (currentIndex < validLinks.length - 1) {
+
+                    const nextLink = validLinks[currentIndex + 1];
+
+                    const nextTitle = nextLink.innerText.trim();
+
+                    navHtml += `
+
+                        <a href="${nextLink.href}" class="article-nav-link" style="text-align: right;">
+
+                            <span class="nav-label">下一篇</span>
+
+                            <span class="nav-title">${nextTitle} »</span>
+
+                        </a>
+
+                    `;
+
+                } else {
+
+                    navHtml += `<div></div>`;
+
+                }
+
+
+
+                navHtml += '</div>';
+
+
+
+                // Append Prev/Next HTML
+
+                const navDiv = document.createElement('div');
+
+                navDiv.innerHTML = navHtml;
+
+                footerNav.appendChild(navDiv);
+
+            }
+
+
+
+            // 2. Random Recommendation
+
+            const otherLinks = validLinks.filter((_, idx) => idx !== currentIndex);
+
+            if (otherLinks.length > 0) {
+
+                const randomIdx = Math.floor(Math.random() * otherLinks.length);
+
+                const randomLink = otherLinks[randomIdx];
+
+                const randomTitle = randomLink.innerText.trim(); // Use innerText for title
+
+
+
+                if (randomTitle) {
+
+                    const randomDiv = document.createElement('div');
+
+                    randomDiv.innerHTML = `
+
+                        <div class="random-recommendation">
+
+                            <h4>👋 随便看看</h4>
+
+                            <p>探索更多 R 语言精彩内容</p>
+
+                            <a href="${randomLink.href}" class="random-btn">
+
+                                🎲 ${randomTitle}
+
+                            </a>
+
+                        </div>
+
+                    `;
+
+                    footerNav.appendChild(randomDiv);
+
+                }
+
+            }
+
+
+
+            mainContent.appendChild(footerNav);
+
+        }
+
+    });
+
+</script>
+
+
+
+<!-- Like Button Styles -->
+
+<style>
+
+    .article-like-container {
+
+        display: flex;
+
+        justify-content: flex-start;
+
+        margin: 1.5rem 0 2rem 0;
+
+        padding: 0;
+
+    }
+
+
+
+    .like-wrapper {
+
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: flex-start;
+
+        gap: 0.4rem;
+
+    }
+
+
+
+    .like-btn {
+
+        display: inline-flex;
+
+        align-items: center;
+
+        gap: 0.5rem;
+
+        padding: 0.6rem 1.2rem;
+
+        border: 2px solid #e5e7eb;
+
+        border-radius: 50px;
+
+        background: white;
+
+        color: #6b7280;
+
+        font-size: 0.95rem;
+
+        font-weight: 500;
+
+        cursor: pointer;
+
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+        user-select: none;
+
+    }
+
+
+
+    .like-btn:hover {
+
+        border-color: #f472b6;
+
+        color: #ec4899;
+
+        background: #fdf2f8;
+
+    }
+
+
+
+    .like-btn.liked {
+
+        border-color: #ec4899;
+
+        color: #ec4899;
+
+        background: #fdf2f8;
+
+    }
+
+
+
+    .like-btn.pop {
+
+        animation: pop-animation 0.3s ease;
+
+    }
+
+
+
+    @keyframes pop-animation {
+
+        0% {
+
+            transform: scale(1);
+
+        }
+
+
+
+        50% {
+
+            transform: scale(1.15);
+
+        }
+
+
+
+        100% {
+
+            transform: scale(1);
+
+        }
+
+    }
+
+
+
+    .like-icon {
+
+        width: 20px;
+
+        height: 20px;
+
+        transition: transform 0.2s;
+
+    }
+
+
+
+    .like-btn:hover .like-icon {
+
+        transform: scale(1.1);
+
+    }
+
+
+
+    .like-icon .heart-outline {
+
+        fill: none;
+
+        stroke: currentColor;
+
+        stroke-width: 2;
+
+    }
+
+
+
+    .like-icon .heart-fill {
+
+        fill: currentColor;
+
+        opacity: 0;
+
+        transition: opacity 0.2s;
+
+    }
+
+
+
+    .like-btn.liked .heart-fill {
+
+        opacity: 1;
+
+    }
+
+
+
+    .like-btn.liked .heart-outline {
+
+        stroke: none;
+
+    }
+
+
+
+    .like-text {
+
+        font-size: 0.9rem;
+
+    }
+
+
+
+    .like-count {
+
+        font-size: 0.85rem;
+
+        min-width: 1rem;
+
+        text-align: center;
+
+    }
+
+
+
+    .like-hint {
+
+        font-size: 0.75rem;
+
+        color: #9ca3af;
+
+        padding-left: 0.25rem;
+
+    }
+
+
+
+    /* Mobile optimization */
+
+    @media (max-width: 768px) {
+
+        .article-like-container {
+
+            margin: 1rem 0 1.5rem 0;
+
+        }
+
+
+
+        .like-btn {
+
+            padding: 0.5rem 1rem;
+
+            font-size: 0.9rem;
+
+        }
+
+
+
+        .like-icon {
+
+            width: 18px;
+
+            height: 18px;
+
+        }
+
+    }
+
+</style>
+
+
+
+<!-- Like Section Script with Supabase Backend -->
+
+<script>
+
+    // Supabase Configuration
+
+    const SUPABASE_URL = 'https://zyfdzyifhvglibpganxt.supabase.co';
+
+    const SUPABASE_ANON_KEY = 'sb_publishable_XhaP4hFZ30sHZybEjVRQxg_iwlPTxz8';
+
+
+
+    document.addEventListener('DOMContentLoaded', async function () {
+
+        const mainContent = document.querySelector('main');
+
+
+
+        // Only show on article pages (not index, not sections)
+
+        const isArticlePage = !window.location.pathname.includes('index.html') &&
+
+            !window.location.pathname.includes('sections/') &&
+
+            !window.location.pathname.endsWith('/');
+
+
+
+        if (!isArticlePage || !mainContent) return;
+
+
+
+        const articleId = window.location.pathname.replace(/[^a-zA-Z0-9]/g, '_');
+
+        const likeKey = `article_like_${articleId}`; // localStorage key for current user's like state
+
+
+
+        // Create Like Section (at page bottom)
+
+        const likeSection = document.createElement('div');
+
+        likeSection.className = 'article-like-section';
+
+
+
+        // Initial state from localStorage (for immediate UI feedback)
+
+        const isLiked = localStorage.getItem(likeKey) === 'true';
+
+        let likeCount = 0;
+
+
+
+        likeSection.innerHTML = `
+
+            <div class="like-section-inner">
+
+                <p class="like-prompt">觉得有帮助？点赞支持一下 👇</p>
+
+                <button class="like-btn ${isLiked ? 'liked' : ''}" id="article-like-btn" aria-label="点赞">
+
+                    <svg class="like-icon" viewBox="0 0 24 24" width="24" height="24">
+
+                        <path class="heart-outline" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+
+                        <path class="heart-fill" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+
+                    </svg>
+
+                    <span class="like-text">${isLiked ? '已喜欢' : '喜欢这篇文章'}</span>
+
+                    <span class="like-count" id="like-count"><span class="loading-dots">...</span></span>
+
+                </button>
+
+            </div>
+
+        `;
+
+
+
+        mainContent.appendChild(likeSection);
+
+
+
+        const likeBtn = document.getElementById('article-like-btn');
+
+        const likeCountSpan = document.getElementById('like-count');
+
+        const likeText = likeBtn.querySelector('.like-text');
+
+
+
+        // Supabase API helper
+
+        async function supabaseRequest(method, endpoint, body = null) {
+
+            const options = {
+
+                method: method,
+
+                headers: {
+
+                    'apikey': SUPABASE_ANON_KEY,
+
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+
+                    'Content-Type': 'application/json',
+
+                    'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal'
+
+                }
+
+            };
+
+            if (body) options.body = JSON.stringify(body);
+
+
+
+            try {
+
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, options);
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const text = await response.text();
+
+                return text ? JSON.parse(text) : null;
+
+            } catch (error) {
+
+                console.error('Supabase error:', error);
+
+                return null;
+
+            }
+
+        }
+
+
+
+        // Fetch current like count from Supabase
+
+        async function fetchLikeCount() {
+
+            const data = await supabaseRequest('GET', `article_likes?article_id=eq.${articleId}&select=like_count`);
+
+            if (data && data.length > 0) {
+
+                return data[0].like_count;
+
+            }
+
+            return 0;
+
+        }
+
+
+
+        // Update like count in Supabase
+
+        async function updateLikeCount(newCount) {
+
+            // Try to update existing record
+
+            const existing = await supabaseRequest('GET', `article_likes?article_id=eq.${articleId}&select=id`);
+
+
+
+            if (existing && existing.length > 0) {
+
+                // Update existing
+
+                await supabaseRequest('PATCH', `article_likes?article_id=eq.${articleId}`, {
+
+                    like_count: newCount
+
+                });
+
+            } else {
+
+                // Insert new record
+
+                await supabaseRequest('POST', 'article_likes', {
+
+                    article_id: articleId,
+
+                    like_count: newCount
+
+                });
+
+            }
+
+        }
+
+
+
+        // Load initial like count
+
+        try {
+
+            likeCount = await fetchLikeCount();
+
+            likeCountSpan.textContent = likeCount > 0 ? likeCount : '';
+
+        } catch (e) {
+
+            console.error('Failed to fetch likes:', e);
+
+            likeCountSpan.textContent = '';
+
+        }
+
+
+
+        // Like button click handler
+
+        likeBtn.addEventListener('click', async function () {
+
+            const currentlyLiked = this.classList.contains('liked');
+
+
+
+            // Optimistic UI update
+
+            if (currentlyLiked) {
+
+                this.classList.remove('liked');
+
+                likeCount = Math.max(0, likeCount - 1);
+
+                likeText.textContent = '喜欢这篇文章';
+
+                localStorage.setItem(likeKey, 'false');
+
+            } else {
+
+                this.classList.add('liked');
+
+                likeCount++;
+
+                likeText.textContent = '已喜欢';
+
+                localStorage.setItem(likeKey, 'true');
+
+
+
+                this.classList.add('pop');
+
+                setTimeout(() => this.classList.remove('pop'), 300);
+
+            }
+
+
+
+            likeCountSpan.textContent = likeCount > 0 ? likeCount : '';
+
+
+
+            // Sync with Supabase in background
+
+            try {
+
+                await updateLikeCount(likeCount);
+
+            } catch (e) {
+
+                console.error('Failed to sync like:', e);
+
+            }
+
+        });
+
+
+
+        // ============================================
+
+        // Comment Section with Supabase
+
+        // ============================================
+
+
+
+        // Create comment section HTML
+
+        const commentSection = document.createElement('div');
+
+        commentSection.className = 'comment-section';
+
+        commentSection.innerHTML = `
+
+            <h4 class="comment-title">💬 评论区</h4>
+
+            <div class="comment-form">
+
+                <input type="text" id="comment-nickname" class="comment-nickname" placeholder="昵称（可选）" maxlength="20">
+
+                <textarea id="comment-content" class="comment-textarea" placeholder="写下你的想法..." maxlength="500" rows="3"></textarea>
+
+                <div class="comment-form-footer">
+
+                    <span class="char-count"><span id="char-count">0</span>/500</span>
+
+                    <button id="submit-comment" class="comment-submit-btn">发表评论</button>
+
+                </div>
+
+            </div>
+
+            <div id="comment-list" class="comment-list">
+
+                <div class="loading-comments">加载评论中...</div>
+
+            </div>
+
+        `;
+
+
+
+        // Append comment section after like section
+
+        const likeSectionEl = document.querySelector('.article-like-section');
+
+        if (likeSectionEl) {
+
+            likeSectionEl.after(commentSection);
+
+        } else {
+
+            mainContent.appendChild(commentSection);
+
+        }
+
+
+
+        const commentNickname = document.getElementById('comment-nickname');
+
+        const commentContent = document.getElementById('comment-content');
+
+        const submitBtn = document.getElementById('submit-comment');
+
+        const commentList = document.getElementById('comment-list');
+
+        const charCount = document.getElementById('char-count');
+
+
+
+        // Visitor ID for identifying own comments
+
+        let visitorId = localStorage.getItem('visitor_id');
+
+        if (!visitorId) {
+
+            visitorId = 'v_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+
+            localStorage.setItem('visitor_id', visitorId);
+
+        }
+
+
+
+        // Character counter
+
+        commentContent.addEventListener('input', () => {
+
+            charCount.textContent = commentContent.value.length;
+
+        });
+
+
+
+        // Format time helper
+
+        function formatTime(timestamp) {
+
+            const date = new Date(timestamp);
+
+            const now = new Date();
+
+            const diff = now - date;
+
+
+
+            if (diff < 60000) return '刚刚';
+
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+
+            if (diff < 604800000) return Math.floor(diff / 86400000) + ' 天前';
+
+
+
+            return date.toLocaleDateString('zh-CN');
+
+        }
+
+
+
+        // Escape HTML to prevent XSS
+
+        function escapeHtml(text) {
+
+            const div = document.createElement('div');
+
+            div.textContent = text;
+
+            return div.innerHTML;
+
+        }
+
+
+
+        // Fetch comments from Supabase
+
+        async function fetchComments() {
+
+            const data = await supabaseRequest('GET', `article_comments?article_id=eq.${articleId}&order=created_at.desc`);
+
+            return data || [];
+
+        }
+
+
+
+        // Post new comment
+
+        async function postComment(nickname, content) {
+
+            return await supabaseRequest('POST', 'article_comments', {
+
+                article_id: articleId,
+
+                nickname: nickname || '匿名用户',
+
+                content: content,
+
+                visitor_id: visitorId
+
+            });
+
+        }
+
+
+
+        // Delete comment
+
+        async function deleteComment(commentId) {
+
+            await supabaseRequest('DELETE', `article_comments?id=eq.${commentId}&visitor_id=eq.${visitorId}`);
+
+        }
+
+
+
+        // Render comments
+
+        function renderComments(comments) {
+
+            if (!comments || comments.length === 0) {
+
+                commentList.innerHTML = '<div class="no-comments">暂无评论，来做第一个留言的人吧 🎉</div>';
+
+                return;
+
+            }
+
+
+
+            commentList.innerHTML = comments.map(c => `
+
+                <div class="comment-item" data-id="${c.id}">
+
+                    <div class="comment-header">
+
+                        <span class="comment-author">${escapeHtml(c.nickname || '匿名用户')}</span>
+
+                        <span class="comment-time">${formatTime(c.created_at)}</span>
+
+                        ${c.visitor_id === visitorId ? `<button class="comment-delete" data-id="${c.id}">删除</button>` : ''}
+
+                    </div>
+
+                    <div class="comment-body">${escapeHtml(c.content)}</div>
+
+                </div>
+
+            `).join('');
+
+
+
+            // Add delete handlers
+
+            commentList.querySelectorAll('.comment-delete').forEach(btn => {
+
+                btn.addEventListener('click', async function () {
+
+                    const id = this.dataset.id;
+
+                    await deleteComment(id);
+
+                    loadComments();
+
+                });
+
+            });
+
+        }
+
+
+
+        // Load and display comments
+
+        async function loadComments() {
+
+            try {
+
+                const comments = await fetchComments();
+
+                renderComments(comments);
+
+            } catch (e) {
+
+                console.error('Failed to load comments:', e);
+
+                commentList.innerHTML = '<div class="no-comments">加载评论失败</div>';
+
+            }
+
+        }
+
+
+
+        // Submit comment handler
+
+        submitBtn.addEventListener('click', async function () {
+
+            const content = commentContent.value.trim();
+
+            if (!content) {
+
+                alert('请输入评论内容');
+
+                return;
+
+            }
+
+
+
+            submitBtn.disabled = true;
+
+            submitBtn.textContent = '发送中...';
+
+
+
+            try {
+
+                await postComment(commentNickname.value.trim(), content);
+
+                commentContent.value = '';
+
+                charCount.textContent = '0';
+
+                await loadComments();
+
+            } catch (e) {
+
+                console.error('Failed to post comment:', e);
+
+                alert('评论发送失败，请重试');
+
+            }
+
+
+
+            submitBtn.disabled = false;
+
+            submitBtn.textContent = '发表评论';
+
+        });
+
+
+
+        // Initial load
+
+        loadComments();
+
+    });
+
+</script>
+
+
+
+<!-- Interaction Section Styles -->
+
+<style>
+
+    .article-interaction-section {
+
+        margin-top: 3rem;
+
+        padding-top: 2rem;
+
+        border-top: 2px solid #e5e7eb;
+
+    }
+
+
+
+    .interaction-header {
+
+        text-align: center;
+
+        margin-bottom: 2rem;
+
+    }
+
+
+
+    .interaction-header h3 {
+
+        font-size: 1.4rem;
+
+        color: #1f2937;
+
+        margin: 0 0 0.5rem 0;
+
+    }
+
+
+
+    .interaction-header p {
+
+        color: #6b7280;
+
+        font-size: 0.95rem;
+
+        margin: 0;
+
+    }
+
+
+
+    /* Like Section at Bottom */
+
+    .article-like-section {
+
+        margin-top: 3rem;
+
+        padding: 2rem 0;
+
+        border-top: 2px solid #e5e7eb;
+
+        text-align: center;
+
+    }
+
+
+
+    .like-section-inner {
+
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: center;
+
+        gap: 1rem;
+
+    }
+
+
+
+    .like-prompt {
+
+        color: #6b7280;
+
+        font-size: 0.95rem;
+
+        margin: 0;
+
+    }
+
+
+
+    .article-like-section .like-btn {
+
+        padding: 0.75rem 2rem;
+
+        font-size: 1rem;
+
+    }
+
+
+
+    .article-like-section .like-icon {
+
+        width: 22px;
+
+        height: 22px;
+
+    }
+
+
+
+    /* Mobile */
+
+    @media (max-width: 768px) {
+
+        .article-like-section {
+
+            margin-top: 2rem;
+
+            padding: 1.5rem 0;
+
+        }
+
+
+
+        .like-prompt {
+
+            font-size: 0.9rem;
+
+        }
+
+    }
+
+
+
+    /* Comment Section */
+
+    .comment-section {
+
+        margin-top: 2rem;
+
+        padding: 1.5rem;
+
+        background: #f9fafb;
+
+        border-radius: 12px;
+
+    }
+
+
+
+    .comment-title {
+
+        font-size: 1.1rem;
+
+        color: #1f2937;
+
+        margin: 0 0 1rem 0;
+
+    }
+
+
+
+    .comment-form {
+
+        margin-bottom: 1.5rem;
+
+    }
+
+
+
+    .comment-nickname {
+
+        width: 200px;
+
+        padding: 0.5rem 0.75rem;
+
+        border: 1px solid #e5e7eb;
+
+        border-radius: 8px;
+
+        font-size: 0.9rem;
+
+        margin-bottom: 0.75rem;
+
+        background: white;
+
+    }
+
+
+
+    .comment-textarea {
+
+        width: 100%;
+
+        padding: 0.75rem;
+
+        border: 1px solid #e5e7eb;
+
+        border-radius: 8px;
+
+        font-size: 0.95rem;
+
+        resize: vertical;
+
+        min-height: 80px;
+
+        background: white;
+
+        font-family: inherit;
+
+        box-sizing: border-box;
+
+        margin-bottom: 0.5rem;
+
+    }
+
+
+
+    .comment-nickname:focus,
+
+    .comment-textarea:focus {
+
+        outline: none;
+
+        border-color: #4f46e5;
+
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+
+    }
+
+
+
+    .comment-form-footer {
+
+        display: flex;
+
+        justify-content: space-between;
+
+        align-items: center;
+
+    }
+
+
+
+    .char-count {
+
+        font-size: 0.8rem;
+
+        color: #9ca3af;
+
+    }
+
+
+
+    .comment-submit-btn {
+
+        padding: 0.6rem 1.5rem;
+
+        background: #4f46e5;
+
+        color: white;
+
+        border: none;
+
+        border-radius: 8px;
+
+        font-size: 0.9rem;
+
+        font-weight: 500;
+
+        cursor: pointer;
+
+        transition: all 0.2s;
+
+    }
+
+
+
+    .comment-submit-btn:hover:not(:disabled) {
+
+        background: #4338ca;
+
+        transform: translateY(-1px);
+
+    }
+
+
+
+    .comment-submit-btn:disabled {
+
+        opacity: 0.6;
+
+        cursor: not-allowed;
+
+    }
+
+
+
+    .comment-list {
+
+        margin-top: 1rem;
+
+    }
+
+
+
+    .loading-comments,
+
+    .no-comments {
+
+        text-align: center;
+
+        color: #9ca3af;
+
+        padding: 1.5rem;
+
+        font-size: 0.95rem;
+
+    }
+
+
+
+    .comment-item {
+
+        background: white;
+
+        border-radius: 8px;
+
+        padding: 1rem;
+
+        margin-bottom: 0.75rem;
+
+        border: 1px solid #e5e7eb;
+
+    }
+
+
+
+    .comment-header {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 0.75rem;
+
+        margin-bottom: 0.5rem;
+
+    }
+
+
+
+    .comment-author {
+
+        font-weight: 600;
+
+        color: #1f2937;
+
+        font-size: 0.9rem;
+
+    }
+
+
+
+    .comment-time {
+
+        font-size: 0.8rem;
+
+        color: #9ca3af;
+
+    }
+
+
+
+    .comment-delete {
+
+        margin-left: auto;
+
+        background: none;
+
+        border: none;
+
+        color: #ef4444;
+
+        font-size: 0.8rem;
+
+        cursor: pointer;
+
+        padding: 0.2rem 0.5rem;
+
+        border-radius: 4px;
+
+    }
+
+
+
+    .comment-delete:hover {
+
+        background: #fef2f2;
+
+    }
+
+
+
+    .comment-body {
+
+        color: #374151;
+
+        font-size: 0.95rem;
+
+        line-height: 1.6;
+
+        white-space: pre-wrap;
+
+        word-break: break-word;
+
+    }
+
+
+
+    /* Mobile Comment Styles */
+
+    @media (max-width: 768px) {
+
+        .comment-section {
+
+            padding: 1rem;
+
+        }
+
+
+
+        .comment-nickname {
+
+            width: 100%;
+
+        }
+
+
+
+        .comment-title {
+
+            font-size: 1rem;
+
+        }
+
+    }
+
+</style>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Made with <a href="https://quarto.org/">Quarto</a> | © 2024-2026</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>
