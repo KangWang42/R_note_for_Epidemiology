@@ -1,0 +1,504 @@
+---
+title: "duckplyr - 高性能数据处理"
+date: "2026-01-15"
+categories: [实用操作, 数据处理, 大数据]
+image: "images/duckplyr-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## duckplyr 简介
+
+**duckplyr** 是一个由 DuckDB 驱动的 dplyr 替代包，它提供了与 dplyr 完全兼容的语法，但底层使用 DuckDB 的高性能查询引擎来执行操作。这意味着你可以用熟悉的 dplyr 代码，获得显著的性能提升。
+
+### 什么是 DuckDB？
+
+DuckDB 是一个嵌入式分析型数据库，专为高效处理分析查询而设计。它具有以下特点：
+
+- **列式存储**：针对分析查询优化
+- **向量化执行**：批量处理数据，减少函数调用开销
+- **零拷贝集成**：直接在 R 数据框上操作，无需数据复制
+- **自动并行**：充分利用多核 CPU
+
+### 为什么选择 duckplyr？
+
+| 特点 | 说明 |
+|------|------|
+| **性能飞跃** | 大数据集处理速度可提升 10-100 倍 |
+| **无缝替换** | 语法与 dplyr 完全兼容，无需重写代码 |
+| **惰性计算** | 延迟执行，自动优化查询计划 |
+| **超内存处理** | 可处理超出内存大小的数据集 |
+| **自动回退** | 不支持的操作自动回退到 dplyr |
+
+### duckplyr vs dplyr 对比
+
+```{r echo=FALSE}
+library(knitr)
+comparison <- data.frame(
+    特性 = c("执行引擎", "计算模式", "大数据处理", "内存限制", "查询优化"),
+    dplyr = c("R 原生", "即时执行", "受限于内存", "受 RAM 限制", "无"),
+    duckplyr = c("DuckDB", "惰性计算", "磁盘溢出", "可超出 RAM", "自动优化")
+)
+kable(comparison, align = "l")
+```
+
+
+## 安装与加载
+
+duckplyr 已经在 CRAN 上发布，可以直接安装：
+
+```{r eval=FALSE}
+# 从 CRAN 安装
+install.packages("duckplyr")
+
+# 或从 GitHub 安装开发版
+# install.packages("pak")
+# pak::pak("tidyverse/duckplyr")
+```
+
+### 两种使用方式
+
+duckplyr 提供了两种使用方式，可以根据需要选择：
+
+#### 方式一：全局覆盖 dplyr（推荐）
+
+加载 duckplyr 后，它会自动覆盖 dplyr 的方法，所有后续的 dplyr 操作都会使用 DuckDB 执行：
+
+```{r}
+library(duckplyr)
+```
+
+这种方式的优点是：
+- 无需修改现有代码
+- 所有 dplyr 操作自动加速
+- 如果某个操作 DuckDB 不支持，会自动回退到 dplyr
+
+如果需要恢复原始 dplyr 行为：
+
+```{r eval=FALSE}
+# 恢复 dplyr 方法
+duckplyr::methods_restore()
+```
+
+#### 方式二：逐个转换数据框
+
+如果只想对特定数据框使用 duckplyr，可以用 `as_duckplyr_tibble()` 转换：
+
+```{r}
+library(dplyr)
+
+# 创建普通数据框
+df <- tibble(
+    x = 1:1000000,
+    y = rnorm(1000000),
+    group = sample(letters[1:10], 1000000, replace = TRUE)
+)
+
+# 转换为 duckplyr 数据框
+duck_df <- duckplyr::as_duckplyr_tibble(df)
+class(duck_df)
+```
+
+
+## 基础用法
+
+duckplyr 与 dplyr 语法完全兼容，下面演示常用操作：
+
+### 数据准备
+
+```{r}
+# 使用 mtcars 数据集演示
+data(mtcars)
+cars <- as_tibble(mtcars, rownames = "car")
+head(cars)
+```
+
+### filter() - 筛选行
+
+```{r}
+# 筛选油耗大于25的车型
+cars %>%
+    filter(mpg > 25)
+```
+
+### select() - 选择列
+
+```{r}
+# 选择特定列
+cars %>%
+    select(car, mpg, cyl, hp) %>%
+    head()
+```
+
+### mutate() - 创建新列
+
+```{r}
+# 创建新变量：升功率（马力/排量）
+cars %>%
+    mutate(
+        hp_per_disp = hp / disp,
+        efficiency = case_when(
+            mpg >= 25 ~ "高效",
+            mpg >= 18 ~ "中等",
+            TRUE ~ "低效"
+        )
+    ) %>%
+    select(car, mpg, hp, disp, hp_per_disp, efficiency) %>%
+    head()
+```
+
+### summarise() + group_by() - 分组汇总
+
+```{r}
+# 按气缸数分组统计
+cars %>%
+    group_by(cyl) %>%
+    summarise(
+        n = n(),
+        mean_mpg = mean(mpg),
+        mean_hp = mean(hp),
+        .groups = "drop"
+    )
+```
+
+### arrange() - 排序
+
+```{r}
+# 按油耗降序排列
+cars %>%
+    arrange(desc(mpg)) %>%
+    select(car, mpg, cyl) %>%
+    head()
+```
+
+
+## 惰性计算与 collect()
+
+duckplyr 的一个重要特性是**惰性计算**（Lazy Evaluation）。与 dplyr 的即时执行不同，duckplyr 会延迟执行操作，只在真正需要结果时才计算。
+
+### 理解惰性计算
+
+```{r}
+# 创建大数据集
+big_data <- tibble(
+    id = 1:1000000,
+    value = rnorm(1000000),
+    group = sample(LETTERS[1:5], 1000000, replace = TRUE)
+)
+
+# 转换为 duckplyr tibble
+duck_data <- as_duckplyr_tibble(big_data)
+
+# 定义一系列操作（不会立即执行）
+result <- duck_data %>%
+    filter(value > 0) %>%
+    group_by(group) %>%
+    summarise(
+        n = n(),
+        mean_val = mean(value),
+        .groups = "drop"
+    ) %>%
+    arrange(desc(n))
+
+# 查看结果类型
+class(result)
+```
+
+### 使用 collect() 获取结果
+
+当需要获取最终结果时，使用 `collect()` 函数：
+
+```{r}
+# 执行计算并获取结果
+final_result <- result %>% collect()
+final_result
+```
+
+惰性计算的优势：
+
+1. **查询优化**：DuckDB 可以分析整个查询管道，优化执行计划
+2. **减少内存使用**：不需要存储中间结果
+3. **只计算需要的**：如果只需要前几行，不会计算全部数据
+
+
+## 读取外部数据
+
+duckplyr 强大之处在于可以直接读取外部文件，无需先加载到内存：
+
+### 读取 CSV 文件
+
+```{r}
+# 创建示例 CSV 文件
+temp_csv <- tempfile(fileext = ".csv")
+write.csv(mtcars, temp_csv, row.names = TRUE)
+
+# 使用 duckplyr 读取
+csv_data <- read_csv_duckdb(temp_csv)
+head(csv_data)
+```
+
+### 读取 Parquet 文件
+
+Parquet 是一种高效的列式存储格式，特别适合大数据分析：
+
+```{r}
+# 创建示例 Parquet 文件
+library(arrow)
+temp_parquet <- tempfile(fileext = ".parquet")
+write_parquet(mtcars, temp_parquet)
+
+# 使用 duckplyr 读取
+parquet_data <- read_parquet_duckdb(temp_parquet)
+head(parquet_data)
+```
+
+### 读取远程文件
+
+duckplyr 还可以直接查询网络上的文件，无需下载：
+
+```{r eval=FALSE}
+# 首先安装 httpfs 扩展
+db_exec("INSTALL httpfs")
+db_exec("LOAD httpfs")
+
+# 直接查询远程 Parquet 文件
+url <- "https://example.com/data.parquet"
+remote_data <- read_parquet_duckdb(url)
+```
+
+这对于分析存储在云端的大型数据集非常有用。
+
+
+## 高级功能
+
+### 直接执行 SQL
+
+如果你熟悉 SQL，可以直接使用 DuckDB 的 SQL 功能：
+
+```{r}
+# 将数据注册到 DuckDB
+duck_cars <- as_duckplyr_tibble(cars)
+
+# 也可以使用 dplyr 语法达到同样效果
+duck_cars %>%
+    filter(cyl == 6) %>%
+    summarise(avg_mpg = mean(mpg))
+```
+
+### 处理超大数据集
+
+duckplyr 可以处理超出内存大小的数据集。当数据太大无法放入内存时，DuckDB 会自动使用磁盘作为临时存储：
+
+```{r eval=FALSE}
+# 读取超大 Parquet 文件（可能有数GB）
+large_data <- read_parquet_duckdb("path/to/large_file.parquet")
+
+# 进行分析（duckplyr 会自动管理内存）
+summary_result <- large_data %>%
+    group_by(category) %>%
+    summarise(
+        count = n(),
+        total = sum(amount)
+    ) %>%
+    collect()
+```
+
+### 自动回退机制
+
+当遇到 DuckDB 不支持的操作时，duckplyr 会自动回退到 dplyr：
+
+```{r}
+# 这个操作会正常执行，即使某些函数回退到 dplyr
+cars %>%
+    rowwise() %>%
+    mutate(row_sum = sum(c(mpg, hp, wt))) %>%
+    ungroup() %>%
+    select(car, mpg, hp, wt, row_sum) %>%
+    head()
+```
+
+回退时会有提示信息，你可以据此优化代码。
+
+
+## 性能对比实战
+
+让我们通过实际案例来对比 duckplyr 和 dplyr 的性能差异：
+
+### 生成测试数据
+
+```{r}
+# 生成 100 万行数据
+set.seed(42)
+n <- 1000000
+test_data <- tibble(
+    id = 1:n,
+    category = sample(LETTERS[1:10], n, replace = TRUE),
+    subcategory = sample(letters[1:20], n, replace = TRUE),
+    value1 = rnorm(n, mean = 100, sd = 20),
+    value2 = runif(n, 0, 1000),
+    date = sample(seq(as.Date("2020-01-01"), as.Date("2024-12-31"), by = "day"), n, replace = TRUE)
+)
+
+# 创建 duckplyr 版本
+duck_test <- as_duckplyr_tibble(test_data)
+```
+
+### 性能测试函数
+
+```{r}
+# 定义测试查询
+run_benchmark <- function(data) {
+    data %>%
+        filter(value1 > 90) %>%
+        group_by(category, subcategory) %>%
+        summarise(
+            n = n(),
+            mean_v1 = mean(value1),
+            sum_v2 = sum(value2),
+            .groups = "drop"
+        ) %>%
+        arrange(desc(n)) %>%
+        head(20)
+}
+
+# 测试 dplyr 性能
+dplyr_time <- system.time({
+    dplyr_result <- run_benchmark(test_data)
+})
+
+# 测试 duckplyr 性能
+duckplyr_time <- system.time({
+    duckplyr_result <- run_benchmark(duck_test) %>% collect()
+})
+```
+
+### 性能对比结果
+
+```{r}
+# 创建对比表
+performance <- tibble(
+    方法 = c("dplyr", "duckplyr"),
+    耗时秒 = c(dplyr_time["elapsed"], duckplyr_time["elapsed"])
+) %>%
+    mutate(
+        相对速度 = round(max(耗时秒) / 耗时秒, 1)
+    )
+
+kable(performance, digits = 3)
+```
+
+### 可视化性能对比
+
+```{r fig.height=4}
+library(ggplot2)
+
+ggplot(performance, aes(x = 方法, y = 耗时秒, fill = 方法)) +
+    geom_col(width = 0.6) +
+    geom_text(aes(label = paste0(round(耗时秒, 3), "s")),
+        vjust = -0.5, size = 4
+    ) +
+    scale_fill_manual(values = c("dplyr" = "#4f46e5", "duckplyr" = "#22c55e")) +
+    labs(
+        title = "dplyr vs duckplyr 性能对比",
+        subtitle = paste0("数据量：", format(n, big.mark = ","), " 行"),
+        x = NULL,
+        y = "耗时（秒）"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "none",
+        plot.title = element_text(face = "bold"),
+        panel.grid.major.x = element_blank()
+    )
+```
+
+
+## 何时使用 duckplyr？
+
+### 推荐使用场景
+
+1. **大数据集分析**：数据量超过 10 万行时，duckplyr 优势明显
+2. **复杂聚合操作**：多重分组、多列汇总
+3. **超内存数据**：需要分析大于可用 RAM 的数据
+4. **文件直接分析**：直接查询 Parquet/CSV 文件，无需全部加载
+
+### 可能不适用的场景
+
+1. **小数据集**：数据量很小时，dplyr 足够快
+2. **高度自定义函数**：大量使用自定义 R 函数
+3. **需要行级操作**：`rowwise()` 操作效率不高
+
+### 注意事项
+
+```{r echo=FALSE}
+notes <- data.frame(
+    项目 = c("时区处理", "自定义函数", "结果获取", "回退提示"),
+    说明 = c(
+        "DateTime 建议使用 UTC 时区",
+        "部分 R 函数可能触发回退",
+        "惰性计算需要 collect() 获取结果",
+        "关注回退信息，优化代码"
+    )
+)
+kable(notes)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# 安装
+install.packages("duckplyr")
+
+# 加载（全局覆盖 dplyr）
+library(duckplyr)
+
+# 恢复 dplyr
+duckplyr::methods_restore()
+
+# 转换单个数据框
+duck_df <- as_duckplyr_tibble(df)
+
+# 读取文件
+csv_data <- read_csv_duckdb("file.csv")
+parquet_data <- read_parquet_duckdb("file.parquet")
+
+# 惰性计算后获取结果
+result <- duck_df %>%
+    filter(...) %>%
+    summarise(...) %>%
+    collect()
+
+# 执行 SQL
+db_exec("INSTALL httpfs")
+db_exec("LOAD httpfs")
+```
+
+
+## 小结
+
+duckplyr 的核心价值：
+
+1. **即插即用**：语法与 dplyr 完全兼容，学习成本为零
+2. **性能飞跃**：DuckDB 引擎带来显著的速度提升
+3. **突破内存限制**：可以处理超出 RAM 大小的数据集
+4. **智能回退**：不支持的操作自动回退到 dplyr
+5. **惰性计算**：自动优化查询执行计划
+
+对于需要处理大数据的 R 用户来说，duckplyr 是一个值得尝试的工具。它让你在不改变工作习惯的前提下，获得显著的性能提升。
+
+
+## 参考资源
+
+- [duckplyr 官方文档](https://duckplyr.tidyverse.org/)
+- [DuckDB 官网](https://duckdb.org/)
+- [duckplyr GitHub 仓库](https://github.com/tidyverse/duckplyr)
+- [dplyr 官方文档](https://dplyr.tidyverse.org/)
