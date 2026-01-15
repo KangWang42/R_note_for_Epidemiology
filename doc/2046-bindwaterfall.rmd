@@ -1,0 +1,125 @@
+---
+title: "R语言瀑布图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 变化图]
+image: "images/bindwaterfall_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 6, fig.retina = 2, out.width = "100%", dpi = 150)
+```
+
+## 什么是瀑布图
+
+瀑布图（Waterfall Chart）展示数值的**累积增减过程**，用悬浮柱状图表示各项变化对总体的贡献，常用于财务分析。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **财务分析** | 收入→成本→利润分解 |
+| **销售归因** | 各渠道贡献 |
+| **预算差异** | 实际vs预算差异分解 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 瀑布图包
+# install.packages("waterfalls")
+library(waterfalls)
+```
+
+---
+
+## 基础瀑布图
+
+```{r}
+# 财务数据
+finance_data <- data.frame(
+    category = c("期初余额", "产品销售", "服务收入", "运营成本", "人力成本", "税费", "期末余额"),
+    value = c(1000, 500, 200, -300, -250, -50, NA)
+)
+
+# 计算期末余额
+finance_data$value[7] <- sum(finance_data$value, na.rm = TRUE)
+
+# 使用waterfalls包
+waterfall(finance_data,
+    calc_total = TRUE,
+    total_rect_color = "#4f46e5",
+    total_rect_text_color = "white",
+    fill_by_sign = TRUE,
+    fill_colours = c("正" = "#10b981", "负" = "#ef4444")
+)
+```
+
+---
+
+## 手动构建瀑布图
+
+```{r}
+# 计算累积位置
+waterfall_data <- finance_data %>%
+    mutate(
+        is_total = category == "期末余额",
+        type = case_when(
+            is_total ~ "总计",
+            value >= 0 ~ "增加",
+            TRUE ~ "减少"
+        ),
+        end = cumsum(ifelse(is.na(value), 0, value)),
+        end = ifelse(is_total, value, end),
+        start = lag(end, default = 0),
+        start = ifelse(is_total, 0, start),
+        id = row_number()
+    )
+
+ggplot(waterfall_data, aes(x = reorder(category, id))) +
+    geom_rect(aes(
+        xmin = id - 0.4, xmax = id + 0.4,
+        ymin = start, ymax = end,
+        fill = type
+    )) +
+    # 连接线
+    geom_segment(
+        data = waterfall_data %>% filter(!is_total),
+        aes(x = id + 0.4, xend = id + 1 - 0.4, y = end, yend = end),
+        linetype = "dashed", color = "gray50"
+    ) +
+    # 数值标签
+    geom_text(aes(
+        x = id, y = (start + end) / 2,
+        label = ifelse(value >= 0, paste0("+", value), value)
+    ), color = "white", fontface = "bold", size = 3.5) +
+    scale_fill_manual(values = c("增加" = "#10b981", "减少" = "#ef4444", "总计" = "#4f46e5")) +
+    scale_x_discrete(labels = waterfall_data$category) +
+    labs(
+        title = "财务变动瀑布图",
+        x = NULL, y = "金额（万元）", fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "top"
+    )
+```
+
+---
+
+## 总结
+
+| 技巧 | 说明 |
+|------|------|
+| **颜色编码** | 绿色增加，红色减少，蓝色总计 |
+| **连接线** | 虚线连接相邻柱子 |
+| **累积计算** | 使用 `cumsum()` 计算位置 |
+
+### 相关教程
+
+- [柱状图与饼图](2028-bindbarchart.html)
+- [发散型图表](2036-binddivergent.html)

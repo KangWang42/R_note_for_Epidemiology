@@ -1,0 +1,444 @@
+---
+title: "R语言人口金字塔图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 分布图]
+image: "images/bindpyramid_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 9,
+    fig.height = 7,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是人口金字塔图
+
+人口金字塔图（Population Pyramid）是一种**背靠背条形图**，是展示**人口年龄-性别结构**的经典图表。它将两组数据（通常是男性和女性）对称地放在中轴两侧，形成类似金字塔的形状。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **人口统计** | 年龄-性别分布分析 |
+| **客户分析** | 用户群体年龄结构 |
+| **营销漏斗** | 阶段转化分析 |
+| **对比分析** | 任何需要对称比较的两组数据 |
+
+### 金字塔形状解读
+
+| 形状 | 含义 |
+|------|------|
+| **正三角形** | 年轻型社会，高出生率 |
+| **倒三角形** | 老龄化社会 |
+| **矩形/柱形** | 稳定型社会 |
+| **葫芦形** | 中间代断层 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(forcats)
+```
+
+---
+
+## 准备人口数据
+
+```{r}
+# 创建中国人口结构示例数据（简化版）
+population_data <- data.frame(
+    age_group = rep(c(
+        "0-4", "5-9", "10-14", "15-19", "20-24",
+        "25-29", "30-34", "35-39", "40-44", "45-49",
+        "50-54", "55-59", "60-64", "65-69", "70-74",
+        "75-79", "80+"
+    ), each = 2),
+    gender = rep(c("男性", "女性"), 17),
+    population = c(
+        # 男性, 女性 (百万人)
+        38, 35, # 0-4
+        42, 39, # 5-9
+        40, 37, # 10-14
+        35, 33, # 15-19
+        45, 43, # 20-24
+        52, 50, # 25-29
+        58, 55, # 30-34
+        50, 48, # 35-39
+        55, 52, # 40-44
+        62, 58, # 45-49
+        58, 55, # 50-54
+        48, 46, # 55-59
+        42, 41, # 60-64
+        35, 36, # 65-69
+        25, 28, # 70-74
+        18, 22, # 75-79
+        12, 18 # 80+
+    )
+)
+
+# 将年龄组转换为有序因子
+population_data <- population_data %>%
+    mutate(
+        age_group = factor(age_group, levels = c(
+            "0-4", "5-9", "10-14", "15-19", "20-24", "25-29", "30-34",
+            "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69",
+            "70-74", "75-79", "80+"
+        )),
+        # 将男性人口转为负值
+        population_adj = ifelse(gender == "男性", -population, population)
+    )
+
+head(population_data)
+```
+
+---
+
+## 基础人口金字塔图
+
+```{r}
+ggplot(population_data, aes(x = population_adj, y = age_group, fill = gender)) +
+    geom_col(width = 0.8) +
+    # 添加中心轴
+    geom_vline(xintercept = 0, color = "#374151", linewidth = 0.5) +
+    # 颜色设置
+    scale_fill_manual(
+        values = c("男性" = "#4f46e5", "女性" = "#ec4899")
+    ) +
+    # 调整x轴刻度（显示正数）
+    scale_x_continuous(
+        breaks = seq(-60, 60, by = 20),
+        labels = abs
+    ) +
+    labs(
+        title = "中国人口年龄结构金字塔",
+        subtitle = "单位：百万人",
+        x = "人口数量（百万）",
+        y = "年龄组",
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 14)
+    )
+```
+
+### 代码解析
+
+| 技巧 | 说明 |
+|------|------|
+| 男性取负值 | `ifelse(gender == "男性", -population, population)` |
+| 刻度显示正数 | `labels = abs` 将负数刻度显示为正数 |
+| 中心轴 | `geom_vline(xintercept = 0)` |
+
+---
+
+## 美化人口金字塔图
+
+### 添加数值标签
+
+```{r}
+ggplot(population_data, aes(x = population_adj, y = age_group, fill = gender)) +
+    geom_col(width = 0.85) +
+    geom_vline(xintercept = 0, color = "#1f2937", linewidth = 0.8) +
+    # 添加数值标签
+    geom_text(
+        aes(
+            label = population,
+            hjust = ifelse(gender == "男性", 1.2, -0.2)
+        ),
+        size = 2.8,
+        color = "#374151"
+    ) +
+    scale_fill_manual(
+        values = c("男性" = "#3b82f6", "女性" = "#f472b6")
+    ) +
+    scale_x_continuous(
+        breaks = seq(-60, 60, by = 20),
+        labels = abs,
+        limits = c(-75, 75)
+    ) +
+    labs(
+        title = "中国人口年龄结构",
+        subtitle = "2023年数据（百万人）",
+        x = NULL,
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 11) +
+    theme(
+        panel.grid = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 14),
+        axis.text.x = element_blank()
+    )
+```
+
+### 使用百分比
+
+```{r}
+# 计算百分比
+total_pop <- sum(population_data$population)
+
+population_pct <- population_data %>%
+    mutate(
+        pct = population / total_pop * 100,
+        pct_adj = ifelse(gender == "男性", -pct, pct)
+    )
+
+ggplot(population_pct, aes(x = pct_adj, y = age_group, fill = gender)) +
+    geom_col(width = 0.85) +
+    geom_vline(xintercept = 0, color = "#1f2937", linewidth = 0.8) +
+    scale_fill_manual(
+        values = c("男性" = "#4f46e5", "女性" = "#ec4899")
+    ) +
+    scale_x_continuous(
+        breaks = seq(-5, 5, by = 1),
+        labels = function(x) paste0(abs(x), "%"),
+        limits = c(-6, 6)
+    ) +
+    labs(
+        title = "人口年龄分布百分比",
+        x = "占总人口比例",
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 渐变色金字塔图
+
+使用年龄渐变色增强视觉效果：
+
+```{r}
+# 添加年龄段颜色
+library(viridis)
+
+ggplot(population_data, aes(x = population_adj, y = age_group, fill = age_group)) +
+    geom_col(width = 0.85) +
+    geom_vline(xintercept = 0, color = "#1f2937", linewidth = 0.8) +
+    # 使用viridis渐变色
+    scale_fill_viridis_d(option = "plasma", guide = "none") +
+    scale_x_continuous(
+        breaks = seq(-60, 60, by = 20),
+        labels = abs
+    ) +
+    labs(
+        title = "按年龄渐变着色的人口金字塔",
+        x = "人口数量（百万）",
+        y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 两期对比金字塔
+
+比较不同年份的人口结构变化：
+
+```{r fig.height=8}
+# 创建两期数据
+multi_year_pop <- rbind(
+    population_data %>% mutate(year = "2023年"),
+    population_data %>%
+        mutate(
+            year = "2013年",
+            population = population * runif(nrow(population_data), 0.85, 1.1),
+            population_adj = ifelse(gender == "男性", -population, population)
+        )
+)
+
+ggplot(multi_year_pop, aes(x = population_adj, y = age_group, fill = gender)) +
+    geom_col(width = 0.85, position = "identity", alpha = 0.8) +
+    geom_vline(xintercept = 0, color = "#1f2937", linewidth = 0.5) +
+    facet_wrap(~year, ncol = 2) +
+    scale_fill_manual(
+        values = c("男性" = "#4f46e5", "女性" = "#ec4899")
+    ) +
+    scale_x_continuous(
+        breaks = seq(-60, 60, by = 20),
+        labels = abs
+    ) +
+    labs(
+        title = "人口结构变化对比（2013 vs 2023）",
+        x = "人口数量（百万）",
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 11) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 14),
+        strip.text = element_text(face = "bold", size = 12)
+    )
+```
+
+---
+
+## 营销漏斗金字塔
+
+人口金字塔的结构也适用于漏斗分析：
+
+```{r fig.height=5}
+# 营销漏斗数据
+funnel_data <- data.frame(
+    stage = factor(c(
+        "1. 网站访问", "2. 产品浏览", "3. 加入购物车",
+        "4. 开始结账", "5. 完成支付"
+    ), levels = rev(c(
+        "1. 网站访问", "2. 产品浏览", "3. 加入购物车",
+        "4. 开始结账", "5. 完成支付"
+    ))),
+    male = c(50000, 35000, 15000, 8000, 4000),
+    female = c(48000, 38000, 18000, 10000, 5500)
+)
+
+# 转换格式
+funnel_long <- funnel_data %>%
+    tidyr::pivot_longer(
+        cols = c(male, female),
+        names_to = "gender",
+        values_to = "count"
+    ) %>%
+    mutate(
+        count_adj = ifelse(gender == "male", -count, count),
+        gender = ifelse(gender == "male", "男性用户", "女性用户")
+    )
+
+ggplot(funnel_long, aes(x = count_adj, y = stage, fill = gender)) +
+    geom_col(width = 0.7) +
+    geom_vline(xintercept = 0, color = "#374151", linewidth = 0.8) +
+    geom_text(
+        aes(
+            label = scales::comma(count),
+            hjust = ifelse(gender == "男性用户", 1.1, -0.1)
+        ),
+        size = 3.5,
+        fontface = "bold"
+    ) +
+    scale_fill_manual(
+        values = c("男性用户" = "#4f46e5", "女性用户" = "#ec4899")
+    ) +
+    scale_x_continuous(
+        labels = function(x) comma(abs(x)),
+        limits = c(-60000, 60000)
+    ) +
+    labs(
+        title = "电商转化漏斗 - 性别对比",
+        x = "用户数量",
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 14)
+    )
+```
+
+---
+
+## 实用函数封装
+
+```{r}
+#' 快速绘制人口金字塔图
+#' @param data 数据框，需包含 age, gender, value 列
+#' @param age_col 年龄列名
+#' @param gender_col 性别列名
+#' @param value_col 数值列名
+#' @param male_label 男性标签
+#' @param female_label 女性标签
+#' @param title 标题
+plot_pyramid <- function(data, age_col, gender_col, value_col,
+                         male_label = "男性", female_label = "女性",
+                         colors = c("#4f46e5", "#ec4899"),
+                         title = NULL) {
+    data <- data %>%
+        mutate(
+            value_adj = ifelse(
+                .data[[gender_col]] == male_label,
+                -.data[[value_col]],
+                .data[[value_col]]
+            )
+        )
+
+    max_val <- max(abs(data$value_adj)) * 1.1
+
+    ggplot(data, aes(
+        x = value_adj,
+        y = .data[[age_col]],
+        fill = .data[[gender_col]]
+    )) +
+        geom_col(width = 0.8) +
+        geom_vline(xintercept = 0, color = "#374151", linewidth = 0.8) +
+        scale_fill_manual(values = setNames(colors, c(male_label, female_label))) +
+        scale_x_continuous(
+            breaks = scales::breaks_extended(n = 7),
+            labels = abs,
+            limits = c(-max_val, max_val)
+        ) +
+        labs(title = title, x = NULL, y = NULL, fill = NULL) +
+        theme_minimal(base_size = 12) +
+        theme(
+            panel.grid.major.y = element_blank(),
+            legend.position = "top",
+            plot.title = element_text(face = "bold")
+        )
+}
+
+# 使用示例
+plot_pyramid(
+    population_data, "age_group", "gender", "population",
+    title = "使用封装函数绑制金字塔图"
+)
+```
+
+---
+
+## 总结
+
+| 应用场景 | 说明 |
+|----------|------|
+| **人口分析** | 年龄-性别结构，老龄化趋势 |
+| **客户画像** | 用户年龄分布 |
+| **漏斗分析** | 转化阶段对比 |
+| **时间对比** | 多期结构变化 |
+
+### 核心技巧
+
+1. **男性取负值**：`ifelse(gender == "男性", -value, value)`
+2. **刻度显示正数**：`labels = abs`
+3. **有序因子**：确保年龄组正确排序
+4. **中心轴**：`geom_vline(xintercept = 0)`
+
+### 相关教程
+
+- [发散型图表](2036-binddivergent.html) - 类似的对称结构
+- [柱状图与饼图](2028-bindbarchart.html) - 基础条形图
+- [直方图与密度图](2027-bindhistogram.html) - 分布可视化

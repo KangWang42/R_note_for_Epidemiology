@@ -1,0 +1,468 @@
+---
+title: "R语言发散型图表绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 发散型图]
+image: "images/binddivergent_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 9,
+    fig.height = 6,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是发散型图表
+
+发散型图表（Diverging Charts）是一类以**参考线为中心**，向两侧延伸展示**正负值或高低差异**的可视化方式。它特别适合展示数据相对于某个**基准值**的偏离程度。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **正负值对比** | 盈亏、增减、超预算/未达 |
+| **满意度调查** | 高于/低于中性值的分布 |
+| **相对变化** | 同比增长/下降 |
+| **基准偏离** | 与平均值、目标值的差距 |
+
+### 发散型图表家族
+
+| 图表类型 | 特点 |
+|----------|------|
+| **发散型条形图** | 以0为中心，正负条向两侧延伸 |
+| **发散型棒棒糖图** | 轻盈版本的发散条形图 |
+| **发散型点图** | 用点标记偏离程度 |
+| **发散型堆叠条形图** | 李克特量表可视化常用 |
+
+---
+
+## R包安装与加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(forcats)
+library(scales)
+```
+
+---
+
+## 准备示例数据
+
+```{r}
+# 创建示例数据：各部门业绩相对于目标的偏离
+performance_data <- data.frame(
+    department = c(
+        "销售一部", "销售二部", "市场部", "研发部", "运营部",
+        "客服部", "财务部", "人力资源", "采购部", "IT部门"
+    ),
+    actual = c(125, 118, 95, 105, 88, 102, 97, 110, 78, 115),
+    target = rep(100, 10)
+)
+
+# 计算偏离值和分组
+performance_data <- performance_data %>%
+    mutate(
+        deviation = actual - target, # 偏离值
+        status = ifelse(deviation >= 0, "超额完成", "未达标"),
+        department = fct_reorder(department, deviation) # 按偏离值排序
+    )
+
+performance_data
+```
+
+---
+
+## 基础发散型条形图
+
+发散型条形图的核心是将数据分为正负两部分，以0为基准线：
+
+```{r}
+ggplot(performance_data, aes(x = deviation, y = department, fill = status)) +
+    geom_col(width = 0.7) +
+    # 添加基准线
+    geom_vline(xintercept = 0, color = "#1f2937", linewidth = 0.8) +
+    # 颜色设置
+    scale_fill_manual(
+        values = c("超额完成" = "#10b981", "未达标" = "#ef4444")
+    ) +
+    labs(
+        title = "各部门业绩完成情况",
+        subtitle = "相对于目标值的偏离（%）",
+        x = "偏离目标值（%）",
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 14)
+    )
+```
+
+### 代码解析
+
+| 组件 | 作用 |
+|------|------|
+| `geom_col()` | 绑制条形图，正值向右、负值向左 |
+| `geom_vline(xintercept = 0)` | 添加基准线 |
+| `fct_reorder()` | 按偏离值排序便于阅读 |
+| `scale_fill_manual()` | 自定义正负值颜色 |
+
+---
+
+## 美化发散型条形图
+
+### 添加数值标签
+
+```{r}
+ggplot(performance_data, aes(x = deviation, y = department, fill = status)) +
+    geom_col(width = 0.7) +
+    geom_vline(xintercept = 0, color = "#374151", linewidth = 1) +
+    # 添加数值标签
+    geom_text(
+        aes(
+            label = paste0(ifelse(deviation > 0, "+", ""), deviation, "%"),
+            hjust = ifelse(deviation >= 0, -0.2, 1.2)
+        ),
+        size = 3.5,
+        fontface = "bold"
+    ) +
+    scale_fill_manual(
+        values = c("超额完成" = "#10b981", "未达标" = "#ef4444")
+    ) +
+    scale_x_continuous(
+        limits = c(-30, 35),
+        breaks = seq(-30, 30, by = 10)
+    ) +
+    labs(
+        title = "各部门业绩完成情况",
+        subtitle = "相对于目标值的偏离百分比",
+        x = NULL,
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 14),
+        axis.text.x = element_blank()
+    )
+```
+
+### 渐变色着色
+
+使用颜色渐变来表示偏离程度：
+
+```{r}
+ggplot(performance_data, aes(x = deviation, y = department, fill = deviation)) +
+    geom_col(width = 0.7) +
+    geom_vline(xintercept = 0, color = "#374151", linewidth = 1) +
+    geom_text(
+        aes(
+            label = paste0(ifelse(deviation > 0, "+", ""), deviation),
+            hjust = ifelse(deviation >= 0, -0.2, 1.2)
+        ),
+        size = 3.5,
+        color = "#374151"
+    ) +
+    # 发散型渐变色
+    scale_fill_gradient2(
+        low = "#ef4444", # 负值颜色
+        mid = "#f5f5f4", # 中间值颜色
+        high = "#10b981", # 正值颜色
+        midpoint = 0 # 中点设为0
+    ) +
+    scale_x_continuous(limits = c(-30, 35)) +
+    labs(
+        title = "业绩偏离热图",
+        subtitle = "颜色深浅表示偏离程度",
+        x = "偏离目标值（%）",
+        y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 发散型棒棒糖图
+
+将条形图改为棒棒糖图，视觉更轻盈：
+
+```{r}
+ggplot(performance_data, aes(x = deviation, y = department, color = status)) +
+    # 绘制线段
+    geom_segment(
+        aes(x = 0, xend = deviation, y = department, yend = department),
+        linewidth = 1.2
+    ) +
+    # 绘制点
+    geom_point(size = 5) +
+    # 基准线
+    geom_vline(xintercept = 0, color = "#374151", linewidth = 0.8) +
+    # 数值标签
+    geom_text(
+        aes(
+            label = paste0(ifelse(deviation > 0, "+", ""), deviation),
+            hjust = ifelse(deviation >= 0, -0.8, 1.8)
+        ),
+        size = 3.5,
+        show.legend = FALSE
+    ) +
+    scale_color_manual(
+        values = c("超额完成" = "#10b981", "未达标" = "#ef4444")
+    ) +
+    scale_x_continuous(limits = c(-35, 40)) +
+    labs(
+        title = "发散型棒棒糖图",
+        subtitle = "各部门业绩偏离情况",
+        x = "偏离目标值（%）",
+        y = NULL,
+        color = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 李克特量表发散型堆叠图
+
+李克特量表（Likert Scale）常用于问卷调查，发散型堆叠图是展示此类数据的经典方式：
+
+```{r}
+# 创建李克特量表数据
+likert_data <- data.frame(
+    question = c("产品质量", "服务态度", "交付速度", "价格合理", "售后支持"),
+    strongly_disagree = c(5, 3, 8, 12, 6),
+    disagree = c(12, 8, 15, 18, 11),
+    neutral = c(18, 15, 22, 20, 25),
+    agree = c(35, 38, 32, 30, 33),
+    strongly_agree = c(30, 36, 23, 20, 25)
+)
+
+# 转换为长格式
+library(tidyr)
+
+likert_long <- likert_data %>%
+    pivot_longer(
+        cols = -question,
+        names_to = "response",
+        values_to = "percentage"
+    ) %>%
+    mutate(
+        response = factor(response, levels = c(
+            "strongly_disagree", "disagree", "neutral", "agree", "strongly_agree"
+        )),
+        # 发散型处理：负面放左边，正面放右边
+        percentage_adj = case_when(
+            response %in% c("strongly_disagree", "disagree") ~ -percentage,
+            response == "neutral" ~ 0,
+            TRUE ~ percentage
+        ),
+        sentiment = case_when(
+            response %in% c("strongly_disagree", "disagree") ~ "负面",
+            response == "neutral" ~ "中性",
+            TRUE ~ "正面"
+        )
+    )
+
+# 计算堆叠位置
+likert_stacked <- likert_long %>%
+    filter(response != "neutral") %>%
+    group_by(question, sentiment) %>%
+    mutate(
+        position = cumsum(abs(percentage_adj)) - abs(percentage_adj) / 2,
+        position = ifelse(sentiment == "负面", -position, position)
+    ) %>%
+    ungroup()
+
+# 绑制发散型堆叠图
+ggplot(likert_stacked, aes(y = question)) +
+    geom_col(
+        aes(x = percentage_adj, fill = response),
+        position = "stack",
+        width = 0.7
+    ) +
+    geom_vline(xintercept = 0, color = "#374151", linewidth = 1) +
+    scale_fill_manual(
+        values = c(
+            "strongly_disagree" = "#dc2626",
+            "disagree" = "#f87171",
+            "neutral" = "#d4d4d4",
+            "agree" = "#4ade80",
+            "strongly_agree" = "#16a34a"
+        ),
+        labels = c("非常不同意", "不同意", "中立", "同意", "非常同意")
+    ) +
+    scale_x_continuous(
+        limits = c(-50, 80),
+        breaks = seq(-40, 80, by = 20),
+        labels = abs
+    ) +
+    labs(
+        title = "客户满意度调查结果",
+        subtitle = "发散型李克特量表可视化",
+        x = "响应比例（%）",
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 蝴蝶图 / 金字塔对比图
+
+蝴蝶图是一种特殊的发散型图表，用于**两组数据的对称比较**：
+
+```{r}
+# 创建对比数据
+compare_data <- data.frame(
+    category = c("18-24岁", "25-34岁", "35-44岁", "45-54岁", "55-64岁", "65岁+"),
+    group_a = c(15, 28, 32, 25, 18, 12),
+    group_b = c(18, 35, 28, 22, 15, 10)
+)
+
+# 转换为发散型格式
+butterfly_data <- compare_data %>%
+    mutate(
+        group_a = -group_a, # A组放左边（负值）
+        category = factor(category, levels = category)
+    ) %>%
+    pivot_longer(
+        cols = c(group_a, group_b),
+        names_to = "group",
+        values_to = "value"
+    ) %>%
+    mutate(
+        group_label = ifelse(group == "group_a", "2022年", "2023年")
+    )
+
+ggplot(butterfly_data, aes(x = value, y = category, fill = group_label)) +
+    geom_col(width = 0.7) +
+    geom_vline(xintercept = 0, color = "#374151", linewidth = 1) +
+    # 添加标签
+    geom_text(
+        aes(
+            label = abs(value),
+            hjust = ifelse(value < 0, 1.2, -0.2)
+        ),
+        size = 3.5,
+        color = "#374151"
+    ) +
+    scale_fill_manual(values = c("2022年" = "#818cf8", "2023年" = "#4f46e5")) +
+    scale_x_continuous(
+        limits = c(-40, 45),
+        breaks = seq(-40, 40, by = 10),
+        labels = abs
+    ) +
+    labs(
+        title = "用户年龄分布变化",
+        subtitle = "蝴蝶图对比 2022 vs 2023",
+        x = "用户比例（%）",
+        y = NULL,
+        fill = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 实用函数封装
+
+创建一个快速绑制发散型条形图的函数：
+
+```{r}
+#' 快速绘制发散型条形图
+#' @param data 数据框
+#' @param y_var 分类变量名（字符串）
+#' @param value_var 数值变量名（字符串）
+#' @param positive_color 正值颜色
+#' @param negative_color 负值颜色
+#' @param title 图表标题
+plot_diverging_bar <- function(data, y_var, value_var,
+                               positive_color = "#10b981",
+                               negative_color = "#ef4444",
+                               title = NULL) {
+    data <- data %>%
+        mutate(
+            status = ifelse(.data[[value_var]] >= 0, "positive", "negative"),
+            !!sym(y_var) := fct_reorder(.data[[y_var]], .data[[value_var]])
+        )
+
+    ggplot(data, aes(x = .data[[value_var]], y = .data[[y_var]], fill = status)) +
+        geom_col(width = 0.7) +
+        geom_vline(xintercept = 0, color = "#374151", linewidth = 1) +
+        scale_fill_manual(
+            values = c("positive" = positive_color, "negative" = negative_color)
+        ) +
+        labs(title = title, x = NULL, y = NULL) +
+        theme_minimal(base_size = 12) +
+        theme(
+            panel.grid.major.y = element_blank(),
+            legend.position = "none",
+            plot.title = element_text(face = "bold")
+        )
+}
+
+# 使用示例
+plot_diverging_bar(
+    performance_data, "department", "deviation",
+    title = "使用封装函数绑制发散型条形图"
+)
+```
+
+---
+
+## 总结
+
+| 图表类型 | 适用场景 | 核心技巧 |
+|----------|----------|----------|
+| **发散型条形图** | 正负值对比 | `geom_col() + geom_vline(xintercept=0)` |
+| **发散型棒棒糖图** | 轻盈版正负对比 | `geom_segment() + geom_point()` |
+| **渐变发散图** | 强调偏离程度 | `scale_fill_gradient2()` |
+| **李克特量表图** | 问卷调查结果 | 发散型堆叠条形图 |
+| **蝴蝶图** | 两组对称比较 | 一组取负值 |
+
+### 设计建议
+
+1. **保持基准线清晰**：0线或参考线要明显
+2. **颜色对比鲜明**：正负使用对比色（绿/红、蓝/橙）
+3. **排序增强可读性**：按数值大小排列
+4. **添加数值标签**：方便精确阅读
+5. **对称轴刻度**：使用 `labels = abs` 让左右刻度显示正数
+
+### 相关教程
+
+- [柱状图与饼图](2028-bindbarchart.html) - 基础条形图
+- [棒棒糖图与排序图](2035-bindlollipop.html) - 轻盈版条形图
+- [人口金字塔图](2038-bindpyramid.html) - 类似的对称结构

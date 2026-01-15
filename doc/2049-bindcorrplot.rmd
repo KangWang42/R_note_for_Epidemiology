@@ -1,0 +1,136 @@
+---
+title: "R语言相关图矩阵绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 关联图]
+image: "images/bindcorrplot_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 8, fig.height = 8, fig.retina = 2, out.width = "100%", dpi = 150)
+```
+
+## 什么是相关图矩阵
+
+相关图矩阵（Correlation Matrix Plot）以热图形式展示多个变量之间的**相关系数**，快速识别变量间关系强度和方向。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **特征选择** | 识别高度相关的变量 |
+| **多重共线性检测** | 回归前检查 |
+| **探索性分析** | 变量关系总览 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 相关图专用包
+# install.packages("corrplot")
+library(corrplot)
+```
+
+---
+
+## 基础相关图
+
+```{r}
+# 计算相关矩阵
+cor_matrix <- cor(mtcars[, 1:7])
+
+# 基础corrplot
+corrplot(cor_matrix,
+    method = "color", type = "upper",
+    tl.col = "black", tl.srt = 45,
+    col = colorRampPalette(c("#ef4444", "white", "#4f46e5"))(100)
+)
+```
+
+---
+
+## 带数值的相关图
+
+```{r}
+corrplot(cor_matrix,
+    method = "number", type = "upper",
+    tl.col = "black", tl.srt = 45,
+    col = colorRampPalette(c("#ef4444", "white", "#4f46e5"))(100),
+    number.cex = 0.8
+)
+```
+
+---
+
+## 混合型相关图
+
+上三角显示圆形，下三角显示数值：
+
+```{r}
+corrplot.mixed(cor_matrix,
+    lower = "number", upper = "circle",
+    tl.col = "black", tl.srt = 45,
+    lower.col = "black", number.cex = 0.7
+)
+```
+
+---
+
+## 使用 ggplot2 绑制
+
+```{r}
+library(tidyr)
+
+# 转换为长格式
+cor_long <- as.data.frame(cor_matrix) %>%
+    mutate(var1 = rownames(.)) %>%
+    pivot_longer(-var1, names_to = "var2", values_to = "correlation")
+
+ggplot(cor_long, aes(x = var1, y = var2, fill = correlation)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = round(correlation, 2)), color = "black", size = 3) +
+    scale_fill_gradient2(
+        low = "#ef4444", mid = "white", high = "#4f46e5",
+        midpoint = 0, limit = c(-1, 1)
+    ) +
+    labs(title = "相关系数热图", x = NULL, y = NULL, fill = "相关系数") +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text.x = element_text(angle = 45, hjust = 1)
+    ) +
+    coord_fixed()
+```
+
+---
+
+## 聚类排序
+
+```{r}
+corrplot(cor_matrix,
+    method = "color", type = "full",
+    order = "hclust", addrect = 3,
+    tl.col = "black", tl.srt = 45,
+    col = colorRampPalette(c("#ef4444", "white", "#4f46e5"))(100)
+)
+```
+
+---
+
+## 总结
+
+| 样式 | 参数 | 特点 |
+|------|------|------|
+| **颜色块** | `method = "color"` | 直观 |
+| **圆形** | `method = "circle"` | 大小+颜色编码 |
+| **数值** | `method = "number"` | 精确 |
+| **混合** | `corrplot.mixed()` | 结合多种 |
+| **聚类** | `order = "hclust"` | 分组显示 |
+
+### 相关教程
+
+- [热图绑制完全指南](2020-heatmap.html)
+- [GGally扩展](2022-ggally.html)

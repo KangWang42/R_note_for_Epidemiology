@@ -1,0 +1,166 @@
+---
+title: "R语言边缘分布图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 分布图]
+image: "images/bindmarginal_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 9, fig.height = 7, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是边缘分布图
+
+边缘分布图（Marginal Distribution Plot）在散点图的边缘添加**直方图、密度图或箱线图**，同时展示两个变量的联合分布和各自的边缘分布。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **探索性分析** | 快速了解变量分布和相关性 |
+| **双变量分析** | 同时查看边缘和联合分布 |
+| **相关性展示** | 增强散点图信息量 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 边缘图专用包
+# install.packages("ggExtra")
+library(ggExtra)
+```
+
+---
+
+## 基础边缘直方图
+
+```{r}
+# 基础散点图
+p <- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) +
+    geom_point(size = 2.5, alpha = 0.7) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(
+        title = "鸢尾花萼片尺寸分布",
+        x = "萼片长度 (cm)",
+        y = "萼片宽度 (cm)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "bottom"
+    )
+
+# 添加边缘直方图
+ggMarginal(p, type = "histogram", fill = "#4f46e5", alpha = 0.6)
+```
+
+---
+
+## 边缘密度图
+
+```{r}
+ggMarginal(p, type = "density", fill = "#4f46e5", alpha = 0.5)
+```
+
+---
+
+## 边缘箱线图
+
+```{r}
+ggMarginal(p, type = "boxplot", fill = "#e0e7ff")
+```
+
+---
+
+## 分组边缘分布
+
+按颜色分组显示边缘分布：
+
+```{r}
+ggMarginal(p, type = "density", groupColour = TRUE, groupFill = TRUE, alpha = 0.4)
+```
+
+---
+
+## 混合类型边缘图
+
+x轴用直方图，y轴用密度图：
+
+```{r}
+ggMarginal(p, type = "densigram", fill = "#818cf8")
+```
+
+---
+
+## 自定义边缘图大小
+
+```{r}
+ggMarginal(p,
+    type = "histogram",
+    fill = "#4f46e5", alpha = 0.6,
+    xparams = list(binwidth = 0.3),
+    yparams = list(binwidth = 0.2),
+    size = 8
+) # 边缘图占主图的 1/8
+```
+
+---
+
+## 使用 patchwork 手动构建
+
+如需更多自定义控制：
+
+```{r fig.width=10, fig.height=8}
+library(patchwork)
+
+# 主散点图
+main_plot <- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) +
+    geom_point(size = 2.5, alpha = 0.7) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    theme_minimal() +
+    theme(legend.position = "none")
+
+# 顶部边缘图
+top_hist <- ggplot(iris, aes(x = Sepal.Length, fill = Species)) +
+    geom_density(alpha = 0.5) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    theme_void() +
+    theme(legend.position = "none")
+
+# 右侧边缘图
+right_hist <- ggplot(iris, aes(x = Sepal.Width, fill = Species)) +
+    geom_density(alpha = 0.5) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    coord_flip() +
+    theme_void() +
+    theme(legend.position = "none")
+
+# 组合
+top_hist + plot_spacer() +
+    main_plot + right_hist +
+    plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+```
+
+---
+
+## 总结
+
+| 边缘类型 | 参数 | 适用场景 |
+|----------|------|----------|
+| **直方图** | `type = "histogram"` | 离散分布 |
+| **密度图** | `type = "density"` | 平滑分布 |
+| **箱线图** | `type = "boxplot"` | 快速统计 |
+| **小提琴图** | `type = "violin"` | 分布形状 |
+| **混合图** | `type = "densigram"` | 结合两者 |
+
+### 相关教程
+
+- [散点图与趋势线](2026-bindscatterplot.html)
+- [直方图与密度图](2027-bindhistogram.html)

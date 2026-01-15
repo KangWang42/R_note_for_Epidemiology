@@ -1,0 +1,232 @@
+---
+title: "R语言抖动图与蜂群图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 分布图]
+image: "images/bindjitter_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 9, fig.height = 6, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是抖动图和蜂群图
+
+抖动图（Jitter Plot）和蜂群图（Beeswarm Plot）是展示**离散分类变量与连续变量关系**的可视化方式，通过随机或规则偏移避免数据点重叠。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **小样本展示** | 每组10-100个数据点 |
+| **查看原始数据** | 搭配箱线图使用 |
+| **组间比较** | 各组数据分布差异 |
+| **发现模式** | 识别聚类、离群值 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+可选蜂群图包：
+
+```{r eval=FALSE}
+# install.packages("ggbeeswarm")
+library(ggbeeswarm)
+```
+
+---
+
+## 基础抖动图
+
+```{r}
+# 使用内置数据
+data(iris)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+    geom_jitter(width = 0.2, height = 0, alpha = 0.6, color = "#4f46e5") +
+    labs(
+        title = "鸢尾花萼片长度分布",
+        subtitle = "抖动图展示各物种分布",
+        x = "物种",
+        y = "萼片长度 (cm)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+### 参数解析
+
+| 参数 | 说明 |
+|------|------|
+| `width` | 水平抖动幅度（0-0.5） |
+| `height` | 垂直抖动幅度（通常设为0） |
+| `alpha` | 透明度（处理重叠） |
+
+---
+
+## 抖动图 + 箱线图
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, color = Species)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.3, width = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.7, size = 2) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(
+        title = "箱线图 + 抖动图组合",
+        x = "物种",
+        y = "萼片长度 (cm)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 蜂群图 (Beeswarm)
+
+蜂群图使用算法避免重叠，比随机抖动更整齐：
+
+```{r}
+library(ggbeeswarm)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length, color = Species)) +
+    geom_beeswarm(cex = 2.5, size = 2.5) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(
+        title = "蜂群图 (Beeswarm Plot)",
+        subtitle = "有序排列避免重叠",
+        x = "物种",
+        y = "萼片长度 (cm)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "none"
+    )
+```
+
+---
+
+## Quasirandom 图
+
+```{r}
+ggplot(iris, aes(x = Species, y = Sepal.Length, color = Species)) +
+    geom_quasirandom(size = 2.5, bandwidth = 0.4) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(
+        title = "Quasirandom 分布图",
+        x = "物种",
+        y = "萼片长度 (cm)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 带均值标记的抖动图
+
+```{r}
+# 计算均值
+means <- iris %>%
+    group_by(Species) %>%
+    summarise(mean_val = mean(Sepal.Length))
+
+ggplot(iris, aes(x = Species, y = Sepal.Length, color = Species)) +
+    geom_jitter(width = 0.2, alpha = 0.5, size = 2) +
+    # 添加均值点
+    geom_point(
+        data = means, aes(y = mean_val),
+        size = 5, shape = 18, color = "#1f2937"
+    ) +
+    # 添加均值横线
+    geom_errorbar(
+        data = means, aes(y = mean_val, ymin = mean_val, ymax = mean_val),
+        width = 0.4, linewidth = 1, color = "#1f2937"
+    ) +
+    scale_color_manual(values = c("#4f46e5", "#10b981", "#f59e0b")) +
+    labs(
+        title = "抖动图 + 均值标记",
+        x = "物种",
+        y = "萼片长度 (cm)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 分组抖动图
+
+```{r}
+# 模拟分组数据
+set.seed(42)
+group_data <- data.frame(
+    treatment = rep(c("对照组", "处理组"), each = 60),
+    timepoint = rep(rep(c("基线", "4周", "8周"), each = 20), 2),
+    value = c(
+        rnorm(20, 50, 8), rnorm(20, 52, 8), rnorm(20, 55, 8),
+        rnorm(20, 50, 8), rnorm(20, 62, 8), rnorm(20, 70, 8)
+    )
+)
+
+ggplot(group_data, aes(x = timepoint, y = value, color = treatment)) +
+    geom_jitter(
+        position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.7),
+        alpha = 0.6, size = 2
+    ) +
+    stat_summary(
+        fun = mean, geom = "point", shape = 18, size = 4,
+        position = position_dodge(width = 0.7)
+    ) +
+    scale_color_manual(values = c("对照组" = "#94a3b8", "处理组" = "#4f46e5")) +
+    labs(
+        title = "分组抖动图",
+        subtitle = "对照组 vs 处理组",
+        x = "时间点",
+        y = "指标值",
+        color = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "top"
+    )
+```
+
+---
+
+## 总结
+
+| 图表类型 | 核心函数 | 特点 |
+|----------|----------|------|
+| **抖动图** | `geom_jitter()` | 随机偏移，简单快捷 |
+| **蜂群图** | `geom_beeswarm()` | 有序排列，更整齐 |
+| **Quasirandom** | `geom_quasirandom()` | 介于两者之间 |
+
+### 设计建议
+
+1. 数据量 < 50 时用蜂群图
+2. 数据量 > 100 时增加透明度
+3. 搭配箱线图/小提琴图使用
+
+### 相关教程
+
+- [箱线图与小提琴图](2025-bindboxplot.html)
+- [直方图与密度图](2027-bindhistogram.html)

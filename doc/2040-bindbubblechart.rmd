@@ -1,0 +1,296 @@
+---
+title: "R语言气泡图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 关联图]
+image: "images/bindbubblechart_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 9, fig.height = 6, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是气泡图
+
+气泡图（Bubble Chart）是散点图的扩展，除了用 x、y 坐标表示两个变量外，还用**气泡大小**表示第三个变量，有时还用**颜色**表示第四个变量。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **多维数据展示** | 同时展示3-4个变量 |
+| **国家/城市对比** | 如著名的 Gapminder 图 |
+| **市场分析** | 展示规模、增长率、市场份额 |
+| **项目优先级** | 影响力 vs 可行性 vs 资源需求 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(scales)
+```
+
+---
+
+## 基础气泡图
+
+```{r}
+# 创建示例数据：各国经济指标
+country_data <- data.frame(
+    country = c(
+        "中国", "美国", "日本", "德国", "印度",
+        "英国", "法国", "巴西", "俄罗斯", "韩国"
+    ),
+    gdp_growth = c(5.2, 2.5, 1.8, 1.5, 7.0, 1.2, 1.6, 2.8, 2.1, 2.6),
+    gdp_per_capita = c(12, 76, 40, 52, 2.5, 46, 44, 9, 15, 35),
+    population = c(1400, 330, 125, 84, 1380, 67, 67, 215, 144, 52),
+    region = c(
+        "亚洲", "北美", "亚洲", "欧洲", "亚洲",
+        "欧洲", "欧洲", "南美", "欧洲", "亚洲"
+    )
+)
+
+ggplot(country_data, aes(x = gdp_per_capita, y = gdp_growth, size = population)) +
+    geom_point(alpha = 0.6, color = "#4f46e5") +
+    scale_size_continuous(range = c(3, 20), name = "人口(百万)") +
+    labs(
+        title = "人均GDP vs GDP增长率",
+        subtitle = "气泡大小表示人口规模",
+        x = "人均GDP（千美元）",
+        y = "GDP增长率（%）"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+---
+
+## 按区域着色
+
+```{r}
+ggplot(country_data, aes(
+    x = gdp_per_capita, y = gdp_growth,
+    size = population, color = region
+)) +
+    geom_point(alpha = 0.7) +
+    scale_size_continuous(range = c(4, 20), name = "人口(百万)") +
+    scale_color_manual(values = c(
+        "亚洲" = "#4f46e5", "北美" = "#10b981",
+        "欧洲" = "#f59e0b", "南美" = "#ec4899"
+    )) +
+    labs(
+        title = "全球主要经济体对比",
+        subtitle = "气泡大小 = 人口，颜色 = 地区",
+        x = "人均GDP（千美元）",
+        y = "GDP增长率（%）",
+        color = "地区"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "right"
+    )
+```
+
+---
+
+## 添加国家标签
+
+```{r}
+library(ggrepel)
+
+ggplot(country_data, aes(
+    x = gdp_per_capita, y = gdp_growth,
+    size = population, color = region
+)) +
+    geom_point(alpha = 0.7) +
+    geom_text_repel(aes(label = country), size = 3.5, max.overlaps = 15) +
+    scale_size_continuous(range = c(4, 18), name = "人口(百万)") +
+    scale_color_manual(values = c(
+        "亚洲" = "#4f46e5", "北美" = "#10b981",
+        "欧洲" = "#f59e0b", "南美" = "#ec4899"
+    )) +
+    labs(
+        title = "全球主要经济体",
+        x = "人均GDP（千美元）",
+        y = "GDP增长率（%）",
+        color = "地区"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+---
+
+## 带边界的气泡图
+
+添加气泡边框使重叠区域更清晰：
+
+```{r}
+ggplot(country_data, aes(
+    x = gdp_per_capita, y = gdp_growth,
+    size = population, fill = region
+)) +
+    geom_point(shape = 21, color = "white", stroke = 1.5, alpha = 0.8) +
+    scale_size_continuous(range = c(4, 20), name = "人口(百万)") +
+    scale_fill_manual(values = c(
+        "亚洲" = "#4f46e5", "北美" = "#10b981",
+        "欧洲" = "#f59e0b", "南美" = "#ec4899"
+    )) +
+    labs(
+        title = "带边界的气泡图",
+        x = "人均GDP（千美元）",
+        y = "GDP增长率（%）",
+        fill = "地区"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+---
+
+## 四象限分析气泡图
+
+添加参考线划分四象限：
+
+```{r}
+# 计算中位数作为分界线
+median_x <- median(country_data$gdp_per_capita)
+median_y <- median(country_data$gdp_growth)
+
+ggplot(country_data, aes(
+    x = gdp_per_capita, y = gdp_growth,
+    size = population, fill = region
+)) +
+    # 四象限背景
+    annotate("rect",
+        xmin = -Inf, xmax = median_x, ymin = median_y, ymax = Inf,
+        fill = "#dcfce7", alpha = 0.3
+    ) +
+    annotate("rect",
+        xmin = median_x, xmax = Inf, ymin = median_y, ymax = Inf,
+        fill = "#dbeafe", alpha = 0.3
+    ) +
+    # 参考线
+    geom_hline(yintercept = median_y, linetype = "dashed", color = "gray50") +
+    geom_vline(xintercept = median_x, linetype = "dashed", color = "gray50") +
+    # 气泡
+    geom_point(shape = 21, color = "white", stroke = 1, alpha = 0.85) +
+    geom_text_repel(aes(label = country), size = 3) +
+    scale_size_continuous(range = c(4, 18)) +
+    scale_fill_manual(values = c(
+        "亚洲" = "#4f46e5", "北美" = "#10b981",
+        "欧洲" = "#f59e0b", "南美" = "#ec4899"
+    )) +
+    # 象限标签
+    annotate("text", x = 5, y = 6.5, label = "高潜力", fontface = "bold", color = "#166534") +
+    annotate("text", x = 60, y = 6.5, label = "明星", fontface = "bold", color = "#1e40af") +
+    labs(
+        title = "四象限分析：经济体定位",
+        x = "人均GDP（千美元）",
+        y = "GDP增长率（%）"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 动态效果模拟（多年数据）
+
+```{r fig.width=12, fig.height=5}
+# 模拟多年数据
+set.seed(42)
+years <- 2020:2023
+
+multi_year <- do.call(rbind, lapply(years, function(y) {
+    country_data %>%
+        mutate(
+            year = y,
+            gdp_growth = gdp_growth + rnorm(n(), 0, 0.5),
+            gdp_per_capita = gdp_per_capita * (1 + rnorm(n(), 0.02, 0.01))
+        )
+}))
+
+ggplot(multi_year, aes(
+    x = gdp_per_capita, y = gdp_growth,
+    size = population, fill = region
+)) +
+    geom_point(shape = 21, alpha = 0.7, color = "white") +
+    facet_wrap(~year, nrow = 1) +
+    scale_size_continuous(range = c(2, 12), guide = "none") +
+    scale_fill_manual(values = c(
+        "亚洲" = "#4f46e5", "北美" = "#10b981",
+        "欧洲" = "#f59e0b", "南美" = "#ec4899"
+    )) +
+    labs(
+        title = "经济体变化趋势（2020-2023）",
+        x = "人均GDP",
+        y = "GDP增长率",
+        fill = "地区"
+    ) +
+    theme_minimal(base_size = 11) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "bottom"
+    )
+```
+
+---
+
+## 实用函数封装
+
+```{r}
+#' 快速绘制气泡图
+plot_bubble <- function(data, x, y, size, color = NULL,
+                        labels = NULL, title = NULL) {
+    p <- ggplot(data, aes(x = .data[[x]], y = .data[[y]], size = .data[[size]]))
+
+    if (!is.null(color)) {
+        p <- p + geom_point(aes(fill = .data[[color]]),
+            shape = 21, alpha = 0.7, color = "white"
+        )
+    } else {
+        p <- p + geom_point(alpha = 0.7, color = "#4f46e5")
+    }
+
+    if (!is.null(labels)) {
+        p <- p + ggrepel::geom_text_repel(aes(label = .data[[labels]]), size = 3)
+    }
+
+    p + scale_size_continuous(range = c(3, 18)) +
+        labs(title = title, x = x, y = y) +
+        theme_minimal(base_size = 12) +
+        theme(plot.title = element_text(face = "bold"))
+}
+
+# 使用示例
+plot_bubble(country_data, "gdp_per_capita", "gdp_growth", "population",
+    color = "region", labels = "country", title = "快速气泡图"
+)
+```
+
+---
+
+## 总结
+
+| 技巧 | 说明 |
+|------|------|
+| **基础气泡** | `aes(size = var)` 映射第三变量 |
+| **颜色编码** | `aes(color/fill = var)` 映射第四变量 |
+| **带边框** | `shape = 21` + `fill` + `color = "white"` |
+| **标签** | `ggrepel::geom_text_repel()` 避免重叠 |
+| **四象限** | 添加参考线和背景区域 |
+
+### 相关教程
+
+- [散点图与趋势线](2026-bindscatterplot.html)
+- [GGally - 相关矩阵](2022-ggally.html)

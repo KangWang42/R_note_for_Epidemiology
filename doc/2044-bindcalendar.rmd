@@ -1,0 +1,173 @@
+---
+title: "R语言日历热图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 热图]
+image: "images/bindcalendar_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 12, fig.height = 4, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是日历热图
+
+日历热图（Calendar Heatmap）按日历格式排列数据，用颜色深浅表示每日数值大小，类似 GitHub 的贡献热图。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **活动追踪** | 运动、学习、提交记录 |
+| **销售日报** | 每日销售额热力图 |
+| **网站流量** | 每日访问量 |
+| **健康记录** | 每日步数、睡眠等 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+```
+
+---
+
+## 准备示例数据
+
+```{r}
+# 生成一年的日期和随机值
+set.seed(42)
+calendar_data <- data.frame(
+    date = seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "day")
+) %>%
+    mutate(
+        value = round(runif(n(), 0, 100)),
+        week = week(date),
+        weekday = wday(date, label = TRUE, abbr = TRUE),
+        month = month(date, label = TRUE),
+        year = year(date)
+    )
+
+head(calendar_data)
+```
+
+---
+
+## GitHub风格日历热图
+
+```{r fig.width=14, fig.height=3}
+# 计算每周在年中的位置
+calendar_data <- calendar_data %>%
+    mutate(
+        week_of_year = as.numeric(format(date, "%W")),
+        day_of_week = wday(date)
+    )
+
+ggplot(calendar_data, aes(x = week_of_year, y = factor(day_of_week, levels = 7:1))) +
+    geom_tile(aes(fill = value), color = "white", linewidth = 0.3) +
+    scale_fill_gradient(low = "#ebedf0", high = "#4f46e5", name = "数值") +
+    scale_x_continuous(
+        breaks = c(1, 9, 18, 27, 36, 44, 52),
+        labels = c("1月", "3月", "5月", "7月", "9月", "11月", "12月")
+    ) +
+    scale_y_discrete(labels = c("日", "六", "五", "四", "三", "二", "一")) +
+    labs(
+        title = "2023年每日数据热图",
+        subtitle = "GitHub风格日历热图",
+        x = NULL,
+        y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid = element_blank(),
+        legend.position = "right"
+    )
+```
+
+---
+
+## 月份分面日历
+
+```{r fig.width=14, fig.height=6}
+# 计算月内周数
+calendar_data <- calendar_data %>%
+    group_by(month) %>%
+    mutate(
+        week_of_month = dense_rank(week_of_year)
+    ) %>%
+    ungroup()
+
+ggplot(calendar_data, aes(x = week_of_month, y = factor(day_of_week, levels = 7:1))) +
+    geom_tile(aes(fill = value), color = "white", linewidth = 0.5) +
+    facet_wrap(~month, nrow = 2, scales = "free_x") +
+    scale_fill_gradient(low = "#f0fdf4", high = "#10b981", name = "数值") +
+    scale_y_discrete(labels = c("日", "六", "五", "四", "三", "二", "一")) +
+    labs(
+        title = "2023年月度日历热图",
+        x = "周",
+        y = NULL
+    ) +
+    theme_minimal(base_size = 10) +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        panel.grid = element_blank(),
+        strip.text = element_text(face = "bold"),
+        legend.position = "bottom"
+    )
+```
+
+---
+
+## 分段着色
+
+```{r fig.width=14, fig.height=3}
+# 分级着色
+calendar_data <- calendar_data %>%
+    mutate(
+        level = cut(value,
+            breaks = c(-Inf, 25, 50, 75, Inf),
+            labels = c("低", "中低", "中高", "高")
+        )
+    )
+
+ggplot(calendar_data, aes(x = week_of_year, y = factor(day_of_week, levels = 7:1))) +
+    geom_tile(aes(fill = level), color = "white", linewidth = 0.3) +
+    scale_fill_manual(
+        values = c(
+            "低" = "#ebedf0", "中低" = "#9be9a8",
+            "中高" = "#40c463", "高" = "#216e39"
+        ),
+        name = "等级"
+    ) +
+    labs(
+        title = "分级着色日历热图",
+        x = NULL,
+        y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid = element_blank()
+    )
+```
+
+---
+
+## 总结
+
+| 样式 | 特点 |
+|------|------|
+| **GitHub风格** | 横向52周，纵向7天 |
+| **月份分面** | 每月独立显示 |
+| **分段着色** | 离散颜色等级 |
+
+### 相关教程
+
+- [热图绑制完全指南](2020-heatmap.html)
+- [折线图与时间序列](2029-bindlineplot.html)

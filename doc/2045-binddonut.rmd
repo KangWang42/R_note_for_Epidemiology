@@ -1,0 +1,133 @@
+---
+title: "R语言环形图与甜甜圈图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 组成图]
+image: "images/binddonut_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 8, fig.height = 6, fig.retina = 2, out.width = "100%", dpi = 150)
+```
+
+## 什么是环形图
+
+环形图（Donut Chart）是饼图的变体，中心挖空，可在中间添加统计信息或图标，视觉更现代。
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+---
+
+## 基础环形图
+
+```{r}
+# 示例数据
+data <- data.frame(
+    category = c("产品A", "产品B", "产品C", "产品D"),
+    value = c(35, 28, 22, 15)
+)
+
+# 计算位置
+data <- data %>%
+    arrange(desc(value)) %>%
+    mutate(
+        fraction = value / sum(value),
+        ymax = cumsum(fraction),
+        ymin = lag(ymax, default = 0),
+        label_pos = (ymax + ymin) / 2,
+        label = paste0(value, "%")
+    )
+
+ggplot(data, aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 2.5, fill = category)) +
+    geom_rect() +
+    geom_text(aes(x = 3.25, y = label_pos, label = label), color = "white", fontface = "bold") +
+    coord_polar(theta = "y") +
+    xlim(c(1, 4)) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")) +
+    labs(title = "市场份额分布", fill = NULL) +
+    theme_void() +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+---
+
+## 中心添加统计信息
+
+```{r}
+ggplot(data, aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 2, fill = category)) +
+    geom_rect() +
+    coord_polar(theta = "y") +
+    xlim(c(0.5, 4)) +
+    # 中心文字
+    annotate("text", x = 0.5, y = 0, label = "100%", size = 8, fontface = "bold", color = "#1f2937") +
+    annotate("text", x = 0.5, y = 0.15, label = "总计", size = 4, color = "#6b7280") +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")) +
+    labs(title = "带中心标注的环形图", fill = NULL) +
+    theme_void() +
+    theme(
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "bottom"
+    )
+```
+
+---
+
+## 多层环形图
+
+```{r}
+# 两期数据对比
+inner_data <- data.frame(
+    category = c("A", "B", "C", "D"),
+    value = c(30, 25, 25, 20)
+) %>%
+    mutate(
+        fraction = value / sum(value),
+        ymax = cumsum(fraction),
+        ymin = lag(ymax, default = 0)
+    )
+
+outer_data <- data.frame(
+    category = c("A", "B", "C", "D"),
+    value = c(35, 20, 28, 17)
+) %>%
+    mutate(
+        fraction = value / sum(value),
+        ymax = cumsum(fraction),
+        ymin = lag(ymax, default = 0)
+    )
+
+ggplot() +
+    # 内环（2022年）
+    geom_rect(data = inner_data, aes(ymax = ymax, ymin = ymin, xmax = 2.5, xmin = 1.5, fill = category), alpha = 0.6) +
+    # 外环（2023年）
+    geom_rect(data = outer_data, aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 3, fill = category)) +
+    coord_polar(theta = "y") +
+    xlim(c(0.5, 4)) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")) +
+    annotate("text", x = 2, y = 0, label = "2022", size = 3, color = "#6b7280") +
+    annotate("text", x = 3.5, y = 0, label = "2023", size = 3, color = "#1f2937") +
+    labs(title = "多层环形图：年度对比", fill = NULL) +
+    theme_void() +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+---
+
+## 总结
+
+| 样式 | 特点 |
+|------|------|
+| **基础环形图** | 饼图挖空版 |
+| **带中心标注** | 显示总计或关键指标 |
+| **多层环形图** | 对比多期数据 |
+
+### 相关教程
+
+- [华夫饼图与树形图](2037-bindwaffle.html)
+- [柱状图与饼图](2028-bindbarchart.html)

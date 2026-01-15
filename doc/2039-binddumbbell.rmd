@@ -1,0 +1,576 @@
+---
+title: "R语言哑铃图与坡度图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 比较图]
+image: "images/binddumbbell_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 9,
+    fig.height = 6,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是哑铃图和坡度图
+
+哑铃图（Dumbbell Chart）和坡度图（Slope Chart）都是展示**两个时间点或两个条件之间变化**的可视化方式，非常适合**配对数据对比**。
+
+### 哑铃图
+
+哑铃图用两个点表示两个数值，中间用线连接，形状类似哑铃。适合展示**起点和终点**的差异。
+
+### 坡度图
+
+坡度图将两组数值分别放在左右两列，用斜线连接，线的倾斜方向表示变化趋势。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **前后对比** | 干预前后、政策前后 |
+| **时间比较** | 年度对比、季度变化 |
+| **配对测量** | 同一对象的两次测量 |
+| **A/B 测试** | 实验组与对照组对比 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(forcats)
+library(scales)
+```
+
+可选使用 `ggalt` 包获得更多 geom：
+
+```{r eval=FALSE}
+# install.packages("ggalt")
+library(ggalt) # 提供 geom_dumbbell()
+```
+
+---
+
+## 准备示例数据
+
+```{r}
+# 创建各城市房价变化数据
+housing_data <- data.frame(
+    city = c(
+        "北京", "上海", "深圳", "广州", "杭州",
+        "南京", "成都", "武汉", "西安", "苏州"
+    ),
+    price_2020 = c(62, 58, 55, 32, 35, 28, 18, 20, 15, 25),
+    price_2023 = c(68, 65, 48, 38, 42, 32, 25, 23, 22, 30)
+)
+
+# 计算变化量
+housing_data <- housing_data %>%
+    mutate(
+        change = price_2023 - price_2020,
+        change_pct = round((price_2023 - price_2020) / price_2020 * 100, 1),
+        direction = ifelse(change > 0, "上涨", "下跌"),
+        city = fct_reorder(city, price_2023) # 按2023年价格排序
+    )
+
+housing_data
+```
+
+---
+
+## 基础哑铃图
+
+使用 `geom_segment()` + `geom_point()` 构建哑铃图：
+
+```{r}
+ggplot(housing_data) +
+    # 连接线
+    geom_segment(
+        aes(
+            x = price_2020, xend = price_2023,
+            y = city, yend = city
+        ),
+        color = "#94a3b8",
+        linewidth = 1.5
+    ) +
+    # 2020年的点
+    geom_point(
+        aes(x = price_2020, y = city),
+        size = 4,
+        color = "#94a3b8"
+    ) +
+    # 2023年的点
+    geom_point(
+        aes(x = price_2023, y = city),
+        size = 4,
+        color = "#4f46e5"
+    ) +
+    labs(
+        title = "主要城市房价变化（2020 vs 2023）",
+        subtitle = "单位：万元/平米",
+        x = "房价（万元/平米）",
+        y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 14)
+    )
+```
+
+### 添加图例说明
+
+```{r}
+ggplot(housing_data) +
+    geom_segment(
+        aes(
+            x = price_2020, xend = price_2023,
+            y = city, yend = city
+        ),
+        color = "#e2e8f0",
+        linewidth = 2
+    ) +
+    geom_point(
+        aes(x = price_2020, y = city, color = "2020年"),
+        size = 5
+    ) +
+    geom_point(
+        aes(x = price_2023, y = city, color = "2023年"),
+        size = 5
+    ) +
+    scale_color_manual(
+        values = c("2020年" = "#94a3b8", "2023年" = "#4f46e5")
+    ) +
+    labs(
+        title = "主要城市房价变化",
+        subtitle = "万元/平米",
+        x = NULL,
+        y = NULL,
+        color = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 美化哑铃图
+
+### 按变化方向着色
+
+```{r}
+ggplot(housing_data) +
+    geom_segment(
+        aes(
+            x = price_2020, xend = price_2023,
+            y = city, yend = city,
+            color = direction
+        ),
+        linewidth = 2.5
+    ) +
+    geom_point(
+        aes(x = price_2020, y = city),
+        size = 5,
+        color = "#64748b"
+    ) +
+    geom_point(
+        aes(x = price_2023, y = city, color = direction),
+        size = 5
+    ) +
+    # 添加变化百分比标签
+    geom_text(
+        aes(
+            x = price_2023 + 3, y = city,
+            label = paste0(ifelse(change > 0, "+", ""), change_pct, "%"),
+            color = direction
+        ),
+        size = 3.5,
+        fontface = "bold",
+        hjust = 0
+    ) +
+    scale_color_manual(
+        values = c("上涨" = "#10b981", "下跌" = "#ef4444")
+    ) +
+    scale_x_continuous(limits = c(0, 85)) +
+    labs(
+        title = "房价涨跌一览",
+        subtitle = "2020 → 2023",
+        x = "房价（万元/平米）",
+        y = NULL,
+        color = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 14)
+    )
+```
+
+### 添加数值标签
+
+```{r}
+ggplot(housing_data) +
+    geom_segment(
+        aes(
+            x = price_2020, xend = price_2023,
+            y = city, yend = city
+        ),
+        color = "#cbd5e1",
+        linewidth = 2
+    ) +
+    geom_point(aes(x = price_2020, y = city), size = 5, color = "#64748b") +
+    geom_point(aes(x = price_2023, y = city, color = direction), size = 5) +
+    # 起点数值
+    geom_text(
+        aes(x = price_2020, y = city, label = price_2020),
+        vjust = -1.5,
+        size = 3,
+        color = "#64748b"
+    ) +
+    # 终点数值
+    geom_text(
+        aes(x = price_2023, y = city, label = price_2023, color = direction),
+        vjust = -1.5,
+        size = 3,
+        fontface = "bold"
+    ) +
+    scale_color_manual(
+        values = c("上涨" = "#10b981", "下跌" = "#ef4444")
+    ) +
+    labs(
+        title = "城市房价变化详情",
+        x = NULL,
+        y = NULL,
+        color = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 坡度图 (Slope Chart)
+
+坡度图将两个时间点分成左右两列：
+
+```{r fig.height=7}
+# 转换为长格式
+library(tidyr)
+
+slope_data <- housing_data %>%
+    select(city, price_2020, price_2023, direction) %>%
+    pivot_longer(
+        cols = c(price_2020, price_2023),
+        names_to = "year",
+        values_to = "price"
+    ) %>%
+    mutate(
+        year = ifelse(year == "price_2020", "2020", "2023"),
+        year_num = ifelse(year == "2020", 1, 2)
+    )
+
+ggplot(slope_data, aes(x = year_num, y = price, group = city)) +
+    # 连接线
+    geom_line(aes(color = direction), linewidth = 1.2, alpha = 0.7) +
+    # 端点
+    geom_point(aes(color = direction), size = 4) +
+    # 左侧城市标签
+    geom_text(
+        data = slope_data %>% filter(year == "2020"),
+        aes(label = paste(city, price)),
+        hjust = 1.1,
+        size = 3.5,
+        color = "#374151"
+    ) +
+    # 右侧价格标签
+    geom_text(
+        data = slope_data %>% filter(year == "2023"),
+        aes(label = price, color = direction),
+        hjust = -0.3,
+        size = 3.5,
+        fontface = "bold"
+    ) +
+    scale_color_manual(
+        values = c("上涨" = "#10b981", "下跌" = "#ef4444")
+    ) +
+    scale_x_continuous(
+        breaks = c(1, 2),
+        labels = c("2020年", "2023年"),
+        limits = c(0.3, 2.5)
+    ) +
+    labs(
+        title = "城市房价变化趋势",
+        subtitle = "坡度图展示变化方向",
+        x = NULL,
+        y = "房价（万元/平米）"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", size = 14),
+        axis.text.x = element_text(face = "bold", size = 12)
+    )
+```
+
+---
+
+## 突出特定城市
+
+```{r fig.height=7}
+# 标记重点城市
+highlight_cities <- c("深圳", "杭州", "西安")
+
+slope_data <- slope_data %>%
+    mutate(
+        highlight = city %in% highlight_cities,
+        alpha_val = ifelse(highlight, 1, 0.3)
+    )
+
+ggplot(slope_data, aes(x = year_num, y = price, group = city)) +
+    # 背景线（非重点城市）
+    geom_line(
+        data = slope_data %>% filter(!highlight),
+        color = "#cbd5e1",
+        linewidth = 0.8,
+        alpha = 0.5
+    ) +
+    # 重点城市线
+    geom_line(
+        data = slope_data %>% filter(highlight),
+        aes(color = city),
+        linewidth = 1.5
+    ) +
+    geom_point(
+        data = slope_data %>% filter(highlight),
+        aes(color = city),
+        size = 4
+    ) +
+    # 重点城市标签
+    geom_text(
+        data = slope_data %>% filter(year == "2023" & highlight),
+        aes(label = paste(city, price), color = city),
+        hjust = -0.1,
+        size = 3.5,
+        fontface = "bold"
+    ) +
+    scale_color_manual(
+        values = c("深圳" = "#ef4444", "杭州" = "#10b981", "西安" = "#4f46e5")
+    ) +
+    scale_x_continuous(
+        breaks = c(1, 2),
+        labels = c("2020年", "2023年"),
+        limits = c(0.8, 2.6)
+    ) +
+    labs(
+        title = "重点城市房价走势",
+        subtitle = "深圳下跌 vs 杭州、西安上涨",
+        x = NULL,
+        y = "房价（万元/平米）"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.major.x = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", size = 14)
+    )
+```
+
+---
+
+## 多期坡度图
+
+比较超过两个时间点：
+
+```{r fig.height=6}
+# 创建多期数据
+multi_period <- data.frame(
+    city = rep(c("北京", "上海", "深圳", "杭州"), each = 4),
+    year = rep(c(2020, 2021, 2022, 2023), 4),
+    price = c(
+        62, 65, 66, 68, # 北京
+        58, 62, 64, 65, # 上海
+        55, 58, 52, 48, # 深圳
+        35, 38, 40, 42 # 杭州
+    )
+)
+
+ggplot(multi_period, aes(x = year, y = price, color = city, group = city)) +
+    geom_line(linewidth = 1.2) +
+    geom_point(size = 3) +
+    geom_text(
+        data = multi_period %>% filter(year == 2023),
+        aes(label = city),
+        hjust = -0.2,
+        fontface = "bold",
+        size = 3.5
+    ) +
+    scale_color_manual(
+        values = c(
+            "北京" = "#4f46e5", "上海" = "#8b5cf6",
+            "深圳" = "#ef4444", "杭州" = "#10b981"
+        )
+    ) +
+    scale_x_continuous(
+        breaks = 2020:2023,
+        limits = c(2020, 2024)
+    ) +
+    labs(
+        title = "一线城市房价趋势（2020-2023）",
+        x = NULL,
+        y = "房价（万元/平米）"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "none",
+        plot.title = element_text(face = "bold")
+    )
+```
+
+---
+
+## 使用 ggalt 包的 geom_dumbbell
+
+`ggalt` 包提供了专门的 `geom_dumbbell()` 函数：
+
+```{r}
+# 确保安装了 ggalt
+if (requireNamespace("ggalt", quietly = TRUE)) {
+    library(ggalt)
+
+    ggplot(housing_data, aes(x = price_2020, xend = price_2023, y = city)) +
+        geom_dumbbell(
+            size = 3,
+            color = "#e5e7eb",
+            colour_x = "#94a3b8",
+            colour_xend = "#4f46e5",
+            size_x = 4,
+            size_xend = 4
+        ) +
+        labs(
+            title = "使用 geom_dumbbell()",
+            subtitle = "来自 ggalt 包",
+            x = "房价（万元/平米）",
+            y = NULL
+        ) +
+        theme_minimal(base_size = 12) +
+        theme(
+            panel.grid.major.y = element_blank(),
+            plot.title = element_text(face = "bold")
+        )
+} else {
+    message("请安装 ggalt 包: install.packages('ggalt')")
+}
+```
+
+---
+
+## 实用函数封装
+
+```{r}
+#' 快速绘制哑铃图
+#' @param data 数据框
+#' @param y_var 分类变量
+#' @param start_var 起点数值变量
+#' @param end_var 终点数值变量
+#' @param start_label 起点标签
+#' @param end_label 终点标签
+plot_dumbbell <- function(data, y_var, start_var, end_var,
+                          start_label = "起点", end_label = "终点",
+                          start_color = "#94a3b8", end_color = "#4f46e5",
+                          title = NULL) {
+    data <- data %>%
+        mutate(!!sym(y_var) := fct_reorder(.data[[y_var]], .data[[end_var]]))
+
+    ggplot(data) +
+        geom_segment(
+            aes(
+                x = .data[[start_var]], xend = .data[[end_var]],
+                y = .data[[y_var]], yend = .data[[y_var]]
+            ),
+            color = "#e5e7eb",
+            linewidth = 2
+        ) +
+        geom_point(
+            aes(
+                x = .data[[start_var]], y = .data[[y_var]],
+                color = start_label
+            ),
+            size = 5
+        ) +
+        geom_point(
+            aes(
+                x = .data[[end_var]], y = .data[[y_var]],
+                color = end_label
+            ),
+            size = 5
+        ) +
+        scale_color_manual(
+            values = setNames(c(start_color, end_color), c(start_label, end_label))
+        ) +
+        labs(title = title, x = NULL, y = NULL, color = NULL) +
+        theme_minimal(base_size = 12) +
+        theme(
+            panel.grid.major.y = element_blank(),
+            legend.position = "top",
+            plot.title = element_text(face = "bold")
+        )
+}
+
+# 使用示例
+plot_dumbbell(
+    housing_data, "city", "price_2020", "price_2023",
+    start_label = "2020", end_label = "2023",
+    title = "使用封装函数绑制哑铃图"
+)
+```
+
+---
+
+## 总结
+
+| 图表类型 | 特点 | 适用场景 |
+|----------|------|----------|
+| **哑铃图** | 水平展示两点差异 | 排名比较、变化幅度 |
+| **坡度图** | 斜线展示趋势方向 | 趋势判断、上升/下降 |
+| **多期坡度图** | 连续多点趋势 | 时间序列对比 |
+
+### 核心技巧
+
+1. **排序**：按终点值排序便于比较
+2. **颜色编码**：用颜色区分上升/下降
+3. **标签**：添加数值标签增强可读性
+4. **淡化背景**：突出重点数据
+
+### 选择建议
+
+| 需求 | 推荐图表 |
+|------|----------|
+| 强调变化大小 | 哑铃图 |
+| 强调变化方向 | 坡度图 |
+| 多个时间点 | 多期坡度图/折线图 |
+| 大量类别 | 哑铃图（可排序） |
+
+### 相关教程
+
+- [棒棒糖图与排序图](2035-bindlollipop.html) - 类似的点线结构
+- [发散型图表](2036-binddivergent.html) - 正负对比
+- [折线图与时间序列](2029-bindlineplot.html) - 时间趋势

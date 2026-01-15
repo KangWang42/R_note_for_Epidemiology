@@ -1,0 +1,116 @@
+---
+title: "R语言子弹图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, KPI图]
+image: "images/bindbullet_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 5, fig.retina = 2, out.width = "100%", dpi = 150)
+```
+
+## 什么是子弹图
+
+子弹图（Bullet Chart）由Stephen Few设计，用于替代仪表盘，紧凑展示**实际值与目标值**的比较，同时显示背景区间。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **KPI仪表盘** | 销售目标完成率 |
+| **绩效对比** | 实际 vs 目标 |
+| **多指标对比** | 多个KPI并排展示 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+---
+
+## 基础子弹图
+
+```{r}
+# 示例数据
+kpi_data <- data.frame(
+    metric = c("销售额", "毛利率", "客户满意度", "新客户数"),
+    actual = c(275, 68, 85, 45),
+    target = c(300, 70, 80, 50),
+    max_value = c(350, 100, 100, 60)
+)
+
+# 添加区间
+kpi_data <- kpi_data %>%
+    mutate(
+        poor = max_value * 0.5,
+        satisfactory = max_value * 0.75,
+        good = max_value
+    )
+
+ggplot(kpi_data, aes(y = metric)) +
+    # 背景区间
+    geom_col(aes(x = good), fill = "#e5e7eb", width = 0.6) +
+    geom_col(aes(x = satisfactory), fill = "#d1d5db", width = 0.6) +
+    geom_col(aes(x = poor), fill = "#9ca3af", width = 0.6) +
+    # 实际值
+    geom_col(aes(x = actual), fill = "#4f46e5", width = 0.25) +
+    # 目标线
+    geom_point(aes(x = target), shape = "|", size = 8, color = "#1f2937") +
+    labs(
+        title = "KPI子弹图",
+        subtitle = "蓝色=实际值，黑线=目标",
+        x = NULL, y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid.major.y = element_blank()
+    )
+```
+
+---
+
+## 带百分比标签
+
+```{r}
+kpi_data <- kpi_data %>%
+    mutate(pct = round(actual / target * 100))
+
+ggplot(kpi_data, aes(y = metric)) +
+    geom_col(aes(x = good), fill = "#f1f5f9", width = 0.6) +
+    geom_col(aes(x = satisfactory), fill = "#e2e8f0", width = 0.6) +
+    geom_col(aes(x = poor), fill = "#cbd5e1", width = 0.6) +
+    geom_col(aes(x = actual, fill = actual >= target), width = 0.25) +
+    geom_point(aes(x = target), shape = "|", size = 8, color = "#1f2937") +
+    geom_text(aes(x = actual + 10, label = paste0(pct, "%")), fontface = "bold", size = 3.5) +
+    scale_fill_manual(values = c("TRUE" = "#10b981", "FALSE" = "#f59e0b")) +
+    labs(
+        title = "KPI完成率",
+        x = NULL, y = NULL
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid.major.y = element_blank(),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 总结
+
+| 元素 | 说明 |
+|------|------|
+| **背景区间** | 差/中/好三档 |
+| **实际值** | 窄条形柱 |
+| **目标线** | 竖线标记 |
+
+### 相关教程
+
+- [柱状图与饼图](2028-bindbarchart.html)
+- [棒棒糖图](2035-bindlollipop.html)

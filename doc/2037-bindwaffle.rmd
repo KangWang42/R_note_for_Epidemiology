@@ -1,0 +1,513 @@
+---
+title: "R语言华夫饼图与树形图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 组成图]
+image: "images/bindwaffle_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 9,
+    fig.height = 6,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是华夫饼图和树形图
+
+华夫饼图（Waffle Chart）和树形图（Treemap）都是用于展示**部分与整体关系**的可视化方式，是饼图的优秀替代方案。
+
+### 华夫饼图
+
+华夫饼图将数据表示为**格子网格**，每个格子代表相同的单位量，通过填充不同颜色的格子数量来展示比例关系。
+
+**优点**：
+- 比饼图更易于精确比较比例
+- 人眼更擅长计数矩形而非扇形角度
+- 视觉吸引力强，适合信息图
+
+### 树形图
+
+树形图使用**嵌套矩形**来表示层级结构数据，矩形面积表示数值大小。
+
+**优点**：
+- 高效利用空间
+- 适合展示层级结构
+- 可同时显示大量类别
+
+---
+
+## R包安装与加载
+
+```{r}
+# 核心绑图包
+library(ggplot2)
+library(dplyr)
+
+# 华夫饼图包
+# install.packages("waffle")
+library(waffle)
+
+# 树形图包
+# install.packages("treemapify")
+library(treemapify)
+```
+
+---
+
+## 基础华夫饼图
+
+### 准备数据
+
+```{r}
+# 市场份额数据
+market_share <- c(
+    "品牌A" = 35,
+    "品牌B" = 28,
+    "品牌C" = 22,
+    "其他" = 15
+)
+```
+
+### 使用 waffle 包绑制
+
+```{r fig.height=4}
+waffle(
+    market_share,
+    rows = 5, # 行数
+    size = 0.5, # 格子间距
+    colors = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8"),
+    title = "市场份额分布",
+    xlab = "每个格子 = 1%"
+)
+```
+
+### 代码解析
+
+| 参数 | 说明 |
+|------|------|
+| `rows` | 网格行数，数值越大格子越小 |
+| `size` | 格子之间的间隙大小 |
+| `colors` | 各类别的颜色 |
+| `title` | 图表标题 |
+| `xlab` | x轴标签说明单位含义 |
+
+---
+
+## 使用 ggplot2 手动绑制华夫饼图
+
+如果需要更多自定义，可以用 ggplot2 手动绑制：
+
+```{r}
+# 创建华夫数据
+create_waffle_data <- function(values, rows = 10) {
+    total <- sum(values)
+    cols <- ceiling(total / rows)
+
+    # 创建每个格子的数据
+    cells <- data.frame(
+        x = rep(1:cols, each = rows),
+        y = rep(1:rows, times = cols)
+    )[1:total, ]
+
+    # 分配类别
+    category <- rep(names(values), times = values)
+    cells$category <- factor(category, levels = names(values))
+
+    cells
+}
+
+waffle_data <- create_waffle_data(market_share, rows = 10)
+
+ggplot(waffle_data, aes(x = x, y = y, fill = category)) +
+    geom_tile(color = "white", linewidth = 0.5) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
+    ) +
+    coord_equal() +
+    labs(
+        title = "市场份额 - 华夫饼图",
+        subtitle = "每个格子代表 1%",
+        fill = NULL
+    ) +
+    theme_void() +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, color = "gray50")
+    )
+```
+
+---
+
+## 圆形华夫饼图（图标阵列）
+
+用图标代替格子，使图表更形象：
+
+```{r fig.height=5}
+# 使用 waffle 包的 geom_waffle
+library(ggplot2)
+
+# 创建数据框
+icon_data <- data.frame(
+    category = names(market_share),
+    value = as.numeric(market_share)
+)
+
+ggplot(icon_data, aes(fill = category, values = value)) +
+    geom_waffle(
+        n_rows = 5,
+        size = 0.5,
+        color = "white",
+        flip = TRUE,
+        make_proportional = FALSE
+    ) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
+    ) +
+    coord_equal() +
+    labs(
+        title = "市场份额分布",
+        fill = NULL
+    ) +
+    theme_void() +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", hjust = 0.5)
+    )
+```
+
+---
+
+## 多组华夫饼图对比
+
+```{r fig.height=5}
+# 创建多年数据
+multi_year <- data.frame(
+    year = rep(c("2022年", "2023年"), each = 4),
+    category = rep(c("品牌A", "品牌B", "品牌C", "其他"), 2),
+    value = c(30, 32, 25, 13, 35, 28, 22, 15)
+)
+
+ggplot(multi_year, aes(fill = category, values = value)) +
+    geom_waffle(
+        n_rows = 5,
+        size = 0.3,
+        color = "white",
+        flip = TRUE
+    ) +
+    facet_wrap(~year, ncol = 2) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
+    ) +
+    coord_equal() +
+    labs(
+        title = "市场份额变化对比",
+        fill = NULL
+    ) +
+    theme_void() +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", hjust = 0.5, size = 14),
+        strip.text = element_text(face = "bold", size = 12)
+    )
+```
+
+---
+
+## 基础树形图
+
+### 准备层级数据
+
+```{r}
+# 创建层级数据
+sales_data <- data.frame(
+    category = c(
+        "电子产品", "电子产品", "电子产品",
+        "服装", "服装", "服装",
+        "食品", "食品"
+    ),
+    subcategory = c(
+        "手机", "电脑", "配件",
+        "男装", "女装", "童装",
+        "零食", "饮料"
+    ),
+    sales = c(450, 380, 120, 280, 350, 150, 200, 180)
+)
+
+sales_data
+```
+
+### 绑制基础树形图
+
+```{r}
+ggplot(sales_data, aes(area = sales, fill = category, label = subcategory)) +
+    geom_treemap() +
+    geom_treemap_text(
+        color = "white",
+        place = "centre",
+        size = 12
+    ) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b")
+    ) +
+    labs(
+        title = "各品类销售额占比",
+        fill = "大类"
+    ) +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        legend.position = "bottom"
+    )
+```
+
+---
+
+## 嵌套树形图
+
+展示层级关系更清晰：
+
+```{r}
+ggplot(sales_data, aes(
+    area = sales,
+    fill = category,
+    label = subcategory,
+    subgroup = category
+)) +
+    # 绘制子类矩形
+    geom_treemap() +
+    # 子类标签
+    geom_treemap_text(
+        color = "white",
+        place = "centre",
+        size = 11,
+        reflow = TRUE
+    ) +
+    # 大类边框
+    geom_treemap_subgroup_border(color = "white", size = 3) +
+    # 大类标签
+    geom_treemap_subgroup_text(
+        place = "centre",
+        grow = TRUE,
+        alpha = 0.3,
+        color = "white",
+        fontface = "bold",
+        min.size = 0
+    ) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b")
+    ) +
+    labs(
+        title = "销售额层级结构",
+        subtitle = "嵌套树形图展示大类和子类关系",
+        fill = "大类"
+    ) +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 添加数值标签的树形图
+
+```{r}
+# 添加标签文本
+sales_data <- sales_data %>%
+    mutate(
+        label = paste0(subcategory, "\n¥", sales, "万")
+    )
+
+ggplot(sales_data, aes(
+    area = sales,
+    fill = category,
+    label = label
+)) +
+    geom_treemap() +
+    geom_treemap_text(
+        color = "white",
+        place = "centre",
+        size = 10,
+        grow = FALSE,
+        reflow = TRUE
+    ) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b")
+    ) +
+    labs(
+        title = "各子品类销售额",
+        fill = "大类"
+    ) +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        legend.position = "bottom"
+    )
+```
+
+---
+
+## 渐变色树形图
+
+使用连续色阶表示数值大小：
+
+```{r}
+ggplot(sales_data, aes(
+    area = sales,
+    fill = sales,
+    label = subcategory
+)) +
+    geom_treemap() +
+    geom_treemap_text(
+        color = "white",
+        place = "centre",
+        size = 12,
+        fontface = "bold"
+    ) +
+    scale_fill_gradient(
+        low = "#a5b4fc",
+        high = "#312e81",
+        name = "销售额(万)"
+    ) +
+    labs(
+        title = "销售额热力树形图",
+        subtitle = "颜色深浅表示销售额高低"
+    ) +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        legend.position = "right"
+    )
+```
+
+---
+
+## 华夫饼图 vs 饼图对比
+
+让我们对比两种展示方式：
+
+```{r fig.width=12, fig.height=5}
+library(patchwork)
+
+# 华夫饼图
+p1 <- ggplot(icon_data, aes(fill = category, values = value)) +
+    geom_waffle(
+        n_rows = 5,
+        size = 0.5,
+        color = "white",
+        flip = TRUE
+    ) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
+    ) +
+    coord_equal() +
+    labs(title = "华夫饼图", fill = NULL) +
+    theme_void() +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", hjust = 0.5)
+    )
+
+# 饼图
+p2 <- ggplot(icon_data, aes(x = "", y = value, fill = category)) +
+    geom_col(width = 1) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(
+        values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
+    ) +
+    labs(title = "饼图", fill = NULL) +
+    theme_void() +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", hjust = 0.5)
+    )
+
+p1 + p2 + plot_annotation(
+    title = "华夫饼图 vs 饼图",
+    subtitle = "华夫饼图更容易精确比较比例",
+    theme = theme(
+        plot.title = element_text(face = "bold", size = 16),
+        plot.subtitle = element_text(color = "gray50")
+    )
+)
+```
+
+---
+
+## 实用函数封装
+
+### 快速华夫饼图
+
+```{r}
+#' 快速绘制华夫饼图
+#' @param data 命名向量或数据框
+#' @param n_rows 行数
+#' @param colors 颜色向量
+#' @param title 标题
+quick_waffle <- function(data, n_rows = 5, colors = NULL, title = NULL) {
+    if (is.null(colors)) {
+        colors <- c(
+            "#4f46e5", "#10b981", "#f59e0b", "#ef4444",
+            "#8b5cf6", "#06b6d4", "#84cc16", "#94a3b8"
+        )
+    }
+
+    if (is.data.frame(data)) {
+        df <- data
+    } else {
+        df <- data.frame(
+            category = names(data),
+            value = as.numeric(data)
+        )
+    }
+
+    ggplot(df, aes(fill = category, values = value)) +
+        geom_waffle(
+            n_rows = n_rows,
+            size = 0.4,
+            color = "white",
+            flip = TRUE
+        ) +
+        scale_fill_manual(values = colors[1:nrow(df)]) +
+        coord_equal() +
+        labs(title = title, fill = NULL) +
+        theme_void() +
+        theme(
+            legend.position = "bottom",
+            plot.title = element_text(face = "bold", hjust = 0.5)
+        )
+}
+
+# 使用示例
+quick_waffle(market_share, title = "使用封装函数")
+```
+
+---
+
+## 总结
+
+| 图表类型 | 适用场景 | 核心函数 |
+|----------|----------|----------|
+| **华夫饼图** | 比例展示、信息图 | `waffle()` 或 `geom_waffle()` |
+| **树形图** | 层级结构、空间高效 | `geom_treemap()` + `treemapify` |
+| **嵌套树形图** | 多级层次结构 | `geom_treemap_subgroup_*()` |
+
+### 选择建议
+
+| 需求 | 推荐图表 |
+|------|----------|
+| 简单比例比较 | 华夫饼图 |
+| 层级结构展示 | 嵌套树形图 |
+| 大量类别 | 树形图 |
+| 精确数值对比 | 华夫饼图 + 数值标签 |
+| 视觉冲击力强 | 图标华夫饼图 |
+
+### 相关教程
+
+- [柱状图与饼图](2028-bindbarchart.html) - 传统比例图表
+- [热图绑制完全指南](2020-heatmap.html) - 矩阵数据可视化
+- [桑基图](2014-sankey.html) - 流量可视化

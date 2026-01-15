@@ -1,0 +1,217 @@
+---
+title: "R语言Joy Plot山脊图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 分布图]
+image: "images/bindjoyplot_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 9, fig.height = 7, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是Joy Plot/山脊图
+
+Joy Plot（又称山脊图/Ridgeline Plot）展示多组数据的**密度分布**，各组分布部分重叠，形成类似山脊的视觉效果。名称来源于 Joy Division 专辑封面。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **时间序列分布** | 各月份/年份的分布变化 |
+| **多组比较** | 5-20组数据分布对比 |
+| **趋势展示** | 分布随时间的演变 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Joy Plot 专用包
+# install.packages("ggridges")
+library(ggridges)
+```
+
+---
+
+## 基础山脊图
+
+```{r}
+# 使用内置数据
+data(lincoln_weather)
+
+ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) +
+    geom_density_ridges(alpha = 0.7) +
+    scale_fill_viridis_d(option = "plasma") +
+    labs(
+        title = "林肯市月均气温分布",
+        subtitle = "Joy Plot / 山脊图",
+        x = "平均温度 (°F)",
+        y = NULL
+    ) +
+    theme_ridges() +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 带填充渐变的山脊图
+
+```{r}
+ggplot(lincoln_weather, aes(
+    x = Mean.Temperature..F., y = Month,
+    fill = stat(x)
+)) +
+    geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+    scale_fill_viridis_c(option = "plasma", name = "温度") +
+    labs(
+        title = "温度分布热力山脊图",
+        x = "平均温度 (°F)",
+        y = NULL
+    ) +
+    theme_ridges() +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+---
+
+## 带分位数标记
+
+```{r}
+ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) +
+    geom_density_ridges(
+        alpha = 0.7,
+        quantile_lines = TRUE,
+        quantiles = 2 # 显示中位数
+    ) +
+    scale_fill_viridis_d(option = "mako") +
+    labs(
+        title = "带中位数线的山脊图",
+        x = "平均温度 (°F)",
+        y = NULL
+    ) +
+    theme_ridges() +
+    theme(legend.position = "none")
+```
+
+---
+
+## 带点的山脊图
+
+```{r}
+ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) +
+    geom_density_ridges(
+        alpha = 0.6,
+        jittered_points = TRUE,
+        point_size = 0.8,
+        point_alpha = 0.5,
+        position = position_points_jitter(height = 0)
+    ) +
+    scale_fill_viridis_d(option = "turbo") +
+    labs(
+        title = "带数据点的山脊图",
+        x = "平均温度 (°F)",
+        y = NULL
+    ) +
+    theme_ridges() +
+    theme(legend.position = "none")
+```
+
+---
+
+## 自定义颜色和样式
+
+```{r}
+# 创建示例数据
+set.seed(42)
+exam_data <- data.frame(
+    subject = rep(c("数学", "语文", "英语", "物理", "化学"), each = 100),
+    score = c(
+        rnorm(100, 75, 12),
+        rnorm(100, 78, 10),
+        rnorm(100, 72, 15),
+        rnorm(100, 68, 14),
+        rnorm(100, 70, 13)
+    )
+)
+
+ggplot(exam_data, aes(x = score, y = subject, fill = subject)) +
+    geom_density_ridges(
+        alpha = 0.8,
+        scale = 1.2,
+        rel_min_height = 0.01
+    ) +
+    scale_fill_manual(values = c(
+        "数学" = "#4f46e5", "语文" = "#10b981", "英语" = "#f59e0b",
+        "物理" = "#ec4899", "化学" = "#8b5cf6"
+    )) +
+    scale_x_continuous(limits = c(30, 110)) +
+    labs(
+        title = "各科成绩分布",
+        x = "分数",
+        y = NULL
+    ) +
+    theme_ridges() +
+    theme(
+        plot.title = element_text(face = "bold", size = 14),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 雨云图 (Raincloud Plot)
+
+结合箱线图和密度图：
+
+```{r}
+ggplot(exam_data, aes(x = score, y = subject, fill = subject)) +
+    geom_density_ridges(
+        alpha = 0.6,
+        jittered_points = TRUE,
+        position = position_raincloud(height = 0.15, adjust_vlines = TRUE),
+        point_size = 0.4,
+        point_alpha = 0.3
+    ) +
+    scale_fill_manual(values = c(
+        "数学" = "#4f46e5", "语文" = "#10b981", "英语" = "#f59e0b",
+        "物理" = "#ec4899", "化学" = "#8b5cf6"
+    )) +
+    labs(
+        title = "雨云图 (Raincloud Plot)",
+        x = "分数",
+        y = NULL
+    ) +
+    theme_ridges() +
+    theme(legend.position = "none")
+```
+
+---
+
+## 总结
+
+| 图表类型 | 函数 | 特点 |
+|----------|------|------|
+| **基础山脊图** | `geom_density_ridges()` | 简洁，多组分布 |
+| **渐变山脊图** | `geom_density_ridges_gradient()` | 热力效果 |
+| **带点山脊图** | `jittered_points = TRUE` | 显示原始数据 |
+| **雨云图** | `position_raincloud()` | 结合分布和原始点 |
+
+### 设计建议
+
+1. 组数控制在 5-15 个
+2. 使用 `scale` 参数调整重叠程度
+3. 按中位数或均值排序
+
+### 相关教程
+
+- [箱线图与小提琴图](2025-bindboxplot.html)
+- [直方图与密度图](2027-bindhistogram.html)

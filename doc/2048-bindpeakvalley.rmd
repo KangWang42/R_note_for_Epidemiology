@@ -1,0 +1,151 @@
+---
+title: "R语言时序峰谷标记图绑制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 时序图]
+image: "images/bindpeakvalley_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 5, fig.retina = 2, out.width = "100%", dpi = 150)
+```
+
+## 什么是峰谷标记图
+
+峰谷标记图在时间序列上**自动检测并标注**局部最大值（峰）和最小值（谷），帮助识别关键转折点。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **股票分析** | 买卖时机识别 |
+| **业务周期** | 季节性高低点 |
+| **趋势分析** | 关键转折点标记 |
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+---
+
+## 峰谷检测函数
+
+```{r}
+# 定义峰谷检测函数
+find_peaks <- function(x, threshold = 1) {
+    n <- length(x)
+    peaks <- rep(FALSE, n)
+    for (i in (threshold + 1):(n - threshold)) {
+        if (all(x[i] > x[(i - threshold):(i - 1)]) &&
+            all(x[i] > x[(i + 1):(i + threshold)])) {
+            peaks[i] <- TRUE
+        }
+    }
+    peaks
+}
+
+find_valleys <- function(x, threshold = 1) {
+    n <- length(x)
+    valleys <- rep(FALSE, n)
+    for (i in (threshold + 1):(n - threshold)) {
+        if (all(x[i] < x[(i - threshold):(i - 1)]) &&
+            all(x[i] < x[(i + 1):(i + threshold)])) {
+            valleys[i] <- TRUE
+        }
+    }
+    valleys
+}
+```
+
+---
+
+## 基础峰谷标记
+
+```{r}
+# 创建时序数据
+set.seed(42)
+ts_data <- data.frame(
+    date = seq(as.Date("2023-01-01"), by = "week", length.out = 52),
+    value = 100 + cumsum(rnorm(52, 0, 5)) + sin(1:52 / 4) * 15
+)
+
+# 检测峰谷
+ts_data <- ts_data %>%
+    mutate(
+        is_peak = find_peaks(value, threshold = 2),
+        is_valley = find_valleys(value, threshold = 2)
+    )
+
+ggplot(ts_data, aes(x = date, y = value)) +
+    geom_line(color = "#4f46e5", linewidth = 1) +
+    # 标记峰
+    geom_point(
+        data = filter(ts_data, is_peak),
+        color = "#10b981", size = 4, shape = 17
+    ) +
+    # 标记谷
+    geom_point(
+        data = filter(ts_data, is_valley),
+        color = "#ef4444", size = 4, shape = 25, fill = "#ef4444"
+    ) +
+    labs(
+        title = "时序峰谷标记图",
+        subtitle = "▲ 峰值  ▼ 谷值",
+        x = NULL, y = "数值"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+---
+
+## 带标签的峰谷
+
+```{r}
+library(ggrepel)
+
+ggplot(ts_data, aes(x = date, y = value)) +
+    geom_line(color = "#4f46e5", linewidth = 1) +
+    geom_point(
+        data = filter(ts_data, is_peak),
+        color = "#10b981", size = 3
+    ) +
+    geom_point(
+        data = filter(ts_data, is_valley),
+        color = "#ef4444", size = 3
+    ) +
+    geom_text_repel(
+        data = filter(ts_data, is_peak | is_valley),
+        aes(label = round(value, 1), color = is_peak),
+        size = 3, fontface = "bold"
+    ) +
+    scale_color_manual(values = c("TRUE" = "#10b981", "FALSE" = "#ef4444")) +
+    labs(
+        title = "带数值标签的峰谷图",
+        x = NULL, y = "数值"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 总结
+
+| 技巧 | 说明 |
+|------|------|
+| **峰检测** | 比相邻点都高 |
+| **谷检测** | 比相邻点都低 |
+| **threshold** | 控制检测灵敏度 |
+
+### 相关教程
+
+- [折线图与时间序列](2029-bindlineplot.html)
+- [面积图](2030-bindareaplot.html)
