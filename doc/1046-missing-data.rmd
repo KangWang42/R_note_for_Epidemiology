@@ -1,6 +1,6 @@
 ---
-title: "缺失值处理完全指南"
-date: "2026-01-13"
+title: "缺失值查看与处理完全指南"
+date: "2026-01-15"
 categories: [R语言方法, 数据处理, 缺失值]
 image: "images/missing-data-cover.svg"
 ---
@@ -11,280 +11,765 @@ knitr::opts_chunk$set(
     warning = FALSE,
     message = FALSE,
     fig.width = 8,
-    fig.height = 5
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
 )
 ```
 
 ## 缺失值问题概述
 
-缺失数据是数据分析中最常见的问题之一。正确处理缺失值对于获得可靠的统计推断至关重要。
+缺失数据是数据分析中最常见的问题之一。正确识别和处理缺失值对于获得可靠的统计推断至关重要。本教程将全面介绍缺失值的检测、可视化和处理方法。
 
 ### 缺失机制分类
 
-| 类型 | 全称 | 含义 | 处理难度 |
-|------|------|------|---------|
-| **MCAR** | Missing Completely At Random | 完全随机缺失 | 易 |
-| **MAR** | Missing At Random | 随机缺失（依赖其他变量） | 中 |
-| **MNAR** | Missing Not At Random | 非随机缺失（依赖缺失值本身） | 难 |
+| 类型 | 全称 | 含义 | 例子 | 处理难度 |
+|------|------|------|------|----------|
+| **MCAR** | Missing Completely At Random | 完全随机缺失，与任何变量无关 | 问卷随机丢失 | 易 |
+| **MAR** | Missing At Random | 缺失依赖于其他观测变量 | 高收入人群更不愿报告收入 | 中 |
+| **MNAR** | Missing Not At Random | 缺失依赖于缺失值本身 | 抑郁严重者更可能不填问卷 | 难 |
 
-## 安装与加载
+### 缺失处理策略总览
+
+| 策略 | 适用场景 | 优点 | 缺点 |
+|------|----------|------|------|
+| 删除法 | MCAR，缺失少 | 简单 | 损失信息，可能有偏 |
+| 单值填充 | 快速预览 | 快速 | 低估方差 |
+| 多重插补 | MAR | 保留不确定性 | 计算复杂 |
+| 最大似然 | MAR | 高效无偏 | 需特定模型 |
+
+---
+
+## R 包安装与加载
 
 ```{r}
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(naniar) # 缺失值可视化
+# 核心包
+library(tidyverse) # 数据处理
+library(naniar) # 缺失值可视化（核心）
+library(VIM) # 高级可视化
 library(mice) # 多重插补
+library(finalfit) # 临床研究报告
 
-theme_set(theme_bw(base_size = 12))
+# 辅助包
+library(visdat) # 数据概览
+library(missRanger) # 随机森林插补
+
+theme_set(theme_minimal(base_size = 12))
 ```
 
+---
+
+## 创建示例数据
+
+```{r}
+# 创建含多种缺失模式的示例数据
+set.seed(2024)
+n <- 500
+
+# 基础数据（无缺失）
+df_complete <- tibble(
+    id = 1:n,
+    age = round(rnorm(n, 55, 12)),
+    sex = factor(sample(c("男", "女"), n, replace = TRUE)),
+    education = factor(
+        sample(c("初中", "高中", "本科", "研究生"), n,
+            replace = TRUE,
+            prob = c(0.15, 0.35, 0.35, 0.15)
+        ),
+        levels = c("初中", "高中", "本科", "研究生")
+    ),
+    income = round(rnorm(n, 8000, 3000)),
+    bmi = round(rnorm(n, 24, 4), 1),
+    blood_pressure = round(rnorm(n, 130, 20)),
+    cholesterol = round(rnorm(n, 200, 40)),
+    glucose = round(rnorm(n, 100, 25)),
+    exercise_hours = round(rpois(n, 3)),
+    smoking = factor(sample(c("从不", "已戒", "吸烟"), n,
+        replace = TRUE,
+        prob = c(0.5, 0.2, 0.3)
+    )),
+    disease_score = round(50 + 0.3 * (age - 55) + 5 * (bmi - 24) + rnorm(n, 0, 10))
+)
+
+# 引入不同类型的缺失
+df <- df_complete %>%
+    mutate(
+        # MCAR: 完全随机缺失（年龄，约10%）
+        age = ifelse(runif(n) < 0.10, NA, age),
+
+        # MAR: 依赖其他变量（收入缺失与教育水平相关 - 教育低的更不愿报告）
+        income = ifelse(
+            as.numeric(education) <= 2 & runif(n) < 0.25, # 初中/高中25%缺失
+            NA,
+            ifelse(runif(n) < 0.05, NA, income) # 其他5%缺失
+        ),
+
+        # MAR: 胆固醇缺失与年龄相关
+        cholesterol = ifelse(age > 60 | runif(n) < 0.15,
+            ifelse(runif(n) < 0.3, NA, cholesterol),
+            cholesterol
+        ),
+
+        # 血糖：与BMI相关的缺失
+        glucose = ifelse(bmi > 28 & runif(n) < 0.2, NA,
+            ifelse(runif(n) < 0.08, NA, glucose)
+        ),
+
+        # 教育：少量随机缺失
+        education = ifelse(runif(n) < 0.05, NA, as.character(education)),
+        education = factor(education, levels = c("初中", "高中", "本科", "研究生")),
+
+        # 吸烟状态：极少缺失
+        smoking = ifelse(runif(n) < 0.03, NA, as.character(smoking)),
+        smoking = factor(smoking, levels = c("从不", "已戒", "吸烟"))
+    )
+
+# 查看数据
+glimpse(df)
+```
+
+---
 
 ## 第一部分：缺失值检测
 
-### 基础检测
+### 基础统计
 
 ```{r}
-# 创建含缺失值的示例数据
-set.seed(42)
-df <- data.frame(
-    id = 1:100,
-    age = sample(c(20:60, NA), 100, replace = TRUE, prob = c(rep(0.02, 41), 0.18)),
-    income = sample(c(3000:10000, NA), 100, replace = TRUE),
-    education = sample(c("高中", "本科", "硕士", NA), 100, replace = TRUE),
-    score = rnorm(100, 75, 10)
-)
-df$score[sample(1:100, 10)] <- NA
+# 总体缺失情况
+cat("===== 缺失值基础统计 =====\n")
+cat("总缺失数:", sum(is.na(df)), "\n")
+cat("总缺失率:", round(mean(is.na(df)) * 100, 2), "%\n\n")
 
-# 基础统计
-sum(is.na(df)) # 总缺失数
-colSums(is.na(df)) # 每列缺失数
-mean(is.na(df$age)) # 缺失比例
+# 每列缺失数和比例
+missing_summary <- data.frame(
+    变量 = names(df),
+    缺失数 = sapply(df, function(x) sum(is.na(x))),
+    缺失率 = sapply(df, function(x) round(mean(is.na(x)) * 100, 2))
+)
+missing_summary %>%
+    filter(缺失数 > 0) %>%
+    arrange(desc(缺失率))
 ```
 
 ### 使用 naniar 包
 
+`naniar` 包提供了 tidyverse 风格的缺失值处理函数。
+
 ```{r}
-# 缺失值摘要
+# 变量级别的缺失摘要
 miss_var_summary(df)
 ```
 
 ```{r}
-# 缺失模式
-miss_case_summary(df) %>% head()
-```
-
-### 可视化缺失模式
-
-```{r}
-# 缺失值热图
-vis_miss(df)
+# 样本级别的缺失摘要
+miss_case_summary(df) %>%
+    head(10)
 ```
 
 ```{r}
-# 缺失模式图
-gg_miss_upset(df)
+# 缺失表格（按缺失变量数分组）
+miss_case_table(df)
 ```
 
+### 使用 finalfit 包
 
-## 第二部分：简单处理方法
+`finalfit` 包特别适合临床研究报告。
+
+```{r}
+# 缺失模式摘要
+ff_glimpse(df)
+```
+
+```{r}
+# 与结局变量关联的缺失分析
+explanatory <- c("age", "sex", "education", "income", "bmi", "cholesterol")
+dependent <- "disease_score"
+
+df %>%
+    missing_pattern(dependent, explanatory)
+```
+
+---
+
+## 第二部分：缺失值可视化
+
+可视化是理解缺失模式的关键步骤。
+
+### 热图可视化
+
+```{r}
+# 使用 naniar
+vis_miss(df, sort_miss = TRUE) +
+    labs(
+        title = "缺失值热图",
+        subtitle = "黑色表示缺失，按缺失率排序"
+    )
+```
+
+### 数据类型与缺失概览
+
+```{r}
+# 使用 visdat
+vis_dat(df) +
+    labs(title = "数据类型与缺失值概览")
+```
+
+### UpSet 图：缺失模式组合
+
+```{r fig.height=6}
+# 显示变量缺失的组合模式
+gg_miss_upset(df, nsets = 6) +
+    labs(title = "缺失模式 UpSet 图")
+```
+
+**解读**: UpSet 图显示不同变量缺失的组合。例如，某些样本可能同时缺失收入和胆固醇。
+
+### 变量间缺失关联
+
+```{r}
+# 缺失值的相关性
+gg_miss_fct(df, fct = sex) +
+    labs(title = "缺失率与性别的关系")
+```
+
+```{r}
+# 按教育水平查看缺失
+gg_miss_fct(df %>% filter(!is.na(education)), fct = education) +
+    labs(title = "缺失率与教育水平的关系")
+```
+
+### VIM 包高级可视化
+
+```{r fig.height=6}
+# 聚合图：展示变量组合的缺失模式
+aggr_plot <- aggr(df,
+    col = c("#4f46e5", "#ef4444"),
+    numbers = TRUE,
+    sortVars = TRUE,
+    labels = names(df),
+    cex.axis = 0.7,
+    gap = 3,
+    ylab = c("缺失比例", "缺失模式")
+)
+```
+
+```{r fig.height=5}
+# 边际图：展示两个变量的缺失关系
+marginplot(df[c("income", "cholesterol")],
+    col = c("#4f46e5", "#ef4444", "#22c55e"),
+    main = "收入与胆固醇的缺失边际图"
+)
+```
+
+**解读**: 边际图中，红色点表示一个变量缺失时另一个变量的分布。如果分布与蓝色（完整数据）明显不同，说明缺失可能不是 MCAR。
+
+### 矩阵图
+
+```{r fig.height=6}
+# 矩阵图：变量对之间的缺失关系
+matrixplot(df, sortby = "income")
+```
+
+---
+
+## 第三部分：缺失机制检验
+
+### Little's MCAR 检验
+
+```{r}
+# 使用 naniar 的 mcar_test
+mcar_result <- mcar_test(df %>% select(where(is.numeric)))
+print(mcar_result)
+
+# 解读
+if (mcar_result$p.value < 0.05) {
+    cat("\np < 0.05: 拒绝 MCAR 假设，缺失可能是 MAR 或 MNAR\n")
+} else {
+    cat("\np >= 0.05: 不能拒绝 MCAR 假设\n")
+}
+```
+
+### 缺失指示变量分析
+
+```{r}
+# 创建缺失指示变量，检验缺失与其他变量的关联
+df_shadow <- bind_shadow(df)
+
+# 检验收入缺失是否与教育相关
+chisq.test(table(df$education, is.na(df$income)))
+```
+
+```{r}
+# 可视化缺失与其他变量的关系
+df_shadow %>%
+    filter(!is.na(education)) %>%
+    ggplot(aes(x = education, fill = income_NA)) +
+    geom_bar(position = "fill") +
+    scale_fill_manual(
+        values = c("#4f46e5", "#ef4444"),
+        labels = c("有数据", "缺失")
+    ) +
+    labs(
+        title = "收入缺失与教育水平的关系",
+        y = "比例",
+        fill = "收入状态"
+    ) +
+    theme(legend.position = "top")
+```
+
+---
+
+## 第四部分：简单处理方法
 
 ### 删除法
 
 ```{r}
-# 删除含NA的行（listwise deletion）
-df_complete <- na.omit(df)
-nrow(df_complete)
+# 完整案例分析（listwise deletion）
+df_complete_cases <- df %>%
+    drop_na()
 
-# 删除特定列NA
-df_drop <- df %>% drop_na(age, income)
-nrow(df_drop)
+cat("原始样本量:", nrow(df), "\n")
+cat("完整案例样本量:", nrow(df_complete_cases), "\n")
+cat("损失比例:", round((1 - nrow(df_complete_cases) / nrow(df)) * 100, 1), "%\n")
 ```
 
-> **注意**：删除法可能导致样本量大幅减少，仅在MCAR时无偏。
+```{r}
+# 只删除关键变量的缺失
+df_partial_drop <- df %>%
+    drop_na(age, disease_score)
 
-### 均值/中位数填充
+cat("删除关键变量缺失后样本量:", nrow(df_partial_drop), "\n")
+```
+
+> **警告**: 删除法仅在 MCAR 时无偏，且会损失大量信息。
+
+### 单值填充
 
 ```{r}
-# 均值填充
-df_mean <- df %>%
+# 均值/中位数填充
+df_mean_imputed <- df %>%
     mutate(
-        age = ifelse(is.na(age), mean(age, na.rm = TRUE), age),
-        income = ifelse(is.na(income), median(income, na.rm = TRUE), income)
+        age = replace_na(age, round(mean(age, na.rm = TRUE))),
+        income = replace_na(income, round(median(income, na.rm = TRUE))),
+        cholesterol = replace_na(cholesterol, round(mean(cholesterol, na.rm = TRUE))),
+        glucose = replace_na(glucose, round(mean(glucose, na.rm = TRUE)))
     )
 
-# 使用 coalesce（类型更安全）
+# 检查结果
+sum(is.na(df_mean_imputed %>% select(age, income, cholesterol, glucose)))
+```
+
+```{r}
+# 使用 tidyr::replace_na
 df_filled <- df %>%
     mutate(
-        age = coalesce(as.numeric(age), mean(age, na.rm = TRUE)),
-        score = coalesce(score, median(score, na.rm = TRUE))
+        bmi = replace_na(bmi, median(bmi, na.rm = TRUE))
     )
 ```
 
 ### 众数填充（分类变量）
 
 ```{r}
-# 计算众数
+# 定义众数函数
 get_mode <- function(x) {
     x <- x[!is.na(x)]
     ux <- unique(x)
     ux[which.max(tabulate(match(x, ux)))]
 }
 
-df_mode <- df %>%
-    mutate(education = replace_na(education, get_mode(education)))
+# 填充分类变量
+df_mode_filled <- df %>%
+    mutate(
+        education = replace_na(education, get_mode(education)),
+        smoking = replace_na(smoking, get_mode(smoking))
+    )
 ```
 
+### 分组填充
 
-## 第三部分：多重插补（mice）
+```{r}
+# 按性别分组填充年龄
+df_group_filled <- df %>%
+    group_by(sex) %>%
+    mutate(
+        age = replace_na(age, round(mean(age, na.rm = TRUE)))
+    ) %>%
+    ungroup()
+```
 
-多重插补是处理MAR缺失的推荐方法。
+---
+
+## 第五部分：多重插补 (mice)
+
+多重插补是处理 MAR 缺失的**推荐方法**，它通过生成多个插补数据集来保留估计的不确定性。
 
 ### 基本流程
 
 ```{r}
-# 准备数据（只保留数值和因子）
+# 准备数据（只保留需要分析的变量）
 df_mice <- df %>%
-    select(-id) %>%
-    mutate(education = as.factor(education))
+    select(
+        age, sex, education, income, bmi, cholesterol, glucose,
+        exercise_hours, smoking, disease_score
+    )
 
 # 执行多重插补
-imp <- mice(df_mice, m = 5, method = "pmm", seed = 123, print = FALSE)
+imp <- mice(
+    df_mice,
+    m = 5, # 生成5个插补数据集
+    method = "pmm", # 默认方法：预测均值匹配
+    maxit = 10, # 迭代次数
+    seed = 42,
+    print = FALSE
+)
+
+# 查看插补模型摘要
+imp
 ```
 
-### 查看插补方法
+### 插补方法选择
+
+| 方法 | 代码 | 适用类型 | 说明 |
+|------|------|---------|------|
+| 预测均值匹配 | `pmm` | 数值型 | 默认，保持原始分布 |
+| 贝叶斯线性回归 | `norm` | 连续数值 | 正态分布假设 |
+| 逻辑回归 | `logreg` | 二分类 | 0/1 变量 |
+| 多项式回归 | `polyreg` | 多分类 | 有序/无序分类 |
+| 随机森林 | `rf` | 通用 | 复杂关系 |
 
 ```{r}
-# 查看使用的方法
+# 查看使用的插补方法
 imp$method
 ```
 
-| 方法 | 适用类型 | 说明 |
-|------|---------|------|
-| `pmm` | 数值型 | 预测均值匹配（默认，推荐） |
-| `logreg` | 二分类 | 逻辑回归 |
-| `polyreg` | 多分类 | 多项式回归 |
-| `norm` | 数值型 | 正态分布 |
+```{r}
+# 自定义插补方法
+method_custom <- make.method(df_mice)
+method_custom["education"] <- "polyreg" # 多分类用多项式
+method_custom["smoking"] <- "polyreg"
 
-### 提取填充数据
+# 重新插补
+imp_custom <- mice(df_mice,
+    m = 5, method = method_custom,
+    seed = 42, print = FALSE
+)
+imp_custom$method
+```
+
+### 诊断：检查收敛性
+
+```{r fig.height=6}
+# 查看迭代轨迹（应该稳定收敛）
+plot(imp, c("age", "income", "cholesterol"))
+```
+
+### 诊断：比较插补前后分布
 
 ```{r}
-# 提取第1个填充数据集
-complete_data <- complete(imp, 1)
-head(complete_data)
+# 密度图比较
+densityplot(imp, ~ age + income + cholesterol)
 ```
 
 ```{r}
-# 提取所有填充数据（长格式）
-all_complete <- complete(imp, "long")
-head(all_complete)
+# 条带图
+stripplot(imp, age + income ~ .imp, pch = 20, cex = 0.8)
 ```
 
-### 对多重填充数据建模
+**解读**: 蓝色点是观测值，红色点是插补值。如果分布合理重叠，说明插补质量好。
+
+### 提取插补数据
 
 ```{r}
-# 在每个填充数据上拟合模型
-fit <- with(imp, lm(score ~ age + income + education))
+# 提取第1个插补数据集
+complete_1 <- complete(imp, 1)
+head(complete_1)
+```
 
-# 合并结果（Rubin规则）
+```{r}
+# 提取所有插补数据（长格式）
+complete_long <- complete(imp, action = "long", include = TRUE)
+head(complete_long)
+```
+
+### 对多重插补数据建模
+
+```{r}
+# 在每个插补数据集上拟合模型
+fit <- with(imp, lm(disease_score ~ age + sex + education + income + bmi + cholesterol))
+
+# 查看各数据集的结果
+summary(fit)
+```
+
+```{r}
+# 使用 Rubin 规则合并结果
 pooled <- pool(fit)
 summary(pooled)
 ```
 
-
-## 第四部分：可视化填充效果
-
-### 密度图比较
-
 ```{r}
-# 比较原始与填充后的分布
-densityplot(imp, ~age)
+# 更完整的汇总表
+pool_summary <- summary(pooled) %>%
+    mutate(
+        `95% CI` = paste0(
+            "[", round(estimate - 1.96 * std.error, 3), ", ",
+            round(estimate + 1.96 * std.error, 3), "]"
+        ),
+        p.value = format.pval(p.value, digits = 3)
+    ) %>%
+    select(term, estimate, std.error, `95% CI`, p.value)
+
+pool_summary
 ```
 
-### 条带图
+---
+
+## 第六部分：高级插补方法
+
+### 随机森林插补 (missRanger)
+
+`missRanger` 使用随机森林进行插补，适合复杂非线性关系。
 
 ```{r}
-stripplot(imp, age ~ .imp, pch = 20)
-```
+# 随机森林插补
+df_rf_imputed <- missRanger(
+    df_mice,
+    num.trees = 100,
+    verbose = 0,
+    seed = 42
+)
 
-
-## 第五部分：实战案例
-
-### 完整分析流程
-
-```{r}
-# 1. 检查缺失模式
-miss_var_summary(df)
-```
-
-```{r}
-# 2. 可视化
-vis_miss(df)
-```
-
-```{r}
-# 3. 多重插补
-df_for_imp <- df %>%
-    select(-id) %>%
-    mutate(education = as.factor(education))
-
-imp_final <- mice(df_for_imp, m = 5, seed = 42, print = FALSE)
+# 检查结果
+sum(is.na(df_rf_imputed))
 ```
 
 ```{r}
-# 4. 分析
-model <- with(imp_final, lm(score ~ age + income))
-result <- pool(model)
-summary(result)
+# 比较原始数据和插补数据的分布
+compare_dist <- tibble(
+    variable = "income",
+    original = df_mice$income,
+    imputed = df_rf_imputed$income
+) %>%
+    pivot_longer(-variable, names_to = "type", values_to = "value") %>%
+    filter(!is.na(value))
+
+ggplot(compare_dist, aes(x = value, fill = type)) +
+    geom_density(alpha = 0.5) +
+    scale_fill_manual(
+        values = c("#4f46e5", "#22c55e"),
+        labels = c("插补后", "原始")
+    ) +
+    labs(
+        title = "收入分布：原始 vs 随机森林插补",
+        x = "收入", y = "密度", fill = ""
+    )
+```
+
+### K最近邻插补 (VIM)
+
+```{r}
+# KNN 插补
+df_knn_imputed <- kNN(df_mice, k = 5)
+
+# kNN 会添加指示变量，需要移除
+df_knn_imputed <- df_knn_imputed %>%
+    select(-ends_with("_imp"))
+```
+
+---
+
+## 第七部分：敏感性分析
+
+由于无法直接验证 MAR 假设，敏感性分析非常重要。
+
+### Tipping Point 分析
+
+```{r}
+# 模拟 MNAR 场景：假设缺失的收入实际上偏低
+delta_values <- c(0, -1000, -2000, -3000) # 偏移量
+
+sensitivity_results <- map_dfr(delta_values, function(delta) {
+    # 对第一个插补数据集进行敏感性调整
+    imp_adj <- complete(imp, 1)
+
+    # 找出原始缺失的位置
+    missing_idx <- is.na(df_mice$income)
+
+    # 对插补值进行偏移
+    imp_adj$income[missing_idx] <- imp_adj$income[missing_idx] + delta
+
+    # 拟合模型
+    fit <- lm(disease_score ~ age + income + bmi, data = imp_adj)
+
+    # 返回收入系数
+    tibble(
+        delta = delta,
+        estimate = coef(fit)["income"],
+        se = summary(fit)$coefficients["income", "Std. Error"],
+        p.value = summary(fit)$coefficients["income", "Pr(>|t|)"]
+    )
+})
+
+sensitivity_results
 ```
 
 ```{r}
-# 5. 提取最终数据
-final_data <- complete(imp_final, action = "long", include = TRUE)
+# 可视化敏感性分析
+ggplot(sensitivity_results, aes(x = delta, y = estimate)) +
+    geom_line(color = "#4f46e5", linewidth = 1) +
+    geom_point(size = 3, color = "#4f46e5") +
+    geom_errorbar(
+        aes(
+            ymin = estimate - 1.96 * se,
+            ymax = estimate + 1.96 * se
+        ),
+        width = 100, color = "#4f46e5"
+    ) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    labs(
+        title = "敏感性分析：收入效应随 MNAR 偏移的变化",
+        x = "假设的 MNAR 偏移量 (元)",
+        y = "收入系数估计"
+    ) +
+    theme(plot.title = element_text(face = "bold"))
 ```
 
+---
 
-## 常用代码速查
+## 第八部分：完整分析流程
+
+### 实战案例
+
+```{r}
+# ========== 完整缺失值分析流程 ==========
+
+# 1. 缺失概览
+cat("===== Step 1: 缺失值概览 =====\n")
+miss_var_summary(df_mice)
+```
+
+```{r}
+# 2. 可视化缺失模式
+vis_miss(df_mice, sort_miss = TRUE) +
+    labs(title = "Step 2: 缺失热图")
+```
+
+```{r fig.height=5}
+# 3. MCAR 检验
+cat("\n===== Step 3: MCAR 检验 =====\n")
+mcar_test(df_mice %>% select(where(is.numeric)))
+```
+
+```{r}
+# 4. 多重插补
+cat("\n===== Step 4: 多重插补 =====\n")
+imp_final <- mice(df_mice,
+    m = 10, method = "pmm",
+    maxit = 20, seed = 2024, print = FALSE
+)
+```
+
+```{r}
+# 5. 诊断
+densityplot(imp_final, ~ age + income)
+```
+
+```{r}
+# 6. 建模与合并
+fit_final <- with(
+    imp_final,
+    lm(disease_score ~ age + sex + income + bmi + cholesterol)
+)
+pooled_final <- pool(fit_final)
+
+# 7. 结果报告
+summary(pooled_final) %>%
+    mutate(
+        estimate = round(estimate, 3),
+        std.error = round(std.error, 3),
+        `95% CI` = paste0(
+            "[", round(estimate - 1.96 * std.error, 3), ", ",
+            round(estimate + 1.96 * std.error, 3), "]"
+        ),
+        p.value = format.pval(p.value, digits = 3)
+    ) %>%
+    select(term, estimate, std.error, `95% CI`, p.value) %>%
+    knitr::kable(caption = "多重插补后的回归结果")
+```
+
+---
+
+## 代码速查表
 
 ```{r eval=FALSE}
+# ========== 缺失值处理速查 ==========
+
 # 检测
-sum(is.na(df))
-colSums(is.na(df))
-naniar::miss_var_summary(df)
+sum(is.na(df)) # 总缺失数
+colSums(is.na(df)) # 每列缺失数
+naniar::miss_var_summary(df) # 变量摘要
+naniar::miss_case_summary(df) # 样本摘要
 
 # 可视化
-naniar::vis_miss(df)
-naniar::gg_miss_upset(df)
+naniar::vis_miss(df) # 缺失热图
+naniar::gg_miss_upset(df) # UpSet 图
+VIM::aggr(df) # 聚合图
+VIM::marginplot(df[c("x", "y")]) # 边际图
+
+# MCAR 检验
+naniar::mcar_test(df)
 
 # 简单处理
-df %>% drop_na() # 删除NA行
-df %>% replace_na(list(x = 0)) # 填充固定值
-df %>% mutate(x = replace_na(x, mean(x, na.rm = TRUE)))
+df %>% drop_na() # 删除法
+df %>% mutate(x = replace_na(x, mean(x, na.rm = TRUE))) # 均值填充
 
 # 多重插补
-imp <- mice(df, m = 5, method = "pmm")
-complete(imp, 1) # 提取填充数据
+imp <- mice(df, m = 5, method = "pmm") # 插补
+complete(imp, 1) # 提取单个数据集
 fit <- with(imp, lm(y ~ x)) # 建模
 pool(fit) # 合并结果
+
+# 随机森林插补
+missRanger::missRanger(df)
+
+# 使用 finalfit
+df %>% missing_pattern(dependent, explanatory)
 ```
 
+---
 
-## 小结
+## 报告模板
 
-缺失值处理策略选择：
+在论文中报告缺失值处理：
+
+> **缺失数据处理**: 本研究中，收入变量有 X% 的缺失，胆固醇有 Y% 的缺失。Little's MCAR 检验显示缺失不满足完全随机假设 (χ² = xx, p < 0.05)。我们采用多重插补法 (mice 包，m = 10) 处理缺失数据，使用预测均值匹配法 (PMM) 进行插补。插补后的分布与原始数据分布相似。敏感性分析显示结论在不同 MNAR 假设下保持稳健。
+
+---
+
+## 总结
 
 | 情况 | 推荐方法 |
-|------|---------|
-| 缺失<5%，MCAR | 删除法 |
-| 缺失较多，MAR | 多重插补（mice） |
-| 时间序列 | 线性插值 |
+|------|----------|
+| 缺失 < 5%，MCAR | 删除法可接受 |
+| 缺失适中，MAR | 多重插补 (mice) ★推荐 |
+| 非线性关系 | 随机森林插补 (missRanger) |
 | 需要快速预览 | 均值/中位数填充 |
+| MNAR 担忧 | 敏感性分析必做 |
 
-> **最佳实践**：始终报告缺失情况，并进行敏感性分析验证结果稳健性。
+> **最佳实践**：
+> 1. 始终报告缺失情况
+> 2. 可视化缺失模式
+> 3. 检验 MCAR 假设
+> 4. 多重插补优于单值填充
+> 5. 进行敏感性分析
 
+---
 
 ## 参考资源
 
 - [mice 包文档](https://amices.org/mice/)
 - [naniar 包文档](https://naniar.njtierney.com/)
-- [Flexible Imputation of Missing Data](https://stefvanbuuren.name/fimd/)
+- [VIM 包文档](https://cran.r-project.org/web/packages/VIM/)
+- van Buuren S. *Flexible Imputation of Missing Data* (在线免费书籍)
+- Little RJA, Rubin DB. *Statistical Analysis with Missing Data*

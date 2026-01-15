@@ -1,0 +1,613 @@
+---
+title: "随机生存森林完全指南"
+date: "2026-01-15"
+categories: [R语言方法, 生存分析, 机器学习]
+image: "images/random-survival-forest-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 什么是随机生存森林
+
+**随机生存森林（Random Survival Forest, RSF）** 是将随机森林算法扩展到生存分析领域的机器学习方法。它结合了随机森林的优势与生存分析处理删失数据的能力。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **高维数据** | 变量数量远多于样本量 |
+| **非线性关系** | 协变量与风险之间存在复杂非线性关系 |
+| **变量交互** | 存在高阶交互作用 |
+| **变量选择** | 自动筛选重要变量 |
+| **预测建模** | 关注预测精度而非推断 |
+
+### RSF vs Cox 模型
+
+| 特性 | Cox 比例风险模型 | 随机生存森林 |
+|------|------------------|--------------|
+| **线性假设** | 需要（log-线性） | 不需要 |
+| **比例风险假设** | 需要 | 不需要 |
+| **变量数量** | 受限于样本量 | 可处理高维 |
+| **交互作用** | 需手动指定 | 自动捕获 |
+| **可解释性** | 高（HR 解释） | 中等（需要可视化） |
+| **推断** | 可做假设检验 | 主要用于预测 |
+| **过拟合风险** | 低 | 中等（需调参） |
+
+---
+
+## R 包安装与加载
+
+```{r}
+# 核心包
+library(randomForestSRC) # RSF 主力包
+library(ranger) # 更快的实现
+library(survival) # 生存分析基础
+library(pec) # 预测误差曲线
+
+# 可视化
+library(ggplot2)
+library(tidyverse)
+
+theme_set(theme_minimal(base_size = 12))
+```
+
+---
+
+## 理论基础
+
+### 生存树的构建
+
+RSF 中每棵生存树的构建遵循以下原则：
+
+1. **节点分裂准则**：使用 log-rank 统计量或对数秩分裂规则
+2. **终止条件**：达到最小节点大小或最大深度
+3. **终端节点**：估计该节点样本的累积风险函数
+
+### 分裂规则
+
+最常用的分裂规则是 **log-rank splitting**：
+
+$$\text{Log-rank statistic} = \frac{(O_1 - E_1)^2}{\text{Var}(O_1 - E_1)}$$
+
+其中 $O_1$ 是子节点1中的观察事件数，$E_1$ 是期望事件数。
+
+### 集成预测
+
+对于新样本，RSF 的预测是所有树预测的**平均累积风险函数**：
+
+$$\hat{H}(t|x) = \frac{1}{B}\sum_{b=1}^{B} \hat{H}_b(t|x)$$
+
+---
+
+## 实战案例：肿瘤患者预后预测
+
+### 模拟数据
+
+```{r}
+# 模拟肿瘤患者生存数据
+set.seed(2024)
+n <- 800
+
+# 生成协变量
+cancer_rsf <- tibble(
+    id = 1:n,
+    age = round(rnorm(n, 60, 12)),
+    sex = factor(sample(c("男", "女"), n, replace = TRUE)),
+    stage = factor(sample(1:4, n, replace = TRUE, prob = c(0.15, 0.30, 0.35, 0.20))),
+    grade = factor(sample(1:3, n, replace = TRUE)),
+    tumor_size = abs(rnorm(n, 40, 20)),
+    nodes_positive = rpois(n, 2),
+    biomarker_a = rnorm(n, 100, 30),
+    biomarker_b = rnorm(n, 50, 15),
+    biomarker_c = rnorm(n, 200, 50),
+    treatment = factor(sample(c("标准", "新方案"), n, replace = TRUE)),
+    ecog = sample(0:3, n, replace = TRUE, prob = c(0.3, 0.4, 0.2, 0.1))
+)
+
+# 生成生存时间（包含非线性效应和交互作用）
+cancer_rsf <- cancer_rsf %>%
+    mutate(
+        # 复杂的风险函数（包含非线性和交互）
+        log_hr = 0.03 * (age - 60) +
+            0.5 * (as.numeric(stage) - 1) +
+            0.3 * (as.numeric(grade) - 1) +
+            0.02 * tumor_size +
+            0.15 * nodes_positive +
+            0.005 * (biomarker_a - 100) +
+            0.01 * (biomarker_b - 50)^2 / 100 + # 非线性效应
+            -0.3 * (treatment == "新方案") +
+            0.2 * ecog +
+            0.02 * (age - 60) * (as.numeric(stage) - 1), # 交互作用
+
+        # 生存时间（Weibull）
+        survival_time = rweibull(n, shape = 1.5, scale = 48 * exp(-log_hr / 1.5)),
+        censor_time = runif(n, 12, 72),
+        time = pmin(survival_time, censor_time),
+        status = as.integer(survival_time <= censor_time)
+    ) %>%
+    select(-log_hr, -survival_time, -censor_time)
+
+# 查看数据
+glimpse(cancer_rsf)
+cat("\n事件率:", mean(cancer_rsf$status), "\n")
+```
+
+### 使用 randomForestSRC 构建 RSF
+
+```{r}
+# 准备数据
+rsf_data <- cancer_rsf %>%
+    select(-id) %>%
+    mutate(across(where(is.character), as.factor))
+
+# 构建 RSF 模型
+rsf_model <- rfsrc(
+    Surv(time, status) ~ .,
+    data = rsf_data,
+    ntree = 500, # 树的数量
+    nodesize = 15, # 终端节点最小样本数
+    nsplit = 10, # 每次分裂考虑的候选点数
+    importance = TRUE, # 计算变量重要性
+    seed = 42
+)
+
+print(rsf_model)
+```
+
+### 使用 ranger 构建 RSF（更快）
+
+```{r}
+# ranger 实现（速度更快，适合大数据）
+rsf_ranger <- ranger(
+    Surv(time, status) ~ .,
+    data = rsf_data,
+    num.trees = 500,
+    min.node.size = 15,
+    importance = "permutation",
+    seed = 42
+)
+
+print(rsf_ranger)
+```
+
+---
+
+## 变量重要性分析
+
+### VIMP (Variable Importance)
+
+VIMP 通过置换变量值并观察预测误差变化来衡量变量重要性。
+
+```{r}
+# 提取变量重要性
+vimp <- rsf_model$importance
+
+# 创建可视化数据
+vimp_df <- tibble(
+    variable = names(vimp),
+    importance = vimp
+) %>%
+    arrange(desc(importance)) %>%
+    mutate(variable = fct_reorder(variable, importance))
+
+# 可视化
+ggplot(vimp_df, aes(x = importance, y = variable)) +
+    geom_col(fill = "#059669", alpha = 0.8) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
+    labs(
+        title = "随机生存森林变量重要性 (VIMP)",
+        subtitle = "正值表示该变量对预测有贡献",
+        x = "变量重要性",
+        y = NULL
+    ) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid.major.y = element_blank()
+    )
+```
+
+### Minimal Depth
+
+Minimal Depth 衡量变量首次用于分裂的深度，深度越小越重要。
+
+```{r}
+# 计算 minimal depth
+md <- max.subtree(rsf_model)
+
+# 提取平均 minimal depth
+md_df <- tibble(
+    variable = names(md$order[, 1]),
+    min_depth = md$order[, 1]
+) %>%
+    arrange(min_depth)
+
+# 可视化
+ggplot(md_df, aes(x = min_depth, y = fct_reorder(variable, -min_depth))) +
+    geom_col(fill = "#0891b2", alpha = 0.8) +
+    labs(
+        title = "变量最小深度 (Minimal Depth)",
+        subtitle = "深度越小，变量越重要",
+        x = "平均最小深度",
+        y = NULL
+    ) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid.major.y = element_blank()
+    )
+```
+
+---
+
+## 预测与评估
+
+### 预测生存概率
+
+```{r}
+# 预测
+pred <- predict(rsf_model)
+
+# 查看预测结构
+names(pred)
+
+# 预测的生存曲线（前5个样本）
+surv_curves <- pred$survival[1:5, ]
+time_points <- pred$time.interest
+
+# 转换为长格式绑图
+surv_long <- as_tibble(t(surv_curves)) %>%
+    mutate(time = time_points) %>%
+    pivot_longer(-time, names_to = "sample", values_to = "survival")
+
+ggplot(surv_long, aes(x = time, y = survival, color = sample)) +
+    geom_step(linewidth = 1) +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    labs(
+        title = "个体预测生存曲线",
+        x = "时间 (月)",
+        y = "生存概率",
+        color = "样本"
+    ) +
+    theme(legend.position = "right")
+```
+
+### 累积风险函数
+
+```{r}
+# 预测累积风险
+chf_curves <- pred$chf[1:5, ]
+
+chf_long <- as_tibble(t(chf_curves)) %>%
+    mutate(time = time_points) %>%
+    pivot_longer(-time, names_to = "sample", values_to = "chf")
+
+ggplot(chf_long, aes(x = time, y = chf, color = sample)) +
+    geom_step(linewidth = 1) +
+    labs(
+        title = "个体累积风险函数",
+        x = "时间 (月)",
+        y = "累积风险 H(t)",
+        color = "样本"
+    ) +
+    theme(legend.position = "right")
+```
+
+### 模型评估：C-index
+
+```{r}
+# OOB C-index（袋外样本）
+cat("OOB C-index:", 1 - rsf_model$err.rate[rsf_model$ntree], "\n")
+
+# 与 Cox 模型比较
+cox_model <- coxph(Surv(time, status) ~ ., data = rsf_data)
+
+# Cox 模型 C-index
+cox_cindex <- summary(cox_model)$concordance[1]
+cat("Cox C-index:", cox_cindex, "\n")
+```
+
+### Brier Score 和 IBS
+
+```{r}
+# Brier Score 计算说明
+# pec 包可用于更详细的预测误差曲线分析
+# 这里展示基本的 C-index 比较
+
+# 模型性能比较表
+performance_table <- tibble(
+    模型 = c("Cox 比例风险模型", "随机生存森林 (RSF)"),
+    `C-index` = c(
+        round(summary(cox_model)$concordance[1], 4),
+        round(1 - rsf_model$err.rate[rsf_model$ntree], 4)
+    ),
+    说明 = c("基于训练数据", "基于 OOB 样本")
+)
+
+performance_table %>% knitr::kable(caption = "模型预测性能比较")
+```
+
+---
+
+## 部分依赖图
+
+部分依赖图（Partial Dependence Plot）展示单个变量对预测的边际效应。
+
+```{r fig.height=6}
+# 对重要变量绑制部分依赖图
+# 年龄
+plot.variable(rsf_model,
+    xvar.names = "age",
+    partial = TRUE,
+    surv.type = "mort", # 死亡率
+    time = 36, # 36个月时的预测
+    npts = 50
+)
+```
+
+```{r fig.height=6}
+# 分期
+plot.variable(rsf_model,
+    xvar.names = "stage",
+    partial = TRUE,
+    surv.type = "mort",
+    time = 36
+)
+```
+
+```{r fig.height=6}
+# 肿瘤大小（连续变量）
+plot.variable(rsf_model,
+    xvar.names = "tumor_size",
+    partial = TRUE,
+    surv.type = "mort",
+    time = 36,
+    npts = 50
+)
+```
+
+---
+
+## 风险分层
+
+使用 RSF 预测进行患者风险分层。
+
+```{r}
+# 获取预测的死亡率
+rsf_data$predicted_mortality <- pred$predicted
+
+# 按预测风险分组
+rsf_data <- rsf_data %>%
+    mutate(
+        risk_group = cut(
+            predicted_mortality,
+            breaks = quantile(predicted_mortality, c(0, 1 / 3, 2 / 3, 1)),
+            labels = c("低风险", "中风险", "高风险"),
+            include.lowest = TRUE
+        )
+    )
+
+# 绑制分层生存曲线
+library(survminer)
+
+km_risk <- survfit(Surv(time, status) ~ risk_group, data = rsf_data)
+
+ggsurvplot(
+    km_risk,
+    data = rsf_data,
+    pval = TRUE,
+    conf.int = TRUE,
+    risk.table = TRUE,
+    palette = c("#22c55e", "#f59e0b", "#ef4444"),
+    legend.title = "风险分组",
+    legend.labs = c("低风险", "中风险", "高风险"),
+    xlab = "时间 (月)",
+    ylab = "生存概率",
+    title = "基于 RSF 的风险分层"
+)
+```
+
+---
+
+## 模型调参
+
+### 关键超参数
+
+| 参数 | 说明 | 默认值 | 建议范围 |
+|------|------|--------|----------|
+| `ntree` | 树的数量 | 500 | 500-2000 |
+| `nodesize` | 终端节点最小样本 | 15 | 5-50 |
+| `mtry` | 每次分裂考虑的变量数 | sqrt(p) | 1-p |
+| `nsplit` | 候选分裂点数 | 10 | 5-20 |
+
+### 交叉验证调参
+
+```{r}
+# 使用 OOB 误差进行调参
+tune_results <- tune(
+    Surv(time, status) ~ .,
+    data = rsf_data %>% select(-risk_group, -predicted_mortality),
+    mtryStart = 3,
+    nodesizeTry = c(5, 10, 15, 20, 30),
+    ntreeTry = 100, # 为节省时间使用较少的树
+    trace = FALSE
+)
+
+print(tune_results)
+```
+
+```{r}
+# 使用最优参数重新训练
+optimal_nodesize <- tune_results$optimal[1]
+
+rsf_tuned <- rfsrc(
+    Surv(time, status) ~ .,
+    data = rsf_data %>% select(-risk_group, -predicted_mortality),
+    ntree = 500,
+    nodesize = optimal_nodesize,
+    importance = TRUE,
+    seed = 42
+)
+
+cat("优化后 OOB C-index:", 1 - rsf_tuned$err.rate[rsf_tuned$ntree], "\n")
+```
+
+---
+
+## RSF vs Cox：完整对比
+
+```{r}
+# 准备干净数据
+model_data <- rsf_data %>%
+    select(-risk_group, -predicted_mortality)
+
+# Cox 模型
+cox_full <- coxph(Surv(time, status) ~ ., data = model_data)
+
+# RSF 模型
+rsf_full <- rfsrc(Surv(time, status) ~ .,
+    data = model_data,
+    ntree = 500, importance = TRUE, seed = 42
+)
+
+# 比较 C-index
+tibble(
+    模型 = c("Cox 比例风险模型", "随机生存森林"),
+    `C-index` = c(
+        summary(cox_full)$concordance[1],
+        1 - rsf_full$err.rate[rsf_full$ntree]
+    )
+) %>%
+    mutate(`C-index` = round(`C-index`, 4)) %>%
+    knitr::kable()
+```
+
+---
+
+## 实用技巧
+
+### 处理缺失值
+
+RSF 可以自动处理缺失值，使用最优分裂方向进行插补。
+
+```{r}
+# RSF 自动处理缺失值
+model_data_missing <- model_data
+model_data_missing$biomarker_a[sample(1:nrow(model_data), 50)] <- NA
+
+rsf_missing <- rfsrc(
+    Surv(time, status) ~ .,
+    data = model_data_missing,
+    ntree = 500,
+    na.action = "na.impute", # 缺失值插补
+    seed = 42
+)
+
+cat("含缺失值的 OOB C-index:", 1 - rsf_missing$err.rate[rsf_missing$ntree], "\n")
+```
+
+### 变量选择
+
+使用 VIMP 进行变量选择：
+
+```{r}
+# 基于 VIMP 的变量选择
+vimp_values <- rsf_model$importance
+
+# 选择重要性 > 0 的变量
+selected_vars <- names(vimp_values[vimp_values > 0])
+cat("选择的变量:", paste(selected_vars, collapse = ", "), "\n")
+
+# 使用选择的变量重新训练
+formula_selected <- as.formula(
+    paste("Surv(time, status) ~", paste(selected_vars, collapse = " + "))
+)
+
+rsf_selected <- rfsrc(
+    formula_selected,
+    data = model_data,
+    ntree = 500,
+    importance = TRUE,
+    seed = 42
+)
+
+cat("变量选择后 OOB C-index:", 1 - rsf_selected$err.rate[rsf_selected$ntree], "\n")
+```
+
+---
+
+## 代码速查表
+
+```{r eval=FALSE}
+# ========== RSF 分析模板 ==========
+
+library(randomForestSRC)
+library(ranger)
+
+# 1. 构建模型
+rsf <- rfsrc(
+    Surv(time, status) ~ .,
+    data = data,
+    ntree = 500,
+    nodesize = 15,
+    importance = TRUE
+)
+
+# 2. 变量重要性
+vimp <- rsf$importance
+plot.variable(rsf, xvar.names = "var_name", partial = TRUE)
+
+# 3. 预测
+pred <- predict(rsf, newdata = test_data)
+survival_probs <- pred$survival # 生存概率矩阵
+
+# 4. 评估
+c_index <- 1 - rsf$err.rate[rsf$ntree]
+
+# 5. 调参
+tune_result <- tune(Surv(time, status) ~ ., data = data)
+
+# 6. 风险分层
+risk_score <- predict(rsf)$predicted
+risk_group <- cut(risk_score, breaks = quantile(risk_score, c(0, 0.33, 0.67, 1)))
+
+# 7. 使用 ranger（更快）
+rsf_ranger <- ranger(
+    Surv(time, status) ~ .,
+    data = data,
+    num.trees = 500,
+    importance = "permutation"
+)
+```
+
+---
+
+## 总结
+
+| 要点 | 说明 |
+|------|------|
+| **何时使用** | 高维数据、非线性关系、变量选择、预测建模 |
+| **核心优势** | 无需假设、自动处理交互、处理缺失值 |
+| **主要指标** | C-index, Brier Score, IBS |
+| **变量重要性** | VIMP, Minimal Depth |
+| **可视化** | 部分依赖图、风险分层曲线 |
+| **与 Cox 互补** | RSF 用于预测，Cox 用于推断 |
+
+---
+
+## 参考资源
+
+- Ishwaran H, Kogalur UB (2007). Random Survival Forests for R. *R News*
+- [randomForestSRC 官方文档](https://www.randomforestsrc.org/)
+- [ranger 包文档](https://github.com/imbs-hl/ranger)
+- Breiman L (2001). Random Forests. *Machine Learning*
+- Ishwaran H et al. (2008). Random Survival Forests. *Annals of Applied Statistics*
