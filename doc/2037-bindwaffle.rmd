@@ -1,5 +1,5 @@
----
-title: "R语言华夫饼图与树形图绑制"
+﻿---
+title: "R语言华夫饼图与树形图绘制"
 date: "2026-01-15"
 categories: [可视化教程, 统计图表, 组成图]
 image: "images/bindwaffle_cover.svg"
@@ -49,10 +49,6 @@ knitr::opts_chunk$set(
 library(ggplot2)
 library(dplyr)
 
-# 华夫饼图包
-# install.packages("waffle")
-library(waffle)
-
 # 树形图包
 # install.packages("treemapify")
 library(treemapify)
@@ -60,9 +56,38 @@ library(treemapify)
 
 ---
 
-## 基础华夫饼图
+## 华夫饼图数据准备函数
 
-### 准备数据
+使用纯 ggplot2 手动绘制华夫饼图：
+
+```{r}
+#' 创建华夫饼图数据
+#' @param values 命名向量，表示各类别的数值
+#' @param rows 网格行数
+create_waffle_data <- function(values, rows = 10) {
+    total <- sum(values)
+    cols <- ceiling(total / rows)
+
+    # 创建网格坐标
+    all_cells <- expand.grid(
+        x = 1:cols,
+        y = 1:rows
+    )
+
+    # 只保留需要的格子数
+    cells <- all_cells[1:total, ]
+
+    # 分配类别
+    category <- rep(names(values), times = values)
+    cells$category <- factor(category, levels = names(values))
+
+    cells
+}
+```
+
+---
+
+## 基础华夫饼图
 
 ```{r}
 # 市场份额数据
@@ -72,66 +97,19 @@ market_share <- c(
     "品牌C" = 22,
     "其他" = 15
 )
-```
 
-### 使用 waffle 包绑制
-
-```{r fig.height=4}
-waffle(
-    market_share,
-    rows = 5, # 行数
-    size = 0.5, # 格子间距
-    colors = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8"),
-    title = "市场份额分布",
-    xlab = "每个格子 = 1%"
-)
-```
-
-### 代码解析
-
-| 参数 | 说明 |
-|------|------|
-| `rows` | 网格行数，数值越大格子越小 |
-| `size` | 格子之间的间隙大小 |
-| `colors` | 各类别的颜色 |
-| `title` | 图表标题 |
-| `xlab` | x轴标签说明单位含义 |
-
----
-
-## 使用 ggplot2 手动绑制华夫饼图
-
-如果需要更多自定义，可以用 ggplot2 手动绑制：
-
-```{r}
-# 创建华夫数据
-create_waffle_data <- function(values, rows = 10) {
-    total <- sum(values)
-    cols <- ceiling(total / rows)
-
-    # 创建每个格子的数据
-    cells <- data.frame(
-        x = rep(1:cols, each = rows),
-        y = rep(1:rows, times = cols)
-    )[1:total, ]
-
-    # 分配类别
-    category <- rep(names(values), times = values)
-    cells$category <- factor(category, levels = names(values))
-
-    cells
-}
-
+# 创建华夫饼数据
 waffle_data <- create_waffle_data(market_share, rows = 10)
 
+# 绘制华夫饼图
 ggplot(waffle_data, aes(x = x, y = y, fill = category)) +
-    geom_tile(color = "white", linewidth = 0.5) +
+    geom_tile(color = "white", linewidth = 0.8) +
     scale_fill_manual(
         values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
     ) +
     coord_equal() +
     labs(
-        title = "市场份额 - 华夫饼图",
+        title = "市场份额分布",
         subtitle = "每个格子代表 1%",
         fill = NULL
     ) +
@@ -143,37 +121,31 @@ ggplot(waffle_data, aes(x = x, y = y, fill = category)) +
     )
 ```
 
+### 代码解析
+
+| 参数 | 说明 |
+|------|------|
+| `rows` | 网格行数，数值越大格子越小 |
+| `geom_tile()` | 绘制格子 |
+| `coord_equal()` | 保持格子为正方形 |
+| `theme_void()` | 移除背景和坐标轴 |
+
 ---
 
-## 圆形华夫饼图（图标阵列）
+## 圆角华夫饼图
 
-用图标代替格子，使图表更形象：
+使用 `geom_point()` 制作圆形格子：
 
-```{r fig.height=5}
-# 使用 waffle 包的 geom_waffle
-library(ggplot2)
-
-# 创建数据框
-icon_data <- data.frame(
-    category = names(market_share),
-    value = as.numeric(market_share)
-)
-
-ggplot(icon_data, aes(fill = category, values = value)) +
-    geom_waffle(
-        n_rows = 5,
-        size = 0.5,
-        color = "white",
-        flip = TRUE,
-        make_proportional = FALSE
-    ) +
-    scale_fill_manual(
+```{r}
+ggplot(waffle_data, aes(x = x, y = y, color = category)) +
+    geom_point(size = 8, shape = 15) + # shape=15 是实心方块
+    scale_color_manual(
         values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
     ) +
     coord_equal() +
     labs(
-        title = "市场份额分布",
-        fill = NULL
+        title = "圆角华夫饼图",
+        color = NULL
     ) +
     theme_void() +
     theme(
@@ -188,19 +160,16 @@ ggplot(icon_data, aes(fill = category, values = value)) +
 
 ```{r fig.height=5}
 # 创建多年数据
-multi_year <- data.frame(
-    year = rep(c("2022年", "2023年"), each = 4),
-    category = rep(c("品牌A", "品牌B", "品牌C", "其他"), 2),
-    value = c(30, 32, 25, 13, 35, 28, 22, 15)
-)
+waffle_2022 <- create_waffle_data(c("品牌A" = 30, "品牌B" = 32, "品牌C" = 25, "其他" = 13), rows = 10)
+waffle_2022$year <- "2022年"
 
-ggplot(multi_year, aes(fill = category, values = value)) +
-    geom_waffle(
-        n_rows = 5,
-        size = 0.3,
-        color = "white",
-        flip = TRUE
-    ) +
+waffle_2023 <- create_waffle_data(c("品牌A" = 35, "品牌B" = 28, "品牌C" = 22, "其他" = 15), rows = 10)
+waffle_2023$year <- "2023年"
+
+multi_year <- rbind(waffle_2022, waffle_2023)
+
+ggplot(multi_year, aes(x = x, y = y, fill = category)) +
+    geom_tile(color = "white", linewidth = 0.5) +
     facet_wrap(~year, ncol = 2) +
     scale_fill_manual(
         values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
@@ -243,7 +212,7 @@ sales_data <- data.frame(
 sales_data
 ```
 
-### 绑制基础树形图
+### 绘制基础树形图
 
 ```{r}
 ggplot(sales_data, aes(area = sales, fill = category, label = subcategory)) +
@@ -393,14 +362,15 @@ ggplot(sales_data, aes(
 ```{r fig.width=12, fig.height=5}
 library(patchwork)
 
+# 准备数据
+icon_data <- data.frame(
+    category = names(market_share),
+    value = as.numeric(market_share)
+)
+
 # 华夫饼图
-p1 <- ggplot(icon_data, aes(fill = category, values = value)) +
-    geom_waffle(
-        n_rows = 5,
-        size = 0.5,
-        color = "white",
-        flip = TRUE
-    ) +
+p1 <- ggplot(waffle_data, aes(x = x, y = y, fill = category)) +
+    geom_tile(color = "white", linewidth = 0.5) +
     scale_fill_manual(
         values = c("#4f46e5", "#10b981", "#f59e0b", "#94a3b8")
     ) +
@@ -444,11 +414,11 @@ p1 + p2 + plot_annotation(
 
 ```{r}
 #' 快速绘制华夫饼图
-#' @param data 命名向量或数据框
-#' @param n_rows 行数
+#' @param values 命名向量，表示各类别的数值
+#' @param rows 行数
 #' @param colors 颜色向量
 #' @param title 标题
-quick_waffle <- function(data, n_rows = 5, colors = NULL, title = NULL) {
+quick_waffle <- function(values, rows = 10, colors = NULL, title = NULL) {
     if (is.null(colors)) {
         colors <- c(
             "#4f46e5", "#10b981", "#f59e0b", "#ef4444",
@@ -456,23 +426,15 @@ quick_waffle <- function(data, n_rows = 5, colors = NULL, title = NULL) {
         )
     }
 
-    if (is.data.frame(data)) {
-        df <- data
-    } else {
-        df <- data.frame(
-            category = names(data),
-            value = as.numeric(data)
-        )
-    }
+    # 创建数据
+    total <- sum(values)
+    cols <- ceiling(total / rows)
+    cells <- expand.grid(x = 1:cols, y = 1:rows)[1:total, ]
+    cells$category <- factor(rep(names(values), times = values), levels = names(values))
 
-    ggplot(df, aes(fill = category, values = value)) +
-        geom_waffle(
-            n_rows = n_rows,
-            size = 0.4,
-            color = "white",
-            flip = TRUE
-        ) +
-        scale_fill_manual(values = colors[1:nrow(df)]) +
+    ggplot(cells, aes(x = x, y = y, fill = category)) +
+        geom_tile(color = "white", linewidth = 0.5) +
+        scale_fill_manual(values = colors[1:length(values)]) +
         coord_equal() +
         labs(title = title, fill = NULL) +
         theme_void() +
@@ -492,7 +454,7 @@ quick_waffle(market_share, title = "使用封装函数")
 
 | 图表类型 | 适用场景 | 核心函数 |
 |----------|----------|----------|
-| **华夫饼图** | 比例展示、信息图 | `waffle()` 或 `geom_waffle()` |
+| **华夫饼图** | 比例展示、信息图 | `geom_tile()` + 自定义数据 |
 | **树形图** | 层级结构、空间高效 | `geom_treemap()` + `treemapify` |
 | **嵌套树形图** | 多级层次结构 | `geom_treemap_subgroup_*()` |
 
@@ -504,10 +466,10 @@ quick_waffle(market_share, title = "使用封装函数")
 | 层级结构展示 | 嵌套树形图 |
 | 大量类别 | 树形图 |
 | 精确数值对比 | 华夫饼图 + 数值标签 |
-| 视觉冲击力强 | 图标华夫饼图 |
+| 视觉冲击力强 | 圆角华夫饼图 |
 
 ### 相关教程
 
 - [柱状图与饼图](2028-bindbarchart.html) - 传统比例图表
-- [热图绑制完全指南](2020-heatmap.html) - 矩阵数据可视化
+- [热图绘制完全指南](2020-heatmap.html) - 矩阵数据可视化
 - [桑基图](2014-sankey.html) - 流量可视化

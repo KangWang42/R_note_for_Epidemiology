@@ -1,5 +1,5 @@
----
-title: "R语言Joy Plot山脊图绑制"
+﻿---
+title: "R语言Joy Plot山脊图绘制"
 date: "2026-01-15"
 categories: [可视化教程, 统计图表, 分布图]
 image: "images/bindjoyplot_cover.svg"
@@ -39,19 +39,40 @@ library(ggridges)
 
 ---
 
+## 准备示例数据
+
+```{r}
+# 创建月度气温数据
+set.seed(42)
+months <- c(
+    "1月", "2月", "3月", "4月", "5月", "6月",
+    "7月", "8月", "9月", "10月", "11月", "12月"
+)
+
+weather_data <- do.call(rbind, lapply(1:12, function(m) {
+    # 模拟各月气温数据
+    base_temp <- 10 + 15 * sin((m - 4) * pi / 6) # 季节性变化
+    data.frame(
+        month = factor(months[m], levels = months),
+        temperature = rnorm(100, mean = base_temp, sd = 5)
+    )
+}))
+
+head(weather_data)
+```
+
+---
+
 ## 基础山脊图
 
 ```{r}
-# 使用内置数据
-data(lincoln_weather)
-
-ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) +
+ggplot(weather_data, aes(x = temperature, y = month, fill = month)) +
     geom_density_ridges(alpha = 0.7) +
     scale_fill_viridis_d(option = "plasma") +
     labs(
-        title = "林肯市月均气温分布",
+        title = "月均气温分布",
         subtitle = "Joy Plot / 山脊图",
-        x = "平均温度 (°F)",
+        x = "气温 (°C)",
         y = NULL
     ) +
     theme_ridges() +
@@ -66,15 +87,12 @@ ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) 
 ## 带填充渐变的山脊图
 
 ```{r}
-ggplot(lincoln_weather, aes(
-    x = Mean.Temperature..F., y = Month,
-    fill = stat(x)
-)) +
+ggplot(weather_data, aes(x = temperature, y = month, fill = after_stat(x))) +
     geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
     scale_fill_viridis_c(option = "plasma", name = "温度") +
     labs(
         title = "温度分布热力山脊图",
-        x = "平均温度 (°F)",
+        x = "气温 (°C)",
         y = NULL
     ) +
     theme_ridges() +
@@ -86,7 +104,7 @@ ggplot(lincoln_weather, aes(
 ## 带分位数标记
 
 ```{r}
-ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) +
+ggplot(weather_data, aes(x = temperature, y = month, fill = month)) +
     geom_density_ridges(
         alpha = 0.7,
         quantile_lines = TRUE,
@@ -95,30 +113,7 @@ ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) 
     scale_fill_viridis_d(option = "mako") +
     labs(
         title = "带中位数线的山脊图",
-        x = "平均温度 (°F)",
-        y = NULL
-    ) +
-    theme_ridges() +
-    theme(legend.position = "none")
-```
-
----
-
-## 带点的山脊图
-
-```{r}
-ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) +
-    geom_density_ridges(
-        alpha = 0.6,
-        jittered_points = TRUE,
-        point_size = 0.8,
-        point_alpha = 0.5,
-        position = position_points_jitter(height = 0)
-    ) +
-    scale_fill_viridis_d(option = "turbo") +
-    labs(
-        title = "带数据点的山脊图",
-        x = "平均温度 (°F)",
+        x = "气温 (°C)",
         y = NULL
     ) +
     theme_ridges() +
@@ -130,7 +125,7 @@ ggplot(lincoln_weather, aes(x = Mean.Temperature..F., y = Month, fill = Month)) 
 ## 自定义颜色和样式
 
 ```{r}
-# 创建示例数据
+# 创建考试成绩数据
 set.seed(42)
 exam_data <- data.frame(
     subject = rep(c("数学", "语文", "英语", "物理", "化学"), each = 100),
@@ -168,25 +163,23 @@ ggplot(exam_data, aes(x = score, y = subject, fill = subject)) +
 
 ---
 
-## 雨云图 (Raincloud Plot)
-
-结合箱线图和密度图：
+## 带数据点的山脊图
 
 ```{r}
 ggplot(exam_data, aes(x = score, y = subject, fill = subject)) +
     geom_density_ridges(
         alpha = 0.6,
         jittered_points = TRUE,
-        position = position_raincloud(height = 0.15, adjust_vlines = TRUE),
-        point_size = 0.4,
-        point_alpha = 0.3
+        point_size = 0.8,
+        point_alpha = 0.3,
+        position = position_points_jitter(height = 0)
     ) +
     scale_fill_manual(values = c(
         "数学" = "#4f46e5", "语文" = "#10b981", "英语" = "#f59e0b",
         "物理" = "#ec4899", "化学" = "#8b5cf6"
     )) +
     labs(
-        title = "雨云图 (Raincloud Plot)",
+        title = "带数据点的山脊图",
         x = "分数",
         y = NULL
     ) +
@@ -203,7 +196,6 @@ ggplot(exam_data, aes(x = score, y = subject, fill = subject)) +
 | **基础山脊图** | `geom_density_ridges()` | 简洁，多组分布 |
 | **渐变山脊图** | `geom_density_ridges_gradient()` | 热力效果 |
 | **带点山脊图** | `jittered_points = TRUE` | 显示原始数据 |
-| **雨云图** | `position_raincloud()` | 结合分布和原始点 |
 
 ### 设计建议
 
