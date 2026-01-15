@@ -1,0 +1,412 @@
+---
+title: "marginaleffects 边际效应分析完全指南"
+date: "2026-01-15"
+categories: [实用R包, 模型解释, 边际效应]
+image: "images/marginaleffects-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## marginaleffects 简介
+
+**marginaleffects** 是R语言中最强大的模型解释工具包，支持100+类统计和机器学习模型的边际效应、预测值和对比分析。
+
+### 为什么需要边际效应？
+
+回归系数告诉我们变量的"平均"效应，但在以下情况下不够直观：
+- **非线性模型**：Logistic回归的系数是对数几率比，难以解释
+- **交互作用**：效应随其他变量变化
+- **复杂模型**：GAM、混合模型等
+
+### 核心功能
+
+| 函数 | 功能 | 应用场景 |
+|------|------|----------|
+| `predictions()` | 计算预测值 | 各水平的期望结果 |
+| `slopes()` | 计算边际效应 | 变量增加一单位的效应 |
+| `comparisons()` | 计算对比 | 组间差异、风险比 |
+| `plot_*()` | 可视化 | 效应图、预测曲线 |
+
+## 安装与加载
+
+```{r}
+library(marginaleffects)
+library(ggplot2)
+library(dplyr)
+
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：predictions() 预测值
+
+`predictions()` 用于计算模型在特定条件下的预测值。
+
+### 基础用法
+
+```{r}
+# 拟合Logistic回归
+data(mtcars)
+mtcars$am <- factor(mtcars$am, labels = c("自动", "手动"))
+
+model <- glm(am ~ hp + wt, data = mtcars, family = binomial)
+
+# 计算每个观测的预测概率
+pred <- predictions(model)
+head(pred)
+```
+
+### 特定值预测
+
+```{r}
+# 在特定hp和wt值下的预测
+pred_grid <- predictions(model,
+    newdata = datagrid(
+        hp = c(100, 150, 200),
+        wt = c(2.5, 3.5)
+    )
+)
+print(pred_grid)
+```
+
+### 分组平均预测
+
+```{r}
+# 按实际am分组的平均预测（Average Predictions）
+avg_pred <- predictions(model, by = "am")
+print(avg_pred)
+```
+
+
+## 第二部分：slopes() 边际效应
+
+`slopes()` 计算连续变量增加一单位时结果变量的变化量。
+
+### 平均边际效应 (AME)
+
+```{r}
+# 计算hp的平均边际效应
+ame <- slopes(model, variables = "hp")
+head(ame)
+
+# 汇总平均边际效应
+summary(slopes(model))
+```
+
+### 特定值边际效应 (MEM)
+
+```{r}
+# 在特定wt值下hp的边际效应
+mem <- slopes(model,
+    variables = "hp",
+    newdata = datagrid(wt = c(2, 3, 4))
+)
+print(mem)
+```
+
+### 边际效应可视化
+
+```{r}
+# 边际效应如何随wt变化
+plot_slopes(model, variables = "hp", condition = "wt") +
+    labs(
+        title = "hp的边际效应随wt的变化",
+        y = "hp对P(手动)的边际效应"
+    )
+```
+
+
+## 第三部分：comparisons() 对比分析
+
+`comparisons()` 用于计算不同水平或条件之间的差异。
+
+### 连续变量对比
+
+```{r}
+# hp从100到200的效应差异
+comp <- comparisons(model,
+    variables = list(hp = c(100, 200))
+)
+print(comp)
+```
+
+### 单位变化对比
+
+```{r}
+# hp每增加10单位的效应
+comp_10 <- comparisons(model,
+    variables = list(hp = 10)
+) # 变化10单位
+summary(comp_10)
+```
+
+### 风险比和优势比
+
+```{r}
+# 计算优势比 (Odds Ratio)
+or <- comparisons(model,
+    variables = "hp",
+    comparison = "lnratioavg", # 对数优势比
+    transform = exp
+) # 转换为优势比
+summary(or)
+```
+
+
+## 第四部分：可视化功能
+
+### 预测曲线
+
+```{r}
+# 线性回归示例
+model_lm <- lm(mpg ~ hp * wt, data = mtcars)
+
+# 预测曲线
+plot_predictions(model_lm, condition = "hp") +
+    labs(
+        title = "MPG随HP的预测曲线",
+        x = "马力", y = "预测油耗"
+    )
+```
+
+### 条件预测曲线
+
+```{r}
+# 按wt分组的预测曲线
+plot_predictions(model_lm,
+    condition = list(hp = seq(50, 300, 10), wt = c(2.5, 3.5, 4.5))
+) +
+    labs(title = "不同重量下HP与MPG的关系")
+```
+
+### 边际效应图
+
+```{r}
+# 边际效应随条件变化
+plot_slopes(model_lm,
+    variables = "hp",
+    condition = "wt"
+) +
+    labs(
+        title = "HP边际效应随重量的变化",
+        y = "HP对MPG的边际效应"
+    )
+```
+
+### 对比可视化
+
+```{r}
+# 对比可视化
+plot_comparisons(model_lm,
+    variables = list(hp = 50), # HP增加50
+    condition = "wt"
+) +
+    labs(
+        title = "HP增加50时MPG变化量",
+        y = "MPG变化"
+    )
+```
+
+
+## 第五部分：与GLM模型结合
+
+### Logistic回归
+
+```{r}
+# 二分类模型
+data(mtcars)
+model_logit <- glm(vs ~ hp + wt + am, data = mtcars, family = binomial)
+
+# 预测概率
+predictions(model_logit, type = "response") |> head()
+
+# 边际效应（概率尺度）
+avg_slopes(model_logit)
+```
+
+### Poisson回归
+
+```{r}
+# 计数模型
+set.seed(42)
+count_data <- data.frame(
+    y = rpois(100, lambda = exp(1 + 0.5 * rnorm(100))),
+    x = rnorm(100)
+)
+
+model_pois <- glm(y ~ x, data = count_data, family = poisson)
+
+# 边际效应（计数尺度）
+avg_slopes(model_pois)
+
+# 发生率比 (IRR)
+comparisons(model_pois, comparison = "lnratioavg", transform = exp) |>
+    summary()
+```
+
+
+## 第六部分：交互作用分析
+
+### 连续×连续交互
+
+```{r}
+# 包含交互项的模型
+model_int <- lm(mpg ~ hp * wt, data = mtcars)
+
+# hp的边际效应随wt变化
+plot_slopes(model_int,
+    variables = "hp",
+    condition = "wt"
+) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    labs(
+        title = "HP×WT交互作用可视化",
+        subtitle = "边际效应穿过零线表示效应方向变化"
+    )
+```
+
+### 连续×分类交互
+
+```{r}
+# 分类交互
+mtcars$cyl <- factor(mtcars$cyl)
+model_cat <- lm(mpg ~ hp * cyl, data = mtcars)
+
+# 分组边际效应
+slopes(model_cat, variables = "hp", by = "cyl")
+```
+
+```{r}
+# 可视化分组效应
+plot_slopes(model_cat,
+    variables = "hp",
+    condition = "cyl"
+) +
+    labs(title = "不同气缸数下HP的边际效应")
+```
+
+
+## 第七部分：假设检验
+
+### 边际效应显著性
+
+```{r}
+# 检验边际效应是否显著
+ame_test <- avg_slopes(model_lm)
+print(ame_test)
+```
+
+### 效应对比检验
+
+```{r eval=FALSE}
+# 检验两个水平的效应差异
+hypotheses(model_lm, "hp = 0")
+```
+
+### 联合检验
+
+```{r eval=FALSE}
+# 检验多个参数
+hypotheses(model_lm, c("hp = 0", "wt = 0"), joint = TRUE)
+```
+
+
+## 第八部分：实战案例
+
+### 完整分析流程
+
+```{r}
+# 使用iris数据集
+data(iris)
+iris$Species_binary <- ifelse(iris$Species == "setosa", 1, 0)
+
+# 拟合模型
+model_case <- glm(Species_binary ~ Sepal.Length * Sepal.Width + Petal.Length,
+    data = iris, family = binomial
+)
+
+# 1. 模型系数
+summary(model_case)
+```
+
+```{r}
+# 2. 平均边际效应
+cat("\n=== 平均边际效应 ===\n")
+avg_slopes(model_case)
+```
+
+```{r}
+# 3. 关键变量的预测曲线
+plot_predictions(model_case, condition = "Sepal.Length") +
+    labs(
+        title = "Sepal.Length对Setosa概率的影响",
+        y = "P(Setosa)"
+    )
+```
+
+```{r}
+# 4. 交互作用可视化
+plot_predictions(model_case,
+    condition = list(Sepal.Length = seq(4, 8, 0.5), Sepal.Width = c(2.5, 3, 3.5))
+) +
+    labs(title = "Sepal.Length × Sepal.Width 交互效应")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 预测值 =====
+predictions(model) # 所有观测预测
+predictions(model, newdata = ...) # 特定值预测
+predictions(model, by = "group") # 分组平均
+
+# ===== 边际效应 =====
+slopes(model) # 所有观测边际效应
+avg_slopes(model) # 平均边际效应
+slopes(model, variables = "x") # 特定变量
+slopes(model, by = "group") # 分组边际效应
+
+# ===== 对比 =====
+comparisons(model, variables = list(x = c(0, 1))) # 水平对比
+comparisons(model, comparison = "ratio") # 比值
+comparisons(model, transform = exp) # 转换
+
+# ===== 可视化 =====
+plot_predictions(model, condition = "x")
+plot_slopes(model, variables = "x", condition = "z")
+plot_comparisons(model, variables = "x")
+
+# ===== 假设检验 =====
+hypotheses(model, "x = 0")
+hypotheses(model, c("x = 0", "z = 0"), joint = TRUE)
+```
+
+
+## 小结
+
+marginaleffects 的核心优势：
+
+| 特点 | 说明 |
+|------|------|
+| **通用性** | 支持100+模型类，一套语法通吃 |
+| **直观性** | 效应量有实际意义，便于解释 |
+| **可视化** | 内置优雅的ggplot2图形 |
+| **灵活性** | 支持各种对比、转换、假设检验 |
+
+> **建议**：对于任何回归分析，都建议使用marginaleffects来补充解释系数的实际含义。
+
+
+## 参考资源
+
+- [marginaleffects 官方文档](https://marginaleffects.com/)
+- [Marginal Effects Zoo](https://marginaleffects.com/vignettes/slopes.html)
+- [Predictions and Counterfactuals](https://marginaleffects.com/vignettes/predictions.html)

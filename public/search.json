@@ -19566,5 +19566,1211 @@
       "🏗️ 图形基础",
       "Base R 绑图基础"
     ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html",
+    "href": "1064-marginaleffects.html",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "",
+    "text": "marginaleffects 是R语言中最强大的模型解释工具包，支持100+类统计和机器学习模型的边际效应、预测值和对比分析。\n\n\n回归系数告诉我们变量的”平均”效应，但在以下情况下不够直观： - 非线性模型：Logistic回归的系数是对数几率比，难以解释 - 交互作用：效应随其他变量变化 - 复杂模型：GAM、混合模型等\n\n\n\n\n\n\n函数\n功能\n应用场景\n\n\n\n\npredictions()\n计算预测值\n各水平的期望结果\n\n\nslopes()\n计算边际效应\n变量增加一单位的效应\n\n\ncomparisons()\n计算对比\n组间差异、风险比\n\n\nplot_*()\n可视化\n效应图、预测曲线",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#marginaleffects-简介",
+    "href": "1064-marginaleffects.html#marginaleffects-简介",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "",
+    "text": "marginaleffects 是R语言中最强大的模型解释工具包，支持100+类统计和机器学习模型的边际效应、预测值和对比分析。\n\n\n回归系数告诉我们变量的”平均”效应，但在以下情况下不够直观： - 非线性模型：Logistic回归的系数是对数几率比，难以解释 - 交互作用：效应随其他变量变化 - 复杂模型：GAM、混合模型等\n\n\n\n\n\n\n函数\n功能\n应用场景\n\n\n\n\npredictions()\n计算预测值\n各水平的期望结果\n\n\nslopes()\n计算边际效应\n变量增加一单位的效应\n\n\ncomparisons()\n计算对比\n组间差异、风险比\n\n\nplot_*()\n可视化\n效应图、预测曲线",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#安装与加载",
+    "href": "1064-marginaleffects.html#安装与加载",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "安装与加载",
+    "text": "安装与加载\n\nlibrary(marginaleffects)\nlibrary(ggplot2)\nlibrary(dplyr)\n\ntheme_set(theme_bw(base_size = 12))",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第一部分predictions-预测值",
+    "href": "1064-marginaleffects.html#第一部分predictions-预测值",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第一部分：predictions() 预测值",
+    "text": "第一部分：predictions() 预测值\npredictions() 用于计算模型在特定条件下的预测值。\n\n基础用法\n\n# 拟合Logistic回归\ndata(mtcars)\nmtcars$am &lt;- factor(mtcars$am, labels = c(\"自动\", \"手动\"))\n\nmodel &lt;- glm(am ~ hp + wt, data = mtcars, family = binomial)\n\n# 计算每个观测的预测概率\npred &lt;- predictions(model)\nhead(pred)\n\n\n Estimate Pr(&gt;|z|)   S    2.5 % 97.5 %\n  0.84234   0.1546 2.7 3.47e-01  0.982\n  0.40478   0.6991 0.5 8.78e-02  0.828\n  0.97024   0.0436 4.5 5.25e-01  0.999\n  0.04173   0.0422 4.6 2.11e-03  0.472\n  0.06939   0.0482 4.4 5.64e-03  0.495\n  0.00499   0.0185 5.8 6.11e-05  0.292\n\nType: invlink(link)\n\n\n\n\n特定值预测\n\n# 在特定hp和wt值下的预测\npred_grid &lt;- predictions(model,\n    newdata = datagrid(\n        hp = c(100, 150, 200),\n        wt = c(2.5, 3.5)\n    )\n)\nprint(pred_grid)\n\n\n  hp  wt Estimate Pr(&gt;|z|)   S    2.5 % 97.5 %\n 100 2.5  0.90747   0.0949 3.4 4.02e-01  0.993\n 100 3.5  0.00302   0.0172 5.9 2.56e-05  0.263\n 150 2.5  0.98363   0.0205 5.6 6.53e-01  0.999\n 150 3.5  0.01821   0.0213 5.6 6.22e-04  0.356\n 200 2.5  0.99729   0.0154 6.0 7.55e-01  1.000\n 200 3.5  0.10204   0.0899 3.5 9.12e-03  0.584\n\nType: invlink(link)\n\n\n\n\n分组平均预测\n\n# 按实际am分组的平均预测（Average Predictions）\navg_pred &lt;- predictions(model, by = \"am\")\nprint(avg_pred)\n\n\n Estimate Std. Error     z Pr(&gt;|z|)     S 2.5 % 97.5 %\n   0.0767     0.0315  2.44   0.0148   6.1 0.015  0.138\n   0.8879     0.0647 13.71   &lt;0.001 139.8 0.761  1.015\n\nType: response",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第二部分slopes-边际效应",
+    "href": "1064-marginaleffects.html#第二部分slopes-边际效应",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第二部分：slopes() 边际效应",
+    "text": "第二部分：slopes() 边际效应\nslopes() 计算连续变量增加一单位时结果变量的变化量。\n\n平均边际效应 (AME)\n\n# 计算hp的平均边际效应\name &lt;- slopes(model, variables = \"hp\")\nhead(ame)\n\n\n Estimate Std. Error     z Pr(&gt;|z|)   S     2.5 %   97.5 %\n  0.00481   0.004260 1.130   0.2584 2.0 -0.003535 0.013165\n  0.00874   0.003836 2.277   0.0228 5.5  0.001216 0.016254\n  0.00105   0.001607 0.651   0.5148 1.0 -0.002103 0.004197\n  0.00145   0.001535 0.944   0.3451 1.5 -0.001560 0.004459\n  0.00234   0.002336 1.002   0.3163 1.7 -0.002237 0.006920\n  0.00018   0.000329 0.547   0.5845 0.8 -0.000465 0.000825\n\nTerm: hp\nType: response\nComparison: dY/dX\n\n# 汇总平均边际效应\nsummary(slopes(model))\n\n     rowid           term             contrast            estimate         \n Min.   : 1.00   Length:64          Length:64          Min.   :-1.962e+00  \n 1st Qu.: 8.75   Class :character   Class :character   1st Qu.:-9.799e-02  \n Median :16.50   Mode  :character   Mode  :character   Median :-1.400e-07  \n Mean   :16.50                                         Mean   :-1.790e-01  \n 3rd Qu.:24.25                                         3rd Qu.: 4.395e-04  \n Max.   :32.00                                         Max.   : 8.798e-03  \n                                                                           \n   std.error           statistic            p.value           s.value      \n Min.   :1.000e-08   Min.   :-2.532539   Min.   :0.01132   Min.   :0.1948  \n 1st Qu.:5.709e-04   1st Qu.:-0.639457   1st Qu.:0.38870   1st Qu.:0.6527  \n Median :4.048e-03   Median :-0.000569   Median :0.52253   Median :0.9364  \n Mean   :1.564e-01   Mean   :-0.031003   Mean   :0.51014   Mean   :1.2657  \n 3rd Qu.:1.490e-01   3rd Qu.: 0.611018   3rd Qu.:0.63612   3rd Qu.:1.3633  \n Max.   :1.323e+00   Max.   : 2.276930   Max.   :0.87369   Max.   :6.4645  \n                                                                           \n    conf.low            conf.high              mpg             cyl       \n Min.   :-3.5180182   Min.   :-0.443479   Min.   :10.40   Min.   :4.000  \n 1st Qu.:-0.3888220   1st Qu.: 0.001086   1st Qu.:15.43   1st Qu.:4.000  \n Median :-0.0031963   Median : 0.007876   Median :19.20   Median :6.000  \n Mean   :-0.4854919   Mean   : 0.127509   Mean   :20.09   Mean   :6.188  \n 3rd Qu.:-0.0007672   3rd Qu.: 0.184713   3rd Qu.:22.80   3rd Qu.:8.000  \n Max.   : 0.0012160   Max.   : 1.840334   Max.   :33.90   Max.   :8.000  \n                                                                         \n      disp             hp             drat             wt       \n Min.   : 71.1   Min.   : 52.0   Min.   :2.760   Min.   :1.513  \n 1st Qu.:120.8   1st Qu.: 96.5   1st Qu.:3.080   1st Qu.:2.581  \n Median :196.3   Median :123.0   Median :3.695   Median :3.325  \n Mean   :230.7   Mean   :146.7   Mean   :3.597   Mean   :3.217  \n 3rd Qu.:326.0   3rd Qu.:180.0   3rd Qu.:3.920   3rd Qu.:3.610  \n Max.   :472.0   Max.   :335.0   Max.   :4.930   Max.   :5.424  \n                                                                \n      qsec             vs            am          gear            carb      \n Min.   :14.50   Min.   :0.0000   自动:38   Min.   :3.000   Min.   :1.000  \n 1st Qu.:16.89   1st Qu.:0.0000   手动:26   1st Qu.:3.000   1st Qu.:2.000  \n Median :17.71   Median :0.0000             Median :4.000   Median :2.000  \n Mean   :17.85   Mean   :0.4375             Mean   :3.688   Mean   :2.812  \n 3rd Qu.:18.90   3rd Qu.:1.0000             3rd Qu.:4.000   3rd Qu.:4.000  \n Max.   :22.90   Max.   :1.0000             Max.   :5.000   Max.   :8.000  \n                                                                           \n  predicted_lo        predicted_hi         predicted  \n Min.   :3.000e-08   Min.   :3.000e-08   Min.   : NA  \n 1st Qu.:9.074e-03   1st Qu.:9.065e-03   1st Qu.: NA  \n Median :5.557e-02   Median :5.552e-02   Median : NA  \n Mean   :4.063e-01   Mean   :4.062e-01   Mean   :NaN  \n 3rd Qu.:9.435e-01   3rd Qu.:9.435e-01   3rd Qu.: NA  \n Max.   :1.000e+00   Max.   :1.000e+00   Max.   : NA  \n                                         NA's   :64   \n\n\n\n\n特定值边际效应 (MEM)\n\n# 在特定wt值下hp的边际效应\nmem &lt;- slopes(model,\n    variables = \"hp\",\n    newdata = datagrid(wt = c(2, 3, 4))\n)\nprint(mem)\n\n\n wt Estimate Std. Error     z Pr(&gt;|z|)   S     2.5 %   97.5 %\n  2 1.18e-05   3.33e-05 0.354   0.7230 0.5 -5.35e-05 7.71e-05\n  3 9.06e-03   4.42e-03 2.051   0.0402 4.6  4.03e-04 1.77e-02\n  4 1.06e-05   3.01e-05 0.351   0.7253 0.5 -4.85e-05 6.96e-05\n\nTerm: hp\nType: response\nComparison: dY/dX\n\n\n\n\n边际效应可视化\n\n# 边际效应如何随wt变化\nplot_slopes(model, variables = \"hp\", condition = \"wt\") +\n    labs(\n        title = \"hp的边际效应随wt的变化\",\n        y = \"hp对P(手动)的边际效应\"\n    )",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第三部分comparisons-对比分析",
+    "href": "1064-marginaleffects.html#第三部分comparisons-对比分析",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第三部分：comparisons() 对比分析",
+    "text": "第三部分：comparisons() 对比分析\ncomparisons() 用于计算不同水平或条件之间的差异。\n\n连续变量对比\n\n# hp从100到200的效应差异\ncomp &lt;- comparisons(model,\n    variables = list(hp = c(100, 200))\n)\nprint(comp)\n\n\n Estimate Std. Error     z Pr(&gt;|z|)   S     2.5 %   97.5 %\n 0.204847   0.187262 1.094   0.2740 1.9 -0.162179 0.571873\n 0.625491   0.244655 2.557   0.0106 6.6  0.145976 1.105006\n 0.022610   0.038673 0.585   0.5588 0.8 -0.053186 0.098407\n 0.502805   0.238095 2.112   0.0347 4.8  0.036147 0.969463\n 0.150919   0.147271 1.025   0.3055 1.7 -0.137727 0.439565\n--- 22 rows omitted. See ?print.marginaleffects ---\n 0.000034   0.000136 0.249   0.8031 0.3 -0.000233 0.000301\n 0.578990   0.235093 2.463   0.0138 6.2  0.118217 1.039763\n 0.451345   0.255647 1.766   0.0775 3.7 -0.049713 0.952404\n 0.058905   0.078067 0.755   0.4505 1.2 -0.094104 0.211914\n 0.469603   0.256714 1.829   0.0674 3.9 -0.033548 0.972754\nTerm: hp\nType: response\nComparison: 200 - 100\n\n\n\n\n单位变化对比\n\n# hp每增加10单位的效应\ncomp_10 &lt;- comparisons(model,\n    variables = list(hp = 10)\n) # 变化10单位\nsummary(comp_10)\n\n     rowid           term             contrast            estimate        \n Min.   : 1.00   Length:32          Length:32          Min.   :1.500e-08  \n 1st Qu.: 8.75   Class :character   Class :character   1st Qu.:1.193e-03  \n Median :16.50   Mode  :character   Mode  :character   Median :5.725e-03  \n Mean   :16.50                                         Mean   :1.611e-02  \n 3rd Qu.:24.25                                         3rd Qu.:1.695e-02  \n Max.   :32.00                                         Max.   :8.946e-02  \n                                                                          \n   std.error           statistic         p.value           s.value      \n Min.   :9.400e-08   Min.   :0.1605   Min.   :0.02962   Min.   :0.1968  \n 1st Qu.:2.578e-03   1st Qu.:0.4729   1st Qu.:0.36647   1st Qu.:0.6527  \n Median :8.065e-03   Median :0.6152   Median :0.53846   Median :0.8933  \n Mean   :1.533e-02   Mean   :0.7115   Mean   :0.51420   Mean   :1.1689  \n 3rd Qu.:2.225e-02   3rd Qu.:0.9040   3rd Qu.:0.63645   3rd Qu.:1.4514  \n Max.   :6.459e-02   Max.   :2.1752   Max.   :0.87246   Max.   :5.0774  \n                                                                        \n    conf.low           conf.high              mpg             cyl       \n Min.   :-0.062123   Min.   :1.990e-07   Min.   :10.40   Min.   :4.000  \n 1st Qu.:-0.019008   1st Qu.:6.183e-03   1st Qu.:15.43   1st Qu.:4.000  \n Median :-0.008955   Median :2.153e-02   Median :19.20   Median :6.000  \n Mean   :-0.013935   Mean   :4.616e-02   Mean   :20.09   Mean   :6.188  \n 3rd Qu.:-0.003283   3rd Qu.:5.973e-02   3rd Qu.:22.80   3rd Qu.:8.000  \n Max.   : 0.008851   Max.   :2.001e-01   Max.   :33.90   Max.   :8.000  \n                                                                        \n      disp             hp             drat             wt       \n Min.   : 71.1   Min.   : 52.0   Min.   :2.760   Min.   :1.513  \n 1st Qu.:120.8   1st Qu.: 96.5   1st Qu.:3.080   1st Qu.:2.581  \n Median :196.3   Median :123.0   Median :3.695   Median :3.325  \n Mean   :230.7   Mean   :146.7   Mean   :3.597   Mean   :3.217  \n 3rd Qu.:326.0   3rd Qu.:180.0   3rd Qu.:3.920   3rd Qu.:3.610  \n Max.   :472.0   Max.   :335.0   Max.   :4.930   Max.   :5.424  \n                                                                \n      qsec             vs            am          gear            carb      \n Min.   :14.50   Min.   :0.0000   自动:19   Min.   :3.000   Min.   :1.000  \n 1st Qu.:16.89   1st Qu.:0.0000   手动:13   1st Qu.:3.000   1st Qu.:2.000  \n Median :17.71   Median :0.0000             Median :4.000   Median :2.000  \n Mean   :17.85   Mean   :0.4375             Mean   :3.688   Mean   :2.812  \n 3rd Qu.:18.90   3rd Qu.:1.0000             3rd Qu.:4.000   3rd Qu.:4.000  \n Max.   :22.90   Max.   :1.0000             Max.   :5.000   Max.   :8.000  \n                                                                           \n  predicted_lo        predicted_hi         predicted  \n Min.   :3.000e-08   Min.   :5.000e-08   Min.   : NA  \n 1st Qu.:9.074e-03   1st Qu.:1.299e-02   1st Qu.: NA  \n Median :5.556e-02   Median :7.783e-02   Median : NA  \n Mean   :4.062e-01   Mean   :4.224e-01   Mean   :NaN  \n 3rd Qu.:9.435e-01   3rd Qu.:9.600e-01   3rd Qu.: NA  \n Max.   :1.000e+00   Max.   :1.000e+00   Max.   : NA  \n                                         NA's   :32   \n\n\n\n\n风险比和优势比\n\n# 计算优势比 (Odds Ratio)\nor &lt;- comparisons(model,\n    variables = \"hp\",\n    comparison = \"lnratioavg\", # 对数优势比\n    transform = exp\n) # 转换为优势比\nsummary(or)\n\n     term             contrast            estimate        p.value        \n Length:1           Length:1           Min.   :1.004   Min.   :0.007114  \n Class :character   Class :character   1st Qu.:1.004   1st Qu.:0.007114  \n Mode  :character   Mode  :character   Median :1.004   Median :0.007114  \n                                       Mean   :1.004   Mean   :0.007114  \n                                       3rd Qu.:1.004   3rd Qu.:0.007114  \n                                       Max.   :1.004   Max.   :0.007114  \n    s.value         conf.low       conf.high    \n Min.   :7.135   Min.   :1.001   Min.   :1.007  \n 1st Qu.:7.135   1st Qu.:1.001   1st Qu.:1.007  \n Median :7.135   Median :1.001   Median :1.007  \n Mean   :7.135   Mean   :1.001   Mean   :1.007  \n 3rd Qu.:7.135   3rd Qu.:1.001   3rd Qu.:1.007  \n Max.   :7.135   Max.   :1.001   Max.   :1.007",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第四部分可视化功能",
+    "href": "1064-marginaleffects.html#第四部分可视化功能",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第四部分：可视化功能",
+    "text": "第四部分：可视化功能\n\n预测曲线\n\n# 线性回归示例\nmodel_lm &lt;- lm(mpg ~ hp * wt, data = mtcars)\n\n# 预测曲线\nplot_predictions(model_lm, condition = \"hp\") +\n    labs(\n        title = \"MPG随HP的预测曲线\",\n        x = \"马力\", y = \"预测油耗\"\n    )\n\n\n\n\n\n\n\n\n\n\n条件预测曲线\n\n# 按wt分组的预测曲线\nplot_predictions(model_lm,\n    condition = list(hp = seq(50, 300, 10), wt = c(2.5, 3.5, 4.5))\n) +\n    labs(title = \"不同重量下HP与MPG的关系\")\n\n\n\n\n\n\n\n\n\n\n边际效应图\n\n# 边际效应随条件变化\nplot_slopes(model_lm,\n    variables = \"hp\",\n    condition = \"wt\"\n) +\n    labs(\n        title = \"HP边际效应随重量的变化\",\n        y = \"HP对MPG的边际效应\"\n    )\n\n\n\n\n\n\n\n\n\n\n对比可视化\n\n# 对比可视化\nplot_comparisons(model_lm,\n    variables = list(hp = 50), # HP增加50\n    condition = \"wt\"\n) +\n    labs(\n        title = \"HP增加50时MPG变化量\",\n        y = \"MPG变化\"\n    )",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第五部分与glm模型结合",
+    "href": "1064-marginaleffects.html#第五部分与glm模型结合",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第五部分：与GLM模型结合",
+    "text": "第五部分：与GLM模型结合\n\nLogistic回归\n\n# 二分类模型\ndata(mtcars)\nmodel_logit &lt;- glm(vs ~ hp + wt + am, data = mtcars, family = binomial)\n\n# 预测概率\npredictions(model_logit, type = \"response\") |&gt; head()\n\n\n Estimate Std. Error      z Pr(&gt;|z|)     S   2.5 % 97.5 %\n   0.2674     0.2243  1.192    0.233   2.1 -0.1723 0.7071\n   0.1895     0.2216  0.855    0.393   1.3 -0.2449 0.6238\n   0.8065     0.1858  4.340   &lt;0.001  16.1  0.4423 1.1707\n   0.9695     0.0570 17.018   &lt;0.001 213.3  0.8578 1.0811\n   0.0142     0.0350  0.406    0.685   0.5 -0.0543 0.0827\n   0.9732     0.0554 17.553   &lt;0.001 226.7  0.8645 1.0819\n\nType: response\n\n# 边际效应（概率尺度）\navg_slopes(model_logit)\n\n\n Term Contrast Estimate Std. Error     z Pr(&gt;|z|)    S    2.5 %  97.5 %\n   am    1 - 0 -0.23862     0.0722 -3.30   &lt;0.001 10.0 -0.38020 -0.0970\n   hp    dY/dX -0.00603     0.0017 -3.55   &lt;0.001 11.3 -0.00936 -0.0027\n   wt    dY/dX -0.09379     0.0920 -1.02    0.308  1.7 -0.27404  0.0865\n\nType: response\n\n\n\n\nPoisson回归\n\n# 计数模型\nset.seed(42)\ncount_data &lt;- data.frame(\n    y = rpois(100, lambda = exp(1 + 0.5 * rnorm(100))),\n    x = rnorm(100)\n)\n\nmodel_pois &lt;- glm(y ~ x, data = count_data, family = poisson)\n\n# 边际效应（计数尺度）\navg_slopes(model_pois)\n\n\n Estimate Std. Error     z Pr(&gt;|z|)   S  2.5 % 97.5 %\n    0.124      0.181 0.686    0.493 1.0 -0.231   0.48\n\nTerm: x\nType: response\nComparison: dY/dX\n\n# 发生率比 (IRR)\ncomparisons(model_pois, comparison = \"lnratioavg\", transform = exp) |&gt;\n    summary()\n\n     term             contrast            estimate        p.value      \n Length:1           Length:1           Min.   :1.045   Min.   :0.4922  \n Class :character   Class :character   1st Qu.:1.045   1st Qu.:0.4922  \n Mode  :character   Mode  :character   Median :1.045   Median :0.4922  \n                                       Mean   :1.045   Mean   :0.4922  \n                                       3rd Qu.:1.045   3rd Qu.:0.4922  \n                                       Max.   :1.045   Max.   :0.4922  \n    s.value         conf.low        conf.high    \n Min.   :1.023   Min.   :0.9222   Min.   :1.183  \n 1st Qu.:1.023   1st Qu.:0.9222   1st Qu.:1.183  \n Median :1.023   Median :0.9222   Median :1.183  \n Mean   :1.023   Mean   :0.9222   Mean   :1.183  \n 3rd Qu.:1.023   3rd Qu.:0.9222   3rd Qu.:1.183  \n Max.   :1.023   Max.   :0.9222   Max.   :1.183",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第六部分交互作用分析",
+    "href": "1064-marginaleffects.html#第六部分交互作用分析",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第六部分：交互作用分析",
+    "text": "第六部分：交互作用分析\n\n连续×连续交互\n\n# 包含交互项的模型\nmodel_int &lt;- lm(mpg ~ hp * wt, data = mtcars)\n\n# hp的边际效应随wt变化\nplot_slopes(model_int,\n    variables = \"hp\",\n    condition = \"wt\"\n) +\n    geom_hline(yintercept = 0, linetype = \"dashed\", color = \"red\") +\n    labs(\n        title = \"HP×WT交互作用可视化\",\n        subtitle = \"边际效应穿过零线表示效应方向变化\"\n    )\n\n\n\n\n\n\n\n\n\n\n连续×分类交互\n\n# 分类交互\nmtcars$cyl &lt;- factor(mtcars$cyl)\nmodel_cat &lt;- lm(mpg ~ hp * cyl, data = mtcars)\n\n# 分组边际效应\nslopes(model_cat, variables = \"hp\", by = \"cyl\")\n\n\n cyl Estimate Std. Error      z Pr(&gt;|z|)   S   2.5 %  97.5 %\n   4 -0.11278     0.0457 -2.465   0.0137 6.2 -0.2024 -0.0231\n   6 -0.00761     0.0510 -0.149   0.8812 0.2 -0.1075  0.0923\n   8 -0.01424     0.0165 -0.864   0.3873 1.4 -0.0465  0.0181\n\nTerm: hp\nType: response\nComparison: dY/dX\n\n\n\n# 可视化分组效应\nplot_slopes(model_cat,\n    variables = \"hp\",\n    condition = \"cyl\"\n) +\n    labs(title = \"不同气缸数下HP的边际效应\")",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第七部分假设检验",
+    "href": "1064-marginaleffects.html#第七部分假设检验",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第七部分：假设检验",
+    "text": "第七部分：假设检验\n\n边际效应显著性\n\n# 检验边际效应是否显著\name_test &lt;- avg_slopes(model_lm)\nprint(ame_test)\n\n\n Term Estimate Std. Error     z Pr(&gt;|z|)    S   2.5 %  97.5 %\n   hp  -0.0305     0.0075 -4.07   &lt;0.001 14.4 -0.0452 -0.0158\n   wt  -4.1316     0.5296 -7.80   &lt;0.001 47.2 -5.1696 -3.0937\n\nType: response\nComparison: dY/dX\n\n\n\n\n效应对比检验\n\n# 检验两个水平的效应差异\nhypotheses(model_lm, \"hp = 0\")\n\n\n\n联合检验\n\n# 检验多个参数\nhypotheses(model_lm, c(\"hp = 0\", \"wt = 0\"), joint = TRUE)",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#第八部分实战案例",
+    "href": "1064-marginaleffects.html#第八部分实战案例",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "第八部分：实战案例",
+    "text": "第八部分：实战案例\n\n完整分析流程\n\n# 使用iris数据集\ndata(iris)\niris$Species_binary &lt;- ifelse(iris$Species == \"setosa\", 1, 0)\n\n# 拟合模型\nmodel_case &lt;- glm(Species_binary ~ Sepal.Length * Sepal.Width + Petal.Length,\n    data = iris, family = binomial\n)\n\n# 1. 模型系数\nsummary(model_case)\n\n\nCall:\nglm(formula = Species_binary ~ Sepal.Length * Sepal.Width + Petal.Length, \n    family = binomial, data = iris)\n\nCoefficients:\n                           Estimate Std. Error z value Pr(&gt;|z|)\n(Intercept)                  148.49 1148380.35   0.000        1\nSepal.Length                 -25.41  261958.50   0.000        1\nSepal.Width                  -49.27  280047.79   0.000        1\nPetal.Length                 -29.17   53602.85  -0.001        1\nSepal.Length:Sepal.Width      13.40   58344.43   0.000        1\n\n(Dispersion parameter for binomial family taken to be 1)\n\n    Null deviance: 1.9095e+02  on 149  degrees of freedom\nResidual deviance: 3.3021e-09  on 145  degrees of freedom\nAIC: 10\n\nNumber of Fisher Scoring iterations: 25\n\n\n\n# 2. 平均边际效应\ncat(\"\\n=== 平均边际效应 ===\\n\")\n\n\n=== 平均边际效应 ===\n\navg_slopes(model_case)\n\n\n         Term  Estimate Std. Error         z Pr(&gt;|z|)   S     2.5 %   97.5 %\n Petal.Length -3.22e-10   1.30e-03 -2.48e-07        1 0.0 -2.55e-03 2.55e-03\n Sepal.Length  1.12e-10   1.42e-03  7.91e-08        1 0.0 -2.79e-03 2.79e-03\n Sepal.Width   2.06e-10   3.18e-06  6.48e-05        1 0.0 -6.22e-06 6.22e-06\n\nType: response\nComparison: dY/dX\n\n\n\n# 3. 关键变量的预测曲线\nplot_predictions(model_case, condition = \"Sepal.Length\") +\n    labs(\n        title = \"Sepal.Length对Setosa概率的影响\",\n        y = \"P(Setosa)\"\n    )\n\n\n\n\n\n\n\n\n\n# 4. 交互作用可视化\nplot_predictions(model_case,\n    condition = list(Sepal.Length = seq(4, 8, 0.5), Sepal.Width = c(2.5, 3, 3.5))\n) +\n    labs(title = \"Sepal.Length × Sepal.Width 交互效应\")",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#常用代码速查",
+    "href": "1064-marginaleffects.html#常用代码速查",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n\n# ===== 预测值 =====\npredictions(model) # 所有观测预测\npredictions(model, newdata = ...) # 特定值预测\npredictions(model, by = \"group\") # 分组平均\n\n# ===== 边际效应 =====\nslopes(model) # 所有观测边际效应\navg_slopes(model) # 平均边际效应\nslopes(model, variables = \"x\") # 特定变量\nslopes(model, by = \"group\") # 分组边际效应\n\n# ===== 对比 =====\ncomparisons(model, variables = list(x = c(0, 1))) # 水平对比\ncomparisons(model, comparison = \"ratio\") # 比值\ncomparisons(model, transform = exp) # 转换\n\n# ===== 可视化 =====\nplot_predictions(model, condition = \"x\")\nplot_slopes(model, variables = \"x\", condition = \"z\")\nplot_comparisons(model, variables = \"x\")\n\n# ===== 假设检验 =====\nhypotheses(model, \"x = 0\")\nhypotheses(model, c(\"x = 0\", \"z = 0\"), joint = TRUE)",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#小结",
+    "href": "1064-marginaleffects.html#小结",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "小结",
+    "text": "小结\nmarginaleffects 的核心优势：\n\n\n\n特点\n说明\n\n\n\n\n通用性\n支持100+模型类，一套语法通吃\n\n\n直观性\n效应量有实际意义，便于解释\n\n\n可视化\n内置优雅的ggplot2图形\n\n\n灵活性\n支持各种对比、转换、假设检验\n\n\n\n\n建议：对于任何回归分析，都建议使用marginaleffects来补充解释系数的实际含义。",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "1064-marginaleffects.html#参考资源",
+    "href": "1064-marginaleffects.html#参考资源",
+    "title": "marginaleffects 边际效应分析完全指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nmarginaleffects 官方文档\nMarginal Effects Zoo\nPredictions and Counterfactuals",
+    "crumbs": [
+      "主页",
+      "实用 R 包",
+      "📈 模型整理",
+      "marginaleffects - 边际效应"
+    ]
+  },
+  {
+    "objectID": "index.html#causalimpact-简介",
+    "href": "index.html#causalimpact-简介",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "CausalImpact 简介",
+    "text": "CausalImpact 简介\nCausalImpact 是Google开发的R包，使用贝叶斯结构时间序列模型来估计干预对时间序列的因果效应。它解决了一个核心问题：如果没有干预，会发生什么？\n\n应用场景\n\n\n\n领域\n应用示例\n\n\n\n\n公共卫生\n政策实施对疾病发病率的影响\n\n\n营销\n广告活动对销售的影响\n\n\n经济学\n政策干预对经济指标的影响\n\n\n产品\n功能上线对用户行为的影响\n\n\n\n\n\n核心原理\nCausalImpact通过以下步骤工作： 1. 使用未受干预的对照序列预测干预后的反事实 2. 比较实际观测值与反事实预测 3. 量化差异并提供不确定性估计"
+  },
+  {
+    "objectID": "index.html#安装与加载",
+    "href": "index.html#安装与加载",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "安装与加载",
+    "text": "安装与加载\nlibrary(CausalImpact)\nlibrary(ggplot2)\nlibrary(dplyr)\n\ntheme_set(theme_bw(base_size = 12))"
+  },
+  {
+    "objectID": "index.html#第一部分基础用法",
+    "href": "index.html#第一部分基础用法",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第一部分：基础用法",
+    "text": "第一部分：基础用法\n\n模拟数据创建\n# 创建模拟时间序列数据\nset.seed(42)\nn &lt;- 100 # 时间点数\nintervention_point &lt;- 70 # 干预发生点\n\n# 生成对照序列（未受干预影响）\nx1 &lt;- 10 + arima.sim(model = list(ar = 0.8), n = n)\nx2 &lt;- 20 + arima.sim(model = list(ar = 0.7), n = n)\n\n# 生成目标序列\n# 干预前：与对照序列相关\n# 干预后：增加效应\ny &lt;- 1.5 * x1 + 0.5 * x2 + rnorm(n, 0, 2)\n# 添加干预效应\ny[(intervention_point + 1):n] &lt;- y[(intervention_point + 1):n] + 5\n\n# 创建时间索引\ntime_points &lt;- seq.Date(as.Date(\"2024-01-01\"), by = \"day\", length.out = n)\n\n# 组合数据\ndata &lt;- zoo::zoo(cbind(y = y, x1 = x1, x2 = x2), time_points)\nhead(data)\n\n\n运行CausalImpact\n# 定义干预前后时期\npre_period &lt;- c(time_points[1], time_points[intervention_point])\npost_period &lt;- c(time_points[intervention_point + 1], time_points[n])\n\n# 运行分析\nimpact &lt;- CausalImpact(data, pre_period, post_period)\n\n# 查看结果\nsummary(impact)\n\n\n结果可视化\n# 默认三图面板\nplot(impact)\n\n\n解读输出\n# 获取报告\nsummary(impact, \"report\")"
+  },
+  {
+    "objectID": "index.html#第二部分理解输出图形",
+    "href": "index.html#第二部分理解输出图形",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第二部分：理解输出图形",
+    "text": "第二部分：理解输出图形\n\n三个面板解读\n# 单独绘制每个面板\nplot(impact, \"original\") # 原始数据 vs 反事实预测\nOriginal 面板： - 黑线：实际观测值 - 蓝色虚线：反事实预测（如果没有干预会发生什么） - 浅蓝区域：预测的95%置信区间\nplot(impact, \"pointwise\") # 逐点效应\nPointwise 面板： - 显示每个时间点的因果效应（实际 - 预测） - 效应在零线以上表示正向影响\nplot(impact, \"cumulative\") # 累积效应\nCumulative 面板： - 显示干预后的累积因果效应 - 用于评估总体影响"
+  },
+  {
+    "objectID": "index.html#第三部分关键结果解读",
+    "href": "index.html#第三部分关键结果解读",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第三部分：关键结果解读",
+    "text": "第三部分：关键结果解读\n\n提取数值结果\n# 获取摘要统计\nimpact_summary &lt;- impact$summary\n\ncat(\"=== 干预效应摘要 ===\\n\\n\")\ncat(\"平均因果效应:\\n\")\ncat(\"  绝对效应:\", round(impact_summary$AbsEffect[1], 2), \"\\n\")\ncat(\"  相对效应:\", round(impact_summary$RelEffect[1] * 100, 1), \"%\\n\")\ncat(\n    \"  95% CI: [\", round(impact_summary$AbsEffect.lower[1], 2),\n    \",\", round(impact_summary$AbsEffect.upper[1], 2), \"]\\n\\n\"\n)\n\ncat(\"累积因果效应:\\n\")\ncat(\"  绝对效应:\", round(impact_summary$AbsEffect[2], 2), \"\\n\")\ncat(\"  相对效应:\", round(impact_summary$RelEffect[2] * 100, 1), \"%\\n\")\n\n\n统计显著性\n# 贝叶斯后验概率\ncat(\"\\n干预效应的后验概率:\\n\")\ncat(\"  P(效应 &gt; 0):\", round(impact$summary$p[1], 4), \"\\n\")\n\nif (impact$summary$p[1] &lt; 0.05) {\n    cat(\"  结论: 干预效应在5%水平上显著\\n\")\n} else {\n    cat(\"  结论: 无法排除无效应的可能性\\n\")\n}"
+  },
+  {
+    "objectID": "index.html#第四部分模型配置",
+    "href": "index.html#第四部分模型配置",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第四部分：模型配置",
+    "text": "第四部分：模型配置\n\n自定义模型参数\n# 自定义模型参数\nmodel_args &lt;- list(\n    niter = 5000, # MCMC迭代次数\n    nseasons = 7, # 季节性周期（如周效应）\n    season.duration = 1 # 每个季节的持续时间\n)\n\nimpact_custom &lt;- CausalImpact(data, pre_period, post_period,\n    model.args = model_args\n)\nsummary(impact_custom)\n\n\n不使用对照序列\n# 只使用目标序列本身的历史模式\ndata_single &lt;- zoo::zoo(y, time_points)\n\nimpact_single &lt;- CausalImpact(data_single, pre_period, post_period)\nplot(impact_single)"
+  },
+  {
+    "objectID": "index.html#第五部分诊断与验证",
+    "href": "index.html#第五部分诊断与验证",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第五部分：诊断与验证",
+    "text": "第五部分：诊断与验证\n\n模型诊断\n# 检查模型拟合\n# 提取预测值\nfitted_values &lt;- impact$series$point.pred\n\n# 干预前拟合情况\npre_actual &lt;- as.numeric(data[1:intervention_point, \"y\"])\npre_fitted &lt;- as.numeric(fitted_values[1:intervention_point])\n\n# 计算拟合优度\nrsq &lt;- cor(pre_actual, pre_fitted)^2\nrmse &lt;- sqrt(mean((pre_actual - pre_fitted)^2))\n\ncat(\"干预前模型诊断:\\n\")\ncat(\"  R²:\", round(rsq, 4), \"\\n\")\ncat(\"  RMSE:\", round(rmse, 4), \"\\n\")\n\n\n残差检验\n# 干预前残差\nresiduals_pre &lt;- pre_actual - pre_fitted\n\n# 残差图\npar(mfrow = c(1, 2))\nplot(residuals_pre, type = \"l\", main = \"残差序列\", ylab = \"残差\")\nabline(h = 0, col = \"red\", lty = 2)\nacf(residuals_pre, main = \"残差ACF\")\npar(mfrow = c(1, 1))\n\n\n安慰剂检验\n# 在干预前时期做\"假\"干预检验\nplacebo_point &lt;- 50\nplacebo_pre &lt;- c(time_points[1], time_points[placebo_point])\nplacebo_post &lt;- c(time_points[placebo_point + 1], time_points[intervention_point])\n\n# 使用干预前数据\ndata_placebo &lt;- data[1:intervention_point, ]\n\nimpact_placebo &lt;- CausalImpact(data_placebo, placebo_pre, placebo_post)\n\ncat(\"\\n安慰剂检验结果:\\n\")\ncat(\"  估计效应:\", round(impact_placebo$summary$AbsEffect[1], 2), \"\\n\")\ncat(\"  P值:\", round(impact_placebo$summary$p[1], 4), \"\\n\")\n\nif (impact_placebo$summary$p[1] &gt; 0.05) {\n    cat(\"  结论: 安慰剂检验通过（无虚假效应）\\n\")\n}"
+  },
+  {
+    "objectID": "index.html#第六部分实战案例",
+    "href": "index.html#第六部分实战案例",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第六部分：实战案例",
+    "text": "第六部分：实战案例\n\n案例：政策效果评估\n# 模拟公共卫生政策效果\nset.seed(123)\nn_days &lt;- 180\npolicy_start &lt;- 90\n\n# 对照地区（未实施政策）\ncontrol_region &lt;- 100 + cumsum(rnorm(n_days, 0.1, 2))\n\n# 目标地区\n# 政策前：与对照地区相关\n# 政策后：发病率下降\ntarget_region &lt;- 0.9 * control_region + rnorm(n_days, 0, 3)\n# 政策效应：发病率降低15%\ntarget_region[(policy_start + 1):n_days] &lt;-\n    target_region[(policy_start + 1):n_days] * 0.85\n\n# 创建数据\ndates &lt;- seq.Date(as.Date(\"2025-01-01\"), by = \"day\", length.out = n_days)\npolicy_data &lt;- zoo::zoo(\n    cbind(target = target_region, control = control_region),\n    dates\n)\n\n# 分析\npre &lt;- c(dates[1], dates[policy_start])\npost &lt;- c(dates[policy_start + 1], dates[n_days])\n\nimpact_policy &lt;- CausalImpact(policy_data, pre, post)\n\ncat(\"=== 政策效果分析 ===\\n\")\nsummary(impact_policy)\n# 可视化\nplot(impact_policy) +\n    ggtitle(\"公共卫生政策对发病率的影响\")\n# 详细报告\nsummary(impact_policy, \"report\")"
+  },
+  {
+    "objectID": "index.html#第七部分与its对比",
+    "href": "index.html#第七部分与its对比",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第七部分：与ITS对比",
+    "text": "第七部分：与ITS对比\n\n中断时间序列分析（ITS）\n# 传统ITS分析\nits_data &lt;- data.frame(\n    time = 1:n,\n    y = as.numeric(y),\n    intervention = ifelse(1:n &gt; intervention_point, 1, 0),\n    time_after = ifelse(1:n &gt; intervention_point,\n        1:n - intervention_point, 0\n    )\n)\n\nits_model &lt;- lm(y ~ time + intervention + time_after, data = its_data)\nsummary(its_model)\n\n\nITS vs CausalImpact\n# 提取两种方法的效应估计\nits_effect &lt;- coef(its_model)[\"intervention\"]\nci_effect &lt;- impact$summary$AbsEffect[1]\n\ncomparison &lt;- data.frame(\n    Method = c(\"ITS\", \"CausalImpact\"),\n    Effect = c(its_effect, ci_effect),\n    True_Effect = c(5, 5)\n)\n\nggplot(comparison, aes(x = Method, y = Effect)) +\n    geom_col(fill = c(\"#4f46e5\", \"#10b981\"), alpha = 0.8) +\n    geom_hline(yintercept = 5, linetype = \"dashed\", color = \"red\") +\n    annotate(\"text\", x = 2.3, y = 5.2, label = \"真实效应\", color = \"red\") +\n    labs(\n        title = \"ITS vs CausalImpact 效应估计比较\",\n        y = \"估计效应\"\n    )\n\n\n\n特点\nITS\nCausalImpact\n\n\n\n\n对照序列\n不需要\n可选但推荐\n\n\n不确定性\n频率派\n贝叶斯\n\n\n趋势建模\n参数化\n非参数\n\n\n季节性\n需手动处理\n自动处理"
+  },
+  {
+    "objectID": "index.html#常用代码速查",
+    "href": "index.html#常用代码速查",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n```{r eval=FALSE} # ===== 基础分析 ===== library(CausalImpact) impact &lt;- CausalImpact(data, pre.period, post.period) summary(impact) plot(impact)"
+  },
+  {
+    "objectID": "index.html#gt-简介",
+    "href": "index.html#gt-简介",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "gt 简介",
+    "text": "gt 简介\ngt（Grammar of Tables）是Posit官方开发的现代表格制作包，采用”表格语法”的设计理念，可创建高度定制化的发表级表格。\n\ngt vs 其他表格包\n\n\n\n特点\ngt\ngtsummary\nkable\nflextable\n\n\n\n\n设计理念\n表格语法\n统计表格\n简单快速\nOffice兼容\n\n\n定制程度\n极高\n中等\n低\n高\n\n\n学习曲线\n中等\n低\n最低\n中等\n\n\n输出格式\nHTML/PDF/Word\n同gt\nHTML/PDF\nWord/PPT\n\n\n\n\n\n表格结构\ngt将表格分为几个逻辑部分： - Table Header：标题和副标题 - Stub：行标签区域 - Column Labels：列标签 - Table Body：数据主体 - Table Footer：脚注和来源说明"
+  },
+  {
+    "objectID": "index.html#安装与加载-1",
+    "href": "index.html#安装与加载-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "安装与加载",
+    "text": "安装与加载\nlibrary(gt)\nlibrary(dplyr)\nlibrary(tidyr)"
+  },
+  {
+    "objectID": "index.html#第一部分基础用法-1",
+    "href": "index.html#第一部分基础用法-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第一部分：基础用法",
+    "text": "第一部分：基础用法\n\n创建第一个gt表格\n# 使用内置数据\ndata(mtcars)\ndf &lt;- mtcars %&gt;%\n    slice(1:6) %&gt;%\n    select(mpg, cyl, hp, wt) %&gt;%\n    mutate(car = rownames(mtcars)[1:6], .before = 1)\n\n# 最简单的gt表格\ngt(df)\n\n\n添加标题和来源\ndf %&gt;%\n    gt() %&gt;%\n    tab_header(\n        title = \"汽车性能参数表\",\n        subtitle = \"Motor Trend Car Road Tests 数据子集\"\n    ) %&gt;%\n    tab_source_note(\n        source_note = \"数据来源：1974 Motor Trend 杂志\"\n    )\n\n\n修改列标签\ndf %&gt;%\n    gt() %&gt;%\n    cols_label(\n        car = \"车型\",\n        mpg = \"油耗 (MPG)\",\n        cyl = \"气缸数\",\n        hp = \"马力\",\n        wt = \"重量 (吨)\"\n    )"
+  },
+  {
+    "objectID": "index.html#第二部分格式化",
+    "href": "index.html#第二部分格式化",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第二部分：格式化",
+    "text": "第二部分：格式化\n\n数字格式化\ndf %&gt;%\n    gt() %&gt;%\n    fmt_number(\n        columns = c(mpg, wt),\n        decimals = 1\n    ) %&gt;%\n    fmt_integer(\n        columns = c(cyl, hp)\n    )\n\n\n百分比格式化\n# 创建带百分比的数据\npct_df &lt;- data.frame(\n    category = c(\"A\", \"B\", \"C\"),\n    value = c(0.234, 0.456, 0.310)\n)\n\npct_df %&gt;%\n    gt() %&gt;%\n    fmt_percent(\n        columns = value,\n        decimals = 1\n    )\n\n\n货币格式化\nprice_df &lt;- data.frame(\n    item = c(\"产品A\", \"产品B\", \"产品C\"),\n    price_usd = c(99.99, 149.50, 299.00),\n    price_cny = c(699, 1049, 2099)\n)\n\nprice_df %&gt;%\n    gt() %&gt;%\n    fmt_currency(\n        columns = price_usd,\n        currency = \"USD\"\n    ) %&gt;%\n    fmt_currency(\n        columns = price_cny,\n        currency = \"CNY\"\n    )"
+  },
+  {
+    "objectID": "index.html#第三部分样式设置",
+    "href": "index.html#第三部分样式设置",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第三部分：样式设置",
+    "text": "第三部分：样式设置\n\n表头样式\ndf %&gt;%\n    gt() %&gt;%\n    tab_header(\n        title = md(\"**汽车性能参数**\"),\n        subtitle = \"精选车型数据\"\n    ) %&gt;%\n    tab_style(\n        style = cell_fill(color = \"#4f46e5\"),\n        locations = cells_title()\n    ) %&gt;%\n    tab_style(\n        style = cell_text(color = \"white\", weight = \"bold\"),\n        locations = cells_title()\n    )\n\n\n列标签样式\ndf %&gt;%\n    gt() %&gt;%\n    tab_style(\n        style = list(\n            cell_fill(color = \"#e0e7ff\"),\n            cell_text(weight = \"bold\")\n        ),\n        locations = cells_column_labels()\n    )\n\n\n条件格式化\ndf %&gt;%\n    gt() %&gt;%\n    tab_style(\n        style = cell_fill(color = \"#dcfce7\"),\n        locations = cells_body(\n            columns = mpg,\n            rows = mpg &gt; 20\n        )\n    ) %&gt;%\n    tab_style(\n        style = cell_fill(color = \"#fee2e2\"),\n        locations = cells_body(\n            columns = mpg,\n            rows = mpg &lt; 15\n        )\n    )"
+  },
+  {
+    "objectID": "index.html#第四部分数据着色",
+    "href": "index.html#第四部分数据着色",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第四部分：数据着色",
+    "text": "第四部分：数据着色\n\n颜色标度\ndf %&gt;%\n    gt() %&gt;%\n    data_color(\n        columns = mpg,\n        palette = c(\"#ef4444\", \"#fbbf24\", \"#22c55e\"),\n        domain = c(10, 35)\n    )\n\n\n多列着色\ndf %&gt;%\n    gt() %&gt;%\n    data_color(\n        columns = c(mpg, hp),\n        palette = \"Blues\"\n    )"
+  },
+  {
+    "objectID": "index.html#第五部分分组与汇总",
+    "href": "index.html#第五部分分组与汇总",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第五部分：分组与汇总",
+    "text": "第五部分：分组与汇总\n\n行分组\n# 按气缸数分组\nmtcars %&gt;%\n    slice(1:12) %&gt;%\n    mutate(car = rownames(mtcars)[1:12]) %&gt;%\n    select(car, cyl, mpg, hp) %&gt;%\n    gt(groupname_col = \"cyl\") %&gt;%\n    tab_header(title = \"按气缸数分组的汽车数据\")\n\n\n添加汇总行\nmtcars %&gt;%\n    slice(1:8) %&gt;%\n    mutate(car = rownames(mtcars)[1:8]) %&gt;%\n    select(car, cyl, mpg, hp) %&gt;%\n    group_by(cyl) %&gt;%\n    gt() %&gt;%\n    summary_rows(\n        groups = TRUE,\n        columns = c(mpg, hp),\n        fns = list(\n            平均值 = ~ mean(., na.rm = TRUE),\n            最大值 = ~ max(., na.rm = TRUE)\n        ),\n        fmt = ~ fmt_number(., decimals = 1)\n    )\n\n\n总计行\nmtcars %&gt;%\n    slice(1:6) %&gt;%\n    mutate(car = rownames(mtcars)[1:6]) %&gt;%\n    select(car, mpg, hp, wt) %&gt;%\n    gt() %&gt;%\n    grand_summary_rows(\n        columns = c(mpg, hp),\n        fns = list(\n            总计 = ~ sum(.),\n            平均 = ~ mean(.)\n        ),\n        fmt = ~ fmt_number(., decimals = 1)\n    )"
+  },
+  {
+    "objectID": "index.html#第六部分脚注与注释",
+    "href": "index.html#第六部分脚注与注释",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第六部分：脚注与注释",
+    "text": "第六部分：脚注与注释\n\n添加脚注\ndf %&gt;%\n    gt() %&gt;%\n    tab_footnote(\n        footnote = \"MPG = Miles Per Gallon\",\n        locations = cells_column_labels(columns = mpg)\n    ) %&gt;%\n    tab_footnote(\n        footnote = \"高性能车型\",\n        locations = cells_body(\n            columns = car,\n            rows = hp &gt; 200\n        )\n    )\n\n\n多个脚注\ndf %&gt;%\n    gt() %&gt;%\n    tab_footnote(\n        footnote = md(\"**油耗效率**指标\"),\n        locations = cells_column_labels(columns = mpg)\n    ) %&gt;%\n    tab_footnote(\n        footnote = \"制动马力\",\n        locations = cells_column_labels(columns = hp)\n    ) %&gt;%\n    tab_source_note(\"注：数据来自1974年美国汽车测试\")"
+  },
+  {
+    "objectID": "index.html#第七部分合并与跨度",
+    "href": "index.html#第七部分合并与跨度",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第七部分：合并与跨度",
+    "text": "第七部分：合并与跨度\n\n列合并\ndf %&gt;%\n    gt() %&gt;%\n    cols_merge(\n        columns = c(cyl, hp),\n        pattern = \"{1} 缸 / {2} 马力\"\n    ) %&gt;%\n    cols_label(cyl = \"发动机配置\")\n\n\n列分组（Spanner）\ndf %&gt;%\n    gt() %&gt;%\n    tab_spanner(\n        label = \"性能指标\",\n        columns = c(mpg, hp)\n    ) %&gt;%\n    tab_spanner(\n        label = \"规格参数\",\n        columns = c(cyl, wt)\n    )"
+  },
+  {
+    "objectID": "index.html#第八部分导出表格",
+    "href": "index.html#第八部分导出表格",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第八部分：导出表格",
+    "text": "第八部分：导出表格\n\n保存为HTML\n```{r eval=FALSE} my_table &lt;- df %&gt;% gt() %&gt;% tab_header(title = “示例表格”)"
+  },
+  {
+    "objectID": "index.html#常用代码速查-1",
+    "href": "index.html#常用代码速查-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n```{r eval=FALSE} # ===== 创建表格 ===== gt(data) gt(data, groupname_col = “group”)"
+  },
+  {
+    "objectID": "index.html#xgboost-简介",
+    "href": "index.html#xgboost-简介",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "XGBoost 简介",
+    "text": "XGBoost 简介\nXGBoost（eXtreme Gradient Boosting）是目前最强大的机器学习算法之一，在结构化数据上表现卓越，是Kaggle竞赛的常胜将军。\n\n为什么选择XGBoost？\n\n\n\n优势\n说明\n\n\n\n\n高性能\n速度快、精度高\n\n\n正则化\n内置L1/L2正则化，防止过拟合\n\n\n灵活性\n支持自定义目标函数\n\n\n可解释性\n提供特征重要性\n\n\n工程优化\n并行计算、缓存优化\n\n\n\n\n\n核心原理\nXGBoost基于梯度提升决策树（GBDT）： 1. 顺序训练多棵决策树 2. 每棵树拟合前一轮的残差 3. 使用二阶泰勒展开优化目标函数 4. 正则化控制模型复杂度"
+  },
+  {
+    "objectID": "index.html#安装与加载-2",
+    "href": "index.html#安装与加载-2",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "安装与加载",
+    "text": "安装与加载\nlibrary(xgboost)\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(caret)\n\ntheme_set(theme_bw(base_size = 12))\nset.seed(42)"
+  },
+  {
+    "objectID": "index.html#第一部分快速入门",
+    "href": "index.html#第一部分快速入门",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第一部分：快速入门",
+    "text": "第一部分：快速入门\n\n数据准备\n# 使用iris数据集（二分类）\ndata(iris)\niris_binary &lt;- iris %&gt;%\n    filter(Species != \"setosa\") %&gt;%\n    mutate(label = ifelse(Species == \"versicolor\", 0, 1))\n\n# 分割数据\ntrain_idx &lt;- sample(1:nrow(iris_binary), 0.7 * nrow(iris_binary))\ntrain_data &lt;- iris_binary[train_idx, ]\ntest_data &lt;- iris_binary[-train_idx, ]\n\n# 创建DMatrix（XGBoost专用格式）\ndtrain &lt;- xgb.DMatrix(\n    data = as.matrix(train_data[, 1:4]),\n    label = train_data$label\n)\ndtest &lt;- xgb.DMatrix(\n    data = as.matrix(test_data[, 1:4]),\n    label = test_data$label\n)\n\n\n训练模型\n# 设置参数\nparams &lt;- list(\n    objective = \"binary:logistic\", # 二分类\n    eval_metric = \"auc\", # 评估指标\n    max_depth = 3, # 树深度\n    eta = 0.1 # 学习率\n)\n\n# 训练\nmodel &lt;- xgb.train(\n    params = params,\n    data = dtrain,\n    nrounds = 100,\n    watchlist = list(train = dtrain, test = dtest),\n    verbose = 0\n)\n\n# 查看训练日志\ntail(model$evaluation_log)\n\n\n预测\n# 预测概率\npred_prob &lt;- predict(model, dtest)\nhead(pred_prob)\n\n# 转换为类别\npred_class &lt;- ifelse(pred_prob &gt; 0.5, 1, 0)\n\n# 评估\naccuracy &lt;- mean(pred_class == test_data$label)\ncat(\"测试集准确率:\", round(accuracy, 4), \"\\n\")\n\n# 混淆矩阵\ntable(Predicted = pred_class, Actual = test_data$label)"
+  },
+  {
+    "objectID": "index.html#第二部分参数详解",
+    "href": "index.html#第二部分参数详解",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第二部分：参数详解",
+    "text": "第二部分：参数详解\n\n核心参数\n\n\n\n参数\n说明\n推荐值\n\n\n\n\neta\n学习率\n0.01-0.3\n\n\nmax_depth\n树最大深度\n3-10\n\n\nmin_child_weight\n叶子节点最小样本权重\n1-10\n\n\nsubsample\n样本采样比例\n0.5-1\n\n\ncolsample_bytree\n特征采样比例\n0.5-1\n\n\nlambda\nL2正则化\n0-10\n\n\nalpha\nL1正则化\n0-10\n\n\n\n\n\n目标函数\n```{r eval=FALSE} # 二分类 objective &lt;- “binary:logistic” # 输出概率 objective &lt;- “binary:logitraw” # 输出原始分数"
+  },
+  {
+    "objectID": "index.html#第四部分特征重要性",
+    "href": "index.html#第四部分特征重要性",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第四部分：特征重要性",
+    "text": "第四部分：特征重要性\n\n计算重要性\n# 重新训练最终模型\nfinal_model &lt;- xgb.train(\n    params = params,\n    data = dtrain,\n    nrounds = best_nrounds,\n    verbose = 0\n)\n\n# 获取特征重要性\nimportance &lt;- xgb.importance(\n    feature_names = colnames(train_data)[1:4],\n    model = final_model\n)\nprint(importance)\n\n\n可视化重要性\n# 条形图\nxgb.plot.importance(importance, measure = \"Gain\")\n# 自定义ggplot可视化\nggplot(importance, aes(x = reorder(Feature, Gain), y = Gain)) +\n    geom_col(fill = \"#4f46e5\", alpha = 0.8) +\n    coord_flip() +\n    labs(\n        title = \"XGBoost 特征重要性\",\n        subtitle = \"基于信息增益\",\n        x = \"\", y = \"重要性 (Gain)\"\n    )\n\n\n多种重要性指标\n# 三种重要性指标对比\nimportance_long &lt;- importance %&gt;%\n    tidyr::pivot_longer(\n        cols = c(Gain, Cover, Frequency),\n        names_to = \"Metric\",\n        values_to = \"Value\"\n    )\n\nggplot(importance_long, aes(x = Feature, y = Value, fill = Metric)) +\n    geom_col(position = \"dodge\") +\n    scale_fill_manual(values = c(\"#4f46e5\", \"#10b981\", \"#ef4444\")) +\n    labs(\n        title = \"特征重要性（多指标对比）\",\n        x = \"\", y = \"重要性\"\n    ) +\n    theme(axis.text.x = element_text(angle = 45, hjust = 1))"
+  },
+  {
+    "objectID": "index.html#第五部分回归任务",
+    "href": "index.html#第五部分回归任务",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第五部分：回归任务",
+    "text": "第五部分：回归任务\n\n回归模型\n# 使用mtcars数据\ndata(mtcars)\ntrain_idx &lt;- sample(1:nrow(mtcars), 0.7 * nrow(mtcars))\n\ndtrain_reg &lt;- xgb.DMatrix(\n    data = as.matrix(mtcars[train_idx, -1]),\n    label = mtcars$mpg[train_idx]\n)\ndtest_reg &lt;- xgb.DMatrix(\n    data = as.matrix(mtcars[-train_idx, -1]),\n    label = mtcars$mpg[-train_idx]\n)\n\n# 回归参数\nparams_reg &lt;- list(\n    objective = \"reg:squarederror\",\n    eval_metric = \"rmse\",\n    max_depth = 4,\n    eta = 0.1\n)\n\n# 训练\nmodel_reg &lt;- xgb.train(\n    params = params_reg,\n    data = dtrain_reg,\n    nrounds = 100,\n    watchlist = list(train = dtrain_reg, test = dtest_reg),\n    verbose = 0\n)\n\n# 预测\npred_reg &lt;- predict(model_reg, dtest_reg)\nactual_reg &lt;- mtcars$mpg[-train_idx]\n\n# 评估\nrmse &lt;- sqrt(mean((pred_reg - actual_reg)^2))\nr_squared &lt;- cor(pred_reg, actual_reg)^2\n\ncat(\"RMSE:\", round(rmse, 3), \"\\n\")\ncat(\"R²:\", round(r_squared, 3), \"\\n\")\n\n\n预测vs实际\npred_df &lt;- data.frame(\n    actual = actual_reg,\n    predicted = pred_reg\n)\n\nggplot(pred_df, aes(x = actual, y = predicted)) +\n    geom_point(color = \"#4f46e5\", size = 3) +\n    geom_abline(\n        slope = 1, intercept = 0,\n        linetype = \"dashed\", color = \"red\"\n    ) +\n    labs(\n        title = \"XGBoost 回归：预测 vs 实际\",\n        x = \"实际值\", y = \"预测值\"\n    ) +\n    annotate(\"text\",\n        x = 15, y = 30,\n        label = paste(\"R² =\", round(r_squared, 3))\n    )"
+  },
+  {
+    "objectID": "index.html#第六部分多分类",
+    "href": "index.html#第六部分多分类",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第六部分：多分类",
+    "text": "第六部分：多分类\n# 使用完整iris数据（三分类）\niris_full &lt;- iris\niris_full$label &lt;- as.numeric(iris_full$Species) - 1\n\ntrain_idx &lt;- sample(1:nrow(iris_full), 0.7 * nrow(iris_full))\n\ndtrain_multi &lt;- xgb.DMatrix(\n    data = as.matrix(iris_full[train_idx, 1:4]),\n    label = iris_full$label[train_idx]\n)\ndtest_multi &lt;- xgb.DMatrix(\n    data = as.matrix(iris_full[-train_idx, 1:4]),\n    label = iris_full$label[-train_idx]\n)\n\n# 多分类参数\nparams_multi &lt;- list(\n    objective = \"multi:softmax\",\n    num_class = 3,\n    eval_metric = \"mlogloss\",\n    max_depth = 4,\n    eta = 0.1\n)\n\n# 训练\nmodel_multi &lt;- xgb.train(\n    params = params_multi,\n    data = dtrain_multi,\n    nrounds = 50,\n    verbose = 0\n)\n\n# 预测\npred_multi &lt;- predict(model_multi, dtest_multi)\n\n# 混淆矩阵\ntable(Predicted = pred_multi, Actual = iris_full$label[-train_idx])\n\n# 准确率\naccuracy_multi &lt;- mean(pred_multi == iris_full$label[-train_idx])\ncat(\"多分类准确率:\", round(accuracy_multi, 4), \"\\n\")"
+  },
+  {
+    "objectID": "index.html#第七部分保存与加载模型",
+    "href": "index.html#第七部分保存与加载模型",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第七部分：保存与加载模型",
+    "text": "第七部分：保存与加载模型\n# 保存模型\nxgb.save(final_model, \"xgboost_model.bin\")\n\n# 加载模型\nmodel_loaded &lt;- xgb.load(\"xgboost_model.bin\")\n\n# 验证\npred_loaded &lt;- predict(model_loaded, dtest)\nall.equal(pred_prob, pred_loaded)\n# 清理临时文件\nif (file.exists(\"xgboost_model.bin\")) {\n    file.remove(\"xgboost_model.bin\")\n}"
+  },
+  {
+    "objectID": "index.html#第八部分实战案例",
+    "href": "index.html#第八部分实战案例",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第八部分：实战案例",
+    "text": "第八部分：实战案例\n\n完整工作流程\n# 使用真实数据模拟\nset.seed(123)\nn &lt;- 1000\n\n# 生成特征\nage &lt;- rnorm(n, 50, 12)\nbmi &lt;- rnorm(n, 26, 4)\nbp &lt;- rnorm(n, 130, 15)\nglucose &lt;- rnorm(n, 100, 25)\ncholesterol &lt;- rnorm(n, 200, 40)\n\n# 生成标签（受特征影响）\nprob &lt;- plogis(-5 + 0.03 * age + 0.08 * bmi + 0.02 * bp + 0.01 * glucose + 0.005 * cholesterol)\noutcome &lt;- rbinom(n, 1, prob)\n\nsim_data &lt;- data.frame(\n    outcome, age, bmi, bp, glucose, cholesterol\n)\n\ncat(\"=== 数据概览 ===\\n\")\ncat(\"样本量:\", n, \"\\n\")\ncat(\"阳性率:\", mean(outcome), \"\\n\")\n# 数据分割\ntrain_idx &lt;- sample(1:n, 0.7 * n)\nX_train &lt;- as.matrix(sim_data[train_idx, -1])\ny_train &lt;- sim_data$outcome[train_idx]\nX_test &lt;- as.matrix(sim_data[-train_idx, -1])\ny_test &lt;- sim_data$outcome[-train_idx]\n\ndtrain_case &lt;- xgb.DMatrix(data = X_train, label = y_train)\ndtest_case &lt;- xgb.DMatrix(data = X_test, label = y_test)\n# 交叉验证选择最佳参数\ncv_case &lt;- xgb.cv(\n    params = list(\n        objective = \"binary:logistic\",\n        eval_metric = \"auc\",\n        max_depth = 4,\n        eta = 0.1,\n        subsample = 0.8,\n        colsample_bytree = 0.8\n    ),\n    data = dtrain_case,\n    nrounds = 200,\n    nfold = 5,\n    early_stopping_rounds = 20,\n    verbose = 0\n)\n\ncat(\"\\n最佳迭代:\", cv_case$best_iteration, \"\\n\")\ncat(\"验证集AUC:\", round(max(cv_case$evaluation_log$test_auc_mean), 4), \"\\n\")\n# 训练最终模型\nfinal_case &lt;- xgb.train(\n    params = list(\n        objective = \"binary:logistic\",\n        eval_metric = \"auc\",\n        max_depth = 4,\n        eta = 0.1,\n        subsample = 0.8,\n        colsample_bytree = 0.8\n    ),\n    data = dtrain_case,\n    nrounds = cv_case$best_iteration,\n    verbose = 0\n)\n\n# 测试集评估\npred_case &lt;- predict(final_case, dtest_case)\n\n# AUC\nlibrary(pROC)\nroc_case &lt;- roc(y_test, pred_case)\ncat(\"\\n测试集AUC:\", round(auc(roc_case), 4), \"\\n\")\n# 特征重要性\nimportance_case &lt;- xgb.importance(\n    feature_names = colnames(sim_data)[-1],\n    model = final_case\n)\n\nxgb.plot.importance(importance_case)"
+  },
+  {
+    "objectID": "index.html#常用代码速查-2",
+    "href": "index.html#常用代码速查-2",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n```{r eval=FALSE} # ===== 数据准备 ===== dtrain &lt;- xgb.DMatrix(data = X_matrix, label = y_vector)"
+  },
+  {
+    "objectID": "index.html#小结",
+    "href": "index.html#小结",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "小结",
+    "text": "小结\nXGBoost 调参顺序建议：\n\n先确定nrounds：使用早停\n调max_depth和min_child_weight：控制过拟合\n调subsample和colsample_bytree：正则化\n调eta：降低学习率，增加nrounds\n调lambda和alpha：进一步正则化\n\n\n技巧：XGBoost在结构化表格数据上通常优于深度学习，是数据科学竞赛的必备工具。"
+  },
+  {
+    "objectID": "index.html#参考资源",
+    "href": "index.html#参考资源",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "参考资源",
+    "text": "参考资源\n\nXGBoost 官方文档\nXGBoost R包\nXGBoost论文"
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html",
+    "href": "1065-tmle-doubly-robust.html",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "",
+    "text": "TMLE（Targeted Maximum Likelihood Estimation，目标最大似然估计）是一种半参数双重稳健的因果推断方法，结合了机器学习的灵活性和统计推断的严谨性。\n\n\n\n\n\n方法\n局限性\nTMLE优势\n\n\n\n\n传统回归\n模型误设导致偏差\n双重稳健\n\n\nIPW\n极端权重不稳定\n边界处理\n\n\n倾向得分匹配\n样本量损失\n保留所有数据\n\n\n参数模型\n假设过强\n可整合ML\n\n\n\n\n\n\nTMLE的核心优势是双重稳健性：只要以下两个模型之一正确指定，估计就是一致的： - 结果模型 Q(A,W)：给定暴露和协变量下的期望结果 - 倾向得分模型 g(W)：给定协变量下接受暴露的概率",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#tmle-简介",
+    "href": "1065-tmle-doubly-robust.html#tmle-简介",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "",
+    "text": "TMLE（Targeted Maximum Likelihood Estimation，目标最大似然估计）是一种半参数双重稳健的因果推断方法，结合了机器学习的灵活性和统计推断的严谨性。\n\n\n\n\n\n方法\n局限性\nTMLE优势\n\n\n\n\n传统回归\n模型误设导致偏差\n双重稳健\n\n\nIPW\n极端权重不稳定\n边界处理\n\n\n倾向得分匹配\n样本量损失\n保留所有数据\n\n\n参数模型\n假设过强\n可整合ML\n\n\n\n\n\n\nTMLE的核心优势是双重稳健性：只要以下两个模型之一正确指定，估计就是一致的： - 结果模型 Q(A,W)：给定暴露和协变量下的期望结果 - 倾向得分模型 g(W)：给定协变量下接受暴露的概率",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#安装与加载",
+    "href": "1065-tmle-doubly-robust.html#安装与加载",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "安装与加载",
+    "text": "安装与加载\n\nlibrary(tmle)\nlibrary(SuperLearner)\nlibrary(ggplot2)\nlibrary(dplyr)\n\ntheme_set(theme_bw(base_size = 12))",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第一部分tmle理论基础",
+    "href": "1065-tmle-doubly-robust.html#第一部分tmle理论基础",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第一部分：TMLE理论基础",
+    "text": "第一部分：TMLE理论基础\n\n因果效应参数\nTMLE常用于估计平均治疗效应（ATE）：\n\\[ATE = E[Y(1)] - E[Y(0)]\\]\n其中 Y(1) 和 Y(0) 分别是接受和不接受治疗的潜在结果。\n\n\nTMLE步骤\n\n初始估计：拟合结果模型 Q⁰(A,W)\n倾向得分：拟合暴露模型 g(W)\n目标更新：使用巧妙协变量调整初始估计\n参数估计：计算目标参数的样本均值\n\n\n\n与AIPW的关系\nAIPW（增广逆概率加权）与TMLE同属双重稳健估计量，但TMLE通过目标更新步骤确保估计始终在合理范围内（如概率在0-1之间）。",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第二部分tmle包基础",
+    "href": "1065-tmle-doubly-robust.html#第二部分tmle包基础",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第二部分：tmle包基础",
+    "text": "第二部分：tmle包基础\n\n数据准备\n\n# 模拟观察性研究数据\nset.seed(42)\nn &lt;- 500\n\n# 协变量\nW1 &lt;- rnorm(n)\nW2 &lt;- rbinom(n, 1, 0.5)\nW3 &lt;- rnorm(n)\n\n# 暴露（受协变量影响）\nprob_A &lt;- plogis(0.2 + 0.5 * W1 - 0.3 * W2 + 0.2 * W3)\nA &lt;- rbinom(n, 1, prob_A)\n\n# 结果（受协变量和暴露影响）\nY &lt;- 2 + 0.5 * A + 0.8 * W1 - 0.5 * W2 + 0.3 * W3 + rnorm(n, 0, 1)\n\n# 构建数据框\nobs_data &lt;- data.frame(Y = Y, A = A, W1 = W1, W2 = W2, W3 = W3)\nhead(obs_data)\n\n         Y A         W1 W2         W3\n1 2.012966 1  1.3709584  1 -1.6080602\n2 1.327490 1 -0.5646982  0 -1.9497838\n3 1.201020 1  0.3631284  1 -0.3406999\n4 3.390633 1  0.6328626  1  0.1747255\n5 1.345022 1  0.4042683  0 -2.2777776\n6 2.842722 1 -0.1061245  0  0.2905245\n\n\n\n\n基础TMLE估计\n\n# 准备协变量矩阵\nW &lt;- obs_data[, c(\"W1\", \"W2\", \"W3\")]\n\n# 运行TMLE\nresult &lt;- tmle(\n    Y = obs_data$Y, # 结果变量\n    A = obs_data$A, # 暴露变量\n    W = W, # 协变量\n    family = \"gaussian\" # 结果类型\n)\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n# 查看结果\nsummary(result)\n\n Initial estimation of Q\n     Procedure: cv-SuperLearner, ensemble\n     Model:\n         Y ~  SL.glm_All + tmle.SL.dbarts2_All + SL.glmnet_All\n\n     Coefficients: \n          SL.glm_All    0.5695964 \n     tmle.SL.dbarts2_All    0 \n       SL.glmnet_All    0.4304036 \n\n     Cross-validated R squared :  0.4817 \n\n Estimation of g (treatment mechanism)\n     Procedure: SuperLearner, ensemble\n     Model:\n         A ~  SL.glm_All + tmle.SL.dbarts.k.5_All + SL.gam_All \n\n     Coefficients: \n          SL.glm_All    0.3871976 \n     tmle.SL.dbarts.k.5_All    0 \n          SL.gam_All    0.6128024 \n\n Estimation of g.Z (intermediate variable assignment mechanism)\n     Procedure: No intermediate variable \n\n Estimation of g.Delta (missingness mechanism)\n     Procedure: No missingness, ensemble\n\n Bounds on g: (0.036, 1) \n\n Bounds on g for ATT/ATC: (0.036, 0.964) \n\n Marginal Mean under Treatment (EY1)\n   Parameter Estimate:  2.2511\n   Estimated Variance:  0.0056543\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (2.1037, 2.3985)\n\n Marginal Mean under Comparator (EY0)\n   Parameter Estimate:  1.7934\n   Estimated Variance:  0.0063488\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (1.6372, 1.9496)\n\n Additive Effect\n   Parameter Estimate:  0.45772\n   Estimated Variance:  0.0087251\n              p-value:  9.5734e-07\n    95% Conf Interval:  (0.27464, 0.6408)\n\n Additive Effect among the Treated\n   Parameter Estimate:  0.4449\n   Estimated Variance:  0.0090505\n              p-value:  2.9176e-06\n    95% Conf Interval:  (0.25844, 0.63136)\n\n Additive Effect among the Controls\n   Parameter Estimate:  0.47558\n   Estimated Variance:  0.0096763\n              p-value:  1.3337e-06\n    95% Conf Interval:  (0.28278, 0.66838)\n\n\n\n\n结果解读\n\n# 提取ATE估计\nate &lt;- result$estimates$ATE\ncat(\"平均治疗效应 (ATE):\\n\")\n\n平均治疗效应 (ATE):\n\ncat(\"  点估计:\", round(ate$psi, 4), \"\\n\")\n\n  点估计: 0.4577 \n\ncat(\"  95% CI: [\", round(ate$CI[1], 4), \",\", round(ate$CI[2], 4), \"]\\n\")\n\n  95% CI: [ 0.2746 , 0.6408 ]\n\ncat(\"  P值:\", round(ate$pvalue, 4), \"\\n\")\n\n  P值: 0",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第三部分结合superlearner",
+    "href": "1065-tmle-doubly-robust.html#第三部分结合superlearner",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第三部分：结合SuperLearner",
+    "text": "第三部分：结合SuperLearner\nTMLE的真正威力在于与机器学习集成。SuperLearner是一个集成学习框架，可以组合多种算法。\n\n指定学习算法\n\n# 定义SuperLearner库\nSL_library &lt;- c(\"SL.glm\", \"SL.glm.interaction\", \"SL.mean\")\n\n# 使用SuperLearner的TMLE\nresult_sl &lt;- tmle(\n    Y = obs_data$Y,\n    A = obs_data$A,\n    W = W,\n    family = \"gaussian\",\n    Q.SL.library = SL_library, # 结果模型\n    g.SL.library = SL_library # 暴露模型\n)\n\nsummary(result_sl)\n\n Initial estimation of Q\n     Procedure: cv-SuperLearner, ensemble\n     Model:\n         Y ~  SL.glm_All + SL.glm.interaction_All + SL.mean_All\n\n     Coefficients: \n          SL.glm_All    0.9957924 \n     SL.glm.interaction_All    0 \n         SL.mean_All    0.004207594 \n\n     Cross-validated R squared :  0.4834 \n\n Estimation of g (treatment mechanism)\n     Procedure: SuperLearner, ensemble\n     Model:\n         A ~  SL.glm_All + SL.glm.interaction_All + SL.mean_All \n\n     Coefficients: \n          SL.glm_All    0.9310662 \n     SL.glm.interaction_All    0 \n         SL.mean_All    0.06893379 \n\n Estimation of g.Z (intermediate variable assignment mechanism)\n     Procedure: No intermediate variable \n\n Estimation of g.Delta (missingness mechanism)\n     Procedure: No missingness, ensemble\n\n Bounds on g: (0.036, 1) \n\n Bounds on g for ATT/ATC: (0.036, 0.964) \n\n Marginal Mean under Treatment (EY1)\n   Parameter Estimate:  2.2484\n   Estimated Variance:  0.0055793\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (2.102, 2.3948)\n\n Marginal Mean under Comparator (EY0)\n   Parameter Estimate:  1.795\n   Estimated Variance:  0.0063041\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (1.6394, 1.9506)\n\n Additive Effect\n   Parameter Estimate:  0.45338\n   Estimated Variance:  0.0085484\n              p-value:  9.4086e-07\n    95% Conf Interval:  (0.27216, 0.63459)\n\n Additive Effect among the Treated\n   Parameter Estimate:  0.44014\n   Estimated Variance:  0.0089029\n              p-value:  3.0906e-06\n    95% Conf Interval:  (0.25521, 0.62507)\n\n Additive Effect among the Controls\n   Parameter Estimate:  0.4676\n   Estimated Variance:  0.0092589\n              p-value:  1.1769e-06\n    95% Conf Interval:  (0.279, 0.65619)\n\n\n\n\n使用更复杂的算法库\n\n# 更丰富的算法库（需要安装相应包）\nSL_library_full &lt;- c(\n    \"SL.glm\",\n    \"SL.glm.interaction\",\n    \"SL.step\",\n    \"SL.mean\"\n)\n\nresult_full &lt;- tmle(\n    Y = obs_data$Y,\n    A = obs_data$A,\n    W = W,\n    family = \"gaussian\",\n    Q.SL.library = SL_library_full,\n    g.SL.library = SL_library_full\n)\n\ncat(\"\\n使用扩展SuperLearner库的结果:\\n\")\n\n\n使用扩展SuperLearner库的结果:\n\nsummary(result_full)\n\n Initial estimation of Q\n     Procedure: cv-SuperLearner, ensemble\n     Model:\n         Y ~  SL.glm_All + SL.glm.interaction_All + SL.step_All + SL.mean_All\n\n     Coefficients: \n          SL.glm_All    0.7876579 \n     SL.glm.interaction_All    0.2039826 \n         SL.step_All    0 \n         SL.mean_All    0.008359432 \n\n     Cross-validated R squared :  0.4821 \n\n Estimation of g (treatment mechanism)\n     Procedure: SuperLearner, ensemble\n     Model:\n         A ~  SL.glm_All + SL.glm.interaction_All + SL.step_All + SL.mean_All \n\n     Coefficients: \n          SL.glm_All    0.8933107 \n     SL.glm.interaction_All    0 \n         SL.step_All    0 \n         SL.mean_All    0.1066893 \n\n Estimation of g.Z (intermediate variable assignment mechanism)\n     Procedure: No intermediate variable \n\n Estimation of g.Delta (missingness mechanism)\n     Procedure: No missingness, ensemble\n\n Bounds on g: (0.036, 1) \n\n Bounds on g for ATT/ATC: (0.036, 0.964) \n\n Marginal Mean under Treatment (EY1)\n   Parameter Estimate:  2.2495\n   Estimated Variance:  0.0055429\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (2.1036, 2.3954)\n\n Marginal Mean under Comparator (EY0)\n   Parameter Estimate:  1.7925\n   Estimated Variance:  0.0062482\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (1.6375, 1.9474)\n\n Additive Effect\n   Parameter Estimate:  0.45701\n   Estimated Variance:  0.0084877\n              p-value:  7.028e-07\n    95% Conf Interval:  (0.27644, 0.63758)\n\n Additive Effect among the Treated\n   Parameter Estimate:  0.44577\n   Estimated Variance:  0.0087866\n              p-value:  1.979e-06\n    95% Conf Interval:  (0.26205, 0.62949)\n\n Additive Effect among the Controls\n   Parameter Estimate:  0.47176\n   Estimated Variance:  0.0091523\n              p-value:  8.1686e-07\n    95% Conf Interval:  (0.28426, 0.65927)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第四部分二分类结果",
+    "href": "1065-tmle-doubly-robust.html#第四部分二分类结果",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第四部分：二分类结果",
+    "text": "第四部分：二分类结果\n\n风险差、风险比和优势比\n\n# 创建二分类结果\nY_binary &lt;- ifelse(obs_data$Y &gt; median(obs_data$Y), 1, 0)\n\n# 二分类TMLE\nresult_binary &lt;- tmle(\n    Y = Y_binary,\n    A = obs_data$A,\n    W = W,\n    family = \"binomial\"\n)\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\n\nError : Loading required package dbarts failed\n\nsummary(result_binary)\n\n Initial estimation of Q\n     Procedure: cv-SuperLearner, ensemble\n     Model:\n         Y ~  SL.glm_All + tmle.SL.dbarts2_All + SL.glmnet_All\n\n     Coefficients: \n          SL.glm_All    1 \n     tmle.SL.dbarts2_All    0 \n       SL.glmnet_All    0 \n\n     Cross-validated pseudo R squared :  0.2631 \n\n Estimation of g (treatment mechanism)\n     Procedure: SuperLearner, ensemble\n     Model:\n         A ~  SL.glm_All + tmle.SL.dbarts.k.5_All + SL.gam_All \n\n     Coefficients: \n          SL.glm_All    1 \n     tmle.SL.dbarts.k.5_All    0 \n          SL.gam_All    0 \n\n Estimation of g.Z (intermediate variable assignment mechanism)\n     Procedure: No intermediate variable \n\n Estimation of g.Delta (missingness mechanism)\n     Procedure: No missingness, ensemble\n\n Bounds on g: (0.036, 1) \n\n Bounds on g for ATT/ATC: (0.036, 0.964) \n\n Marginal Mean under Treatment (EY1)\n   Parameter Estimate:  0.55592\n   Estimated Variance:  0.0008165\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (0.49991, 0.61192)\n\n Marginal Mean under Comparator (EY0)\n   Parameter Estimate:  0.42854\n   Estimated Variance:  0.00090026\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (0.36973, 0.48735)\n\n Additive Effect\n   Parameter Estimate:  0.12737\n   Estimated Variance:  0.0014383\n              p-value:  0.00078342\n    95% Conf Interval:  (0.053042, 0.2017)\n\n Additive Effect among the Treated\n   Parameter Estimate:  0.13582\n   Estimated Variance:  0.0014258\n              p-value:  0.00032184\n    95% Conf Interval:  (0.061815, 0.20983)\n\n Additive Effect among the Controls\n   Parameter Estimate:  0.11806\n   Estimated Variance:  0.0015509\n              p-value:  0.0027195\n    95% Conf Interval:  (0.040871, 0.19524)\n\n Relative Risk\n   Parameter  Estimate:  1.2972\n   Variance(log scale):  0.0063751\n               p-value:  0.0011174\n     95% Conf Interval:  (1.1093, 1.517)\n\n Odds Ratio\n    Parameter  Estimate:  1.6693\n    Variance(log scale):  0.023802\n                p-value:  0.00089605\n      95% Conf Interval:  (1.2337, 2.2587)\n\n\n\n\n提取各类效应量\n\n# 风险差 (Risk Difference)\nrd &lt;- result_binary$estimates$ATE\ncat(\n    \"风险差 (RD):\", round(rd$psi, 4),\n    \"95% CI [\", round(rd$CI[1], 4), \",\", round(rd$CI[2], 4), \"]\\n\"\n)\n\n风险差 (RD): 0.1274 95% CI [ 0.053 , 0.2017 ]\n\n# 风险比 (Relative Risk)\nrr &lt;- result_binary$estimates$RR\ncat(\n    \"风险比 (RR):\", round(rr$psi, 4),\n    \"95% CI [\", round(rr$CI[1], 4), \",\", round(rr$CI[2], 4), \"]\\n\"\n)\n\n风险比 (RR): 1.2972 95% CI [ 1.1093 , 1.517 ]\n\n# 优势比 (Odds Ratio)\nor &lt;- result_binary$estimates$OR\ncat(\n    \"优势比 (OR):\", round(or$psi, 4),\n    \"95% CI [\", round(or$CI[1], 4), \",\", round(or$CI[2], 4), \"]\\n\"\n)\n\n优势比 (OR): 1.6693 95% CI [ 1.2337 , 2.2587 ]",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第五部分aipw估计量",
+    "href": "1065-tmle-doubly-robust.html#第五部分aipw估计量",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第五部分：AIPW估计量",
+    "text": "第五部分：AIPW估计量\nAIPW（Augmented Inverse Probability Weighting）是另一种双重稳健估计方法。\n\n手动实现AIPW\n\n# AIPW估计函数\nestimate_aipw &lt;- function(Y, A, W) {\n    # 拟合倾向得分模型\n    ps_model &lt;- glm(A ~ ., data = cbind(A = A, W), family = binomial)\n    ps &lt;- predict(ps_model, type = \"response\")\n\n    # 拟合结果模型\n    outcome_model &lt;- lm(Y ~ A + ., data = cbind(Y = Y, A = A, W))\n\n    # 预测潜在结果\n    W_A1 &lt;- cbind(A = 1, W)\n    W_A0 &lt;- cbind(A = 0, W)\n    Q1 &lt;- predict(outcome_model, newdata = W_A1)\n    Q0 &lt;- predict(outcome_model, newdata = W_A0)\n\n    # AIPW估计量\n    aipw1 &lt;- mean(Q1 + A / ps * (Y - Q1))\n    aipw0 &lt;- mean(Q0 + (1 - A) / (1 - ps) * (Y - Q0))\n    ate_aipw &lt;- aipw1 - aipw0\n\n    # 影响函数用于方差估计\n    IF &lt;- (Q1 - Q0) + A / ps * (Y - Q1) - (1 - A) / (1 - ps) * (Y - Q0) - ate_aipw\n    se &lt;- sqrt(var(IF) / length(Y))\n\n    list(\n        ATE = ate_aipw,\n        SE = se,\n        CI = c(ate_aipw - 1.96 * se, ate_aipw + 1.96 * se)\n    )\n}\n\n# 计算AIPW估计\naipw_result &lt;- estimate_aipw(obs_data$Y, obs_data$A, W)\ncat(\"\\nAIPW 估计结果:\\n\")\n\n\nAIPW 估计结果:\n\ncat(\"  ATE:\", round(aipw_result$ATE, 4), \"\\n\")\n\n  ATE: 0.453 \n\ncat(\"  SE:\", round(aipw_result$SE, 4), \"\\n\")\n\n  SE: 0.0928 \n\ncat(\n    \"  95% CI: [\", round(aipw_result$CI[1], 4), \",\",\n    round(aipw_result$CI[2], 4), \"]\\n\"\n)\n\n  95% CI: [ 0.2711 , 0.6348 ]",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第六部分方法比较",
+    "href": "1065-tmle-doubly-robust.html#第六部分方法比较",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第六部分：方法比较",
+    "text": "第六部分：方法比较\n\n多种估计方法对比\n\n# 1. 简单差异\nsimple_diff &lt;- mean(obs_data$Y[obs_data$A == 1]) -\n    mean(obs_data$Y[obs_data$A == 0])\n\n# 2. 回归调整\nreg_model &lt;- lm(Y ~ A + W1 + W2 + W3, data = obs_data)\nreg_ate &lt;- coef(reg_model)[\"A\"]\n\n# 3. IPW\nps_model &lt;- glm(A ~ W1 + W2 + W3, data = obs_data, family = binomial)\nps &lt;- predict(ps_model, type = \"response\")\nweights &lt;- obs_data$A / ps + (1 - obs_data$A) / (1 - ps)\nipw_ate &lt;- weighted.mean(\n    obs_data$Y * (2 * obs_data$A - 1),\n    weights * (2 * obs_data$A - 1)\n)\n\n# 4. TMLE\ntmle_ate &lt;- result$estimates$ATE$psi\n\n# 5. AIPW\naipw_ate &lt;- aipw_result$ATE\n\n# 汇总比较\ncomparison &lt;- data.frame(\n    Method = c(\"简单差异\", \"回归调整\", \"IPW\", \"AIPW\", \"TMLE\"),\n    ATE = c(simple_diff, reg_ate, ipw_ate, aipw_ate, tmle_ate),\n    True = rep(0.5, 5) # 真实效应\n)\n\n# 可视化\nggplot(comparison, aes(x = Method, y = ATE)) +\n    geom_point(size = 4, color = \"#4f46e5\") +\n    geom_hline(yintercept = 0.5, linetype = \"dashed\", color = \"red\") +\n    annotate(\"text\", x = 5.3, y = 0.5, label = \"真实ATE\", color = \"red\") +\n    labs(\n        title = \"不同因果推断方法的ATE估计比较\",\n        y = \"ATE估计值\"\n    ) +\n    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +\n    ylim(0, 1)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第七部分诊断与检验",
+    "href": "1065-tmle-doubly-robust.html#第七部分诊断与检验",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第七部分：诊断与检验",
+    "text": "第七部分：诊断与检验\n\n倾向得分诊断\n\n# 倾向得分分布\nps_df &lt;- data.frame(\n    PS = ps,\n    Treatment = factor(obs_data$A, labels = c(\"对照\", \"治疗\"))\n)\n\nggplot(ps_df, aes(x = PS, fill = Treatment)) +\n    geom_density(alpha = 0.5) +\n    scale_fill_manual(values = c(\"#4f46e5\", \"#ef4444\")) +\n    labs(\n        title = \"倾向得分分布（按治疗组）\",\n        x = \"倾向得分\", y = \"密度\"\n    ) +\n    geom_vline(xintercept = c(0.1, 0.9), linetype = \"dashed\")\n\n\n\n\n\n\n\n\n\n\n正位性检查\n\n# 检查极端倾向得分\ncat(\"倾向得分统计:\\n\")\n\n倾向得分统计:\n\ncat(\"  最小值:\", round(min(ps), 4), \"\\n\")\n\n  最小值: 0.1914 \n\ncat(\"  最大值:\", round(max(ps), 4), \"\\n\")\n\n  最大值: 0.8601 \n\ncat(\"  PS &lt; 0.05 的比例:\", mean(ps &lt; 0.05), \"\\n\")\n\n  PS &lt; 0.05 的比例: 0 \n\ncat(\"  PS &gt; 0.95 的比例:\", mean(ps &gt; 0.95), \"\\n\")\n\n  PS &gt; 0.95 的比例: 0",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第八部分实战案例",
+    "href": "1065-tmle-doubly-robust.html#第八部分实战案例",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第八部分：实战案例",
+    "text": "第八部分：实战案例\n\n完整工作流程\n\n# 使用更接近真实的模拟数据\nset.seed(123)\nn &lt;- 1000\n\n# 模拟混杂结构\nage &lt;- rnorm(n, 50, 10)\ngender &lt;- rbinom(n, 1, 0.5)\nbmi &lt;- rnorm(n, 25, 4)\nsmoking &lt;- rbinom(n, 1, plogis(-1 + 0.02 * age + 0.3 * gender))\n\n# 治疗分配（受混杂影响）\nprob_treat &lt;- plogis(-2 + 0.03 * age - 0.5 * gender + 0.05 * bmi + 0.8 * smoking)\ntreatment &lt;- rbinom(n, 1, prob_treat)\n\n# 结果（受治疗和混杂影响）\noutcome &lt;- 50 - 5 * treatment + 0.3 * age - 2 * gender + 0.5 * bmi + 3 * smoking + rnorm(n, 0, 5)\n\ncase_data &lt;- data.frame(\n    outcome = outcome,\n    treatment = treatment,\n    age = age,\n    gender = gender,\n    bmi = bmi,\n    smoking = smoking\n)\n\ncat(\"\\n=== 数据概览 ===\\n\")\n\n\n=== 数据概览 ===\n\ncat(\"样本量:\", n, \"\\n\")\n\n样本量: 1000 \n\ncat(\"治疗组比例:\", mean(treatment), \"\\n\")\n\n治疗组比例: 0.721 \n\n\n\n# TMLE分析\nW_case &lt;- case_data[, c(\"age\", \"gender\", \"bmi\", \"smoking\")]\n\nresult_case &lt;- tmle(\n    Y = case_data$outcome,\n    A = case_data$treatment,\n    W = W_case,\n    family = \"gaussian\",\n    Q.SL.library = c(\"SL.glm\", \"SL.glm.interaction\"),\n    g.SL.library = c(\"SL.glm\", \"SL.glm.interaction\")\n)\n\ncat(\"\\n=== TMLE 结果 ===\\n\")\n\n\n=== TMLE 结果 ===\n\nsummary(result_case)\n\n Initial estimation of Q\n     Procedure: cv-SuperLearner, ensemble\n     Model:\n         Y ~  SL.glm_All + SL.glm.interaction_All\n\n     Coefficients: \n          SL.glm_All    1 \n     SL.glm.interaction_All    0 \n\n     Cross-validated R squared :  0.4189 \n\n Estimation of g (treatment mechanism)\n     Procedure: SuperLearner, ensemble\n     Model:\n         A ~  SL.glm_All + SL.glm.interaction_All \n\n     Coefficients: \n          SL.glm_All    1 \n     SL.glm.interaction_All    0 \n\n Estimation of g.Z (intermediate variable assignment mechanism)\n     Procedure: No intermediate variable \n\n Estimation of g.Delta (missingness mechanism)\n     Procedure: No missingness, ensemble\n\n Bounds on g: (0.0229, 1) \n\n Bounds on g for ATT/ATC: (0.0229, 0.9771) \n\n Marginal Mean under Treatment (EY1)\n   Parameter Estimate:  73.101\n   Estimated Variance:  0.05401\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (72.646, 73.557)\n\n Marginal Mean under Comparator (EY0)\n   Parameter Estimate:  77.915\n   Estimated Variance:  0.12937\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (77.21, 78.62)\n\n Additive Effect\n   Parameter Estimate:  -4.8134\n   Estimated Variance:  0.1447\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (-5.559, -4.0679)\n\n Additive Effect among the Treated\n   Parameter Estimate:  -4.8538\n   Estimated Variance:  0.16322\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (-5.6456, -4.062)\n\n Additive Effect among the Controls\n   Parameter Estimate:  -4.6613\n   Estimated Variance:  0.12896\n              p-value:  &lt;2e-16\n    95% Conf Interval:  (-5.3651, -3.9574)\n\n\n\ncat(\"\\n=== 真实效应 vs 估计效应 ===\\n\")\n\n\n=== 真实效应 vs 估计效应 ===\n\ncat(\"真实 ATE: -5\\n\")\n\n真实 ATE: -5\n\ncat(\"TMLE ATE:\", round(result_case$estimates$ATE$psi, 3), \"\\n\")\n\nTMLE ATE: -4.813 \n\ncat(\"偏差:\", round(result_case$estimates$ATE$psi - (-5), 3), \"\\n\")\n\n偏差: 0.187",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#常用代码速查",
+    "href": "1065-tmle-doubly-robust.html#常用代码速查",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n\n# ===== 基础TMLE =====\nlibrary(tmle)\nresult &lt;- tmle(Y = Y, A = A, W = W, family = \"gaussian\")\nsummary(result)\n\n# ===== 提取结果 =====\nresult$estimates$ATE$psi # 点估计\nresult$estimates$ATE$CI # 置信区间\nresult$estimates$ATE$pvalue # P值\n\n# ===== 二分类结果 =====\nresult &lt;- tmle(Y = Y_binary, A = A, W = W, family = \"binomial\")\nresult$estimates$RR # 风险比\nresult$estimates$OR # 优势比\n\n# ===== 使用SuperLearner =====\nresult &lt;- tmle(\n    Y = Y, A = A, W = W,\n    Q.SL.library = c(\"SL.glm\", \"SL.ranger\"),\n    g.SL.library = c(\"SL.glm\", \"SL.ranger\")\n)\n\n# ===== AIPW（使用其他包） =====\n# library(AIPW)\n# aipw &lt;- AIPW$new(Y, A, W, ...)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#小结",
+    "href": "1065-tmle-doubly-robust.html#小结",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "小结",
+    "text": "小结\nTMLE vs 其他方法：\n\n\n\n特点\nTMLE\nIPW\n回归\n\n\n\n\n双重稳健\n✅\n❌\n❌\n\n\n整合ML\n✅\n部分\n部分\n\n\n范围约束\n✅\n❌\n❌\n\n\n效率\n高\n较低\n中\n\n\n\n\n建议：在观察性研究中估计因果效应时，TMLE是首选方法，尤其当样本量较大且协变量较多时。",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#参考资源",
+    "href": "1065-tmle-doubly-robust.html#参考资源",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "参考资源",
+    "text": "参考资源\n\ntlverse 项目\nTargeted Learning (van der Laan & Rose)\nA Beginner’s Guide to TMLE\ntmle R包文档\n\n\n\n{r setup, include=FALSE} knitr::opts_chunk$set(     echo = TRUE,     warning = FALSE,     message = FALSE,     fig.width = 10,     fig.height = 6 )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#causalimpact-简介",
+    "href": "1065-tmle-doubly-robust.html#causalimpact-简介",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "CausalImpact 简介",
+    "text": "CausalImpact 简介\nCausalImpact 是Google开发的R包，使用贝叶斯结构时间序列模型来估计干预对时间序列的因果效应。它解决了一个核心问题：如果没有干预，会发生什么？\n\n应用场景\n\n\n\n领域\n应用示例\n\n\n\n\n公共卫生\n政策实施对疾病发病率的影响\n\n\n营销\n广告活动对销售的影响\n\n\n经济学\n政策干预对经济指标的影响\n\n\n产品\n功能上线对用户行为的影响\n\n\n\n\n\n核心原理\nCausalImpact通过以下步骤工作： 1. 使用未受干预的对照序列预测干预后的反事实 2. 比较实际观测值与反事实预测 3. 量化差异并提供不确定性估计",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#安装与加载-1",
+    "href": "1065-tmle-doubly-robust.html#安装与加载-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "安装与加载",
+    "text": "安装与加载\nlibrary(CausalImpact)\nlibrary(ggplot2)\nlibrary(dplyr)\n\ntheme_set(theme_bw(base_size = 12))",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第一部分基础用法",
+    "href": "1065-tmle-doubly-robust.html#第一部分基础用法",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第一部分：基础用法",
+    "text": "第一部分：基础用法\n\n模拟数据创建\n# 创建模拟时间序列数据\nset.seed(42)\nn &lt;- 100 # 时间点数\nintervention_point &lt;- 70 # 干预发生点\n\n# 生成对照序列（未受干预影响）\nx1 &lt;- 10 + arima.sim(model = list(ar = 0.8), n = n)\nx2 &lt;- 20 + arima.sim(model = list(ar = 0.7), n = n)\n\n# 生成目标序列\n# 干预前：与对照序列相关\n# 干预后：增加效应\ny &lt;- 1.5 * x1 + 0.5 * x2 + rnorm(n, 0, 2)\n# 添加干预效应\ny[(intervention_point + 1):n] &lt;- y[(intervention_point + 1):n] + 5\n\n# 创建时间索引\ntime_points &lt;- seq.Date(as.Date(\"2024-01-01\"), by = \"day\", length.out = n)\n\n# 组合数据\ndata &lt;- zoo::zoo(cbind(y = y, x1 = x1, x2 = x2), time_points)\nhead(data)\n\n\n运行CausalImpact\n# 定义干预前后时期\npre_period &lt;- c(time_points[1], time_points[intervention_point])\npost_period &lt;- c(time_points[intervention_point + 1], time_points[n])\n\n# 运行分析\nimpact &lt;- CausalImpact(data, pre_period, post_period)\n\n# 查看结果\nsummary(impact)\n\n\n结果可视化\n# 默认三图面板\nplot(impact)\n\n\n解读输出\n# 获取报告\nsummary(impact, \"report\")",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第二部分理解输出图形",
+    "href": "1065-tmle-doubly-robust.html#第二部分理解输出图形",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第二部分：理解输出图形",
+    "text": "第二部分：理解输出图形\n\n三个面板解读\n# 单独绘制每个面板\nplot(impact, \"original\") # 原始数据 vs 反事实预测\nOriginal 面板： - 黑线：实际观测值 - 蓝色虚线：反事实预测（如果没有干预会发生什么） - 浅蓝区域：预测的95%置信区间\nplot(impact, \"pointwise\") # 逐点效应\nPointwise 面板： - 显示每个时间点的因果效应（实际 - 预测） - 效应在零线以上表示正向影响\nplot(impact, \"cumulative\") # 累积效应\nCumulative 面板： - 显示干预后的累积因果效应 - 用于评估总体影响",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第三部分关键结果解读",
+    "href": "1065-tmle-doubly-robust.html#第三部分关键结果解读",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第三部分：关键结果解读",
+    "text": "第三部分：关键结果解读\n\n提取数值结果\n# 获取摘要统计\nimpact_summary &lt;- impact$summary\n\ncat(\"=== 干预效应摘要 ===\\n\\n\")\ncat(\"平均因果效应:\\n\")\ncat(\"  绝对效应:\", round(impact_summary$AbsEffect[1], 2), \"\\n\")\ncat(\"  相对效应:\", round(impact_summary$RelEffect[1] * 100, 1), \"%\\n\")\ncat(\n    \"  95% CI: [\", round(impact_summary$AbsEffect.lower[1], 2),\n    \",\", round(impact_summary$AbsEffect.upper[1], 2), \"]\\n\\n\"\n)\n\ncat(\"累积因果效应:\\n\")\ncat(\"  绝对效应:\", round(impact_summary$AbsEffect[2], 2), \"\\n\")\ncat(\"  相对效应:\", round(impact_summary$RelEffect[2] * 100, 1), \"%\\n\")\n\n\n统计显著性\n# 贝叶斯后验概率\ncat(\"\\n干预效应的后验概率:\\n\")\ncat(\"  P(效应 &gt; 0):\", round(impact$summary$p[1], 4), \"\\n\")\n\nif (impact$summary$p[1] &lt; 0.05) {\n    cat(\"  结论: 干预效应在5%水平上显著\\n\")\n} else {\n    cat(\"  结论: 无法排除无效应的可能性\\n\")\n}",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第四部分模型配置",
+    "href": "1065-tmle-doubly-robust.html#第四部分模型配置",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第四部分：模型配置",
+    "text": "第四部分：模型配置\n\n自定义模型参数\n# 自定义模型参数\nmodel_args &lt;- list(\n    niter = 5000, # MCMC迭代次数\n    nseasons = 7, # 季节性周期（如周效应）\n    season.duration = 1 # 每个季节的持续时间\n)\n\nimpact_custom &lt;- CausalImpact(data, pre_period, post_period,\n    model.args = model_args\n)\nsummary(impact_custom)\n\n\n不使用对照序列\n# 只使用目标序列本身的历史模式\ndata_single &lt;- zoo::zoo(y, time_points)\n\nimpact_single &lt;- CausalImpact(data_single, pre_period, post_period)\nplot(impact_single)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第五部分诊断与验证",
+    "href": "1065-tmle-doubly-robust.html#第五部分诊断与验证",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第五部分：诊断与验证",
+    "text": "第五部分：诊断与验证\n\n模型诊断\n# 检查模型拟合\n# 提取预测值\nfitted_values &lt;- impact$series$point.pred\n\n# 干预前拟合情况\npre_actual &lt;- as.numeric(data[1:intervention_point, \"y\"])\npre_fitted &lt;- as.numeric(fitted_values[1:intervention_point])\n\n# 计算拟合优度\nrsq &lt;- cor(pre_actual, pre_fitted)^2\nrmse &lt;- sqrt(mean((pre_actual - pre_fitted)^2))\n\ncat(\"干预前模型诊断:\\n\")\ncat(\"  R²:\", round(rsq, 4), \"\\n\")\ncat(\"  RMSE:\", round(rmse, 4), \"\\n\")\n\n\n残差检验\n# 干预前残差\nresiduals_pre &lt;- pre_actual - pre_fitted\n\n# 残差图\npar(mfrow = c(1, 2))\nplot(residuals_pre, type = \"l\", main = \"残差序列\", ylab = \"残差\")\nabline(h = 0, col = \"red\", lty = 2)\nacf(residuals_pre, main = \"残差ACF\")\npar(mfrow = c(1, 1))\n\n\n安慰剂检验\n# 在干预前时期做\"假\"干预检验\nplacebo_point &lt;- 50\nplacebo_pre &lt;- c(time_points[1], time_points[placebo_point])\nplacebo_post &lt;- c(time_points[placebo_point + 1], time_points[intervention_point])\n\n# 使用干预前数据\ndata_placebo &lt;- data[1:intervention_point, ]\n\nimpact_placebo &lt;- CausalImpact(data_placebo, placebo_pre, placebo_post)\n\ncat(\"\\n安慰剂检验结果:\\n\")\ncat(\"  估计效应:\", round(impact_placebo$summary$AbsEffect[1], 2), \"\\n\")\ncat(\"  P值:\", round(impact_placebo$summary$p[1], 4), \"\\n\")\n\nif (impact_placebo$summary$p[1] &gt; 0.05) {\n    cat(\"  结论: 安慰剂检验通过（无虚假效应）\\n\")\n}",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第六部分实战案例",
+    "href": "1065-tmle-doubly-robust.html#第六部分实战案例",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第六部分：实战案例",
+    "text": "第六部分：实战案例\n\n案例：政策效果评估\n# 模拟公共卫生政策效果\nset.seed(123)\nn_days &lt;- 180\npolicy_start &lt;- 90\n\n# 对照地区（未实施政策）\ncontrol_region &lt;- 100 + cumsum(rnorm(n_days, 0.1, 2))\n\n# 目标地区\n# 政策前：与对照地区相关\n# 政策后：发病率下降\ntarget_region &lt;- 0.9 * control_region + rnorm(n_days, 0, 3)\n# 政策效应：发病率降低15%\ntarget_region[(policy_start + 1):n_days] &lt;-\n    target_region[(policy_start + 1):n_days] * 0.85\n\n# 创建数据\ndates &lt;- seq.Date(as.Date(\"2025-01-01\"), by = \"day\", length.out = n_days)\npolicy_data &lt;- zoo::zoo(\n    cbind(target = target_region, control = control_region),\n    dates\n)\n\n# 分析\npre &lt;- c(dates[1], dates[policy_start])\npost &lt;- c(dates[policy_start + 1], dates[n_days])\n\nimpact_policy &lt;- CausalImpact(policy_data, pre, post)\n\ncat(\"=== 政策效果分析 ===\\n\")\nsummary(impact_policy)\n# 可视化\nplot(impact_policy) +\n    ggtitle(\"公共卫生政策对发病率的影响\")\n# 详细报告\nsummary(impact_policy, \"report\")",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第七部分与its对比",
+    "href": "1065-tmle-doubly-robust.html#第七部分与its对比",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第七部分：与ITS对比",
+    "text": "第七部分：与ITS对比\n\n中断时间序列分析（ITS）\n# 传统ITS分析\nits_data &lt;- data.frame(\n    time = 1:n,\n    y = as.numeric(y),\n    intervention = ifelse(1:n &gt; intervention_point, 1, 0),\n    time_after = ifelse(1:n &gt; intervention_point,\n        1:n - intervention_point, 0\n    )\n)\n\nits_model &lt;- lm(y ~ time + intervention + time_after, data = its_data)\nsummary(its_model)\n\n\nITS vs CausalImpact\n# 提取两种方法的效应估计\nits_effect &lt;- coef(its_model)[\"intervention\"]\nci_effect &lt;- impact$summary$AbsEffect[1]\n\ncomparison &lt;- data.frame(\n    Method = c(\"ITS\", \"CausalImpact\"),\n    Effect = c(its_effect, ci_effect),\n    True_Effect = c(5, 5)\n)\n\nggplot(comparison, aes(x = Method, y = Effect)) +\n    geom_col(fill = c(\"#4f46e5\", \"#10b981\"), alpha = 0.8) +\n    geom_hline(yintercept = 5, linetype = \"dashed\", color = \"red\") +\n    annotate(\"text\", x = 2.3, y = 5.2, label = \"真实效应\", color = \"red\") +\n    labs(\n        title = \"ITS vs CausalImpact 效应估计比较\",\n        y = \"估计效应\"\n    )\n\n\n\n特点\nITS\nCausalImpact\n\n\n\n\n对照序列\n不需要\n可选但推荐\n\n\n不确定性\n频率派\n贝叶斯\n\n\n趋势建模\n参数化\n非参数\n\n\n季节性\n需手动处理\n自动处理",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#常用代码速查-1",
+    "href": "1065-tmle-doubly-robust.html#常用代码速查-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n```{r eval=FALSE} # ===== 基础分析 ===== library(CausalImpact) impact &lt;- CausalImpact(data, pre.period, post.period) summary(impact) plot(impact)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#gt-简介",
+    "href": "1065-tmle-doubly-robust.html#gt-简介",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "gt 简介",
+    "text": "gt 简介\ngt（Grammar of Tables）是Posit官方开发的现代表格制作包，采用”表格语法”的设计理念，可创建高度定制化的发表级表格。\n\ngt vs 其他表格包\n\n\n\n特点\ngt\ngtsummary\nkable\nflextable\n\n\n\n\n设计理念\n表格语法\n统计表格\n简单快速\nOffice兼容\n\n\n定制程度\n极高\n中等\n低\n高\n\n\n学习曲线\n中等\n低\n最低\n中等\n\n\n输出格式\nHTML/PDF/Word\n同gt\nHTML/PDF\nWord/PPT\n\n\n\n\n\n表格结构\ngt将表格分为几个逻辑部分： - Table Header：标题和副标题 - Stub：行标签区域 - Column Labels：列标签 - Table Body：数据主体 - Table Footer：脚注和来源说明",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#安装与加载-2",
+    "href": "1065-tmle-doubly-robust.html#安装与加载-2",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "安装与加载",
+    "text": "安装与加载\nlibrary(gt)\nlibrary(dplyr)\nlibrary(tidyr)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第一部分基础用法-1",
+    "href": "1065-tmle-doubly-robust.html#第一部分基础用法-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第一部分：基础用法",
+    "text": "第一部分：基础用法\n\n创建第一个gt表格\n# 使用内置数据\ndata(mtcars)\ndf &lt;- mtcars %&gt;%\n    slice(1:6) %&gt;%\n    select(mpg, cyl, hp, wt) %&gt;%\n    mutate(car = rownames(mtcars)[1:6], .before = 1)\n\n# 最简单的gt表格\ngt(df)\n\n\n添加标题和来源\ndf %&gt;%\n    gt() %&gt;%\n    tab_header(\n        title = \"汽车性能参数表\",\n        subtitle = \"Motor Trend Car Road Tests 数据子集\"\n    ) %&gt;%\n    tab_source_note(\n        source_note = \"数据来源：1974 Motor Trend 杂志\"\n    )\n\n\n修改列标签\ndf %&gt;%\n    gt() %&gt;%\n    cols_label(\n        car = \"车型\",\n        mpg = \"油耗 (MPG)\",\n        cyl = \"气缸数\",\n        hp = \"马力\",\n        wt = \"重量 (吨)\"\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第二部分格式化",
+    "href": "1065-tmle-doubly-robust.html#第二部分格式化",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第二部分：格式化",
+    "text": "第二部分：格式化\n\n数字格式化\ndf %&gt;%\n    gt() %&gt;%\n    fmt_number(\n        columns = c(mpg, wt),\n        decimals = 1\n    ) %&gt;%\n    fmt_integer(\n        columns = c(cyl, hp)\n    )\n\n\n百分比格式化\n# 创建带百分比的数据\npct_df &lt;- data.frame(\n    category = c(\"A\", \"B\", \"C\"),\n    value = c(0.234, 0.456, 0.310)\n)\n\npct_df %&gt;%\n    gt() %&gt;%\n    fmt_percent(\n        columns = value,\n        decimals = 1\n    )\n\n\n货币格式化\nprice_df &lt;- data.frame(\n    item = c(\"产品A\", \"产品B\", \"产品C\"),\n    price_usd = c(99.99, 149.50, 299.00),\n    price_cny = c(699, 1049, 2099)\n)\n\nprice_df %&gt;%\n    gt() %&gt;%\n    fmt_currency(\n        columns = price_usd,\n        currency = \"USD\"\n    ) %&gt;%\n    fmt_currency(\n        columns = price_cny,\n        currency = \"CNY\"\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第三部分样式设置",
+    "href": "1065-tmle-doubly-robust.html#第三部分样式设置",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第三部分：样式设置",
+    "text": "第三部分：样式设置\n\n表头样式\ndf %&gt;%\n    gt() %&gt;%\n    tab_header(\n        title = md(\"**汽车性能参数**\"),\n        subtitle = \"精选车型数据\"\n    ) %&gt;%\n    tab_style(\n        style = cell_fill(color = \"#4f46e5\"),\n        locations = cells_title()\n    ) %&gt;%\n    tab_style(\n        style = cell_text(color = \"white\", weight = \"bold\"),\n        locations = cells_title()\n    )\n\n\n列标签样式\ndf %&gt;%\n    gt() %&gt;%\n    tab_style(\n        style = list(\n            cell_fill(color = \"#e0e7ff\"),\n            cell_text(weight = \"bold\")\n        ),\n        locations = cells_column_labels()\n    )\n\n\n条件格式化\ndf %&gt;%\n    gt() %&gt;%\n    tab_style(\n        style = cell_fill(color = \"#dcfce7\"),\n        locations = cells_body(\n            columns = mpg,\n            rows = mpg &gt; 20\n        )\n    ) %&gt;%\n    tab_style(\n        style = cell_fill(color = \"#fee2e2\"),\n        locations = cells_body(\n            columns = mpg,\n            rows = mpg &lt; 15\n        )\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第四部分数据着色",
+    "href": "1065-tmle-doubly-robust.html#第四部分数据着色",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第四部分：数据着色",
+    "text": "第四部分：数据着色\n\n颜色标度\ndf %&gt;%\n    gt() %&gt;%\n    data_color(\n        columns = mpg,\n        palette = c(\"#ef4444\", \"#fbbf24\", \"#22c55e\"),\n        domain = c(10, 35)\n    )\n\n\n多列着色\ndf %&gt;%\n    gt() %&gt;%\n    data_color(\n        columns = c(mpg, hp),\n        palette = \"Blues\"\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第五部分分组与汇总",
+    "href": "1065-tmle-doubly-robust.html#第五部分分组与汇总",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第五部分：分组与汇总",
+    "text": "第五部分：分组与汇总\n\n行分组\n# 按气缸数分组\nmtcars %&gt;%\n    slice(1:12) %&gt;%\n    mutate(car = rownames(mtcars)[1:12]) %&gt;%\n    select(car, cyl, mpg, hp) %&gt;%\n    gt(groupname_col = \"cyl\") %&gt;%\n    tab_header(title = \"按气缸数分组的汽车数据\")\n\n\n添加汇总行\nmtcars %&gt;%\n    slice(1:8) %&gt;%\n    mutate(car = rownames(mtcars)[1:8]) %&gt;%\n    select(car, cyl, mpg, hp) %&gt;%\n    group_by(cyl) %&gt;%\n    gt() %&gt;%\n    summary_rows(\n        groups = TRUE,\n        columns = c(mpg, hp),\n        fns = list(\n            平均值 = ~ mean(., na.rm = TRUE),\n            最大值 = ~ max(., na.rm = TRUE)\n        ),\n        fmt = ~ fmt_number(., decimals = 1)\n    )\n\n\n总计行\nmtcars %&gt;%\n    slice(1:6) %&gt;%\n    mutate(car = rownames(mtcars)[1:6]) %&gt;%\n    select(car, mpg, hp, wt) %&gt;%\n    gt() %&gt;%\n    grand_summary_rows(\n        columns = c(mpg, hp),\n        fns = list(\n            总计 = ~ sum(.),\n            平均 = ~ mean(.)\n        ),\n        fmt = ~ fmt_number(., decimals = 1)\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第六部分脚注与注释",
+    "href": "1065-tmle-doubly-robust.html#第六部分脚注与注释",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第六部分：脚注与注释",
+    "text": "第六部分：脚注与注释\n\n添加脚注\ndf %&gt;%\n    gt() %&gt;%\n    tab_footnote(\n        footnote = \"MPG = Miles Per Gallon\",\n        locations = cells_column_labels(columns = mpg)\n    ) %&gt;%\n    tab_footnote(\n        footnote = \"高性能车型\",\n        locations = cells_body(\n            columns = car,\n            rows = hp &gt; 200\n        )\n    )\n\n\n多个脚注\ndf %&gt;%\n    gt() %&gt;%\n    tab_footnote(\n        footnote = md(\"**油耗效率**指标\"),\n        locations = cells_column_labels(columns = mpg)\n    ) %&gt;%\n    tab_footnote(\n        footnote = \"制动马力\",\n        locations = cells_column_labels(columns = hp)\n    ) %&gt;%\n    tab_source_note(\"注：数据来自1974年美国汽车测试\")",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第七部分合并与跨度",
+    "href": "1065-tmle-doubly-robust.html#第七部分合并与跨度",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第七部分：合并与跨度",
+    "text": "第七部分：合并与跨度\n\n列合并\ndf %&gt;%\n    gt() %&gt;%\n    cols_merge(\n        columns = c(cyl, hp),\n        pattern = \"{1} 缸 / {2} 马力\"\n    ) %&gt;%\n    cols_label(cyl = \"发动机配置\")\n\n\n列分组（Spanner）\ndf %&gt;%\n    gt() %&gt;%\n    tab_spanner(\n        label = \"性能指标\",\n        columns = c(mpg, hp)\n    ) %&gt;%\n    tab_spanner(\n        label = \"规格参数\",\n        columns = c(cyl, wt)\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第八部分导出表格",
+    "href": "1065-tmle-doubly-robust.html#第八部分导出表格",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第八部分：导出表格",
+    "text": "第八部分：导出表格\n\n保存为HTML\n```{r eval=FALSE} my_table &lt;- df %&gt;% gt() %&gt;% tab_header(title = “示例表格”)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#常用代码速查-2",
+    "href": "1065-tmle-doubly-robust.html#常用代码速查-2",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n```{r eval=FALSE} # ===== 创建表格 ===== gt(data) gt(data, groupname_col = “group”)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#xgboost-简介",
+    "href": "1065-tmle-doubly-robust.html#xgboost-简介",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "XGBoost 简介",
+    "text": "XGBoost 简介\nXGBoost（eXtreme Gradient Boosting）是目前最强大的机器学习算法之一，在结构化数据上表现卓越，是Kaggle竞赛的常胜将军。\n\n为什么选择XGBoost？\n\n\n\n优势\n说明\n\n\n\n\n高性能\n速度快、精度高\n\n\n正则化\n内置L1/L2正则化，防止过拟合\n\n\n灵活性\n支持自定义目标函数\n\n\n可解释性\n提供特征重要性\n\n\n工程优化\n并行计算、缓存优化\n\n\n\n\n\n核心原理\nXGBoost基于梯度提升决策树（GBDT）： 1. 顺序训练多棵决策树 2. 每棵树拟合前一轮的残差 3. 使用二阶泰勒展开优化目标函数 4. 正则化控制模型复杂度",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#安装与加载-3",
+    "href": "1065-tmle-doubly-robust.html#安装与加载-3",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "安装与加载",
+    "text": "安装与加载\nlibrary(xgboost)\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(caret)\n\ntheme_set(theme_bw(base_size = 12))\nset.seed(42)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第一部分快速入门",
+    "href": "1065-tmle-doubly-robust.html#第一部分快速入门",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第一部分：快速入门",
+    "text": "第一部分：快速入门\n\n数据准备\n# 使用iris数据集（二分类）\ndata(iris)\niris_binary &lt;- iris %&gt;%\n    filter(Species != \"setosa\") %&gt;%\n    mutate(label = ifelse(Species == \"versicolor\", 0, 1))\n\n# 分割数据\ntrain_idx &lt;- sample(1:nrow(iris_binary), 0.7 * nrow(iris_binary))\ntrain_data &lt;- iris_binary[train_idx, ]\ntest_data &lt;- iris_binary[-train_idx, ]\n\n# 创建DMatrix（XGBoost专用格式）\ndtrain &lt;- xgb.DMatrix(\n    data = as.matrix(train_data[, 1:4]),\n    label = train_data$label\n)\ndtest &lt;- xgb.DMatrix(\n    data = as.matrix(test_data[, 1:4]),\n    label = test_data$label\n)\n\n\n训练模型\n# 设置参数\nparams &lt;- list(\n    objective = \"binary:logistic\", # 二分类\n    eval_metric = \"auc\", # 评估指标\n    max_depth = 3, # 树深度\n    eta = 0.1 # 学习率\n)\n\n# 训练\nmodel &lt;- xgb.train(\n    params = params,\n    data = dtrain,\n    nrounds = 100,\n    watchlist = list(train = dtrain, test = dtest),\n    verbose = 0\n)\n\n# 查看训练日志\ntail(model$evaluation_log)\n\n\n预测\n# 预测概率\npred_prob &lt;- predict(model, dtest)\nhead(pred_prob)\n\n# 转换为类别\npred_class &lt;- ifelse(pred_prob &gt; 0.5, 1, 0)\n\n# 评估\naccuracy &lt;- mean(pred_class == test_data$label)\ncat(\"测试集准确率:\", round(accuracy, 4), \"\\n\")\n\n# 混淆矩阵\ntable(Predicted = pred_class, Actual = test_data$label)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第二部分参数详解",
+    "href": "1065-tmle-doubly-robust.html#第二部分参数详解",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第二部分：参数详解",
+    "text": "第二部分：参数详解\n\n核心参数\n\n\n\n参数\n说明\n推荐值\n\n\n\n\neta\n学习率\n0.01-0.3\n\n\nmax_depth\n树最大深度\n3-10\n\n\nmin_child_weight\n叶子节点最小样本权重\n1-10\n\n\nsubsample\n样本采样比例\n0.5-1\n\n\ncolsample_bytree\n特征采样比例\n0.5-1\n\n\nlambda\nL2正则化\n0-10\n\n\nalpha\nL1正则化\n0-10\n\n\n\n\n\n目标函数\n```{r eval=FALSE} # 二分类 objective &lt;- “binary:logistic” # 输出概率 objective &lt;- “binary:logitraw” # 输出原始分数",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第四部分特征重要性",
+    "href": "1065-tmle-doubly-robust.html#第四部分特征重要性",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第四部分：特征重要性",
+    "text": "第四部分：特征重要性\n\n计算重要性\n# 重新训练最终模型\nfinal_model &lt;- xgb.train(\n    params = params,\n    data = dtrain,\n    nrounds = best_nrounds,\n    verbose = 0\n)\n\n# 获取特征重要性\nimportance &lt;- xgb.importance(\n    feature_names = colnames(train_data)[1:4],\n    model = final_model\n)\nprint(importance)\n\n\n可视化重要性\n# 条形图\nxgb.plot.importance(importance, measure = \"Gain\")\n# 自定义ggplot可视化\nggplot(importance, aes(x = reorder(Feature, Gain), y = Gain)) +\n    geom_col(fill = \"#4f46e5\", alpha = 0.8) +\n    coord_flip() +\n    labs(\n        title = \"XGBoost 特征重要性\",\n        subtitle = \"基于信息增益\",\n        x = \"\", y = \"重要性 (Gain)\"\n    )\n\n\n多种重要性指标\n# 三种重要性指标对比\nimportance_long &lt;- importance %&gt;%\n    tidyr::pivot_longer(\n        cols = c(Gain, Cover, Frequency),\n        names_to = \"Metric\",\n        values_to = \"Value\"\n    )\n\nggplot(importance_long, aes(x = Feature, y = Value, fill = Metric)) +\n    geom_col(position = \"dodge\") +\n    scale_fill_manual(values = c(\"#4f46e5\", \"#10b981\", \"#ef4444\")) +\n    labs(\n        title = \"特征重要性（多指标对比）\",\n        x = \"\", y = \"重要性\"\n    ) +\n    theme(axis.text.x = element_text(angle = 45, hjust = 1))",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第五部分回归任务",
+    "href": "1065-tmle-doubly-robust.html#第五部分回归任务",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第五部分：回归任务",
+    "text": "第五部分：回归任务\n\n回归模型\n# 使用mtcars数据\ndata(mtcars)\ntrain_idx &lt;- sample(1:nrow(mtcars), 0.7 * nrow(mtcars))\n\ndtrain_reg &lt;- xgb.DMatrix(\n    data = as.matrix(mtcars[train_idx, -1]),\n    label = mtcars$mpg[train_idx]\n)\ndtest_reg &lt;- xgb.DMatrix(\n    data = as.matrix(mtcars[-train_idx, -1]),\n    label = mtcars$mpg[-train_idx]\n)\n\n# 回归参数\nparams_reg &lt;- list(\n    objective = \"reg:squarederror\",\n    eval_metric = \"rmse\",\n    max_depth = 4,\n    eta = 0.1\n)\n\n# 训练\nmodel_reg &lt;- xgb.train(\n    params = params_reg,\n    data = dtrain_reg,\n    nrounds = 100,\n    watchlist = list(train = dtrain_reg, test = dtest_reg),\n    verbose = 0\n)\n\n# 预测\npred_reg &lt;- predict(model_reg, dtest_reg)\nactual_reg &lt;- mtcars$mpg[-train_idx]\n\n# 评估\nrmse &lt;- sqrt(mean((pred_reg - actual_reg)^2))\nr_squared &lt;- cor(pred_reg, actual_reg)^2\n\ncat(\"RMSE:\", round(rmse, 3), \"\\n\")\ncat(\"R²:\", round(r_squared, 3), \"\\n\")\n\n\n预测vs实际\npred_df &lt;- data.frame(\n    actual = actual_reg,\n    predicted = pred_reg\n)\n\nggplot(pred_df, aes(x = actual, y = predicted)) +\n    geom_point(color = \"#4f46e5\", size = 3) +\n    geom_abline(\n        slope = 1, intercept = 0,\n        linetype = \"dashed\", color = \"red\"\n    ) +\n    labs(\n        title = \"XGBoost 回归：预测 vs 实际\",\n        x = \"实际值\", y = \"预测值\"\n    ) +\n    annotate(\"text\",\n        x = 15, y = 30,\n        label = paste(\"R² =\", round(r_squared, 3))\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第六部分多分类",
+    "href": "1065-tmle-doubly-robust.html#第六部分多分类",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第六部分：多分类",
+    "text": "第六部分：多分类\n# 使用完整iris数据（三分类）\niris_full &lt;- iris\niris_full$label &lt;- as.numeric(iris_full$Species) - 1\n\ntrain_idx &lt;- sample(1:nrow(iris_full), 0.7 * nrow(iris_full))\n\ndtrain_multi &lt;- xgb.DMatrix(\n    data = as.matrix(iris_full[train_idx, 1:4]),\n    label = iris_full$label[train_idx]\n)\ndtest_multi &lt;- xgb.DMatrix(\n    data = as.matrix(iris_full[-train_idx, 1:4]),\n    label = iris_full$label[-train_idx]\n)\n\n# 多分类参数\nparams_multi &lt;- list(\n    objective = \"multi:softmax\",\n    num_class = 3,\n    eval_metric = \"mlogloss\",\n    max_depth = 4,\n    eta = 0.1\n)\n\n# 训练\nmodel_multi &lt;- xgb.train(\n    params = params_multi,\n    data = dtrain_multi,\n    nrounds = 50,\n    verbose = 0\n)\n\n# 预测\npred_multi &lt;- predict(model_multi, dtest_multi)\n\n# 混淆矩阵\ntable(Predicted = pred_multi, Actual = iris_full$label[-train_idx])\n\n# 准确率\naccuracy_multi &lt;- mean(pred_multi == iris_full$label[-train_idx])\ncat(\"多分类准确率:\", round(accuracy_multi, 4), \"\\n\")",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第七部分保存与加载模型",
+    "href": "1065-tmle-doubly-robust.html#第七部分保存与加载模型",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第七部分：保存与加载模型",
+    "text": "第七部分：保存与加载模型\n# 保存模型\nxgb.save(final_model, \"xgboost_model.bin\")\n\n# 加载模型\nmodel_loaded &lt;- xgb.load(\"xgboost_model.bin\")\n\n# 验证\npred_loaded &lt;- predict(model_loaded, dtest)\nall.equal(pred_prob, pred_loaded)\n# 清理临时文件\nif (file.exists(\"xgboost_model.bin\")) {\n    file.remove(\"xgboost_model.bin\")\n}",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#第八部分实战案例-1",
+    "href": "1065-tmle-doubly-robust.html#第八部分实战案例-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "第八部分：实战案例",
+    "text": "第八部分：实战案例\n\n完整工作流程\n# 使用真实数据模拟\nset.seed(123)\nn &lt;- 1000\n\n# 生成特征\nage &lt;- rnorm(n, 50, 12)\nbmi &lt;- rnorm(n, 26, 4)\nbp &lt;- rnorm(n, 130, 15)\nglucose &lt;- rnorm(n, 100, 25)\ncholesterol &lt;- rnorm(n, 200, 40)\n\n# 生成标签（受特征影响）\nprob &lt;- plogis(-5 + 0.03 * age + 0.08 * bmi + 0.02 * bp + 0.01 * glucose + 0.005 * cholesterol)\noutcome &lt;- rbinom(n, 1, prob)\n\nsim_data &lt;- data.frame(\n    outcome, age, bmi, bp, glucose, cholesterol\n)\n\ncat(\"=== 数据概览 ===\\n\")\ncat(\"样本量:\", n, \"\\n\")\ncat(\"阳性率:\", mean(outcome), \"\\n\")\n# 数据分割\ntrain_idx &lt;- sample(1:n, 0.7 * n)\nX_train &lt;- as.matrix(sim_data[train_idx, -1])\ny_train &lt;- sim_data$outcome[train_idx]\nX_test &lt;- as.matrix(sim_data[-train_idx, -1])\ny_test &lt;- sim_data$outcome[-train_idx]\n\ndtrain_case &lt;- xgb.DMatrix(data = X_train, label = y_train)\ndtest_case &lt;- xgb.DMatrix(data = X_test, label = y_test)\n# 交叉验证选择最佳参数\ncv_case &lt;- xgb.cv(\n    params = list(\n        objective = \"binary:logistic\",\n        eval_metric = \"auc\",\n        max_depth = 4,\n        eta = 0.1,\n        subsample = 0.8,\n        colsample_bytree = 0.8\n    ),\n    data = dtrain_case,\n    nrounds = 200,\n    nfold = 5,\n    early_stopping_rounds = 20,\n    verbose = 0\n)\n\ncat(\"\\n最佳迭代:\", cv_case$best_iteration, \"\\n\")\ncat(\"验证集AUC:\", round(max(cv_case$evaluation_log$test_auc_mean), 4), \"\\n\")\n# 训练最终模型\nfinal_case &lt;- xgb.train(\n    params = list(\n        objective = \"binary:logistic\",\n        eval_metric = \"auc\",\n        max_depth = 4,\n        eta = 0.1,\n        subsample = 0.8,\n        colsample_bytree = 0.8\n    ),\n    data = dtrain_case,\n    nrounds = cv_case$best_iteration,\n    verbose = 0\n)\n\n# 测试集评估\npred_case &lt;- predict(final_case, dtest_case)\n\n# AUC\nlibrary(pROC)\nroc_case &lt;- roc(y_test, pred_case)\ncat(\"\\n测试集AUC:\", round(auc(roc_case), 4), \"\\n\")\n# 特征重要性\nimportance_case &lt;- xgb.importance(\n    feature_names = colnames(sim_data)[-1],\n    model = final_case\n)\n\nxgb.plot.importance(importance_case)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#常用代码速查-3",
+    "href": "1065-tmle-doubly-robust.html#常用代码速查-3",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n```{r eval=FALSE} # ===== 数据准备 ===== dtrain &lt;- xgb.DMatrix(data = X_matrix, label = y_vector)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#小结-1",
+    "href": "1065-tmle-doubly-robust.html#小结-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "小结",
+    "text": "小结\nXGBoost 调参顺序建议：\n\n先确定nrounds：使用早停\n调max_depth和min_child_weight：控制过拟合\n调subsample和colsample_bytree：正则化\n调eta：降低学习率，增加nrounds\n调lambda和alpha：进一步正则化\n\n\n技巧：XGBoost在结构化表格数据上通常优于深度学习，是数据科学竞赛的必备工具。",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1065-tmle-doubly-robust.html#参考资源-1",
+    "href": "1065-tmle-doubly-robust.html#参考资源-1",
+    "title": "CausalImpact 时间序列因果分析",
+    "section": "参考资源",
+    "text": "参考资源\n\nXGBoost 官方文档\nXGBoost R包\nXGBoost论文",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🎯 因果推断",
+      "TMLE 双重稳健估计"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html",
+    "href": "1068-xgboost.html",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "",
+    "text": "XGBoost（eXtreme Gradient Boosting）是目前最强大的机器学习算法之一，在结构化数据上表现卓越，是Kaggle竞赛的常胜将军。\n\n\n\n\n\n优势\n说明\n\n\n\n\n高性能\n速度快、精度高\n\n\n正则化\n内置L1/L2正则化，防止过拟合\n\n\n灵活性\n支持自定义目标函数\n\n\n可解释性\n提供特征重要性\n\n\n工程优化\n并行计算、缓存优化\n\n\n\n\n\n\nXGBoost基于梯度提升决策树（GBDT）： 1. 顺序训练多棵决策树 2. 每棵树拟合前一轮的残差 3. 使用二阶泰勒展开优化目标函数 4. 正则化控制模型复杂度",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#xgboost-简介",
+    "href": "1068-xgboost.html#xgboost-简介",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "",
+    "text": "XGBoost（eXtreme Gradient Boosting）是目前最强大的机器学习算法之一，在结构化数据上表现卓越，是Kaggle竞赛的常胜将军。\n\n\n\n\n\n优势\n说明\n\n\n\n\n高性能\n速度快、精度高\n\n\n正则化\n内置L1/L2正则化，防止过拟合\n\n\n灵活性\n支持自定义目标函数\n\n\n可解释性\n提供特征重要性\n\n\n工程优化\n并行计算、缓存优化\n\n\n\n\n\n\nXGBoost基于梯度提升决策树（GBDT）： 1. 顺序训练多棵决策树 2. 每棵树拟合前一轮的残差 3. 使用二阶泰勒展开优化目标函数 4. 正则化控制模型复杂度",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#安装与加载",
+    "href": "1068-xgboost.html#安装与加载",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "安装与加载",
+    "text": "安装与加载\n\nlibrary(xgboost)\nlibrary(dplyr)\nlibrary(ggplot2)\nlibrary(caret)\n\ntheme_set(theme_bw(base_size = 12))\nset.seed(42)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第一部分快速入门",
+    "href": "1068-xgboost.html#第一部分快速入门",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第一部分：快速入门",
+    "text": "第一部分：快速入门\n\n数据准备\n\n# 使用iris数据集（二分类）\ndata(iris)\niris_binary &lt;- iris %&gt;%\n    filter(Species != \"setosa\") %&gt;%\n    mutate(label = ifelse(Species == \"versicolor\", 0, 1))\n\n# 分割数据\ntrain_idx &lt;- sample(1:nrow(iris_binary), 0.7 * nrow(iris_binary))\ntrain_data &lt;- iris_binary[train_idx, ]\ntest_data &lt;- iris_binary[-train_idx, ]\n\n# 创建DMatrix（XGBoost专用格式）\ndtrain &lt;- xgb.DMatrix(\n    data = as.matrix(train_data[, 1:4]),\n    label = train_data$label\n)\ndtest &lt;- xgb.DMatrix(\n    data = as.matrix(test_data[, 1:4]),\n    label = test_data$label\n)\n\n\n\n训练模型\n\n# 设置参数\nparams &lt;- list(\n    objective = \"binary:logistic\", # 二分类\n    eval_metric = \"auc\", # 评估指标\n    max_depth = 3, # 树深度\n    eta = 0.1 # 学习率\n)\n\n# 训练\nmodel &lt;- xgb.train(\n    params = params,\n    data = dtrain,\n    nrounds = 100,\n    watchlist = list(train = dtrain, test = dtest),\n    verbose = 0\n)\n\n# 查看训练日志\ntail(model$evaluation_log)\n\nNULL\n\n\n\n\n预测\n\n# 预测概率\npred_prob &lt;- predict(model, dtest)\nhead(pred_prob)\n\n[1] 0.014638680 0.015406083 0.004244067 0.004244067 0.008739169 0.004244067\n\n# 转换为类别\npred_class &lt;- ifelse(pred_prob &gt; 0.5, 1, 0)\n\n# 评估\naccuracy &lt;- mean(pred_class == test_data$label)\ncat(\"测试集准确率:\", round(accuracy, 4), \"\\n\")\n\n测试集准确率: 0.9333 \n\n# 混淆矩阵\ntable(Predicted = pred_class, Actual = test_data$label)\n\n         Actual\nPredicted  0  1\n        0 12  2\n        1  0 16",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第二部分参数详解",
+    "href": "1068-xgboost.html#第二部分参数详解",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第二部分：参数详解",
+    "text": "第二部分：参数详解\n\n核心参数\n\n\n\n参数\n说明\n推荐值\n\n\n\n\neta\n学习率\n0.01-0.3\n\n\nmax_depth\n树最大深度\n3-10\n\n\nmin_child_weight\n叶子节点最小样本权重\n1-10\n\n\nsubsample\n样本采样比例\n0.5-1\n\n\ncolsample_bytree\n特征采样比例\n0.5-1\n\n\nlambda\nL2正则化\n0-10\n\n\nalpha\nL1正则化\n0-10\n\n\n\n\n\n目标函数\n\n# 二分类\nobjective &lt;- \"binary:logistic\" # 输出概率\nobjective &lt;- \"binary:logitraw\" # 输出原始分数\n\n# 多分类\nobjective &lt;- \"multi:softmax\" # 输出类别\nobjective &lt;- \"multi:softprob\" # 输出概率\n\n# 回归\nobjective &lt;- \"reg:squarederror\" # MSE\nobjective &lt;- \"reg:absoluteerror\" # MAE\n\n# 计数数据\nobjective &lt;- \"count:poisson\" # 泊松回归\n\n# 生存分析\nobjective &lt;- \"survival:cox\" # Cox比例风险",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第三部分参数调优",
+    "href": "1068-xgboost.html#第三部分参数调优",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第三部分：参数调优",
+    "text": "第三部分：参数调优\n\n使用交叉验证\n\n# 交叉验证\ncv_result &lt;- xgb.cv(\n    params = params,\n    data = dtrain,\n    nrounds = 200,\n    nfold = 5,\n    early_stopping_rounds = 20, # 早停\n    verbose = 0\n)\n\n# 最佳迭代次数\nbest_nrounds &lt;- cv_result$best_iteration\nif (is.null(best_nrounds) || length(best_nrounds) == 0) {\n    best_nrounds &lt;- 100 # 使用默认值\n}\ncat(\"最佳迭代次数:\", best_nrounds, \"\\n\")\n\n最佳迭代次数: 100 \n\ncat(\"最佳AUC:\", round(max(cv_result$evaluation_log$test_auc_mean), 4), \"\\n\")\n\n最佳AUC: 0.9979 \n\n\n\n\n可视化学习曲线\n\n# 提取评估日志\neval_log &lt;- cv_result$evaluation_log\n\nggplot(eval_log, aes(x = iter)) +\n    geom_line(aes(y = train_auc_mean, color = \"训练集\")) +\n    geom_line(aes(y = test_auc_mean, color = \"验证集\")) +\n    geom_ribbon(\n        aes(\n            ymin = test_auc_mean - test_auc_std,\n            ymax = test_auc_mean + test_auc_std\n        ),\n        alpha = 0.2\n    ) +\n    geom_vline(xintercept = best_nrounds, linetype = \"dashed\") +\n    scale_color_manual(values = c(\"训练集\" = \"#4f46e5\", \"验证集\" = \"#ef4444\")) +\n    labs(\n        title = \"XGBoost 学习曲线\",\n        x = \"迭代次数\", y = \"AUC\", color = \"\"\n    ) +\n    theme(legend.position = \"bottom\")\n\n\n\n\n\n\n\n\n\n\n网格搜索\n\n# 参数网格（简化示例）\nparam_grid &lt;- expand.grid(\n    max_depth = c(3, 5),\n    eta = c(0.1, 0.2)\n)\n\n# 搜索最佳参数\nresults &lt;- list()\nfor (i in 1:nrow(param_grid)) {\n    params_i &lt;- list(\n        objective = \"binary:logistic\",\n        eval_metric = \"auc\",\n        max_depth = param_grid$max_depth[i],\n        eta = param_grid$eta[i]\n    )\n\n    cv &lt;- xgb.cv(\n        params = params_i,\n        data = dtrain,\n        nrounds = 50,\n        nfold = 3,\n        early_stopping_rounds = 10,\n        verbose = 0\n    )\n\n    # 处理best_iteration可能为NULL的情况\n    best_iter &lt;- cv$best_iteration\n    if (is.null(best_iter) || length(best_iter) == 0) {\n        best_iter &lt;- 50\n    }\n\n    results[[i]] &lt;- data.frame(\n        max_depth = param_grid$max_depth[i],\n        eta = param_grid$eta[i],\n        best_auc = max(cv$evaluation_log$test_auc_mean),\n        best_iter = best_iter\n    )\n}\n\nresults_df &lt;- do.call(rbind, results)\nresults_df &lt;- results_df[order(-results_df$best_auc), ]\nprint(results_df)\n\n  max_depth eta  best_auc best_iter\n4         5 0.2 1.0000000        50\n2         5 0.1 0.9975469        50\n1         3 0.1 0.9908730        50\n3         3 0.2 0.9481481        50",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第四部分特征重要性",
+    "href": "1068-xgboost.html#第四部分特征重要性",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第四部分：特征重要性",
+    "text": "第四部分：特征重要性\n\n计算重要性\n\n# 重新训练最终模型\nfinal_model &lt;- xgb.train(\n    params = params,\n    data = dtrain,\n    nrounds = best_nrounds,\n    verbose = 0\n)\n\n# 获取特征重要性\nimportance &lt;- xgb.importance(\n    feature_names = colnames(train_data)[1:4],\n    model = final_model\n)\nprint(importance)\n\n        Feature        Gain      Cover  Frequency\n         &lt;char&gt;       &lt;num&gt;      &lt;num&gt;      &lt;num&gt;\n1:  Petal.Width 0.601101301 0.42730688 0.39041096\n2: Petal.Length 0.382828811 0.38559549 0.33561644\n3: Sepal.Length 0.014258206 0.15749462 0.22602740\n4:  Sepal.Width 0.001811682 0.02960301 0.04794521\n\n\n\n\n可视化重要性\n\n# 条形图\nxgb.plot.importance(importance, measure = \"Gain\")\n\n\n\n\n\n\n\n\n\n# 自定义ggplot可视化\nggplot(importance, aes(x = reorder(Feature, Gain), y = Gain)) +\n    geom_col(fill = \"#4f46e5\", alpha = 0.8) +\n    coord_flip() +\n    labs(\n        title = \"XGBoost 特征重要性\",\n        subtitle = \"基于信息增益\",\n        x = \"\", y = \"重要性 (Gain)\"\n    )\n\n\n\n\n\n\n\n\n\n\n多种重要性指标\n\n# 三种重要性指标对比\nimportance_long &lt;- importance %&gt;%\n    tidyr::pivot_longer(\n        cols = c(Gain, Cover, Frequency),\n        names_to = \"Metric\",\n        values_to = \"Value\"\n    )\n\nggplot(importance_long, aes(x = Feature, y = Value, fill = Metric)) +\n    geom_col(position = \"dodge\") +\n    scale_fill_manual(values = c(\"#4f46e5\", \"#10b981\", \"#ef4444\")) +\n    labs(\n        title = \"特征重要性（多指标对比）\",\n        x = \"\", y = \"重要性\"\n    ) +\n    theme(axis.text.x = element_text(angle = 45, hjust = 1))",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第五部分回归任务",
+    "href": "1068-xgboost.html#第五部分回归任务",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第五部分：回归任务",
+    "text": "第五部分：回归任务\n\n回归模型\n\n# 使用mtcars数据\ndata(mtcars)\ntrain_idx &lt;- sample(1:nrow(mtcars), 0.7 * nrow(mtcars))\n\ndtrain_reg &lt;- xgb.DMatrix(\n    data = as.matrix(mtcars[train_idx, -1]),\n    label = mtcars$mpg[train_idx]\n)\ndtest_reg &lt;- xgb.DMatrix(\n    data = as.matrix(mtcars[-train_idx, -1]),\n    label = mtcars$mpg[-train_idx]\n)\n\n# 回归参数\nparams_reg &lt;- list(\n    objective = \"reg:squarederror\",\n    eval_metric = \"rmse\",\n    max_depth = 4,\n    eta = 0.1\n)\n\n# 训练\nmodel_reg &lt;- xgb.train(\n    params = params_reg,\n    data = dtrain_reg,\n    nrounds = 100,\n    watchlist = list(train = dtrain_reg, test = dtest_reg),\n    verbose = 0\n)\n\n# 预测\npred_reg &lt;- predict(model_reg, dtest_reg)\nactual_reg &lt;- mtcars$mpg[-train_idx]\n\n# 评估\nrmse &lt;- sqrt(mean((pred_reg - actual_reg)^2))\nr_squared &lt;- cor(pred_reg, actual_reg)^2\n\ncat(\"RMSE:\", round(rmse, 3), \"\\n\")\n\nRMSE: 2.551 \n\ncat(\"R²:\", round(r_squared, 3), \"\\n\")\n\nR²: 0.82 \n\n\n\n\n预测vs实际\n\npred_df &lt;- data.frame(\n    actual = actual_reg,\n    predicted = pred_reg\n)\n\nggplot(pred_df, aes(x = actual, y = predicted)) +\n    geom_point(color = \"#4f46e5\", size = 3) +\n    geom_abline(\n        slope = 1, intercept = 0,\n        linetype = \"dashed\", color = \"red\"\n    ) +\n    labs(\n        title = \"XGBoost 回归：预测 vs 实际\",\n        x = \"实际值\", y = \"预测值\"\n    ) +\n    annotate(\"text\",\n        x = 15, y = 30,\n        label = paste(\"R² =\", round(r_squared, 3))\n    )",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第六部分多分类",
+    "href": "1068-xgboost.html#第六部分多分类",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第六部分：多分类",
+    "text": "第六部分：多分类\n\n# 使用完整iris数据（三分类）\niris_full &lt;- iris\niris_full$label &lt;- as.numeric(iris_full$Species) - 1\n\ntrain_idx &lt;- sample(1:nrow(iris_full), 0.7 * nrow(iris_full))\n\ndtrain_multi &lt;- xgb.DMatrix(\n    data = as.matrix(iris_full[train_idx, 1:4]),\n    label = iris_full$label[train_idx]\n)\ndtest_multi &lt;- xgb.DMatrix(\n    data = as.matrix(iris_full[-train_idx, 1:4]),\n    label = iris_full$label[-train_idx]\n)\n\n# 多分类参数\nparams_multi &lt;- list(\n    objective = \"multi:softmax\",\n    num_class = 3,\n    eval_metric = \"mlogloss\",\n    max_depth = 4,\n    eta = 0.1\n)\n\n# 训练\nmodel_multi &lt;- xgb.train(\n    params = params_multi,\n    data = dtrain_multi,\n    nrounds = 50,\n    verbose = 0\n)\n\n# 预测\npred_multi &lt;- predict(model_multi, dtest_multi)\n\n# 混淆矩阵\ntable(Predicted = pred_multi, Actual = iris_full$label[-train_idx])\n\n         Actual\nPredicted  0  1  2\n        0 18  0  0\n        1  0 13  2\n        2  0  0 12\n\n# 准确率\naccuracy_multi &lt;- mean(pred_multi == iris_full$label[-train_idx])\ncat(\"多分类准确率:\", round(accuracy_multi, 4), \"\\n\")\n\n多分类准确率: 0.9556",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第七部分保存与加载模型",
+    "href": "1068-xgboost.html#第七部分保存与加载模型",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第七部分：保存与加载模型",
+    "text": "第七部分：保存与加载模型\n\n# 保存模型\nxgb.save(final_model, \"xgboost_model.bin\")\n\n[1] TRUE\n\n# 加载模型\nmodel_loaded &lt;- xgb.load(\"xgboost_model.bin\")\n\n# 验证\npred_loaded &lt;- predict(model_loaded, dtest)\nall.equal(pred_prob, pred_loaded)\n\n[1] TRUE\n\n\n\n# 清理临时文件\nif (file.exists(\"xgboost_model.bin\")) {\n    file.remove(\"xgboost_model.bin\")\n}\n\n[1] TRUE",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#第八部分实战案例",
+    "href": "1068-xgboost.html#第八部分实战案例",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "第八部分：实战案例",
+    "text": "第八部分：实战案例\n\n完整工作流程\n\n# 使用真实数据模拟\nset.seed(123)\nn &lt;- 1000\n\n# 生成特征\nage &lt;- rnorm(n, 50, 12)\nbmi &lt;- rnorm(n, 26, 4)\nbp &lt;- rnorm(n, 130, 15)\nglucose &lt;- rnorm(n, 100, 25)\ncholesterol &lt;- rnorm(n, 200, 40)\n\n# 生成标签（受特征影响）\nprob &lt;- plogis(-5 + 0.03 * age + 0.08 * bmi + 0.02 * bp + 0.01 * glucose + 0.005 * cholesterol)\noutcome &lt;- rbinom(n, 1, prob)\n\nsim_data &lt;- data.frame(\n    outcome, age, bmi, bp, glucose, cholesterol\n)\n\ncat(\"=== 数据概览 ===\\n\")\n\n=== 数据概览 ===\n\ncat(\"样本量:\", n, \"\\n\")\n\n样本量: 1000 \n\ncat(\"阳性率:\", mean(outcome), \"\\n\")\n\n阳性率: 0.953 \n\n\n\n# 数据分割\ntrain_idx &lt;- sample(1:n, 0.7 * n)\nX_train &lt;- as.matrix(sim_data[train_idx, -1])\ny_train &lt;- sim_data$outcome[train_idx]\nX_test &lt;- as.matrix(sim_data[-train_idx, -1])\ny_test &lt;- sim_data$outcome[-train_idx]\n\ndtrain_case &lt;- xgb.DMatrix(data = X_train, label = y_train)\ndtest_case &lt;- xgb.DMatrix(data = X_test, label = y_test)\n\n\n# 交叉验证选择最佳参数\ncv_case &lt;- xgb.cv(\n    params = list(\n        objective = \"binary:logistic\",\n        eval_metric = \"auc\",\n        max_depth = 4,\n        eta = 0.1,\n        subsample = 0.8,\n        colsample_bytree = 0.8\n    ),\n    data = dtrain_case,\n    nrounds = 200,\n    nfold = 5,\n    early_stopping_rounds = 20,\n    verbose = 0\n)\n\n# 处理best_iteration可能为NULL的情况\nbest_iter_case &lt;- cv_case$best_iteration\nif (is.null(best_iter_case) || length(best_iter_case) == 0) {\n    best_iter_case &lt;- 100\n}\ncat(\"\\n最佳迭代:\", best_iter_case, \"\\n\")\n\n\n最佳迭代: 100 \n\ncat(\"验证集AUC:\", round(max(cv_case$evaluation_log$test_auc_mean), 4), \"\\n\")\n\n验证集AUC: 0.7119 \n\n\n\n# 训练最终模型\nfinal_case &lt;- xgb.train(\n    params = list(\n        objective = \"binary:logistic\",\n        eval_metric = \"auc\",\n        max_depth = 4,\n        eta = 0.1,\n        subsample = 0.8,\n        colsample_bytree = 0.8\n    ),\n    data = dtrain_case,\n    nrounds = best_iter_case,\n    verbose = 0\n)\n\n# 测试集评估\npred_case &lt;- predict(final_case, dtest_case)\n\n# AUC\nlibrary(pROC)\nroc_case &lt;- roc(y_test, pred_case)\ncat(\"\\n测试集AUC:\", round(auc(roc_case), 4), \"\\n\")\n\n\n测试集AUC: 0.5914 \n\n\n\n# 特征重要性\nimportance_case &lt;- xgb.importance(\n    feature_names = colnames(sim_data)[-1],\n    model = final_case\n)\n\nxgb.plot.importance(importance_case)",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#常用代码速查",
+    "href": "1068-xgboost.html#常用代码速查",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "常用代码速查",
+    "text": "常用代码速查\n\n# ===== 数据准备 =====\ndtrain &lt;- xgb.DMatrix(data = X_matrix, label = y_vector)\n\n# ===== 训练 =====\nmodel &lt;- xgb.train(params, data, nrounds, watchlist, verbose)\n\n# ===== 交叉验证 =====\ncv &lt;- xgb.cv(params, data, nrounds, nfold, early_stopping_rounds)\n\n# ===== 预测 =====\npred &lt;- predict(model, dtest)\n\n# ===== 特征重要性 =====\nimportance &lt;- xgb.importance(feature_names, model)\nxgb.plot.importance(importance)\n\n# ===== 常用参数 =====\nparams &lt;- list(\n    objective = \"binary:logistic\",\n    eval_metric = \"auc\",\n    max_depth = 6,\n    eta = 0.1,\n    subsample = 0.8,\n    colsample_bytree = 0.8,\n    lambda = 1,\n    alpha = 0\n)\n\n# ===== 保存/加载 =====\nxgb.save(model, \"model.bin\")\nmodel &lt;- xgb.load(\"model.bin\")",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#小结",
+    "href": "1068-xgboost.html#小结",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "小结",
+    "text": "小结\nXGBoost 调参顺序建议：\n\n先确定nrounds：使用早停\n调max_depth和min_child_weight：控制过拟合\n调subsample和colsample_bytree：正则化\n调eta：降低学习率，增加nrounds\n调lambda和alpha：进一步正则化\n\n\n技巧：XGBoost在结构化表格数据上通常优于深度学习，是数据科学竞赛的必备工具。",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
+  },
+  {
+    "objectID": "1068-xgboost.html#参考资源",
+    "href": "1068-xgboost.html#参考资源",
+    "title": "XGBoost 梯度提升算法完全指南",
+    "section": "参考资源",
+    "text": "参考资源\n\nXGBoost 官方文档\nXGBoost R包\nXGBoost论文",
+    "crumbs": [
+      "主页",
+      "R 语言方法",
+      "🤖 机器学习",
+      "XGBoost 梯度提升"
+    ]
   }
 ]

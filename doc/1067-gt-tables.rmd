@@ -1,0 +1,547 @@
+---
+title: "gt 发表级表格制作完全指南"
+date: "2026-01-15"
+categories: [实用R包, 表格制作, 发表级]
+image: "images/gt-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE
+)
+```
+
+## gt 简介
+
+**gt**（Grammar of Tables）是Posit官方开发的现代表格制作包，采用"表格语法"的设计理念，可创建高度定制化的发表级表格。
+
+### gt vs 其他表格包
+
+| 特点 | gt | gtsummary | kable | flextable |
+|------|----|-----------| ------|-----------|
+| 设计理念 | 表格语法 | 统计表格 | 简单快速 | Office兼容 |
+| 定制程度 | 极高 | 中等 | 低 | 高 |
+| 学习曲线 | 中等 | 低 | 最低 | 中等 |
+| 输出格式 | HTML/PDF/Word | 同gt | HTML/PDF | Word/PPT |
+
+### 表格结构
+
+gt将表格分为几个逻辑部分：
+- **Table Header**：标题和副标题
+- **Stub**：行标签区域
+- **Column Labels**：列标签
+- **Table Body**：数据主体
+- **Table Footer**：脚注和来源说明
+
+## 安装与加载
+
+```{r}
+library(gt)
+library(dplyr)
+library(tidyr)
+```
+
+
+## 第一部分：基础用法
+
+### 创建第一个gt表格
+
+```{r}
+# 使用内置数据
+data(mtcars)
+df <- mtcars %>%
+    slice(1:6) %>%
+    select(mpg, cyl, hp, wt) %>%
+    mutate(car = rownames(mtcars)[1:6], .before = 1)
+
+# 最简单的gt表格
+gt(df)
+```
+
+### 添加标题和来源
+
+```{r}
+df %>%
+    gt() %>%
+    tab_header(
+        title = "汽车性能参数表",
+        subtitle = "Motor Trend Car Road Tests 数据子集"
+    ) %>%
+    tab_source_note(
+        source_note = "数据来源：1974 Motor Trend 杂志"
+    )
+```
+
+### 修改列标签
+
+```{r}
+df %>%
+    gt() %>%
+    cols_label(
+        car = "车型",
+        mpg = "油耗 (MPG)",
+        cyl = "气缸数",
+        hp = "马力",
+        wt = "重量 (吨)"
+    )
+```
+
+
+## 第二部分：格式化
+
+### 数字格式化
+
+```{r}
+df %>%
+    gt() %>%
+    fmt_number(
+        columns = c(mpg, wt),
+        decimals = 1
+    ) %>%
+    fmt_integer(
+        columns = c(cyl, hp)
+    )
+```
+
+### 百分比格式化
+
+```{r}
+# 创建带百分比的数据
+pct_df <- data.frame(
+    category = c("A", "B", "C"),
+    value = c(0.234, 0.456, 0.310)
+)
+
+pct_df %>%
+    gt() %>%
+    fmt_percent(
+        columns = value,
+        decimals = 1
+    )
+```
+
+### 货币格式化
+
+```{r}
+price_df <- data.frame(
+    item = c("产品A", "产品B", "产品C"),
+    price_usd = c(99.99, 149.50, 299.00),
+    price_cny = c(699, 1049, 2099)
+)
+
+price_df %>%
+    gt() %>%
+    fmt_currency(
+        columns = price_usd,
+        currency = "USD"
+    ) %>%
+    fmt_currency(
+        columns = price_cny,
+        currency = "CNY"
+    )
+```
+
+
+## 第三部分：样式设置
+
+### 表头样式
+
+```{r}
+df %>%
+    gt() %>%
+    tab_header(
+        title = md("**汽车性能参数**"),
+        subtitle = "精选车型数据"
+    ) %>%
+    tab_style(
+        style = cell_fill(color = "#4f46e5"),
+        locations = cells_title()
+    ) %>%
+    tab_style(
+        style = cell_text(color = "white", weight = "bold"),
+        locations = cells_title()
+    )
+```
+
+### 列标签样式
+
+```{r}
+df %>%
+    gt() %>%
+    tab_style(
+        style = list(
+            cell_fill(color = "#e0e7ff"),
+            cell_text(weight = "bold")
+        ),
+        locations = cells_column_labels()
+    )
+```
+
+### 条件格式化
+
+```{r}
+df %>%
+    gt() %>%
+    tab_style(
+        style = cell_fill(color = "#dcfce7"),
+        locations = cells_body(
+            columns = mpg,
+            rows = mpg > 20
+        )
+    ) %>%
+    tab_style(
+        style = cell_fill(color = "#fee2e2"),
+        locations = cells_body(
+            columns = mpg,
+            rows = mpg < 15
+        )
+    )
+```
+
+
+## 第四部分：数据着色
+
+### 颜色标度
+
+```{r}
+df %>%
+    gt() %>%
+    data_color(
+        columns = mpg,
+        palette = c("#ef4444", "#fbbf24", "#22c55e"),
+        domain = c(10, 35)
+    )
+```
+
+### 多列着色
+
+```{r}
+df %>%
+    gt() %>%
+    data_color(
+        columns = c(mpg, hp),
+        palette = "Blues"
+    )
+```
+
+
+## 第五部分：分组与汇总
+
+### 行分组
+
+```{r}
+# 按气缸数分组
+mtcars %>%
+    slice(1:12) %>%
+    mutate(car = rownames(mtcars)[1:12]) %>%
+    select(car, cyl, mpg, hp) %>%
+    gt(groupname_col = "cyl") %>%
+    tab_header(title = "按气缸数分组的汽车数据")
+```
+
+### 添加汇总行
+
+```{r}
+mtcars %>%
+    slice(1:8) %>%
+    mutate(car = rownames(mtcars)[1:8]) %>%
+    select(car, cyl, mpg, hp) %>%
+    group_by(cyl) %>%
+    gt() %>%
+    summary_rows(
+        groups = TRUE,
+        columns = c(mpg, hp),
+        fns = list(
+            平均值 = ~ mean(., na.rm = TRUE),
+            最大值 = ~ max(., na.rm = TRUE)
+        ),
+        fmt = ~ fmt_number(., decimals = 1)
+    )
+```
+
+### 总计行
+
+```{r}
+mtcars %>%
+    slice(1:6) %>%
+    mutate(car = rownames(mtcars)[1:6]) %>%
+    select(car, mpg, hp, wt) %>%
+    gt() %>%
+    grand_summary_rows(
+        columns = c(mpg, hp),
+        fns = list(
+            总计 = ~ sum(.),
+            平均 = ~ mean(.)
+        ),
+        fmt = ~ fmt_number(., decimals = 1)
+    )
+```
+
+
+## 第六部分：脚注与注释
+
+### 添加脚注
+
+```{r}
+df %>%
+    gt() %>%
+    tab_footnote(
+        footnote = "MPG = Miles Per Gallon",
+        locations = cells_column_labels(columns = mpg)
+    ) %>%
+    tab_footnote(
+        footnote = "高性能车型",
+        locations = cells_body(
+            columns = car,
+            rows = hp > 200
+        )
+    )
+```
+
+### 多个脚注
+
+```{r}
+df %>%
+    gt() %>%
+    tab_footnote(
+        footnote = md("**油耗效率**指标"),
+        locations = cells_column_labels(columns = mpg)
+    ) %>%
+    tab_footnote(
+        footnote = "制动马力",
+        locations = cells_column_labels(columns = hp)
+    ) %>%
+    tab_source_note("注：数据来自1974年美国汽车测试")
+```
+
+
+## 第七部分：合并与跨度
+
+### 列合并
+
+```{r}
+df %>%
+    gt() %>%
+    cols_merge(
+        columns = c(cyl, hp),
+        pattern = "{1} 缸 / {2} 马力"
+    ) %>%
+    cols_label(cyl = "发动机配置")
+```
+
+### 列分组（Spanner）
+
+```{r}
+df %>%
+    gt() %>%
+    tab_spanner(
+        label = "性能指标",
+        columns = c(mpg, hp)
+    ) %>%
+    tab_spanner(
+        label = "规格参数",
+        columns = c(cyl, wt)
+    )
+```
+
+
+## 第八部分：导出表格
+
+### 保存为HTML
+
+```{r eval=FALSE}
+my_table <- df %>%
+    gt() %>%
+    tab_header(title = "示例表格")
+
+# 保存为HTML
+gtsave(my_table, "table.html")
+```
+
+### 保存为图片
+
+```{r eval=FALSE}
+# 保存为PNG
+gtsave(my_table, "table.png")
+
+# 保存为PDF
+gtsave(my_table, "table.pdf")
+```
+
+### 保存为Word/RTF
+
+```{r eval=FALSE}
+# 保存为RTF（可用Word打开）
+gtsave(my_table, "table.rtf")
+
+# 保存为docx需要额外包
+# library(webshot2)
+# gtsave(my_table, "table.docx")
+```
+
+
+## 第九部分：实战案例
+
+### 案例：论文基线表
+
+```{r}
+# 模拟临床数据
+set.seed(42)
+clinical_data <- data.frame(
+    group = rep(c("治疗组", "对照组"), each = 3),
+    variable = rep(c("年龄 (岁)", "BMI (kg/m²)", "收缩压 (mmHg)"), 2),
+    mean = c(52.3, 24.8, 135.2, 51.8, 25.1, 138.6),
+    sd = c(8.5, 3.2, 15.3, 9.1, 3.5, 14.8),
+    p_value = c(0.72, 0.58, 0.12, NA, NA, NA)
+)
+
+# 转换为宽格式
+baseline_table <- clinical_data %>%
+    mutate(value = paste0(round(mean, 1), " ± ", round(sd, 1))) %>%
+    select(variable, group, value, p_value) %>%
+    pivot_wider(names_from = group, values_from = value) %>%
+    mutate(p_value = ifelse(row_number() == 1,
+        c(0.72, 0.58, 0.12)[row_number()], NA
+    ))
+
+# 创建发表级表格
+baseline_table %>%
+    gt() %>%
+    tab_header(
+        title = "表1. 基线特征比较",
+        subtitle = "数据以 Mean ± SD 表示"
+    ) %>%
+    cols_label(
+        variable = "变量",
+        治疗组 = "治疗组 (n=50)",
+        对照组 = "对照组 (n=50)",
+        p_value = "P值"
+    ) %>%
+    fmt_number(
+        columns = p_value,
+        decimals = 2
+    ) %>%
+    sub_missing(
+        columns = everything(),
+        missing_text = ""
+    ) %>%
+    tab_style(
+        style = cell_fill(color = "#f3f4f6"),
+        locations = cells_column_labels()
+    ) %>%
+    tab_footnote(
+        footnote = "连续变量使用t检验",
+        locations = cells_column_labels(columns = p_value)
+    )
+```
+
+
+### 案例：回归结果表
+
+```{r}
+# 模拟回归结果
+reg_results <- data.frame(
+    variable = c("年龄", "性别 (女)", "BMI", "吸烟史", "高血压"),
+    or = c(1.02, 0.85, 1.15, 2.34, 1.89),
+    ci_lower = c(0.98, 0.62, 1.05, 1.45, 1.23),
+    ci_upper = c(1.06, 1.16, 1.26, 3.78, 2.91),
+    p_value = c(0.324, 0.298, 0.003, 0.001, 0.004)
+)
+
+reg_results %>%
+    mutate(
+        or_ci = paste0(
+            sprintf("%.2f", or), " (",
+            sprintf("%.2f", ci_lower), "-",
+            sprintf("%.2f", ci_upper), ")"
+        )
+    ) %>%
+    select(variable, or_ci, p_value) %>%
+    gt() %>%
+    tab_header(
+        title = "表2. Logistic回归分析结果"
+    ) %>%
+    cols_label(
+        variable = "变量",
+        or_ci = "OR (95% CI)",
+        p_value = "P值"
+    ) %>%
+    fmt_number(
+        columns = p_value,
+        decimals = 3
+    ) %>%
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = cells_body(
+            columns = p_value,
+            rows = p_value < 0.05
+        )
+    ) %>%
+    tab_footnote(
+        footnote = "粗体表示P < 0.05",
+        locations = cells_column_labels(columns = p_value)
+    )
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 创建表格 =====
+gt(data)
+gt(data, groupname_col = "group")
+
+# ===== 标题与注释 =====
+tab_header(title, subtitle)
+tab_source_note(source_note)
+tab_footnote(footnote, locations)
+
+# ===== 列操作 =====
+cols_label(col1 = "新名称")
+cols_move(columns, after)
+cols_hide(columns)
+cols_merge(columns, pattern)
+tab_spanner(label, columns)
+
+# ===== 格式化 =====
+fmt_number(columns, decimals)
+fmt_percent(columns, decimals)
+fmt_currency(columns, currency)
+fmt_integer(columns)
+
+# ===== 样式 =====
+tab_style(style, locations)
+cell_fill(color)
+cell_text(weight, color, size)
+data_color(columns, palette)
+
+# ===== 汇总 =====
+summary_rows(groups, columns, fns)
+grand_summary_rows(columns, fns)
+
+# ===== 导出 =====
+gtsave(table, filename)
+```
+
+
+## 小结
+
+gt 是制作发表级表格的最佳选择：
+
+| 场景 | 推荐方案 |
+|------|----------|
+| 快速统计表 | gtsummary → gt |
+| 高度定制表格 | 直接使用gt |
+| Word文档 | gt + RTF导出 |
+| 网页展示 | gt HTML |
+
+> **技巧**：gt采用管道式语法，可以像ggplot2一样层层叠加样式，建议从简单开始，逐步添加格式化。
+
+
+## 参考资源
+
+- [gt 官方文档](https://gt.rstudio.com/)
+- [gt Cookbook](https://themockup.blog/static/gt-cookbook.html)
+- [gt 案例库](https://gt.rstudio.com/articles/case-study-gtcars.html)

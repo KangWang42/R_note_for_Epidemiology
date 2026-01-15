@@ -1,0 +1,618 @@
+---
+title: "XGBoost 梯度提升算法完全指南"
+date: "2026-01-15"
+categories: [R语言方法, 机器学习, XGBoost]
+image: "images/xgboost-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## XGBoost 简介
+
+**XGBoost**（eXtreme Gradient Boosting）是目前最强大的机器学习算法之一，在结构化数据上表现卓越，是Kaggle竞赛的常胜将军。
+
+### 为什么选择XGBoost？
+
+| 优势 | 说明 |
+|------|------|
+| **高性能** | 速度快、精度高 |
+| **正则化** | 内置L1/L2正则化，防止过拟合 |
+| **灵活性** | 支持自定义目标函数 |
+| **可解释性** | 提供特征重要性 |
+| **工程优化** | 并行计算、缓存优化 |
+
+### 核心原理
+
+XGBoost基于**梯度提升决策树（GBDT）**：
+1. 顺序训练多棵决策树
+2. 每棵树拟合前一轮的残差
+3. 使用二阶泰勒展开优化目标函数
+4. 正则化控制模型复杂度
+
+## 安装与加载
+
+```{r}
+library(xgboost)
+library(dplyr)
+library(ggplot2)
+library(caret)
+
+theme_set(theme_bw(base_size = 12))
+set.seed(42)
+```
+
+
+## 第一部分：快速入门
+
+### 数据准备
+
+```{r}
+# 使用iris数据集（二分类）
+data(iris)
+iris_binary <- iris %>%
+    filter(Species != "setosa") %>%
+    mutate(label = ifelse(Species == "versicolor", 0, 1))
+
+# 分割数据
+train_idx <- sample(1:nrow(iris_binary), 0.7 * nrow(iris_binary))
+train_data <- iris_binary[train_idx, ]
+test_data <- iris_binary[-train_idx, ]
+
+# 创建DMatrix（XGBoost专用格式）
+dtrain <- xgb.DMatrix(
+    data = as.matrix(train_data[, 1:4]),
+    label = train_data$label
+)
+dtest <- xgb.DMatrix(
+    data = as.matrix(test_data[, 1:4]),
+    label = test_data$label
+)
+```
+
+### 训练模型
+
+```{r}
+# 设置参数
+params <- list(
+    objective = "binary:logistic", # 二分类
+    eval_metric = "auc", # 评估指标
+    max_depth = 3, # 树深度
+    eta = 0.1 # 学习率
+)
+
+# 训练
+model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 100,
+    watchlist = list(train = dtrain, test = dtest),
+    verbose = 0
+)
+
+# 查看训练日志
+tail(model$evaluation_log)
+```
+
+### 预测
+
+```{r}
+# 预测概率
+pred_prob <- predict(model, dtest)
+head(pred_prob)
+
+# 转换为类别
+pred_class <- ifelse(pred_prob > 0.5, 1, 0)
+
+# 评估
+accuracy <- mean(pred_class == test_data$label)
+cat("测试集准确率:", round(accuracy, 4), "\n")
+
+# 混淆矩阵
+table(Predicted = pred_class, Actual = test_data$label)
+```
+
+
+## 第二部分：参数详解
+
+### 核心参数
+
+| 参数 | 说明 | 推荐值 |
+|------|------|--------|
+| `eta` | 学习率 | 0.01-0.3 |
+| `max_depth` | 树最大深度 | 3-10 |
+| `min_child_weight` | 叶子节点最小样本权重 | 1-10 |
+| `subsample` | 样本采样比例 | 0.5-1 |
+| `colsample_bytree` | 特征采样比例 | 0.5-1 |
+| `lambda` | L2正则化 | 0-10 |
+| `alpha` | L1正则化 | 0-10 |
+
+### 目标函数
+
+```{r eval=FALSE}
+# 二分类
+objective <- "binary:logistic" # 输出概率
+objective <- "binary:logitraw" # 输出原始分数
+
+# 多分类
+objective <- "multi:softmax" # 输出类别
+objective <- "multi:softprob" # 输出概率
+
+# 回归
+objective <- "reg:squarederror" # MSE
+objective <- "reg:absoluteerror" # MAE
+
+# 计数数据
+objective <- "count:poisson" # 泊松回归
+
+# 生存分析
+objective <- "survival:cox" # Cox比例风险
+```
+
+
+## 第三部分：参数调优
+
+### 使用交叉验证
+
+```{r}
+# 交叉验证
+cv_result <- xgb.cv(
+    params = params,
+    data = dtrain,
+    nrounds = 200,
+    nfold = 5,
+    early_stopping_rounds = 20, # 早停
+    verbose = 0
+)
+
+# 最佳迭代次数
+best_nrounds <- cv_result$best_iteration
+if (is.null(best_nrounds) || length(best_nrounds) == 0) {
+    best_nrounds <- 100 # 使用默认值
+}
+cat("最佳迭代次数:", best_nrounds, "\n")
+cat("最佳AUC:", round(max(cv_result$evaluation_log$test_auc_mean), 4), "\n")
+```
+
+### 可视化学习曲线
+
+```{r}
+# 提取评估日志
+eval_log <- cv_result$evaluation_log
+
+ggplot(eval_log, aes(x = iter)) +
+    geom_line(aes(y = train_auc_mean, color = "训练集")) +
+    geom_line(aes(y = test_auc_mean, color = "验证集")) +
+    geom_ribbon(
+        aes(
+            ymin = test_auc_mean - test_auc_std,
+            ymax = test_auc_mean + test_auc_std
+        ),
+        alpha = 0.2
+    ) +
+    geom_vline(xintercept = best_nrounds, linetype = "dashed") +
+    scale_color_manual(values = c("训练集" = "#4f46e5", "验证集" = "#ef4444")) +
+    labs(
+        title = "XGBoost 学习曲线",
+        x = "迭代次数", y = "AUC", color = ""
+    ) +
+    theme(legend.position = "bottom")
+```
+
+### 网格搜索
+
+```{r}
+# 参数网格（简化示例）
+param_grid <- expand.grid(
+    max_depth = c(3, 5),
+    eta = c(0.1, 0.2)
+)
+
+# 搜索最佳参数
+results <- list()
+for (i in 1:nrow(param_grid)) {
+    params_i <- list(
+        objective = "binary:logistic",
+        eval_metric = "auc",
+        max_depth = param_grid$max_depth[i],
+        eta = param_grid$eta[i]
+    )
+
+    cv <- xgb.cv(
+        params = params_i,
+        data = dtrain,
+        nrounds = 50,
+        nfold = 3,
+        early_stopping_rounds = 10,
+        verbose = 0
+    )
+
+    # 处理best_iteration可能为NULL的情况
+    best_iter <- cv$best_iteration
+    if (is.null(best_iter) || length(best_iter) == 0) {
+        best_iter <- 50
+    }
+
+    results[[i]] <- data.frame(
+        max_depth = param_grid$max_depth[i],
+        eta = param_grid$eta[i],
+        best_auc = max(cv$evaluation_log$test_auc_mean),
+        best_iter = best_iter
+    )
+}
+
+results_df <- do.call(rbind, results)
+results_df <- results_df[order(-results_df$best_auc), ]
+print(results_df)
+```
+
+
+## 第四部分：特征重要性
+
+### 计算重要性
+
+```{r}
+# 重新训练最终模型
+final_model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = best_nrounds,
+    verbose = 0
+)
+
+# 获取特征重要性
+importance <- xgb.importance(
+    feature_names = colnames(train_data)[1:4],
+    model = final_model
+)
+print(importance)
+```
+
+### 可视化重要性
+
+```{r}
+# 条形图
+xgb.plot.importance(importance, measure = "Gain")
+```
+
+```{r}
+# 自定义ggplot可视化
+ggplot(importance, aes(x = reorder(Feature, Gain), y = Gain)) +
+    geom_col(fill = "#4f46e5", alpha = 0.8) +
+    coord_flip() +
+    labs(
+        title = "XGBoost 特征重要性",
+        subtitle = "基于信息增益",
+        x = "", y = "重要性 (Gain)"
+    )
+```
+
+### 多种重要性指标
+
+```{r}
+# 三种重要性指标对比
+importance_long <- importance %>%
+    tidyr::pivot_longer(
+        cols = c(Gain, Cover, Frequency),
+        names_to = "Metric",
+        values_to = "Value"
+    )
+
+ggplot(importance_long, aes(x = Feature, y = Value, fill = Metric)) +
+    geom_col(position = "dodge") +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#ef4444")) +
+    labs(
+        title = "特征重要性（多指标对比）",
+        x = "", y = "重要性"
+    ) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+## 第五部分：回归任务
+
+### 回归模型
+
+```{r}
+# 使用mtcars数据
+data(mtcars)
+train_idx <- sample(1:nrow(mtcars), 0.7 * nrow(mtcars))
+
+dtrain_reg <- xgb.DMatrix(
+    data = as.matrix(mtcars[train_idx, -1]),
+    label = mtcars$mpg[train_idx]
+)
+dtest_reg <- xgb.DMatrix(
+    data = as.matrix(mtcars[-train_idx, -1]),
+    label = mtcars$mpg[-train_idx]
+)
+
+# 回归参数
+params_reg <- list(
+    objective = "reg:squarederror",
+    eval_metric = "rmse",
+    max_depth = 4,
+    eta = 0.1
+)
+
+# 训练
+model_reg <- xgb.train(
+    params = params_reg,
+    data = dtrain_reg,
+    nrounds = 100,
+    watchlist = list(train = dtrain_reg, test = dtest_reg),
+    verbose = 0
+)
+
+# 预测
+pred_reg <- predict(model_reg, dtest_reg)
+actual_reg <- mtcars$mpg[-train_idx]
+
+# 评估
+rmse <- sqrt(mean((pred_reg - actual_reg)^2))
+r_squared <- cor(pred_reg, actual_reg)^2
+
+cat("RMSE:", round(rmse, 3), "\n")
+cat("R²:", round(r_squared, 3), "\n")
+```
+
+### 预测vs实际
+
+```{r}
+pred_df <- data.frame(
+    actual = actual_reg,
+    predicted = pred_reg
+)
+
+ggplot(pred_df, aes(x = actual, y = predicted)) +
+    geom_point(color = "#4f46e5", size = 3) +
+    geom_abline(
+        slope = 1, intercept = 0,
+        linetype = "dashed", color = "red"
+    ) +
+    labs(
+        title = "XGBoost 回归：预测 vs 实际",
+        x = "实际值", y = "预测值"
+    ) +
+    annotate("text",
+        x = 15, y = 30,
+        label = paste("R² =", round(r_squared, 3))
+    )
+```
+
+
+## 第六部分：多分类
+
+```{r}
+# 使用完整iris数据（三分类）
+iris_full <- iris
+iris_full$label <- as.numeric(iris_full$Species) - 1
+
+train_idx <- sample(1:nrow(iris_full), 0.7 * nrow(iris_full))
+
+dtrain_multi <- xgb.DMatrix(
+    data = as.matrix(iris_full[train_idx, 1:4]),
+    label = iris_full$label[train_idx]
+)
+dtest_multi <- xgb.DMatrix(
+    data = as.matrix(iris_full[-train_idx, 1:4]),
+    label = iris_full$label[-train_idx]
+)
+
+# 多分类参数
+params_multi <- list(
+    objective = "multi:softmax",
+    num_class = 3,
+    eval_metric = "mlogloss",
+    max_depth = 4,
+    eta = 0.1
+)
+
+# 训练
+model_multi <- xgb.train(
+    params = params_multi,
+    data = dtrain_multi,
+    nrounds = 50,
+    verbose = 0
+)
+
+# 预测
+pred_multi <- predict(model_multi, dtest_multi)
+
+# 混淆矩阵
+table(Predicted = pred_multi, Actual = iris_full$label[-train_idx])
+
+# 准确率
+accuracy_multi <- mean(pred_multi == iris_full$label[-train_idx])
+cat("多分类准确率:", round(accuracy_multi, 4), "\n")
+```
+
+
+## 第七部分：保存与加载模型
+
+```{r}
+# 保存模型
+xgb.save(final_model, "xgboost_model.bin")
+
+# 加载模型
+model_loaded <- xgb.load("xgboost_model.bin")
+
+# 验证
+pred_loaded <- predict(model_loaded, dtest)
+all.equal(pred_prob, pred_loaded)
+```
+
+```{r}
+# 清理临时文件
+if (file.exists("xgboost_model.bin")) {
+    file.remove("xgboost_model.bin")
+}
+```
+
+
+## 第八部分：实战案例
+
+### 完整工作流程
+
+```{r}
+# 使用真实数据模拟
+set.seed(123)
+n <- 1000
+
+# 生成特征
+age <- rnorm(n, 50, 12)
+bmi <- rnorm(n, 26, 4)
+bp <- rnorm(n, 130, 15)
+glucose <- rnorm(n, 100, 25)
+cholesterol <- rnorm(n, 200, 40)
+
+# 生成标签（受特征影响）
+prob <- plogis(-5 + 0.03 * age + 0.08 * bmi + 0.02 * bp + 0.01 * glucose + 0.005 * cholesterol)
+outcome <- rbinom(n, 1, prob)
+
+sim_data <- data.frame(
+    outcome, age, bmi, bp, glucose, cholesterol
+)
+
+cat("=== 数据概览 ===\n")
+cat("样本量:", n, "\n")
+cat("阳性率:", mean(outcome), "\n")
+```
+
+```{r}
+# 数据分割
+train_idx <- sample(1:n, 0.7 * n)
+X_train <- as.matrix(sim_data[train_idx, -1])
+y_train <- sim_data$outcome[train_idx]
+X_test <- as.matrix(sim_data[-train_idx, -1])
+y_test <- sim_data$outcome[-train_idx]
+
+dtrain_case <- xgb.DMatrix(data = X_train, label = y_train)
+dtest_case <- xgb.DMatrix(data = X_test, label = y_test)
+```
+
+```{r}
+# 交叉验证选择最佳参数
+cv_case <- xgb.cv(
+    params = list(
+        objective = "binary:logistic",
+        eval_metric = "auc",
+        max_depth = 4,
+        eta = 0.1,
+        subsample = 0.8,
+        colsample_bytree = 0.8
+    ),
+    data = dtrain_case,
+    nrounds = 200,
+    nfold = 5,
+    early_stopping_rounds = 20,
+    verbose = 0
+)
+
+# 处理best_iteration可能为NULL的情况
+best_iter_case <- cv_case$best_iteration
+if (is.null(best_iter_case) || length(best_iter_case) == 0) {
+    best_iter_case <- 100
+}
+cat("\n最佳迭代:", best_iter_case, "\n")
+cat("验证集AUC:", round(max(cv_case$evaluation_log$test_auc_mean), 4), "\n")
+```
+
+```{r}
+# 训练最终模型
+final_case <- xgb.train(
+    params = list(
+        objective = "binary:logistic",
+        eval_metric = "auc",
+        max_depth = 4,
+        eta = 0.1,
+        subsample = 0.8,
+        colsample_bytree = 0.8
+    ),
+    data = dtrain_case,
+    nrounds = best_iter_case,
+    verbose = 0
+)
+
+# 测试集评估
+pred_case <- predict(final_case, dtest_case)
+
+# AUC
+library(pROC)
+roc_case <- roc(y_test, pred_case)
+cat("\n测试集AUC:", round(auc(roc_case), 4), "\n")
+```
+
+```{r}
+# 特征重要性
+importance_case <- xgb.importance(
+    feature_names = colnames(sim_data)[-1],
+    model = final_case
+)
+
+xgb.plot.importance(importance_case)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 数据准备 =====
+dtrain <- xgb.DMatrix(data = X_matrix, label = y_vector)
+
+# ===== 训练 =====
+model <- xgb.train(params, data, nrounds, watchlist, verbose)
+
+# ===== 交叉验证 =====
+cv <- xgb.cv(params, data, nrounds, nfold, early_stopping_rounds)
+
+# ===== 预测 =====
+pred <- predict(model, dtest)
+
+# ===== 特征重要性 =====
+importance <- xgb.importance(feature_names, model)
+xgb.plot.importance(importance)
+
+# ===== 常用参数 =====
+params <- list(
+    objective = "binary:logistic",
+    eval_metric = "auc",
+    max_depth = 6,
+    eta = 0.1,
+    subsample = 0.8,
+    colsample_bytree = 0.8,
+    lambda = 1,
+    alpha = 0
+)
+
+# ===== 保存/加载 =====
+xgb.save(model, "model.bin")
+model <- xgb.load("model.bin")
+```
+
+
+## 小结
+
+XGBoost 调参顺序建议：
+
+1. **先确定nrounds**：使用早停
+2. **调max_depth和min_child_weight**：控制过拟合
+3. **调subsample和colsample_bytree**：正则化
+4. **调eta**：降低学习率，增加nrounds
+5. **调lambda和alpha**：进一步正则化
+
+> **技巧**：XGBoost在结构化表格数据上通常优于深度学习，是数据科学竞赛的必备工具。
+
+
+## 参考资源
+
+- [XGBoost 官方文档](https://xgboost.readthedocs.io/)
+- [XGBoost R包](https://cran.r-project.org/package=xgboost)
+- [XGBoost论文](https://arxiv.org/abs/1603.02754)

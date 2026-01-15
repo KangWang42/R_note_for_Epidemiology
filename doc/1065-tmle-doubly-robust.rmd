@@ -1,0 +1,463 @@
+---
+title: "TMLE 双重稳健因果推断完全指南"
+date: "2026-01-15"
+categories: [R语言方法, 因果推断, TMLE]
+image: "images/tmle-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## TMLE 简介
+
+**TMLE**（Targeted Maximum Likelihood Estimation，目标最大似然估计）是一种半参数双重稳健的因果推断方法，结合了机器学习的灵活性和统计推断的严谨性。
+
+### 为什么需要TMLE？
+
+| 方法 | 局限性 | TMLE优势 |
+|------|--------|----------|
+| **传统回归** | 模型误设导致偏差 | 双重稳健 |
+| **IPW** | 极端权重不稳定 | 边界处理 |
+| **倾向得分匹配** | 样本量损失 | 保留所有数据 |
+| **参数模型** | 假设过强 | 可整合ML |
+
+### 双重稳健性
+
+TMLE的核心优势是**双重稳健性**：只要以下两个模型之一正确指定，估计就是一致的：
+- **结果模型** Q(A,W)：给定暴露和协变量下的期望结果
+- **倾向得分模型** g(W)：给定协变量下接受暴露的概率
+
+## 安装与加载
+
+```{r}
+library(tmle)
+library(SuperLearner)
+library(ggplot2)
+library(dplyr)
+
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：TMLE理论基础
+
+### 因果效应参数
+
+TMLE常用于估计**平均治疗效应（ATE）**：
+
+$$ATE = E[Y(1)] - E[Y(0)]$$
+
+其中 Y(1) 和 Y(0) 分别是接受和不接受治疗的潜在结果。
+
+### TMLE步骤
+
+1. **初始估计**：拟合结果模型 Q⁰(A,W)
+2. **倾向得分**：拟合暴露模型 g(W)
+3. **目标更新**：使用巧妙协变量调整初始估计
+4. **参数估计**：计算目标参数的样本均值
+
+### 与AIPW的关系
+
+AIPW（增广逆概率加权）与TMLE同属双重稳健估计量，但TMLE通过目标更新步骤确保估计始终在合理范围内（如概率在0-1之间）。
+
+
+## 第二部分：tmle包基础
+
+### 数据准备
+
+```{r}
+# 模拟观察性研究数据
+set.seed(42)
+n <- 500
+
+# 协变量
+W1 <- rnorm(n)
+W2 <- rbinom(n, 1, 0.5)
+W3 <- rnorm(n)
+
+# 暴露（受协变量影响）
+prob_A <- plogis(0.2 + 0.5 * W1 - 0.3 * W2 + 0.2 * W3)
+A <- rbinom(n, 1, prob_A)
+
+# 结果（受协变量和暴露影响）
+Y <- 2 + 0.5 * A + 0.8 * W1 - 0.5 * W2 + 0.3 * W3 + rnorm(n, 0, 1)
+
+# 构建数据框
+obs_data <- data.frame(Y = Y, A = A, W1 = W1, W2 = W2, W3 = W3)
+head(obs_data)
+```
+
+### 基础TMLE估计
+
+```{r}
+# 准备协变量矩阵
+W <- obs_data[, c("W1", "W2", "W3")]
+
+# 运行TMLE
+result <- tmle(
+    Y = obs_data$Y, # 结果变量
+    A = obs_data$A, # 暴露变量
+    W = W, # 协变量
+    family = "gaussian" # 结果类型
+)
+
+# 查看结果
+summary(result)
+```
+
+### 结果解读
+
+```{r}
+# 提取ATE估计
+ate <- result$estimates$ATE
+cat("平均治疗效应 (ATE):\n")
+cat("  点估计:", round(ate$psi, 4), "\n")
+cat("  95% CI: [", round(ate$CI[1], 4), ",", round(ate$CI[2], 4), "]\n")
+cat("  P值:", round(ate$pvalue, 4), "\n")
+```
+
+
+## 第三部分：结合SuperLearner
+
+TMLE的真正威力在于与机器学习集成。SuperLearner是一个集成学习框架，可以组合多种算法。
+
+### 指定学习算法
+
+```{r}
+# 定义SuperLearner库
+SL_library <- c("SL.glm", "SL.glm.interaction", "SL.mean")
+
+# 使用SuperLearner的TMLE
+result_sl <- tmle(
+    Y = obs_data$Y,
+    A = obs_data$A,
+    W = W,
+    family = "gaussian",
+    Q.SL.library = SL_library, # 结果模型
+    g.SL.library = SL_library # 暴露模型
+)
+
+summary(result_sl)
+```
+
+### 使用更复杂的算法库
+
+```{r}
+# 更丰富的算法库（需要安装相应包）
+SL_library_full <- c(
+    "SL.glm",
+    "SL.glm.interaction",
+    "SL.step",
+    "SL.mean"
+)
+
+result_full <- tmle(
+    Y = obs_data$Y,
+    A = obs_data$A,
+    W = W,
+    family = "gaussian",
+    Q.SL.library = SL_library_full,
+    g.SL.library = SL_library_full
+)
+
+cat("\n使用扩展SuperLearner库的结果:\n")
+summary(result_full)
+```
+
+
+## 第四部分：二分类结果
+
+### 风险差、风险比和优势比
+
+```{r}
+# 创建二分类结果
+Y_binary <- ifelse(obs_data$Y > median(obs_data$Y), 1, 0)
+
+# 二分类TMLE
+result_binary <- tmle(
+    Y = Y_binary,
+    A = obs_data$A,
+    W = W,
+    family = "binomial"
+)
+
+summary(result_binary)
+```
+
+### 提取各类效应量
+
+```{r}
+# 风险差 (Risk Difference)
+rd <- result_binary$estimates$ATE
+cat(
+    "风险差 (RD):", round(rd$psi, 4),
+    "95% CI [", round(rd$CI[1], 4), ",", round(rd$CI[2], 4), "]\n"
+)
+
+# 风险比 (Relative Risk)
+rr <- result_binary$estimates$RR
+cat(
+    "风险比 (RR):", round(rr$psi, 4),
+    "95% CI [", round(rr$CI[1], 4), ",", round(rr$CI[2], 4), "]\n"
+)
+
+# 优势比 (Odds Ratio)
+or <- result_binary$estimates$OR
+cat(
+    "优势比 (OR):", round(or$psi, 4),
+    "95% CI [", round(or$CI[1], 4), ",", round(or$CI[2], 4), "]\n"
+)
+```
+
+
+## 第五部分：AIPW估计量
+
+AIPW（Augmented Inverse Probability Weighting）是另一种双重稳健估计方法。
+
+### 手动实现AIPW
+
+```{r}
+# AIPW估计函数
+estimate_aipw <- function(Y, A, W) {
+    # 拟合倾向得分模型
+    ps_model <- glm(A ~ ., data = cbind(A = A, W), family = binomial)
+    ps <- predict(ps_model, type = "response")
+
+    # 拟合结果模型
+    outcome_model <- lm(Y ~ A + ., data = cbind(Y = Y, A = A, W))
+
+    # 预测潜在结果
+    W_A1 <- cbind(A = 1, W)
+    W_A0 <- cbind(A = 0, W)
+    Q1 <- predict(outcome_model, newdata = W_A1)
+    Q0 <- predict(outcome_model, newdata = W_A0)
+
+    # AIPW估计量
+    aipw1 <- mean(Q1 + A / ps * (Y - Q1))
+    aipw0 <- mean(Q0 + (1 - A) / (1 - ps) * (Y - Q0))
+    ate_aipw <- aipw1 - aipw0
+
+    # 影响函数用于方差估计
+    IF <- (Q1 - Q0) + A / ps * (Y - Q1) - (1 - A) / (1 - ps) * (Y - Q0) - ate_aipw
+    se <- sqrt(var(IF) / length(Y))
+
+    list(
+        ATE = ate_aipw,
+        SE = se,
+        CI = c(ate_aipw - 1.96 * se, ate_aipw + 1.96 * se)
+    )
+}
+
+# 计算AIPW估计
+aipw_result <- estimate_aipw(obs_data$Y, obs_data$A, W)
+cat("\nAIPW 估计结果:\n")
+cat("  ATE:", round(aipw_result$ATE, 4), "\n")
+cat("  SE:", round(aipw_result$SE, 4), "\n")
+cat(
+    "  95% CI: [", round(aipw_result$CI[1], 4), ",",
+    round(aipw_result$CI[2], 4), "]\n"
+)
+```
+
+
+## 第六部分：方法比较
+
+### 多种估计方法对比
+
+```{r}
+# 1. 简单差异
+simple_diff <- mean(obs_data$Y[obs_data$A == 1]) -
+    mean(obs_data$Y[obs_data$A == 0])
+
+# 2. 回归调整
+reg_model <- lm(Y ~ A + W1 + W2 + W3, data = obs_data)
+reg_ate <- coef(reg_model)["A"]
+
+# 3. IPW
+ps_model <- glm(A ~ W1 + W2 + W3, data = obs_data, family = binomial)
+ps <- predict(ps_model, type = "response")
+weights <- obs_data$A / ps + (1 - obs_data$A) / (1 - ps)
+ipw_ate <- weighted.mean(
+    obs_data$Y * (2 * obs_data$A - 1),
+    weights * (2 * obs_data$A - 1)
+)
+
+# 4. TMLE
+tmle_ate <- result$estimates$ATE$psi
+
+# 5. AIPW
+aipw_ate <- aipw_result$ATE
+
+# 汇总比较
+comparison <- data.frame(
+    Method = c("简单差异", "回归调整", "IPW", "AIPW", "TMLE"),
+    ATE = c(simple_diff, reg_ate, ipw_ate, aipw_ate, tmle_ate),
+    True = rep(0.5, 5) # 真实效应
+)
+
+# 可视化
+ggplot(comparison, aes(x = Method, y = ATE)) +
+    geom_point(size = 4, color = "#4f46e5") +
+    geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+    annotate("text", x = 5.3, y = 0.5, label = "真实ATE", color = "red") +
+    labs(
+        title = "不同因果推断方法的ATE估计比较",
+        y = "ATE估计值"
+    ) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    ylim(0, 1)
+```
+
+
+## 第七部分：诊断与检验
+
+### 倾向得分诊断
+
+```{r}
+# 倾向得分分布
+ps_df <- data.frame(
+    PS = ps,
+    Treatment = factor(obs_data$A, labels = c("对照", "治疗"))
+)
+
+ggplot(ps_df, aes(x = PS, fill = Treatment)) +
+    geom_density(alpha = 0.5) +
+    scale_fill_manual(values = c("#4f46e5", "#ef4444")) +
+    labs(
+        title = "倾向得分分布（按治疗组）",
+        x = "倾向得分", y = "密度"
+    ) +
+    geom_vline(xintercept = c(0.1, 0.9), linetype = "dashed")
+```
+
+### 正位性检查
+
+```{r}
+# 检查极端倾向得分
+cat("倾向得分统计:\n")
+cat("  最小值:", round(min(ps), 4), "\n")
+cat("  最大值:", round(max(ps), 4), "\n")
+cat("  PS < 0.05 的比例:", mean(ps < 0.05), "\n")
+cat("  PS > 0.95 的比例:", mean(ps > 0.95), "\n")
+```
+
+
+## 第八部分：实战案例
+
+### 完整工作流程
+
+```{r}
+# 使用更接近真实的模拟数据
+set.seed(123)
+n <- 1000
+
+# 模拟混杂结构
+age <- rnorm(n, 50, 10)
+gender <- rbinom(n, 1, 0.5)
+bmi <- rnorm(n, 25, 4)
+smoking <- rbinom(n, 1, plogis(-1 + 0.02 * age + 0.3 * gender))
+
+# 治疗分配（受混杂影响）
+prob_treat <- plogis(-2 + 0.03 * age - 0.5 * gender + 0.05 * bmi + 0.8 * smoking)
+treatment <- rbinom(n, 1, prob_treat)
+
+# 结果（受治疗和混杂影响）
+outcome <- 50 - 5 * treatment + 0.3 * age - 2 * gender + 0.5 * bmi + 3 * smoking + rnorm(n, 0, 5)
+
+case_data <- data.frame(
+    outcome = outcome,
+    treatment = treatment,
+    age = age,
+    gender = gender,
+    bmi = bmi,
+    smoking = smoking
+)
+
+cat("\n=== 数据概览 ===\n")
+cat("样本量:", n, "\n")
+cat("治疗组比例:", mean(treatment), "\n")
+```
+
+```{r}
+# TMLE分析
+W_case <- case_data[, c("age", "gender", "bmi", "smoking")]
+
+result_case <- tmle(
+    Y = case_data$outcome,
+    A = case_data$treatment,
+    W = W_case,
+    family = "gaussian",
+    Q.SL.library = c("SL.glm", "SL.glm.interaction"),
+    g.SL.library = c("SL.glm", "SL.glm.interaction")
+)
+
+cat("\n=== TMLE 结果 ===\n")
+summary(result_case)
+```
+
+```{r}
+cat("\n=== 真实效应 vs 估计效应 ===\n")
+cat("真实 ATE: -5\n")
+cat("TMLE ATE:", round(result_case$estimates$ATE$psi, 3), "\n")
+cat("偏差:", round(result_case$estimates$ATE$psi - (-5), 3), "\n")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 基础TMLE =====
+library(tmle)
+result <- tmle(Y = Y, A = A, W = W, family = "gaussian")
+summary(result)
+
+# ===== 提取结果 =====
+result$estimates$ATE$psi # 点估计
+result$estimates$ATE$CI # 置信区间
+result$estimates$ATE$pvalue # P值
+
+# ===== 二分类结果 =====
+result <- tmle(Y = Y_binary, A = A, W = W, family = "binomial")
+result$estimates$RR # 风险比
+result$estimates$OR # 优势比
+
+# ===== 使用SuperLearner =====
+result <- tmle(
+    Y = Y, A = A, W = W,
+    Q.SL.library = c("SL.glm", "SL.ranger"),
+    g.SL.library = c("SL.glm", "SL.ranger")
+)
+
+# ===== AIPW（使用其他包） =====
+# library(AIPW)
+# aipw <- AIPW$new(Y, A, W, ...)
+```
+
+
+## 小结
+
+TMLE vs 其他方法：
+
+| 特点 | TMLE | IPW | 回归 |
+|------|------|-----|------|
+| 双重稳健 | ✅ | ❌ | ❌ |
+| 整合ML | ✅ | 部分 | 部分 |
+| 范围约束 | ✅ | ❌ | ❌ |
+| 效率 | 高 | 较低 | 中 |
+
+> **建议**：在观察性研究中估计因果效应时，TMLE是首选方法，尤其当样本量较大且协变量较多时。
+
+
+## 参考资源
+
+- [tlverse 项目](https://tlverse.org/)
+- [Targeted Learning (van der Laan & Rose)](https://www.springer.com/gp/book/9781441997814)
+- [A Beginner's Guide to TMLE](https://www.khstats.com/blog/tmle/tutorial/)
+- [tmle R包文档](https://cran.r-project.org/package=tmle)

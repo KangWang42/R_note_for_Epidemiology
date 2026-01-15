@@ -1,0 +1,414 @@
+---
+title: "CausalImpact 时间序列因果分析"
+date: "2026-01-15"
+categories: [R语言方法, 因果推断, 时间序列]
+image: "images/causalimpact-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 6
+)
+```
+
+## CausalImpact 简介
+
+**CausalImpact** 是Google开发的R包，使用贝叶斯结构时间序列模型来估计干预对时间序列的因果效应。它解决了一个核心问题：**如果没有干预，会发生什么？**
+
+### 应用场景
+
+| 领域 | 应用示例 |
+|------|----------|
+| **公共卫生** | 政策实施对疾病发病率的影响 |
+| **营销** | 广告活动对销售的影响 |
+| **经济学** | 政策干预对经济指标的影响 |
+| **产品** | 功能上线对用户行为的影响 |
+
+### 核心原理
+
+CausalImpact通过以下步骤工作：
+1. 使用**未受干预的对照序列**预测干预后的反事实
+2. 比较实际观测值与反事实预测
+3. 量化差异并提供不确定性估计
+
+## 安装与加载
+
+```{r}
+library(CausalImpact)
+library(ggplot2)
+library(dplyr)
+
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：基础用法
+
+### 模拟数据创建
+
+```{r}
+# 创建模拟时间序列数据
+set.seed(42)
+n <- 100 # 时间点数
+intervention_point <- 70 # 干预发生点
+
+# 生成对照序列（未受干预影响）
+x1 <- 10 + arima.sim(model = list(ar = 0.8), n = n)
+x2 <- 20 + arima.sim(model = list(ar = 0.7), n = n)
+
+# 生成目标序列
+# 干预前：与对照序列相关
+# 干预后：增加效应
+y <- 1.5 * x1 + 0.5 * x2 + rnorm(n, 0, 2)
+# 添加干预效应
+y[(intervention_point + 1):n] <- y[(intervention_point + 1):n] + 5
+
+# 创建时间索引
+time_points <- seq.Date(as.Date("2024-01-01"), by = "day", length.out = n)
+
+# 组合数据
+data <- zoo::zoo(cbind(y = y, x1 = x1, x2 = x2), time_points)
+head(data)
+```
+
+### 运行CausalImpact
+
+```{r}
+# 定义干预前后时期
+pre_period <- c(time_points[1], time_points[intervention_point])
+post_period <- c(time_points[intervention_point + 1], time_points[n])
+
+# 运行分析
+impact <- CausalImpact(data, pre_period, post_period)
+
+# 查看结果
+summary(impact)
+```
+
+### 结果可视化
+
+```{r}
+# 默认三图面板
+plot(impact)
+```
+
+### 解读输出
+
+```{r}
+# 获取报告
+summary(impact, "report")
+```
+
+
+## 第二部分：理解输出图形
+
+### 三个面板解读
+
+```{r}
+# 单独绘制每个面板
+plot(impact, "original") # 原始数据 vs 反事实预测
+```
+
+**Original 面板**：
+- 黑线：实际观测值
+- 蓝色虚线：反事实预测（如果没有干预会发生什么）
+- 浅蓝区域：预测的95%置信区间
+
+```{r}
+plot(impact, "pointwise") # 逐点效应
+```
+
+**Pointwise 面板**：
+- 显示每个时间点的因果效应（实际 - 预测）
+- 效应在零线以上表示正向影响
+
+```{r}
+plot(impact, "cumulative") # 累积效应
+```
+
+**Cumulative 面板**：
+- 显示干预后的累积因果效应
+- 用于评估总体影响
+
+
+## 第三部分：关键结果解读
+
+### 提取数值结果
+
+```{r}
+# 获取摘要统计
+impact_summary <- impact$summary
+
+cat("=== 干预效应摘要 ===\n\n")
+cat("平均因果效应:\n")
+cat("  绝对效应:", round(impact_summary$AbsEffect[1], 2), "\n")
+cat("  相对效应:", round(impact_summary$RelEffect[1] * 100, 1), "%\n")
+cat(
+    "  95% CI: [", round(impact_summary$AbsEffect.lower[1], 2),
+    ",", round(impact_summary$AbsEffect.upper[1], 2), "]\n\n"
+)
+
+cat("累积因果效应:\n")
+cat("  绝对效应:", round(impact_summary$AbsEffect[2], 2), "\n")
+cat("  相对效应:", round(impact_summary$RelEffect[2] * 100, 1), "%\n")
+```
+
+### 统计显著性
+
+```{r}
+# 贝叶斯后验概率
+cat("\n干预效应的后验概率:\n")
+cat("  P(效应 > 0):", round(impact$summary$p[1], 4), "\n")
+
+if (impact$summary$p[1] < 0.05) {
+    cat("  结论: 干预效应在5%水平上显著\n")
+} else {
+    cat("  结论: 无法排除无效应的可能性\n")
+}
+```
+
+
+## 第四部分：模型配置
+
+### 自定义模型参数
+
+```{r}
+# 自定义模型参数
+model_args <- list(
+    niter = 5000, # MCMC迭代次数
+    nseasons = 7, # 季节性周期（如周效应）
+    season.duration = 1 # 每个季节的持续时间
+)
+
+impact_custom <- CausalImpact(data, pre_period, post_period,
+    model.args = model_args
+)
+summary(impact_custom)
+```
+
+### 不使用对照序列
+
+```{r}
+# 只使用目标序列本身的历史模式
+data_single <- zoo::zoo(y, time_points)
+
+impact_single <- CausalImpact(data_single, pre_period, post_period)
+plot(impact_single)
+```
+
+
+## 第五部分：诊断与验证
+
+### 模型诊断
+
+```{r}
+# 检查模型拟合
+# 提取预测值
+fitted_values <- impact$series$point.pred
+
+# 干预前拟合情况
+pre_actual <- as.numeric(data[1:intervention_point, "y"])
+pre_fitted <- as.numeric(fitted_values[1:intervention_point])
+
+# 计算拟合优度
+rsq <- cor(pre_actual, pre_fitted)^2
+rmse <- sqrt(mean((pre_actual - pre_fitted)^2))
+
+cat("干预前模型诊断:\n")
+cat("  R²:", round(rsq, 4), "\n")
+cat("  RMSE:", round(rmse, 4), "\n")
+```
+
+### 残差检验
+
+```{r}
+# 干预前残差
+residuals_pre <- pre_actual - pre_fitted
+
+# 残差图
+par(mfrow = c(1, 2))
+plot(residuals_pre, type = "l", main = "残差序列", ylab = "残差")
+abline(h = 0, col = "red", lty = 2)
+acf(residuals_pre, main = "残差ACF")
+par(mfrow = c(1, 1))
+```
+
+### 安慰剂检验
+
+```{r}
+# 在干预前时期做"假"干预检验
+placebo_point <- 50
+placebo_pre <- c(time_points[1], time_points[placebo_point])
+placebo_post <- c(time_points[placebo_point + 1], time_points[intervention_point])
+
+# 使用干预前数据
+data_placebo <- data[1:intervention_point, ]
+
+impact_placebo <- CausalImpact(data_placebo, placebo_pre, placebo_post)
+
+cat("\n安慰剂检验结果:\n")
+cat("  估计效应:", round(impact_placebo$summary$AbsEffect[1], 2), "\n")
+cat("  P值:", round(impact_placebo$summary$p[1], 4), "\n")
+
+if (impact_placebo$summary$p[1] > 0.05) {
+    cat("  结论: 安慰剂检验通过（无虚假效应）\n")
+}
+```
+
+
+## 第六部分：实战案例
+
+### 案例：政策效果评估
+
+```{r}
+# 模拟公共卫生政策效果
+set.seed(123)
+n_days <- 180
+policy_start <- 90
+
+# 对照地区（未实施政策）
+control_region <- 100 + cumsum(rnorm(n_days, 0.1, 2))
+
+# 目标地区
+# 政策前：与对照地区相关
+# 政策后：发病率下降
+target_region <- 0.9 * control_region + rnorm(n_days, 0, 3)
+# 政策效应：发病率降低15%
+target_region[(policy_start + 1):n_days] <-
+    target_region[(policy_start + 1):n_days] * 0.85
+
+# 创建数据
+dates <- seq.Date(as.Date("2025-01-01"), by = "day", length.out = n_days)
+policy_data <- zoo::zoo(
+    cbind(target = target_region, control = control_region),
+    dates
+)
+
+# 分析
+pre <- c(dates[1], dates[policy_start])
+post <- c(dates[policy_start + 1], dates[n_days])
+
+impact_policy <- CausalImpact(policy_data, pre, post)
+
+cat("=== 政策效果分析 ===\n")
+summary(impact_policy)
+```
+
+```{r}
+# 可视化
+plot(impact_policy) +
+    ggtitle("公共卫生政策对发病率的影响")
+```
+
+```{r}
+# 详细报告
+summary(impact_policy, "report")
+```
+
+
+## 第七部分：与ITS对比
+
+### 中断时间序列分析（ITS）
+
+```{r}
+# 传统ITS分析
+its_data <- data.frame(
+    time = 1:n,
+    y = as.numeric(y),
+    intervention = ifelse(1:n > intervention_point, 1, 0),
+    time_after = ifelse(1:n > intervention_point,
+        1:n - intervention_point, 0
+    )
+)
+
+its_model <- lm(y ~ time + intervention + time_after, data = its_data)
+summary(its_model)
+```
+
+### ITS vs CausalImpact
+
+```{r}
+# 提取两种方法的效应估计
+its_effect <- coef(its_model)["intervention"]
+ci_effect <- impact$summary$AbsEffect[1]
+
+comparison <- data.frame(
+    Method = c("ITS", "CausalImpact"),
+    Effect = c(its_effect, ci_effect),
+    True_Effect = c(5, 5)
+)
+
+ggplot(comparison, aes(x = Method, y = Effect)) +
+    geom_col(fill = c("#4f46e5", "#10b981"), alpha = 0.8) +
+    geom_hline(yintercept = 5, linetype = "dashed", color = "red") +
+    annotate("text", x = 2.3, y = 5.2, label = "真实效应", color = "red") +
+    labs(
+        title = "ITS vs CausalImpact 效应估计比较",
+        y = "估计效应"
+    )
+```
+
+| 特点 | ITS | CausalImpact |
+|------|-----|--------------|
+| 对照序列 | 不需要 | 可选但推荐 |
+| 不确定性 | 频率派 | 贝叶斯 |
+| 趋势建模 | 参数化 | 非参数 |
+| 季节性 | 需手动处理 | 自动处理 |
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 基础分析 =====
+library(CausalImpact)
+impact <- CausalImpact(data, pre.period, post.period)
+summary(impact)
+plot(impact)
+
+# ===== 数据格式 =====
+# zoo对象，第一列是目标序列，其余是对照序列
+data <- zoo::zoo(cbind(y, x1, x2), time_index)
+
+# ===== 时期定义 =====
+pre.period <- c(start_date, intervention_date)
+post.period <- c(intervention_date + 1, end_date)
+
+# ===== 模型参数 =====
+model.args <- list(
+    niter = 5000, # MCMC迭代
+    nseasons = 7, # 季节周期
+    prior.level.sd = 0.01 # 先验
+)
+
+# ===== 结果提取 =====
+impact$summary # 数值摘要
+impact$series # 完整序列
+summary(impact, "report") # 文字报告
+
+# ===== 可视化 =====
+plot(impact) # 全部面板
+plot(impact, "original") # 单个面板
+```
+
+
+## 小结
+
+CausalImpact 最佳实践：
+
+1. **选择好的对照序列**：与目标高度相关但未受干预影响
+2. **充足的干预前数据**：至少是分析周期的3倍以上
+3. **检验假设**：运行安慰剂检验验证模型有效性
+4. **理解局限性**：假设干预前关系在干预后保持稳定
+
+> **适用场景**：当有清晰的干预时间点，且能找到合适的对照序列时，CausalImpact是评估干预效果的强大工具。
+
+
+## 参考资源
+
+- [CausalImpact 官方文档](https://google.github.io/CausalImpact/)
+- [原始论文：Brodersen et al. (2015)](https://research.google/pubs/pub41854/)
+- [CausalImpact CRAN](https://cran.r-project.org/package=CausalImpact)
