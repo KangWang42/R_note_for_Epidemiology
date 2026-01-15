@@ -1,0 +1,123 @@
+﻿---
+title: "R语言置信区间图绘制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 不确定性图]
+image: "images/bindribbon_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 10, fig.height = 5, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是置信区间图
+
+置信区间图（Ribbon/Error Band）在折线图基础上添加**置信区间带**，展示估计值的不确定性范围。
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+---
+
+## 准备数据
+
+```{r}
+set.seed(42)
+time_series <- data.frame(
+    time = 1:50,
+    value = 100 + cumsum(rnorm(50, 0.5, 2)),
+    se = abs(rnorm(50, 3, 1))
+) %>%
+    mutate(
+        lower = value - 1.96 * se,
+        upper = value + 1.96 * se
+    )
+```
+
+---
+
+## 基础置信区间图
+
+```{r}
+ggplot(time_series, aes(x = time, y = value)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), fill = "#4f46e5", alpha = 0.3) +
+    geom_line(color = "#4f46e5", linewidth = 1) +
+    labs(
+        title = "带95%置信区间的时序图",
+        x = "时间",
+        y = "数值"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+---
+
+## 多组对比
+
+```{r}
+# 创建两组数据
+set.seed(42)
+multi_group <- rbind(
+    time_series %>% mutate(group = "A组"),
+    data.frame(
+        time = 1:50,
+        value = 90 + cumsum(rnorm(50, 0.3, 2)),
+        se = abs(rnorm(50, 2.5, 1))
+    ) %>%
+        mutate(lower = value - 1.96 * se, upper = value + 1.96 * se, group = "B组")
+)
+
+ggplot(multi_group, aes(x = time, y = value, color = group, fill = group)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, color = NA) +
+    geom_line(linewidth = 1) +
+    scale_color_manual(values = c("#4f46e5", "#10b981")) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981")) +
+    labs(title = "两组数据置信区间对比", x = "时间", y = "数值", color = NULL, fill = NULL) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold"), legend.position = "top")
+```
+
+---
+
+## 误差棒图
+
+```{r}
+# 分组均值和误差
+summary_data <- data.frame(
+    group = c("A", "B", "C", "D"),
+    mean = c(25, 32, 28, 35),
+    se = c(2, 3, 2.5, 4)
+)
+
+ggplot(summary_data, aes(x = group, y = mean, fill = group)) +
+    geom_col(alpha = 0.8, width = 0.6) +
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+    scale_fill_manual(values = c("#4f46e5", "#10b981", "#f59e0b", "#ec4899")) +
+    labs(title = "带误差棒的柱状图", x = NULL, y = "均值") +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold"), legend.position = "none")
+```
+
+---
+
+## 总结
+
+| 图表类型 | 函数 |
+|----------|------|
+| **置信带** | `geom_ribbon()` |
+| **误差棒** | `geom_errorbar()` |
+| **点误差** | `geom_pointrange()` |
+
+### 相关教程
+
+- [折线图与时间序列](2029-bindlineplot.html)
+- [森林图](2016-forestplot.html)

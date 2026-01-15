@@ -1,0 +1,131 @@
+﻿---
+title: "R语言自相关图绘制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 时序图]
+image: "images/bindacf_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 10, fig.height = 5, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是自相关图
+
+自相关图（ACF/PACF Plot）用于分析时间序列数据的**自相关性**，是时间序列建模前的必要诊断工具。
+
+- **ACF**: 自相关函数，衡量序列与其滞后值的相关性
+- **PACF**: 偏自相关函数，排除中间滞后项的影响
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(forecast)
+```
+
+---
+
+## 准备时序数据
+
+```{r}
+# 使用内置AirPassengers数据
+data(AirPassengers)
+ts_data <- as.numeric(AirPassengers)
+```
+
+---
+
+## 基础ACF图
+
+```{r}
+acf(ts_data, main = "自相关函数图 (ACF)", col = "#4f46e5", lwd = 2)
+```
+
+---
+
+## 基础PACF图
+
+```{r}
+pacf(ts_data, main = "偏自相关函数图 (PACF)", col = "#10b981", lwd = 2)
+```
+
+---
+
+## 使用ggplot2美化
+
+```{r fig.height=4}
+# 提取ACF数据
+acf_data <- acf(ts_data, plot = FALSE)
+acf_df <- data.frame(
+    lag = acf_data$lag[-1],
+    acf = acf_data$acf[-1]
+)
+
+# 置信区间
+ci <- qnorm(0.975) / sqrt(length(ts_data))
+
+ggplot(acf_df, aes(x = lag, y = acf)) +
+    geom_hline(yintercept = 0, color = "gray50") +
+    geom_hline(yintercept = c(-ci, ci), linetype = "dashed", color = "#ef4444") +
+    geom_segment(aes(xend = lag, yend = 0), color = "#4f46e5", linewidth = 1) +
+    geom_point(color = "#4f46e5", size = 2) +
+    labs(
+        title = "自相关函数图 (ACF)",
+        subtitle = "红色虚线表示95%置信区间",
+        x = "滞后阶数",
+        y = "自相关系数"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+```
+
+---
+
+## ACF与PACF并排
+
+```{r fig.width=12, fig.height=4}
+library(patchwork)
+
+# ACF
+p1 <- ggplot(acf_df, aes(x = lag, y = acf)) +
+    geom_hline(yintercept = c(-ci, ci), linetype = "dashed", color = "#ef4444") +
+    geom_segment(aes(xend = lag, yend = 0), color = "#4f46e5", linewidth = 1) +
+    geom_point(color = "#4f46e5", size = 2) +
+    labs(title = "ACF", x = "滞后", y = "ACF") +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold"))
+
+# PACF
+pacf_data <- pacf(ts_data, plot = FALSE)
+pacf_df <- data.frame(lag = pacf_data$lag, pacf = pacf_data$acf)
+
+p2 <- ggplot(pacf_df, aes(x = lag, y = pacf)) +
+    geom_hline(yintercept = c(-ci, ci), linetype = "dashed", color = "#ef4444") +
+    geom_segment(aes(xend = lag, yend = 0), color = "#10b981", linewidth = 1) +
+    geom_point(color = "#10b981", size = 2) +
+    labs(title = "PACF", x = "滞后", y = "PACF") +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold"))
+
+p1 + p2
+```
+
+---
+
+## 总结
+
+| 图表 | 用途 | ARIMA判断 |
+|------|------|-----------|
+| **ACF** | 识别MA阶数 | 截尾→MA(q) |
+| **PACF** | 识别AR阶数 | 截尾→AR(p) |
+
+### 相关教程
+
+- [折线图与时间序列](2029-bindlineplot.html)
+- [时序峰谷标记图](2048-bindpeakvalley.html)

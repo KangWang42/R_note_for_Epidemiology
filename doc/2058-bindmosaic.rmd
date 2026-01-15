@@ -1,0 +1,140 @@
+﻿---
+title: "R语言马赛克图绘制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 分类图]
+image: "images/bindmosaic_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 9, fig.height = 6, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是马赛克图
+
+马赛克图（Mosaic Plot）用矩形面积表示分类变量的**交叉频数**，是探索多个分类变量关系的有力工具。
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+---
+
+## 使用base R的mosaicplot
+
+```{r}
+# 使用Titanic数据
+data(Titanic)
+
+# 基础马赛克图
+mosaicplot(Titanic,
+    main = "泰坦尼克号数据马赛克图",
+    color = c("#ef4444", "#10b981"),
+    shade = FALSE, border = "white"
+)
+```
+
+---
+
+## 简化版马赛克图
+
+```{r}
+# 只看舱位和生还
+mosaicplot(~ Class + Survived,
+    data = Titanic,
+    main = "生还率 - 按舱位",
+    color = c("#ef4444", "#10b981"),
+    border = "white"
+)
+```
+
+---
+
+## 按性别和生还
+
+```{r}
+mosaicplot(~ Sex + Survived,
+    data = Titanic,
+    main = "生还率 - 按性别",
+    color = c("#ef4444", "#10b981"),
+    border = "white"
+)
+```
+
+---
+
+## 使用ggplot2手动绘制
+
+```{r}
+# 转为数据框
+titanic_df <- as.data.frame(Titanic)
+
+# 计算比例
+titanic_summary <- titanic_df %>%
+    group_by(Class, Survived) %>%
+    summarise(n = sum(Freq), .groups = "drop") %>%
+    group_by(Class) %>%
+    mutate(
+        prop = n / sum(n),
+        ymax = cumsum(prop),
+        ymin = lag(ymax, default = 0)
+    )
+
+# 计算各舱位宽度
+class_width <- titanic_df %>%
+    group_by(Class) %>%
+    summarise(total = sum(Freq)) %>%
+    mutate(
+        prop = total / sum(total),
+        xmax = cumsum(prop),
+        xmin = lag(xmax, default = 0)
+    )
+
+# 合并
+plot_data <- titanic_summary %>%
+    left_join(class_width %>% select(Class, xmin, xmax), by = "Class")
+
+ggplot(plot_data) +
+    geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = Survived),
+        color = "white", linewidth = 0.5
+    ) +
+    scale_fill_manual(values = c("No" = "#ef4444", "Yes" = "#10b981")) +
+    scale_x_continuous(
+        breaks = class_width$xmin + (class_width$xmax - class_width$xmin) / 2,
+        labels = class_width$Class
+    ) +
+    scale_y_continuous(labels = scales::percent) +
+    labs(
+        title = "泰坦尼克号生还率马赛克图",
+        subtitle = "矩形宽度=舱位人数比例，高度=生还比例",
+        x = "舱位等级",
+        y = "比例",
+        fill = "生还"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "top"
+    )
+```
+
+---
+
+## 总结
+
+| 函数 | 特点 |
+|------|------|
+| `mosaicplot()` | 基础R，快速简单 |
+| `ggplot2` 手动 | 更灵活美观 |
+
+### 相关教程
+
+- [华夫饼图与树形图](2037-bindwaffle.html)
+- [计数图与分类图](2050-bindcountplot.html)

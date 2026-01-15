@@ -1,0 +1,108 @@
+﻿---
+title: "R语言甘特图绘制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 项目图]
+image: "images/bindgantt_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 10, fig.height = 5, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是甘特图
+
+甘特图（Gantt Chart）用横向条形展示项目任务的**时间安排**，是项目管理的经典可视化工具。
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+```
+
+---
+
+## 准备项目数据
+
+```{r}
+# 项目任务数据
+tasks <- data.frame(
+    task = c("需求分析", "系统设计", "编码开发", "测试", "部署上线"),
+    start = as.Date(c("2024-01-01", "2024-01-15", "2024-02-01", "2024-03-01", "2024-03-20")),
+    end = as.Date(c("2024-01-14", "2024-01-31", "2024-02-28", "2024-03-19", "2024-03-31")),
+    status = c("已完成", "已完成", "进行中", "待开始", "待开始")
+)
+
+# 按开始时间排序
+tasks <- tasks %>%
+    mutate(task = factor(task, levels = rev(task)))
+```
+
+---
+
+## 基础甘特图
+
+```{r}
+ggplot(tasks, aes(y = task)) +
+    geom_segment(aes(x = start, xend = end, yend = task, color = status),
+        linewidth = 10, lineend = "round"
+    ) +
+    scale_color_manual(values = c("已完成" = "#10b981", "进行中" = "#4f46e5", "待开始" = "#94a3b8")) +
+    scale_x_date(date_labels = "%m月%d日", date_breaks = "2 weeks") +
+    labs(
+        title = "项目进度甘特图",
+        x = "日期",
+        y = NULL,
+        color = "状态"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "top",
+        panel.grid.major.y = element_blank()
+    )
+```
+
+---
+
+## 添加今日标记
+
+```{r}
+today <- as.Date("2024-02-15")
+
+ggplot(tasks, aes(y = task)) +
+    geom_segment(aes(x = start, xend = end, yend = task, color = status),
+        linewidth = 10, lineend = "round"
+    ) +
+    geom_vline(xintercept = today, linetype = "dashed", color = "#ef4444", linewidth = 1) +
+    annotate("text", x = today, y = 5.3, label = "今天", color = "#ef4444", fontface = "bold") +
+    scale_color_manual(values = c("已完成" = "#10b981", "进行中" = "#4f46e5", "待开始" = "#94a3b8")) +
+    scale_x_date(date_labels = "%m/%d") +
+    labs(title = "带今日标记的甘特图", x = NULL, y = NULL, color = NULL) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "top",
+        panel.grid.major.y = element_blank()
+    )
+```
+
+---
+
+## 总结
+
+| 元素 | 说明 |
+|------|------|
+| **横条** | 任务时间跨度 |
+| **颜色** | 任务状态 |
+| **今日线** | 当前进度参考 |
+
+### 相关教程
+
+- [柱状图与饼图](2028-bindbarchart.html)

@@ -1,0 +1,129 @@
+﻿---
+title: "R语言漏斗图绘制"
+date: "2026-01-15"
+categories: [可视化教程, 统计图表, 营销图]
+image: "images/bindfunnel_cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, warning = FALSE, message = FALSE,
+    fig.width = 8, fig.height = 6, fig.retina = 2, out.width = "100%", dpi = 150
+)
+```
+
+## 什么是漏斗图
+
+漏斗图（Funnel Chart）用逐级递减的条形展示**转化过程**各阶段的流失情况，是营销和销售分析的常用图表。
+
+---
+
+## R包加载
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+---
+
+## 准备数据
+
+```{r}
+funnel_data <- data.frame(
+    stage = c("访问网站", "浏览商品", "加入购物车", "开始结账", "完成支付"),
+    value = c(10000, 6000, 3000, 1500, 800)
+) %>%
+    mutate(
+        stage = factor(stage, levels = rev(stage)),
+        pct = value / max(value) * 100,
+        label = paste0(value, " (", round(pct), "%)")
+    )
+```
+
+---
+
+## 基础漏斗图
+
+```{r}
+ggplot(funnel_data, aes(x = value, y = stage)) +
+    geom_col(fill = "#4f46e5", width = 0.7) +
+    geom_text(aes(label = label), hjust = -0.1, fontface = "bold", size = 3.5) +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.3))) +
+    labs(
+        title = "电商转化漏斗",
+        x = "用户数",
+        y = NULL
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid.major.y = element_blank()
+    )
+```
+
+---
+
+## 渐变色漏斗
+
+```{r}
+ggplot(funnel_data, aes(x = value, y = stage, fill = value)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = label), hjust = -0.1, fontface = "bold", size = 3.5) +
+    scale_fill_gradient(low = "#a5b4fc", high = "#4f46e5") +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.3))) +
+    labs(title = "渐变色漏斗图", x = NULL, y = NULL) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid = element_blank(),
+        legend.position = "none"
+    )
+```
+
+---
+
+## 对称漏斗图
+
+```{r}
+funnel_data <- funnel_data %>%
+    mutate(
+        x_left = -value / 2,
+        x_right = value / 2
+    )
+
+ggplot(funnel_data) +
+    geom_rect(aes(
+        xmin = x_left, xmax = x_right,
+        ymin = as.numeric(stage) - 0.35,
+        ymax = as.numeric(stage) + 0.35,
+        fill = value
+    )) +
+    geom_text(aes(x = 0, y = stage, label = label),
+        color = "white", fontface = "bold", size = 4
+    ) +
+    scale_fill_gradient(low = "#a5b4fc", high = "#4f46e5") +
+    scale_y_discrete(expand = c(0.1, 0.1)) +
+    labs(title = "对称漏斗图", x = NULL, y = NULL) +
+    theme_void() +
+    theme(
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "none",
+        axis.text.y = element_text(size = 10, hjust = 1)
+    )
+```
+
+---
+
+## 总结
+
+| 样式 | 特点 |
+|------|------|
+| **水平漏斗** | 简单清晰 |
+| **对称漏斗** | 视觉平衡 |
+| **渐变色** | 突出差异 |
+
+### 相关教程
+
+- [柱状图与饼图](2028-bindbarchart.html)
+- [人口金字塔图](2038-bindpyramid.html)
