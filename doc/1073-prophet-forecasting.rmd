@@ -1,0 +1,426 @@
+---
+title: "prophet 时间序列预测"
+date: "2026-01-16"
+description: "Meta 开源的 prophet 提供自动化时间序列预测，支持趋势、季节性、节假日分解，适合商业和流行病数据预测。"
+categories: [R语言方法, 高级建模, 时间序列]
+image: "images/prophet-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 5
+)
+```
+
+## prophet 简介
+
+**prophet** 是 Meta（Facebook）开源的时间序列预测工具，专为商业预测设计。它能够自动处理趋势、季节性和节假日效应，非常适合非专业用户快速获得高质量预测。
+
+### 为什么使用 prophet？
+
+| 传统方法 | prophet 优势 |
+|----------|-------------|
+| 需要专业知识 | 自动化程度高 |
+| 手动处理季节性 | 自动检测多重季节性 |
+| 缺失值敏感 | 稳健处理缺失 |
+| 难以解释 | 可分解、可解释 |
+
+### 核心模型
+
+prophet 将时间序列分解为：
+$$y(t) = g(t) + s(t) + h(t) + \epsilon_t$$
+
+- $g(t)$：趋势（增长曲线）
+- $s(t)$：季节性（周/年周期）
+- $h(t)$：节假日效应
+- $\epsilon_t$：残差
+
+## 安装与加载
+
+```{r}
+library(prophet)
+library(dplyr)
+library(ggplot2)
+
+set.seed(42)
+```
+
+
+## 第一部分：快速入门
+
+### 数据格式
+
+```{r}
+# prophet 要求两列：ds (日期) 和 y (数值)
+# 使用内置示例数据
+df <- read.csv(
+    "https://raw.githubusercontent.com/facebook/prophet/main/examples/example_wp_log_peyton_manning.csv"
+)
+
+head(df)
+cat("\n数据范围:", min(df$ds), "至", max(df$ds), "\n")
+cat("数据点数:", nrow(df), "\n")
+```
+
+### 拟合模型
+
+```{r}
+# 基本拟合
+m <- prophet(df)
+
+# 查看模型组件
+cat("模型包含的组件:\n")
+cat("- 趋势类型:", m$growth, "\n")
+cat("- 季节性:", names(m$seasonalities), "\n")
+```
+
+### 生成预测
+
+```{r}
+# 创建未来日期框架
+future <- make_future_dataframe(m, periods = 365)
+tail(future)
+
+# 预测
+forecast <- predict(m, future)
+cat("\n预测列:", head(names(forecast)), "...\n")
+```
+
+### 可视化
+
+```{r}
+# 预测图
+plot(m, forecast) +
+    labs(
+        title = "Prophet 时间序列预测",
+        x = "日期", y = "数值"
+    )
+```
+
+```{r}
+# 组件分解图
+prophet_plot_components(m, forecast)
+```
+
+
+## 第二部分：趋势建模
+
+### 线性趋势
+
+```{r}
+# 默认线性趋势
+m_linear <- prophet(df, growth = "linear")
+
+forecast_linear <- predict(m_linear, future)
+plot(m_linear, forecast_linear) +
+    ggtitle("线性趋势")
+```
+
+### Logistic 增长
+
+```{r}
+# 设置容量上限
+df_logistic <- df
+df_logistic$cap <- 10 # 上限
+df_logistic$floor <- 0 # 下限（可选）
+
+# 使用 logistic 增长
+m_logistic <- prophet(df_logistic, growth = "logistic")
+
+future_logistic <- make_future_dataframe(m_logistic, periods = 365)
+future_logistic$cap <- 10
+future_logistic$floor <- 0
+
+forecast_logistic <- predict(m_logistic, future_logistic)
+plot(m_logistic, forecast_logistic) +
+    ggtitle("Logistic 增长（有上限）")
+```
+
+### 趋势变点
+
+```{r}
+# 查看自动检测的变点
+cat("检测到的趋势变点:\n")
+print(head(m$changepoints))
+
+# 可视化变点
+plot(m, forecast) +
+    geom_vline(
+        xintercept = as.numeric(m$changepoints),
+        linetype = "dashed", color = "red", alpha = 0.5
+    ) +
+    ggtitle("趋势变点标注")
+```
+
+
+## 第三部分：季节性
+
+### 自动季节性
+
+```{r}
+# 查看默认季节性
+cat("年度季节性:", m$yearly.seasonality, "\n")
+cat("周季节性:", m$weekly.seasonality, "\n")
+cat("日季节性:", m$daily.seasonality, "\n")
+```
+
+### 自定义季节性
+
+```{r}
+# 禁用默认季节性，添加自定义
+m_custom <- prophet(weekly.seasonality = FALSE, yearly.seasonality = FALSE)
+
+# 添加自定义季节性
+m_custom <- add_seasonality(m_custom,
+    name = "monthly",
+    period = 30.5, fourier.order = 5
+)
+m_custom <- add_seasonality(m_custom,
+    name = "yearly",
+    period = 365.25, fourier.order = 10
+)
+
+m_custom <- fit.prophet(m_custom, df)
+
+forecast_custom <- predict(m_custom, future)
+prophet_plot_components(m_custom, forecast_custom)
+```
+
+
+## 第四部分：节假日效应
+
+### 添加节假日
+
+```{r}
+# 定义节假日
+playoffs <- data.frame(
+    holiday = "playoff",
+    ds = as.Date(c(
+        "2008-01-13", "2009-01-03", "2010-01-16",
+        "2010-01-24", "2010-02-07", "2011-01-08",
+        "2013-01-12", "2014-01-12", "2014-01-19",
+        "2014-02-02", "2015-01-11", "2016-01-17"
+    )),
+    lower_window = 0,
+    upper_window = 1 # 影响当天和后一天
+)
+
+superbowls <- data.frame(
+    holiday = "superbowl",
+    ds = as.Date(c("2010-02-07", "2014-02-02")),
+    lower_window = 0,
+    upper_window = 1
+)
+
+holidays <- bind_rows(playoffs, superbowls)
+print(holidays)
+```
+
+```{r}
+# 使用节假日拟合
+m_holidays <- prophet(df, holidays = holidays)
+forecast_holidays <- predict(m_holidays, future)
+
+# 查看节假日效应
+prophet_plot_components(m_holidays, forecast_holidays)
+```
+
+
+## 第五部分：模型评估
+
+### 交叉验证
+
+```{r}
+# 时间序列交叉验证
+df_cv <- cross_validation(
+    m,
+    initial = 730, # 初始训练期 (2年)
+    period = 180, # 每次滚动 (6个月)
+    horizon = 365, # 预测范围 (1年)
+    units = "days"
+)
+
+head(df_cv)
+```
+
+### 性能指标
+
+```{r}
+# 计算评估指标
+df_p <- performance_metrics(df_cv)
+print(tail(df_p))
+
+cat("\n整体 MAPE:", round(mean(df_p$mape) * 100, 2), "%\n")
+cat("整体 RMSE:", round(mean(df_p$rmse), 2), "\n")
+```
+
+### 可视化评估
+
+```{r}
+plot_cross_validation_metric(df_cv, metric = "mape") +
+    ggtitle("MAPE 随预测范围变化")
+```
+
+
+## 第六部分：参数调优
+
+### 关键参数
+
+```{r}
+# 调整参数
+m_tuned <- prophet(
+    df,
+    changepoint.prior.scale = 0.05, # 趋势灵活性 (默认0.05)
+    seasonality.prior.scale = 10, # 季节性强度 (默认10)
+    holidays.prior.scale = 10, # 节假日强度 (默认10)
+    seasonality.mode = "multiplicative" # 乘法季节性
+)
+
+forecast_tuned <- predict(m_tuned, future)
+plot(m_tuned, forecast_tuned) +
+    ggtitle("调参后的预测")
+```
+
+### 参数网格搜索
+
+```{r}
+# 简化的网格搜索
+param_grid <- expand.grid(
+    changepoint.prior.scale = c(0.01, 0.05, 0.1),
+    seasonality.prior.scale = c(1, 10)
+)
+
+# 对每组参数进行交叉验证（简化示例）
+results <- list()
+for (i in 1:2) { # 只测试前2组
+    m_test <- prophet(
+        df,
+        changepoint.prior.scale = param_grid$changepoint.prior.scale[i],
+        seasonality.prior.scale = param_grid$seasonality.prior.scale[i]
+    )
+
+    cv_test <- cross_validation(m_test,
+        initial = 730, period = 180,
+        horizon = 365, units = "days"
+    )
+    perf <- performance_metrics(cv_test)
+
+    results[[i]] <- data.frame(
+        changepoint.prior.scale = param_grid$changepoint.prior.scale[i],
+        seasonality.prior.scale = param_grid$seasonality.prior.scale[i],
+        mape = mean(perf$mape)
+    )
+}
+
+results_df <- do.call(rbind, results)
+print(results_df)
+```
+
+
+## 第七部分：实战案例
+
+### 疾病发病率预测
+
+```{r}
+# 模拟疾病发病率数据
+set.seed(123)
+n_days <- 1000
+dates <- seq.Date(as.Date("2020-01-01"), by = "day", length.out = n_days)
+
+# 生成带趋势和季节性的数据
+trend <- 100 + 0.05 * (1:n_days)
+yearly_season <- 20 * sin(2 * pi * (1:n_days) / 365)
+weekly_season <- 5 * sin(2 * pi * (1:n_days) / 7)
+noise <- rnorm(n_days, 0, 10)
+
+cases <- pmax(0, trend + yearly_season + weekly_season + noise)
+
+disease_data <- data.frame(
+    ds = dates,
+    y = cases
+)
+
+head(disease_data)
+```
+
+```{r}
+# 拟合模型
+m_disease <- prophet(disease_data,
+    yearly.seasonality = TRUE,
+    weekly.seasonality = TRUE
+)
+
+# 预测未来90天
+future_disease <- make_future_dataframe(m_disease, periods = 90)
+forecast_disease <- predict(m_disease, future_disease)
+
+# 可视化
+plot(m_disease, forecast_disease) +
+    labs(
+        title = "疾病发病率预测",
+        x = "日期", y = "发病数"
+    )
+```
+
+```{r}
+# 季节性分解
+prophet_plot_components(m_disease, forecast_disease)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 基本流程 =====
+m <- prophet(df)
+future <- make_future_dataframe(m, periods = 365)
+forecast <- predict(m, future)
+plot(m, forecast)
+
+# ===== 趋势设置 =====
+prophet(df, growth = "linear") # 线性
+prophet(df, growth = "logistic") # S型（需设置cap）
+
+# ===== 季节性 =====
+add_seasonality(m, name, period, fourier.order)
+prophet(df, yearly.seasonality = TRUE)
+prophet(df, seasonality.mode = "multiplicative")
+
+# ===== 节假日 =====
+holidays <- data.frame(holiday, ds, lower_window, upper_window)
+prophet(df, holidays = holidays)
+
+# ===== 评估 =====
+cross_validation(m, initial, period, horizon, units)
+performance_metrics(df_cv)
+
+# ===== 调参 =====
+prophet(df,
+    changepoint.prior.scale = 0.05,
+    seasonality.prior.scale = 10
+)
+```
+
+
+## 小结
+
+prophet 的核心工作流程：
+
+1. **准备数据**：ds (日期) + y (数值)
+2. **拟合模型**：`prophet(df)`
+3. **生成未来**：`make_future_dataframe()`
+4. **预测**：`predict()`
+5. **评估**：`cross_validation()` + `performance_metrics()`
+
+> **适用场景**：有明显季节性和趋势的商业/健康数据预测，特别是有节假日效应的场景。
+
+
+## 参考资源
+
+- [prophet 官方文档](https://facebook.github.io/prophet/)
+- [prophet 论文](https://peerj.com/preprints/3190/)
+- [prophet R 包](https://cran.r-project.org/package=prophet)

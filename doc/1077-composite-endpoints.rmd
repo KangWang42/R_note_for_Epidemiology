@@ -1,0 +1,359 @@
+---
+title: "复合结局分析完全指南"
+date: "2026-01-16"
+description: "复合结局分析处理MACE等临床复合终点，包括经典方法和Win Ratio等新方法，适用于心血管和肿瘤临床试验。"
+categories: [R语言方法, 生存分析, 临床试验]
+image: "images/composite-endpoints-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## 复合结局简介
+
+**复合结局（Composite Endpoint）** 将多个临床事件合并为单一终点，常见于心血管和肿瘤临床试验。典型例子包括MACE（主要不良心血管事件）和DFS（无病生存）。
+
+### 为什么使用复合结局？
+
+| 优势 | 说明 |
+|------|------|
+| 提高事件率 | 增加统计效力 |
+| 减少样本量 | 降低试验成本 |
+| 捕捉全面效果 | 多方面评估治疗 |
+
+### 主要挑战
+
+- 组分事件重要程度不同
+- 效应方向可能不一致
+- 解释复杂
+
+## 安装与加载
+
+```{r}
+library(survival)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+set.seed(42)
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：模拟复合结局数据
+
+```{r}
+# 模拟心血管试验数据
+n <- 1000
+
+# 治疗分配
+treatment <- rep(c(0, 1), each = n / 2)
+
+# 三个组分事件的风险
+# 死亡：治疗降低风险
+death_hazard <- ifelse(treatment == 1, 0.02, 0.03)
+# MI：治疗略降风险
+mi_hazard <- ifelse(treatment == 1, 0.04, 0.05)
+# 卒中：治疗无效
+stroke_hazard <- 0.02
+
+# 生成事件时间（指数分布）
+time_death <- rexp(n, death_hazard)
+time_mi <- rexp(n, mi_hazard)
+time_stroke <- rexp(n, stroke_hazard)
+
+# 删失时间
+censor_time <- runif(n, 3, 5)
+
+# 确定首发事件
+first_event_time <- pmin(time_death, time_mi, time_stroke, censor_time)
+event_type <- case_when(
+    first_event_time == censor_time ~ 0, # 删失
+    first_event_time == time_death ~ 1, # 死亡
+    first_event_time == time_mi ~ 2, # MI
+    first_event_time == time_stroke ~ 3 # 卒中
+)
+
+# 复合结局
+composite_event <- as.numeric(event_type > 0)
+
+trial_data <- data.frame(
+    id = 1:n,
+    treatment = factor(treatment, labels = c("控制", "治疗")),
+    time = first_event_time,
+    composite_event,
+    event_type = factor(event_type, labels = c("删失", "死亡", "MI", "卒中"))
+)
+
+# 描述性统计
+cat("事件分布:\n")
+print(table(trial_data$treatment, trial_data$event_type))
+```
+
+
+## 第二部分：传统复合结局分析
+
+### Kaplan-Meier曲线
+
+```{r}
+# 复合结局的KM分析
+surv_obj <- Surv(trial_data$time, trial_data$composite_event)
+km_fit <- survfit(surv_obj ~ treatment, data = trial_data)
+
+# 可视化
+plot(km_fit,
+    col = c("#3b82f6", "#dc2626"), lwd = 2,
+    xlab = "时间（年）", ylab = "无事件生存率",
+    main = "复合结局：无MACE生存曲线"
+)
+legend("bottomleft", c("控制组", "治疗组"), col = c("#3b82f6", "#dc2626"), lwd = 2)
+```
+
+### Cox回归
+
+```{r}
+# Cox模型
+cox_composite <- coxph(Surv(time, composite_event) ~ treatment, data = trial_data)
+summary(cox_composite)
+```
+
+
+## 第三部分：组分分析
+
+### 各组分的独立分析
+
+```{r}
+# 分别分析每个组分
+components <- c("死亡", "MI", "卒中")
+component_results <- list()
+
+for (comp in components) {
+    trial_data[[paste0("event_", comp)]] <- as.numeric(trial_data$event_type == comp)
+
+    # Cox模型
+    formula <- as.formula(paste0("Surv(time, event_", comp, ") ~ treatment"))
+    fit <- coxph(formula, data = trial_data)
+
+    component_results[[comp]] <- data.frame(
+        Component = comp,
+        HR = exp(coef(fit)),
+        CI_lower = exp(confint(fit))[1],
+        CI_upper = exp(confint(fit))[2],
+        p_value = summary(fit)$coefficients[5]
+    )
+}
+
+results_df <- do.call(rbind, component_results)
+print(results_df)
+```
+
+### 森林图
+
+```{r}
+# 添加复合结局结果
+composite_hr <- exp(coef(cox_composite))
+composite_ci <- exp(confint(cox_composite))
+
+all_results <- rbind(
+    results_df,
+    data.frame(
+        Component = "复合结局",
+        HR = composite_hr,
+        CI_lower = composite_ci[1],
+        CI_upper = composite_ci[2],
+        p_value = summary(cox_composite)$coefficients[5]
+    )
+)
+
+# 森林图
+ggplot(all_results, aes(x = HR, y = Component)) +
+    geom_point(size = 3) +
+    geom_errorbarh(aes(xmin = CI_lower, xmax = CI_upper), height = 0.2) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") +
+    scale_x_log10() +
+    labs(
+        title = "复合结局及组分分析",
+        x = "风险比 (95% CI)", y = ""
+    ) +
+    theme(axis.text.y = element_text(size = 12))
+```
+
+
+## 第四部分：Win Ratio方法
+
+Win Ratio是处理有序复合结局的新方法，考虑事件的临床重要性。
+
+### Win Ratio原理
+
+```{r}
+# 手动计算Win Ratio
+# 按重要性排序：死亡 > MI > 卒中
+
+calculate_win_ratio <- function(data) {
+    treat <- data[data$treatment == "治疗", ]
+    control <- data[data$treatment == "控制", ]
+
+    wins <- 0
+    losses <- 0
+    ties <- 0
+
+    for (i in 1:nrow(treat)) {
+        for (j in 1:nrow(control)) {
+            # 比较死亡
+            if (treat$event_死亡[i] == 0 && control$event_死亡[j] == 1 &&
+                treat$time[i] > control$time[j]) {
+                wins <- wins + 1
+            } else if (treat$event_死亡[i] == 1 && control$event_死亡[j] == 0 &&
+                treat$time[i] < control$time[j]) {
+                losses <- losses + 1
+            } else {
+                # 继续比较MI（简化版本）
+                if (treat$event_MI[i] == 0 && control$event_MI[j] == 1) {
+                    wins <- wins + 1
+                } else if (treat$event_MI[i] == 1 && control$event_MI[j] == 0) {
+                    losses <- losses + 1
+                } else {
+                    ties <- ties + 1
+                }
+            }
+        }
+    }
+
+    list(
+        wins = wins, losses = losses, ties = ties,
+        win_ratio = wins / losses
+    )
+}
+
+# 简化示例（完整版需要更复杂的配对逻辑）
+cat("Win Ratio概念演示:\n")
+cat("治疗组'赢'：治疗患者比对照患者结局更好\n")
+cat("Win Ratio = 赢次数 / 输次数\n")
+```
+
+
+## 第五部分：事件负担分析
+
+```{r}
+# 计算各组分对复合结局的贡献
+contribution <- trial_data %>%
+    filter(composite_event == 1) %>%
+    group_by(treatment, event_type) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    group_by(treatment) %>%
+    mutate(prop = n / sum(n))
+
+ggplot(contribution, aes(x = treatment, y = prop, fill = event_type)) +
+    geom_col() +
+    scale_fill_manual(values = c("#dc2626", "#f97316", "#eab308")) +
+    labs(
+        title = "复合结局组分构成",
+        x = "治疗组", y = "比例", fill = "事件类型"
+    ) +
+    scale_y_continuous(labels = scales::percent)
+```
+
+
+## 第六部分：敏感性分析
+
+### 使用竞争风险框架
+
+```{r}
+# 将复合结局作为竞争风险分析
+library(cmprsk)
+
+# 创建竞争风险数据
+trial_data$event_num <- as.numeric(trial_data$event_type) - 1 # 0=删失, 1=死亡, 2=MI, 3=卒中
+trial_data$treat_num <- as.numeric(trial_data$treatment) - 1
+
+# Gray检验
+gray_test <- cuminc(trial_data$time, trial_data$event_num,
+    group = trial_data$treat_num
+)
+
+# 绘制累积发病率
+plot(gray_test,
+    main = "各事件累积发病率",
+    xlab = "时间（年）", ylab = "累积发病率"
+)
+```
+
+
+## 第七部分：报告模板
+
+```{r}
+# 生成复合结局分析报告
+cat("=== 复合结局分析报告 ===\n\n")
+
+cat("1. 样本量:", n, "\n")
+cat("2. 随访时间:", round(median(trial_data$time), 2), "年（中位数）\n\n")
+
+cat("3. 事件发生:\n")
+event_summary <- trial_data %>%
+    group_by(treatment) %>%
+    summarise(
+        N = n(),
+        复合结局 = sum(composite_event),
+        死亡 = sum(event_type == "死亡"),
+        MI = sum(event_type == "MI"),
+        卒中 = sum(event_type == "卒中")
+    )
+print(event_summary)
+
+cat("\n4. 治疗效果:\n")
+cat(
+    "复合结局 HR:", round(exp(coef(cox_composite)), 3),
+    "(95% CI:", round(exp(confint(cox_composite))[1], 3), "-",
+    round(exp(confint(cox_composite))[2], 3), ")\n"
+)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 复合结局生存分析 =====
+library(survival)
+
+surv_obj <- Surv(time, composite_event)
+coxph(surv_obj ~ treatment, data = df)
+
+# ===== 组分分析 =====
+# 分别对每个组分进行分析
+
+# ===== 竞争风险 =====
+library(cmprsk)
+cuminc(time, event_type, group)
+
+# ===== 报告要素 =====
+# 1. 复合结局整体效果
+# 2. 各组分单独效果
+# 3. 各组分对复合结局的贡献
+# 4. 敏感性分析
+```
+
+
+## 小结
+
+复合结局分析要点：
+
+1. **明确定义**：确定组分事件和观察时间
+2. **整体分析**：首发事件的生存分析
+3. **组分分析**：检查效应一致性
+4. **解释谨慎**：效应可能被"无效"组分稀释
+
+> **报告建议**：同时报告复合结局和各组分结果，使用森林图展示。
+
+
+## 参考资源
+
+- Pocock et al. (2012). The Win Ratio. European Heart Journal.
+- [FDA复合终点指南](https://www.fda.gov/drugs/guidances-drugs)
+- Rauch et al. (2018). Opportunities and challenges of composite endpoints.

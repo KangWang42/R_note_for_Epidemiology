@@ -1,0 +1,389 @@
+---
+title: "targets 可重复分析工作流"
+date: "2026-01-16"
+description: "targets 包实现分析工作流管理，支持依赖追踪、增量构建、并行执行，是可重复研究的核心工具。"
+categories: [实用R包, 数据处理, 工作流]
+image: "images/targets-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    eval = FALSE
+)
+```
+
+## targets 简介
+
+**targets** 是 R 语言中管理分析工作流的现代化工具，它能够追踪代码和数据的变化，只重新运行需要更新的部分，大大提高了分析效率和可重复性。
+
+### 为什么使用 targets？
+
+| 传统方式 | targets 方式 |
+|----------|-------------|
+| 手动运行脚本 | 自动依赖追踪 |
+| 全部重新运行 | 增量构建 |
+| 结果难以缓存 | 自动缓存 |
+| 难以并行 | 原生并行支持 |
+
+### 核心概念
+
+1. **Target（目标）**：分析流程中的一个步骤及其输出
+2. **Pipeline（管道）**：targets的有序集合
+3. **依赖图**：targets之间的依赖关系
+4. **缓存**：已计算结果的存储
+
+## 安装与加载
+
+```{r}
+# install.packages("targets")
+# install.packages("tarchetypes")  # 扩展包
+library(targets)
+library(tarchetypes)
+```
+
+
+## 第一部分：快速入门
+
+### 项目结构
+
+一个标准的 targets 项目包含：
+
+```
+my_project/
+├── _targets.R        # 定义管道
+├── R/                # 自定义函数
+│   └── functions.R
+├── data/             # 原始数据
+└── _targets/         # 缓存目录（自动生成）
+```
+
+### 编写 _targets.R
+
+```{r}
+# _targets.R 文件内容
+library(targets)
+library(tarchetypes)
+
+# 加载自定义函数
+source("R/functions.R")
+
+# 定义管道
+list(
+    # 读取数据
+    tar_target(raw_data, read.csv("data/input.csv")),
+
+    # 数据清洗
+    tar_target(clean_data, clean_data_fn(raw_data)),
+
+    # 拟合模型
+    tar_target(model, fit_model(clean_data)),
+
+    # 生成报告
+    tar_target(report, create_report(model, clean_data))
+)
+```
+
+### 自定义函数
+
+```{r}
+# R/functions.R
+clean_data_fn <- function(data) {
+    data %>%
+        dplyr::filter(!is.na(outcome)) %>%
+        dplyr::mutate(age_group = cut(age, breaks = c(0, 40, 60, 100)))
+}
+
+fit_model <- function(data) {
+    glm(outcome ~ age + bmi, data = data, family = binomial)
+}
+
+create_report <- function(model, data) {
+    list(
+        n = nrow(data),
+        coefs = coef(model),
+        aic = AIC(model)
+    )
+}
+```
+
+
+## 第二部分：运行管道
+
+### 基本命令
+
+```{r}
+# 检查管道状态
+tar_manifest()
+
+# 可视化依赖图
+tar_visnetwork()
+
+# 运行整个管道
+tar_make()
+
+# 读取结果
+tar_read(clean_data)
+tar_read(model)
+
+# 加载结果到环境
+tar_load(report)
+print(report)
+```
+
+### 增量构建
+
+```{r}
+# 修改 clean_data_fn 后再次运行
+tar_make()
+# 只有 clean_data 及其下游目标会重新运行
+
+# 检查哪些目标过期
+tar_outdated()
+```
+
+
+## 第三部分：进阶用法
+
+### 分支（Branching）
+
+```{r}
+# 动态分支：对多个数据集/参数并行处理
+list(
+    # 定义参数
+    tar_target(alphas, c(0.1, 0.5, 1.0)),
+
+    # 动态分支：每个alpha值独立运行
+    tar_target(
+        models,
+        fit_lasso(data, alpha = alphas),
+        pattern = map(alphas) # 映射到每个alpha
+    ),
+
+    # 汇总所有模型结果
+    tar_target(comparison, compare_models(models))
+)
+```
+
+### 静态分支
+
+```{r}
+# 使用 tar_map 创建多个类似目标
+tar_map(
+    values = list(
+        dataset = c("train", "test", "validation")
+    ),
+    tar_target(data, load_dataset(dataset)),
+    tar_target(metrics, evaluate_model(model, data))
+)
+```
+
+
+## 第四部分：与 R Markdown/Quarto 集成
+
+### 渲染报告
+
+```{r}
+list(
+    tar_target(data, prepare_data()),
+    tar_target(model, fit_model(data)),
+
+    # 渲染 R Markdown 报告
+    tar_render(report, "report.Rmd"),
+
+    # 渲染 Quarto 文档
+    tar_quarto(quarto_doc, "analysis.qmd")
+)
+```
+
+### 在报告中使用 targets
+
+```{r}
+# 在 R Markdown 中
+# ```{r}
+# library(targets)
+# tar_load(model)
+# tar_read(data)
+# ```
+```
+
+
+## 第五部分：并行计算
+
+### 配置并行
+
+```{r}
+# 在 _targets.R 中
+library(targets)
+library(future)
+library(future.callr)
+
+# 使用 future 并行后端
+tar_option_set(
+    controller = crew::crew_controller_local(workers = 4)
+)
+
+# 或使用 future
+plan(multisession, workers = 4)
+```
+
+### 并行运行
+
+```{r}
+# 并行执行管道
+tar_make_future(workers = 4)
+
+# 或使用 crew
+tar_make() # 自动使用配置的并行
+```
+
+
+## 第六部分：实战案例
+
+### 完整分析流程
+
+```{r}
+# _targets.R
+library(targets)
+library(tarchetypes)
+
+source("R/functions.R")
+
+tar_option_set(
+    packages = c("dplyr", "ggplot2", "caret")
+)
+
+list(
+    # 数据
+    tar_target(file, "data/diabetes.csv", format = "file"),
+    tar_target(raw_data, read.csv(file)),
+
+    # 预处理
+    tar_target(clean_data, {
+        raw_data %>%
+            filter(!is.na(Outcome)) %>%
+            mutate(across(where(is.numeric), scale))
+    }),
+
+    # 数据分割
+    tar_target(train_idx, sample(1:nrow(clean_data), 0.7 * nrow(clean_data))),
+    tar_target(train_data, clean_data[train_idx, ]),
+    tar_target(test_data, clean_data[-train_idx, ]),
+
+    # 多模型训练
+    tar_target(methods, c("glm", "rf", "xgb")),
+    tar_target(
+        models,
+        train_model(train_data, method = methods),
+        pattern = map(methods)
+    ),
+
+    # 评估
+    tar_target(
+        evaluations,
+        evaluate_model(models, test_data),
+        pattern = map(models)
+    ),
+
+    # 汇总
+    tar_target(summary_table, summarize_results(evaluations)),
+
+    # 报告
+    tar_render(report, "analysis_report.Rmd")
+)
+```
+
+
+## 第七部分：调试与最佳实践
+
+### 调试
+
+```{r}
+# 检查单个目标
+tar_load(raw_data)
+tar_load_everything()
+
+# 查看构建元数据
+tar_meta()
+
+# 删除缓存重新开始
+tar_destroy()
+
+# 清理特定目标
+tar_delete(clean_data)
+```
+
+### 最佳实践
+
+```{r}
+# 1. 使用函数而非脚本
+# 好
+tar_target(result, my_function(data))
+
+# 避免
+tar_target(result, {
+    # 很长的代码块...
+})
+
+# 2. 小粒度目标
+# 便于增量更新和并行
+
+# 3. 使用 format 优化存储
+tar_target(large_data, big_computation(), format = "qs")
+
+# 4. 文件追踪
+tar_target(input_file, "data.csv", format = "file")
+```
+
+
+## 常用命令速查
+
+```{r}
+# ===== 管道操作 =====
+tar_make() # 运行管道
+tar_make_future() # 并行运行
+tar_visnetwork() # 可视化依赖图
+tar_manifest() # 查看目标清单
+
+# ===== 读取结果 =====
+tar_read(target_name) # 读取目标
+tar_load(target_name) # 加载到环境
+tar_load_everything() # 加载所有
+
+# ===== 状态检查 =====
+tar_outdated() # 过期的目标
+tar_progress() # 构建进度
+tar_meta() # 元数据
+
+# ===== 清理 =====
+tar_destroy() # 删除所有缓存
+tar_delete(name) # 删除特定目标
+tar_invalidate(name) # 标记为过期
+
+# ===== 目标类型 =====
+tar_target() # 基本目标
+tar_render() # R Markdown
+tar_quarto() # Quarto
+tar_file() # 文件目标
+```
+
+
+## 小结
+
+targets 的核心优势：
+
+1. **可重复性**：代码+数据+依赖全追踪
+2. **效率**：增量构建，只更新变化部分
+3. **并行**：自动并行执行独立目标
+4. **可视化**：清晰的依赖关系图
+
+> **建议**：对于任何超过一个脚本的分析项目，都值得使用 targets 管理工作流。
+
+
+## 参考资源
+
+- [targets 官方文档](https://docs.ropensci.org/targets/)
+- [targets 用户手册](https://books.ropensci.org/targets/)
+- [tarchetypes 扩展](https://docs.ropensci.org/tarchetypes/)

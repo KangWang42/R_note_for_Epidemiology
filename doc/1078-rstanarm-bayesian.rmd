@@ -1,0 +1,342 @@
+---
+title: "rstanarm 贝叶斯回归实战"
+date: "2026-01-16"
+description: "rstanarm提供类似lm/glm语法的贝叶斯回归，无需编写Stan代码，快速入门贝叶斯统计。"
+categories: [R语言方法, 高级建模, 贝叶斯]
+image: "images/rstanarm-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## rstanarm 简介
+
+**rstanarm** 是Stan的R接口，提供与 `lm()`, `glm()` 类似的语法进行贝叶斯回归。无需学习Stan语言，即可获得贝叶斯推断的优势。
+
+### 为什么使用贝叶斯方法？
+
+| 频率学派 | 贝叶斯优势 |
+|----------|-----------|
+| 点估计+置信区间 | 完整后验分布 |
+| 样本量依赖 | 可融入先验知识 |
+| 难以解释 | 直观概率解释 |
+| 多重比较问题 | 自然处理不确定性 |
+
+### rstanarm 优势
+
+- 熟悉的公式语法
+- 自动选择合理先验
+- 与tidyverse兼容
+- 丰富的诊断工具
+
+## 安装与加载
+
+```{r}
+library(rstanarm)
+library(bayesplot)
+library(ggplot2)
+library(dplyr)
+
+set.seed(42)
+theme_set(theme_bw(base_size = 12))
+
+# 设置并行
+options(mc.cores = parallel::detectCores())
+```
+
+
+## 第一部分：线性回归
+
+### 基本拟合
+
+```{r}
+# 使用mtcars数据
+data(mtcars)
+
+# 贝叶斯线性回归
+bayes_lm <- stan_glm(mpg ~ wt + hp,
+    data = mtcars,
+    family = gaussian(),
+    seed = 42,
+    refresh = 0
+) # 静默输出
+
+# 查看结果
+print(bayes_lm)
+```
+
+### 后验分布
+
+```{r}
+# 提取后验样本
+posterior <- as.data.frame(bayes_lm)
+head(posterior)
+```
+
+```{r}
+# 后验分布可视化
+mcmc_dens(bayes_lm, pars = c("wt", "hp")) +
+    labs(title = "系数后验分布")
+```
+
+### 与频率法比较
+
+```{r}
+# 频率lm
+freq_lm <- lm(mpg ~ wt + hp, data = mtcars)
+
+# 比较
+cat("频率法估计:\n")
+print(coef(freq_lm))
+cat("\n贝叶斯后验均值:\n")
+print(coef(bayes_lm))
+```
+
+
+## 第二部分：先验设置
+
+### 默认先验
+
+```{r}
+# 查看默认先验
+prior_summary(bayes_lm)
+```
+
+### 自定义先验
+
+```{r}
+# 使用信息性先验
+bayes_lm_informed <- stan_glm(
+    mpg ~ wt + hp,
+    data = mtcars,
+    prior = normal(c(-5, 0), c(2, 0.1)), # wt和hp的先验
+    prior_intercept = normal(30, 10),
+    seed = 42,
+    refresh = 0
+)
+
+# 比较结果
+cat("默认先验估计:\n")
+print(coef(bayes_lm))
+cat("\n信息性先验估计:\n")
+print(coef(bayes_lm_informed))
+```
+
+### 先验预测检查
+
+```{r}
+# 先验预测分布
+bayes_lm_prior <- stan_glm(
+    mpg ~ wt + hp,
+    data = mtcars,
+    prior_PD = TRUE, # 只从先验采样
+    seed = 42,
+    refresh = 0
+)
+
+# 可视化
+pp_check(bayes_lm_prior, nreps = 50) +
+    labs(
+        title = "先验预测检查",
+        subtitle = "先验是否产生合理的数据范围？"
+    )
+```
+
+
+## 第三部分：后验推断
+
+### 可信区间
+
+```{r}
+# 后验区间
+posterior_interval(bayes_lm, prob = 0.95)
+```
+
+### 概率陈述
+
+```{r}
+# 计算特定概率
+# wt效应小于-4的概率
+prob_wt <- mean(posterior$wt < -4)
+cat("P(wt系数 < -4) =", round(prob_wt, 3), "\n")
+
+# hp效应为负的概率
+prob_hp_neg <- mean(posterior$hp < 0)
+cat("P(hp系数 < 0) =", round(prob_hp_neg, 3), "\n")
+```
+
+### 后验预测
+
+```{r}
+# 新数据预测
+new_car <- data.frame(wt = 3, hp = 120)
+
+# 后验预测分布
+pred_post <- posterior_predict(bayes_lm, newdata = new_car)
+
+# 预测区间
+cat("预测mpg (95%区间):\n")
+cat("均值:", round(mean(pred_post), 2), "\n")
+cat("区间:", round(quantile(pred_post, c(0.025, 0.975)), 2), "\n")
+```
+
+
+## 第四部分：模型诊断
+
+### MCMC诊断
+
+```{r}
+# 轨迹图
+mcmc_trace(bayes_lm, pars = c("wt", "hp"))
+```
+
+```{r}
+# R-hat和有效样本量
+summary(bayes_lm)[, c("Rhat", "n_eff")]
+```
+
+### 后验预测检查
+
+```{r}
+# 后验预测 vs 观测数据
+pp_check(bayes_lm, nreps = 50) +
+    labs(
+        title = "后验预测检查",
+        subtitle = "模型能否重现观测数据的分布？"
+    )
+```
+
+
+## 第五部分：Logistic回归
+
+```{r}
+# 二分类结局
+mtcars$am_factor <- factor(mtcars$am)
+
+bayes_logit <- stan_glm(
+    am_factor ~ wt + hp,
+    data = mtcars,
+    family = binomial(link = "logit"),
+    seed = 42,
+    refresh = 0
+)
+
+print(bayes_logit)
+```
+
+```{r}
+# OR和可信区间
+or_posterior <- exp(as.data.frame(bayes_logit)[, c("wt", "hp")])
+
+cat("OR估计 (后验中位数):\n")
+cat("wt:", round(median(or_posterior$wt), 3), "\n")
+cat("hp:", round(median(or_posterior$hp), 3), "\n")
+```
+
+
+## 第六部分：模型比较
+
+### LOO交叉验证
+
+```{r}
+# Leave-one-out交叉验证
+loo_lm <- loo(bayes_lm)
+print(loo_lm)
+```
+
+```{r}
+# 比较多个模型
+bayes_lm2 <- stan_glm(mpg ~ wt + hp + disp,
+    data = mtcars,
+    seed = 42, refresh = 0
+)
+
+loo_lm2 <- loo(bayes_lm2)
+
+# 模型比较
+loo_compare(loo_lm, loo_lm2)
+```
+
+
+## 第七部分：层次模型
+
+```{r}
+# 分组数据
+data(sleepstudy, package = "lme4")
+
+# 贝叶斯混合效应模型
+bayes_hier <- stan_lmer(
+    Reaction ~ Days + (Days | Subject),
+    data = sleepstudy,
+    seed = 42,
+    refresh = 0
+)
+
+print(bayes_hier, digits = 2)
+```
+
+```{r}
+# 随机效应后验
+ranef_post <- as.data.frame(bayes_hier)
+ranef_cols <- grep("^b\\[", names(ranef_post), value = TRUE)
+cat("随机效应数量:", length(ranef_cols), "\n")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 基本模型 =====
+library(rstanarm)
+
+# 线性回归
+stan_glm(y ~ x1 + x2, data = df)
+
+# Logistic回归
+stan_glm(y ~ x1 + x2, data = df, family = binomial)
+
+# 混合效应
+stan_lmer(y ~ x + (1 | group), data = df)
+
+# ===== 先验设置 =====
+stan_glm(y ~ x,
+    prior = normal(0, 1),
+    prior_intercept = normal(0, 10)
+)
+
+# ===== 后验推断 =====
+posterior_interval(fit) # 可信区间
+posterior_predict(fit, newdata) # 预测
+pp_check(fit) # 后验检查
+
+# ===== 诊断 =====
+mcmc_trace(fit) # 轨迹图
+loo(fit) # LOO-CV
+```
+
+
+## 小结
+
+rstanarm的核心工作流程：
+
+1. **模型设定**：使用熟悉的公式语法
+2. **先验选择**：默认先验通常合理，或自定义
+3. **拟合**：自动MCMC采样
+4. **诊断**：检查R-hat、轨迹图、后验预测
+5. **推断**：利用完整后验分布
+
+> **优势**：贝叶斯方法让你能够直接陈述"参数在区间内的概率"，而非"如果重复实验..."
+
+
+## 参考资源
+
+- [rstanarm官方文档](https://mc-stan.org/rstanarm/)
+- [Stan用户指南](https://mc-stan.org/users/documentation/)
+- Gelman et al. (2020). Regression and Other Stories.

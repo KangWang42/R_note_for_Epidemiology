@@ -1,0 +1,470 @@
+---
+title: "torch 深度学习完全指南"
+date: "2026-01-16"
+categories: [R语言方法, 机器学习, 深度学习]
+image: "images/torch-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    eval = FALSE,  # torch需要首次运行install_torch()后重启R
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## torch 简介
+
+**torch** 是 R 语言中 PyTorch 的原生实现，提供了强大的深度学习能力，支持 GPU 加速计算。与 keras/tensorflow 不同，torch 不需要 Python 依赖，是 R 原生的深度学习解决方案。
+
+### torch vs keras
+
+| 特点 | torch | keras |
+|------|-------|-------|
+| 依赖 | 纯R实现 | 需要Python |
+| 灵活性 | 高（动态图） | 中（静态图） |
+| 调试 | 容易 | 较难 |
+| 生态 | 快速发展 | 成熟 |
+
+### 核心概念
+
+1. **张量（Tensor）**：多维数组，支持GPU加速
+2. **自动微分**：自动计算梯度
+3. **神经网络模块**：可组合的网络层
+4. **优化器**：参数更新算法
+
+## 安装与加载
+
+```{r}
+library(torch)
+
+# 首次使用需要安装torch后端（约200MB）
+if (!torch_is_installed()) {
+    install_torch()
+}
+
+library(ggplot2)
+library(dplyr)
+
+set.seed(42)
+torch_manual_seed(42)
+```
+
+
+## 第一部分：张量基础
+
+### 创建张量
+
+```{r}
+# 从R向量创建
+x <- torch_tensor(c(1, 2, 3, 4, 5))
+print(x)
+
+# 创建矩阵
+mat <- torch_tensor(matrix(1:6, nrow = 2, ncol = 3))
+print(mat)
+
+# 特殊张量
+zeros <- torch_zeros(3, 4)  # 全0
+ones <- torch_ones(2, 3)     # 全1
+rand <- torch_rand(3, 3)     # 均匀分布
+randn <- torch_randn(3, 3)   # 正态分布
+
+cat("随机正态张量:\n")
+print(randn)
+```
+
+### 张量操作
+
+```{r}
+a <- torch_tensor(matrix(1:4, 2, 2))
+b <- torch_tensor(matrix(5:8, 2, 2))
+
+# 基本运算
+cat("加法:\n")
+print(a + b)
+
+cat("\n矩阵乘法:\n")
+print(torch_mm(a, b))
+
+cat("\n逐元素乘法:\n")
+print(a * b)
+
+# 形状操作
+c <- torch_randn(2, 3, 4)
+cat("\n原始形状:", c$shape, "\n")
+cat("重塑后:", c$reshape(c(6, 4))$shape, "\n")
+cat("转置后:", c$permute(c(3, 1, 2))$shape, "\n")
+```
+
+### 张量与R对象互转
+
+```{r}
+# torch转R
+tensor <- torch_randn(3, 3)
+r_matrix <- as.matrix(tensor)
+cat("R矩阵:\n")
+print(r_matrix)
+
+# R转torch
+r_vec <- c(1.5, 2.5, 3.5)
+back_to_tensor <- torch_tensor(r_vec)
+print(back_to_tensor)
+```
+
+
+## 第二部分：自动微分
+
+### 梯度计算
+
+```{r}
+# 需要梯度的张量
+x <- torch_tensor(2.0, requires_grad = TRUE)
+y <- torch_tensor(3.0, requires_grad = TRUE)
+
+# 前向计算
+z <- x^2 + 2*x*y + y^2
+
+cat("z =", as.numeric(z), "\n")
+
+# 反向传播
+z$backward()
+
+cat("dz/dx =", as.numeric(x$grad), "\n")  # 应该是 2x + 2y = 10
+cat("dz/dy =", as.numeric(y$grad), "\n")  # 应该是 2x + 2y = 10
+```
+
+### 梯度下降示例
+
+```{r}
+# 简单的线性回归
+set.seed(42)
+n <- 100
+true_w <- 2.5
+true_b <- 1.0
+
+X <- torch_randn(n, 1)
+y <- true_w * X + true_b + torch_randn(n, 1) * 0.3
+
+# 可学习参数
+w <- torch_randn(1, requires_grad = TRUE)
+b <- torch_zeros(1, requires_grad = TRUE)
+
+learning_rate <- 0.1
+losses <- numeric(100)
+
+for (epoch in 1:100) {
+    # 前向传播
+    y_pred <- X * w + b
+    loss <- torch_mean((y_pred - y)^2)
+    losses[epoch] <- as.numeric(loss)
+    
+    # 反向传播
+    loss$backward()
+    
+    # 更新参数（禁用梯度追踪）
+    with_no_grad({
+        w$sub_(learning_rate * w$grad)
+        b$sub_(learning_rate * b$grad)
+    })
+    
+    # 清零梯度
+    w$grad$zero_()
+    b$grad$zero_()
+}
+
+cat("学习到的参数: w =", round(as.numeric(w), 3), 
+    ", b =", round(as.numeric(b), 3), "\n")
+cat("真实参数: w =", true_w, ", b =", true_b, "\n")
+```
+
+```{r}
+# 可视化损失曲线
+loss_df <- data.frame(epoch = 1:100, loss = losses)
+ggplot(loss_df, aes(x = epoch, y = loss)) +
+    geom_line(color = "#4f46e5", linewidth = 1) +
+    labs(title = "梯度下降损失曲线", x = "迭代次数", y = "MSE损失") +
+    theme_bw()
+```
+
+
+## 第三部分：神经网络模块
+
+### 使用 nn_module 定义网络
+
+```{r}
+# 定义简单的全连接网络
+SimpleNet <- nn_module(
+    "SimpleNet",
+    initialize = function(input_size, hidden_size, output_size) {
+        self$fc1 <- nn_linear(input_size, hidden_size)
+        self$fc2 <- nn_linear(hidden_size, output_size)
+        self$relu <- nn_relu()
+    },
+    forward = function(x) {
+        x <- self$fc1(x)
+        x <- self$relu(x)
+        x <- self$fc2(x)
+        x
+    }
+)
+
+# 实例化网络
+net <- SimpleNet(10, 32, 2)
+print(net)
+
+# 前向传播
+input <- torch_randn(5, 10)  # 5个样本，10个特征
+output <- net(input)
+cat("\n输入形状:", input$shape, "\n")
+cat("输出形状:", output$shape, "\n")
+```
+
+### 常用层
+
+```{r eval=FALSE}
+# 全连接层
+nn_linear(in_features, out_features)
+
+# 卷积层
+nn_conv2d(in_channels, out_channels, kernel_size)
+
+# 池化层
+nn_max_pool2d(kernel_size)
+nn_avg_pool2d(kernel_size)
+
+# 归一化层
+nn_batch_norm1d(num_features)
+nn_layer_norm(normalized_shape)
+
+# Dropout
+nn_dropout(p = 0.5)
+
+# 激活函数
+nn_relu()
+nn_sigmoid()
+nn_softmax(dim)
+nn_tanh()
+```
+
+
+## 第四部分：完整训练流程
+
+### 二分类示例
+
+```{r}
+# 生成数据
+set.seed(123)
+n <- 500
+
+# 两个类别的数据
+class1 <- cbind(rnorm(n/2, -1, 0.5), rnorm(n/2, -1, 0.5))
+class2 <- cbind(rnorm(n/2, 1, 0.5), rnorm(n/2, 1, 0.5))
+X_data <- rbind(class1, class2)
+y_data <- c(rep(0, n/2), rep(1, n/2))
+
+# 转换为张量
+X <- torch_tensor(X_data)
+y <- torch_tensor(y_data, dtype = torch_long())
+
+# 定义分类网络
+Classifier <- nn_module(
+    "Classifier",
+    initialize = function() {
+        self$net <- nn_sequential(
+            nn_linear(2, 16),
+            nn_relu(),
+            nn_linear(16, 8),
+            nn_relu(),
+            nn_linear(8, 2)
+        )
+    },
+    forward = function(x) {
+        self$net(x)
+    }
+)
+
+model <- Classifier()
+```
+
+```{r}
+# 损失函数和优化器
+criterion <- nn_cross_entropy_loss()
+optimizer <- optim_adam(model$parameters, lr = 0.01)
+
+# 训练
+epochs <- 100
+train_losses <- numeric(epochs)
+
+for (epoch in 1:epochs) {
+    # 前向传播
+    outputs <- model(X)
+    loss <- criterion(outputs, y)
+    train_losses[epoch] <- as.numeric(loss)
+    
+    # 反向传播
+    optimizer$zero_grad()
+    loss$backward()
+    optimizer$step()
+    
+    if (epoch %% 20 == 0) {
+        # 计算准确率
+        preds <- outputs$argmax(dim = 2)
+        acc <- mean(as.numeric(preds) == as.numeric(y))
+        cat(sprintf("Epoch %d, Loss: %.4f, Accuracy: %.2f%%\n", 
+                    epoch, as.numeric(loss), acc * 100))
+    }
+}
+```
+
+```{r}
+# 可视化决策边界
+grid_range <- seq(-3, 3, length.out = 100)
+grid <- expand.grid(x1 = grid_range, x2 = grid_range)
+grid_tensor <- torch_tensor(as.matrix(grid))
+
+with_no_grad({
+    grid_preds <- model(grid_tensor)$argmax(dim = 2)
+})
+
+grid$pred <- as.numeric(grid_preds)
+
+ggplot() +
+    geom_tile(data = grid, aes(x = x1, y = x2, fill = factor(pred)), alpha = 0.3) +
+    geom_point(data = data.frame(X_data, class = factor(y_data)), 
+               aes(x = X1, y = X2, color = class), size = 1) +
+    scale_fill_manual(values = c("#dbeafe", "#dcfce7")) +
+    scale_color_manual(values = c("#1e40af", "#166534")) +
+    labs(title = "神经网络分类决策边界", x = "X1", y = "X2") +
+    theme_bw() +
+    theme(legend.position = "none")
+```
+
+
+## 第五部分：dataloader 和批量训练
+
+### 自定义 Dataset
+
+```{r}
+# 创建数据集类
+MyDataset <- dataset(
+    name = "MyDataset",
+    initialize = function(X, y) {
+        self$X <- torch_tensor(X)
+        self$y <- torch_tensor(y, dtype = torch_long())
+    },
+    .getitem = function(index) {
+        list(x = self$X[index, ], y = self$y[index])
+    },
+    .length = function() {
+        self$X$shape[1]
+    }
+)
+
+# 创建数据集
+ds <- MyDataset(X_data, y_data)
+cat("数据集大小:", length(ds), "\n")
+
+# 获取单个样本
+sample <- ds[1]
+cat("样本X形状:", sample$x$shape, "\n")
+```
+
+### 使用 DataLoader
+
+```{r}
+# 创建DataLoader
+dl <- dataloader(ds, batch_size = 32, shuffle = TRUE)
+
+# 迭代一个batch
+batch <- dl$.iter()$.next()
+cat("Batch X形状:", batch$x$shape, "\n")
+cat("Batch y形状:", batch$y$shape, "\n")
+```
+
+
+## 第六部分：模型保存与加载
+
+```{r}
+# 保存模型
+torch_save(model, "model.pt")
+
+# 加载模型
+loaded_model <- torch_load("model.pt")
+
+# 验证
+with_no_grad({
+    orig_pred <- model(X[1:5, ])
+    load_pred <- loaded_model(X[1:5, ])
+})
+
+cat("原始模型预测:\n")
+print(orig_pred)
+cat("\n加载模型预测:\n")
+print(load_pred)
+```
+
+```{r}
+# 清理
+if (file.exists("model.pt")) file.remove("model.pt")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 张量创建 =====
+torch_tensor(data)              # 从R对象
+torch_zeros(shape)              # 全零
+torch_ones(shape)               # 全一
+torch_randn(shape)              # 正态分布
+torch_rand(shape)               # 均匀分布
+
+# ===== 张量操作 =====
+x$shape                         # 形状
+x$reshape(new_shape)            # 重塑
+x$squeeze() / x$unsqueeze(dim)  # 压缩/扩展维度
+torch_cat(list(a, b), dim)      # 拼接
+torch_mm(a, b)                  # 矩阵乘法
+
+# ===== 神经网络 =====
+nn_linear(in, out)              # 全连接
+nn_conv2d(in_ch, out_ch, k)     # 卷积
+nn_relu() / nn_sigmoid()        # 激活
+nn_dropout(p)                   # Dropout
+nn_sequential(...)              # 顺序容器
+
+# ===== 训练流程 =====
+optimizer <- optim_adam(model$parameters, lr = 0.01)
+criterion <- nn_cross_entropy_loss()
+
+optimizer$zero_grad()           # 清零梯度
+loss$backward()                 # 反向传播
+optimizer$step()                # 更新参数
+
+# ===== 保存加载 =====
+torch_save(model, "model.pt")
+model <- torch_load("model.pt")
+```
+
+
+## 小结
+
+torch 的核心工作流程：
+
+1. **数据准备**：创建 Dataset 和 DataLoader
+2. **模型定义**：使用 nn_module 定义网络结构
+3. **训练循环**：前向传播 → 计算损失 → 反向传播 → 更新参数
+4. **评估部署**：保存模型，推理预测
+
+> **技巧**：torch 的动态图机制使得调试非常方便，可以像普通R代码一样使用 print 调试。
+
+
+## 参考资源
+
+- [torch for R 官方文档](https://torch.mlverse.org/)
+- [torch 教程](https://torch.mlverse.org/start/)
+- [Deep Learning with R](https://skeydan.github.io/Deep-Learning-and-Scientific-Computing-with-R-torch/)

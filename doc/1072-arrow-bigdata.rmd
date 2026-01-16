@@ -1,0 +1,400 @@
+---
+title: "arrow 大数据高效处理"
+date: "2026-01-16"
+description: "arrow 包提供 Parquet 读写、内存外计算、dplyr 后端集成，是 R 处理大规模数据的必备工具。"
+categories: [实用R包, 数据处理, 大数据]
+image: "images/arrow-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## arrow 简介
+
+**arrow** 是 Apache Arrow 项目的 R 接口，提供了高效的大数据处理能力。它支持 Parquet 等列式存储格式，实现内存外计算，并与 dplyr 无缝集成。
+
+### 为什么使用 arrow？
+
+| 传统方式 | arrow 方式 |
+|----------|-----------|
+| CSV 读写慢 | Parquet 高速读写 |
+| 全部加载内存 | 内存外懒计算 |
+| 单语言使用 | 跨语言互操作 |
+| 数据类型丢失 | 保留完整类型 |
+
+### 核心优势
+
+1. **Parquet 格式**：列式存储，高压缩比，快速查询
+2. **零拷贝**：跨语言共享数据无需复制
+3. **惰性求值**：只计算需要的部分
+4. **dplyr 后端**：熟悉的语法处理大数据
+
+## 安装与加载
+
+```{r}
+library(arrow)
+library(dplyr)
+library(ggplot2)
+
+set.seed(42)
+```
+
+
+## 第一部分：Parquet 文件操作
+
+### 写入 Parquet
+
+```{r}
+# 创建示例数据
+n <- 100000
+data <- data.frame(
+    id = 1:n,
+    category = sample(LETTERS[1:5], n, replace = TRUE),
+    value = rnorm(n, 100, 15),
+    date = seq.Date(as.Date("2020-01-01"), by = "day", length.out = n)
+)
+
+# 写入 Parquet
+write_parquet(data, "example.parquet")
+
+# 查看文件大小
+parquet_size <- file.info("example.parquet")$size
+cat("Parquet 文件大小:", round(parquet_size / 1024 / 1024, 2), "MB\n")
+cat("（相比CSV通常压缩5-10倍）\n")
+```
+
+### 读取 Parquet
+
+```{r}
+# 完整读取
+df <- read_parquet("example.parquet")
+cat("读取行数:", nrow(df), "\n")
+
+# 只读取特定列
+df_subset <- read_parquet("example.parquet",
+    col_select = c("id", "category", "value")
+)
+cat("子集列数:", ncol(df_subset), "\n")
+```
+
+### Parquet 元数据
+
+```{r}
+# 查看 schema
+schema <- open_dataset("example.parquet")$schema
+print(schema)
+```
+
+
+## 第二部分：内存外计算
+
+### 使用 open_dataset
+
+```{r}
+# 打开数据集（不加载到内存）
+ds <- open_dataset("example.parquet")
+cat("数据集类型:", class(ds)[1], "\n")
+
+# 使用 dplyr 语法查询
+result <- ds %>%
+    filter(category == "A") %>%
+    group_by(category) %>%
+    summarise(
+        n = n(),
+        mean_value = mean(value),
+        .groups = "drop"
+    ) %>%
+    collect() # 只在最后才加载到内存
+
+print(result)
+```
+
+### 惰性求值
+
+```{r}
+# 构建查询（不执行）
+query <- ds %>%
+    filter(value > 100) %>%
+    mutate(value_squared = value^2) %>%
+    arrange(desc(value))
+
+# 查看执行计划
+cat("这是惰性查询，尚未执行\n")
+cat("类型:", class(query)[1], "\n")
+
+# 执行查询
+result <- query %>%
+    head(5) %>%
+    collect()
+
+print(result)
+```
+
+
+## 第三部分：分区数据集
+
+### 写入分区数据
+
+```{r}
+# 按 category 分区写入
+write_dataset(
+    data,
+    "partitioned_data",
+    partitioning = "category"
+)
+
+# 查看目录结构
+list.files("partitioned_data", recursive = TRUE)
+```
+
+### 读取分区数据
+
+```{r}
+# 自动识别分区
+ds_partitioned <- open_dataset("partitioned_data")
+
+# 分区裁剪：只扫描需要的分区
+result <- ds_partitioned %>%
+    filter(category == "A") %>% # 只读取 A 分区
+    summarise(mean_value = mean(value)) %>%
+    collect()
+
+cat("A 类别平均值:", round(result$mean_value, 2), "\n")
+```
+
+
+## 第四部分：与 dplyr 深度集成
+
+### 完整的 dplyr 管道
+
+```{r}
+# 复杂查询
+analysis <- ds %>%
+    filter(value > 80) %>%
+    mutate(
+        year = year(date),
+        month = month(date),
+        value_group = case_when(
+            value > 120 ~ "高",
+            value > 100 ~ "中",
+            TRUE ~ "低"
+        )
+    ) %>%
+    group_by(category, value_group) %>%
+    summarise(
+        count = n(),
+        mean_val = mean(value),
+        sd_val = sd(value),
+        .groups = "drop"
+    ) %>%
+    arrange(category, desc(count)) %>%
+    collect()
+
+print(analysis)
+```
+
+### 可视化大数据汇总
+
+```{r}
+# 从 Arrow 直接汇总后可视化
+monthly_trend <- ds %>%
+    mutate(
+        year_month = floor_date(date, "month")
+    ) %>%
+    group_by(year_month, category) %>%
+    summarise(mean_value = mean(value), .groups = "drop") %>%
+    collect()
+
+ggplot(monthly_trend, aes(x = year_month, y = mean_value, color = category)) +
+    geom_line(linewidth = 0.8) +
+    labs(
+        title = "月度趋势（从Parquet数据集计算）",
+        x = "月份", y = "平均值", color = "类别"
+    ) +
+    theme_bw()
+```
+
+
+## 第五部分：跨语言互操作
+
+### Arrow 与 Python 共享数据
+
+```{r eval=FALSE}
+# R 中写入 Arrow 格式
+write_feather(data, "shared_data.arrow")
+
+# Python 中可以直接读取（零拷贝）
+# import pyarrow.feather as feather
+# df = feather.read_feather("shared_data.arrow")
+```
+
+### IPC 格式
+
+```{r}
+# Arrow IPC 格式（用于进程间通信）
+write_ipc_file(data, "data.arrow")
+
+# 读取
+df_ipc <- read_ipc_file("data.arrow")
+cat("IPC 读取行数:", nrow(df_ipc), "\n")
+```
+
+
+## 第六部分：性能优化
+
+### 列选择
+
+```{r}
+# 只读取需要的列
+system.time({
+    result <- read_parquet("example.parquet",
+        col_select = c("id", "value")
+    )
+})
+```
+
+### 行过滤下推
+
+```{r}
+# 过滤条件下推到存储层
+system.time({
+    result <- ds %>%
+        filter(category == "A", value > 100) %>%
+        collect()
+})
+cat("过滤后行数:", nrow(result), "\n")
+```
+
+### 并行读取
+
+```{r}
+# Arrow 自动使用多线程
+arrow::set_cpu_count(4) # 设置线程数
+cat("当前 CPU 线程数:", arrow::cpu_count(), "\n")
+```
+
+
+## 第七部分：实战案例
+
+### 大规模数据分析
+
+```{r}
+# 模拟大规模医疗数据
+n_large <- 500000
+
+large_data <- data.frame(
+    patient_id = 1:n_large,
+    age = sample(18:90, n_large, replace = TRUE),
+    gender = sample(c("M", "F"), n_large, replace = TRUE),
+    diagnosis = sample(c("A", "B", "C", "D"), n_large, replace = TRUE),
+    cost = rexp(n_large, 1 / 5000),
+    visit_date = sample(
+        seq.Date(as.Date("2020-01-01"),
+            as.Date("2025-12-31"),
+            by = "day"
+        ),
+        n_large,
+        replace = TRUE
+    )
+)
+
+# 写入分区 Parquet
+write_dataset(
+    large_data,
+    "healthcare_data",
+    partitioning = c("diagnosis")
+)
+
+cat("数据已写入分区目录\n")
+```
+
+```{r}
+# 高效分析
+healthcare_ds <- open_dataset("healthcare_data")
+
+# 复杂聚合查询
+analysis_result <- healthcare_ds %>%
+    mutate(age_group = case_when(
+        age < 30 ~ "18-29",
+        age < 50 ~ "30-49",
+        age < 70 ~ "50-69",
+        TRUE ~ "70+"
+    )) %>%
+    group_by(diagnosis, gender, age_group) %>%
+    summarise(
+        patient_count = n(),
+        avg_cost = mean(cost),
+        total_cost = sum(cost),
+        .groups = "drop"
+    ) %>%
+    arrange(diagnosis, desc(patient_count)) %>%
+    collect()
+
+head(analysis_result, 10)
+```
+
+
+## 清理
+
+```{r}
+# 删除临时文件
+unlink("example.parquet")
+unlink("data.arrow")
+unlink("partitioned_data", recursive = TRUE)
+unlink("healthcare_data", recursive = TRUE)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 读写 Parquet =====
+read_parquet("file.parquet")
+write_parquet(df, "file.parquet")
+
+read_parquet("file.parquet", col_select = c("a", "b"))
+
+# ===== 数据集操作 =====
+ds <- open_dataset("path/")
+ds %>%
+    filter() %>%
+    select() %>%
+    collect()
+
+# ===== 分区写入 =====
+write_dataset(df, "path/", partitioning = c("col1", "col2"))
+
+# ===== 跨语言 =====
+write_feather(df, "file.arrow") # Arrow IPC
+read_feather("file.arrow")
+
+# ===== 性能 =====
+arrow::set_cpu_count(n)
+arrow::cpu_count()
+```
+
+
+## 小结
+
+arrow 的核心使用场景：
+
+1. **大文件读写**：用 Parquet 替代 CSV
+2. **内存不足**：使用 open_dataset 惰性计算
+3. **分区数据**：自动分区裁剪加速查询
+4. **跨语言**：R/Python/Spark 数据共享
+
+> **最佳实践**：对于 >100MB 的数据，优先使用 Parquet 格式存储。
+
+
+## 参考资源
+
+- [arrow R包文档](https://arrow.apache.org/docs/r/)
+- [Apache Arrow 官网](https://arrow.apache.org/)
+- [Arrow with dplyr](https://arrow.apache.org/docs/r/articles/arrow.html)

@@ -1,0 +1,339 @@
+---
+title: "IPW 倒概率加权因果推断"
+date: "2026-01-16"
+description: "倒概率加权（IPW/IPTW）是因果推断的核心方法，通过加权创建伪随机化，与PSM互补。"
+categories: [R语言方法, 因果推断, 倒概率加权]
+image: "images/ipw-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## IPW 简介
+
+**倒概率加权（Inverse Probability Weighting, IPW）** 是因果推断中创建伪随机化的关键技术。通过根据倾向性得分对观测值加权，使处理组和对照组在协变量上可比。
+
+### IPW vs PSM
+
+| 特点 | PSM匹配 | IPW加权 |
+|------|---------|---------|
+| 样本使用 | 丢弃未匹配样本 | 保留全部样本 |
+| 统计效率 | 较低 | 较高 |
+| 极端值处理 | 自动排除 | 需权重修剪 |
+| 估计类型 | ATT | ATE/ATT可选 |
+
+### 核心思想
+
+- 处理概率低的人接受处理 → 代表更多同类人 → 权重高
+- 处理概率高的人接受处理 → 代表较少同类人 → 权重低
+
+## 安装与加载
+
+```{r}
+library(WeightIt)
+library(cobalt)
+library(survey)
+library(ggplot2)
+library(dplyr)
+
+set.seed(42)
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：数据模拟
+
+```{r}
+# 模拟观察性研究数据
+n <- 1000
+
+# 协变量
+age <- rnorm(n, 50, 10)
+female <- rbinom(n, 1, 0.5)
+comorbidity <- rbinom(n, 1, 0.3)
+severity <- rnorm(n, 0, 1)
+
+# 治疗分配（非随机）
+ps_true <- plogis(-2 + 0.03 * age + 0.5 * female - 0.8 * comorbidity + 0.6 * severity)
+treatment <- rbinom(n, 1, ps_true)
+
+# 结局（有因果效应）
+y0 <- 50 + 0.3 * age - 5 * comorbidity + 2 * severity + rnorm(n, 0, 5)
+y1 <- y0 + 10 # 真实治疗效应 = 10
+outcome <- ifelse(treatment == 1, y1, y0)
+
+data <- data.frame(
+    age, female, comorbidity, severity, treatment, outcome
+)
+
+cat("治疗组比例:", mean(treatment), "\n")
+cat("真实ATE: 10\n")
+```
+
+
+## 第二部分：估计倾向性得分
+
+```{r}
+# 拟合倾向性得分模型
+ps_model <- glm(treatment ~ age + female + comorbidity + severity,
+    data = data, family = binomial
+)
+
+data$ps <- predict(ps_model, type = "response")
+
+# 可视化
+ggplot(data, aes(x = ps, fill = factor(treatment))) +
+    geom_density(alpha = 0.6) +
+    scale_fill_manual(
+        values = c("#3b82f6", "#dc2626"),
+        labels = c("对照组", "治疗组")
+    ) +
+    labs(
+        title = "倾向性得分分布",
+        x = "倾向性得分", y = "密度", fill = "组别"
+    )
+```
+
+
+## 第三部分：计算IPW权重
+
+### ATE权重
+
+```{r}
+# ATE: 估计总体平均效应
+data$ipw_ate <- ifelse(data$treatment == 1,
+    1 / data$ps,
+    1 / (1 - data$ps)
+)
+
+# 查看权重分布
+summary(data$ipw_ate)
+```
+
+### ATT权重
+
+```{r}
+# ATT: 估计治疗组的效应
+data$ipw_att <- ifelse(data$treatment == 1,
+    1,
+    data$ps / (1 - data$ps)
+)
+
+summary(data$ipw_att)
+```
+
+### 权重修剪
+
+```{r}
+# 极端权重可能导致不稳定
+# 修剪到99百分位
+threshold <- quantile(data$ipw_ate, 0.99)
+data$ipw_trimmed <- pmin(data$ipw_ate, threshold)
+
+cat("修剪前最大权重:", max(data$ipw_ate), "\n")
+cat("修剪后最大权重:", max(data$ipw_trimmed), "\n")
+```
+
+
+## 第四部分：使用 WeightIt 包
+
+```{r}
+# WeightIt 简化权重计算
+W <- weightit(treatment ~ age + female + comorbidity + severity,
+    data = data, method = "ps", estimand = "ATE"
+)
+
+summary(W)
+```
+
+### 平衡检验
+
+```{r}
+# cobalt包检查平衡
+bal.tab(W, stats = c("m", "v"), thresholds = c(m = 0.1))
+```
+
+```{r}
+# 可视化平衡
+love.plot(W, thresholds = c(m = 0.1))
+```
+
+
+## 第五部分：加权估计因果效应
+
+### 简单加权均值差
+
+```{r}
+# 手动计算
+weighted_mean_treat <- weighted.mean(
+    data$outcome[data$treatment == 1],
+    data$ipw_ate[data$treatment == 1]
+)
+weighted_mean_control <- weighted.mean(
+    data$outcome[data$treatment == 0],
+    data$ipw_ate[data$treatment == 0]
+)
+
+ate_ipw <- weighted_mean_treat - weighted_mean_control
+cat("IPW估计的ATE:", round(ate_ipw, 2), "\n")
+cat("真实ATE: 10\n")
+```
+
+### 使用survey包
+
+```{r}
+# 创建加权设计
+design <- svydesign(ids = ~1, weights = ~ipw_ate, data = data)
+
+# 加权回归
+model_weighted <- svyglm(outcome ~ treatment, design = design)
+summary(model_weighted)
+```
+
+### 双稳健估计
+
+```{r}
+# 结合IPW和结局回归
+model_dr <- svyglm(outcome ~ treatment + age + female + comorbidity + severity,
+    design = design
+)
+summary(model_dr)
+```
+
+
+## 第六部分：边际结构模型
+
+边际结构模型（MSM）用于处理时变处理和时变混杂。
+
+```{r}
+# 简化示例：稳定权重
+# 稳定权重 = P(A) / P(A|X)
+p_treat <- mean(data$treatment)
+data$sw <- ifelse(data$treatment == 1,
+    p_treat / data$ps,
+    (1 - p_treat) / (1 - data$ps)
+)
+
+summary(data$sw)
+```
+
+```{r}
+# 使用稳定权重
+design_sw <- svydesign(ids = ~1, weights = ~sw, data = data)
+msm_fit <- svyglm(outcome ~ treatment, design = design_sw)
+summary(msm_fit)
+```
+
+
+## 第七部分：实战案例
+
+### 药物治疗效果评估
+
+```{r}
+# 模拟药物研究
+n <- 2000
+
+# 患者特征
+age <- round(rnorm(n, 60, 12))
+diabetes <- rbinom(n, 1, 0.25)
+hypertension <- rbinom(n, 1, 0.4)
+previous_event <- rbinom(n, 1, 0.15)
+ldl <- rnorm(n, 130, 30)
+
+# 药物分配（医生偏好 + 患者特征）
+ps <- plogis(-1 + 0.02 * age + 0.5 * diabetes + 0.3 * hypertension +
+    0.8 * previous_event + 0.01 * ldl)
+drug <- rbinom(n, 1, ps)
+
+# 心血管事件风险
+baseline_risk <- plogis(-3 + 0.03 * age + 0.5 * diabetes + 0.4 * hypertension +
+    previous_event + 0.01 * ldl)
+# 药物降低风险
+drug_effect <- -0.3
+event_prob <- plogis(qlogis(baseline_risk) + drug_effect * drug)
+cv_event <- rbinom(n, 1, event_prob)
+
+drug_data <- data.frame(age, diabetes, hypertension, previous_event, ldl, drug, cv_event)
+
+cat("药物使用率:", mean(drug), "\n")
+cat("事件发生率:", mean(cv_event), "\n")
+```
+
+```{r}
+# IPW分析
+W_drug <- weightit(drug ~ age + diabetes + hypertension + previous_event + ldl,
+    data = drug_data, method = "ps", estimand = "ATE"
+)
+
+# 检查平衡
+bal.tab(W_drug, stats = "m", thresholds = c(m = 0.1))
+```
+
+```{r}
+# 加权logistic回归
+drug_data$weights <- W_drug$weights
+design_drug <- svydesign(ids = ~1, weights = ~weights, data = drug_data)
+
+drug_effect_model <- svyglm(cv_event ~ drug, design = design_drug, family = quasibinomial)
+summary(drug_effect_model)
+
+# 计算风险比
+or <- exp(coef(drug_effect_model)["drug"])
+cat("\n药物的OR:", round(or, 3), "\n")
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== WeightIt =====
+library(WeightIt)
+
+# ATE权重
+W <- weightit(treat ~ x1 + x2, data = df, method = "ps", estimand = "ATE")
+
+# ATT权重
+W <- weightit(treat ~ x1 + x2, data = df, method = "ps", estimand = "ATT")
+
+# ===== 平衡检验 =====
+library(cobalt)
+bal.tab(W)
+love.plot(W)
+
+# ===== 加权分析 =====
+library(survey)
+design <- svydesign(ids = ~1, weights = ~weights, data = df)
+svyglm(y ~ treat, design = design)
+
+# ===== 权重类型 =====
+# ATE: 1/ps 和 1/(1-ps)
+# ATT: 1 和 ps/(1-ps)
+# 稳定权重: P(A)/P(A|X)
+```
+
+
+## 小结
+
+IPW的核心工作流程：
+
+1. **估计倾向性得分**：通过logistic回归
+2. **计算权重**：根据估计目标选择ATE/ATT
+3. **检查平衡**：使用cobalt包验证
+4. **加权分析**：使用survey包进行推断
+5. **敏感性分析**：检查权重极端值和模型设定
+
+> **关键**：平衡检验是IPW成功的核心，权重修剪可提高稳健性。
+
+
+## 参考资源
+
+- [WeightIt包文档](https://cran.r-project.org/package=WeightIt)
+- [cobalt包文档](https://cran.r-project.org/package=cobalt)
+- Hernán & Robins. Causal Inference: What If. Chapter 12.

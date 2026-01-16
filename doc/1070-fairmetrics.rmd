@@ -1,0 +1,383 @@
+---
+title: "fairmetrics 机器学习公平性评估"
+date: "2026-01-16"
+categories: [R语言方法, 机器学习, 公平性]
+image: "images/fairmetrics-cover.svg"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5
+)
+```
+
+## 机器学习公平性简介
+
+随着AI在医疗诊断、信贷审批、司法判决等高风险领域的广泛应用，**算法公平性**成为关键议题。模型可能无意中对特定群体产生歧视性预测。
+
+### 为什么需要公平性评估？
+
+| 应用场景 | 潜在偏见风险 |
+|----------|-------------|
+| 医疗AI诊断 | 对少数族裔诊断准确率低 |
+| 信贷评分 | 对女性/低收入群体不公 |
+| 招聘筛选 | 性别/年龄歧视 |
+| 司法风险评估 | 种族偏见 |
+
+### 公平性定义
+
+**群体公平性（Group Fairness）**：
+- **统计均等**：不同群体的预测阳性率相同
+- **机会均等**：不同群体的真阳性率相同
+- **预测均等**：不同群体的假阳性率相同
+
+## 安装与加载
+
+```{r}
+# fairmetrics是2025年新包
+# install.packages("fairmetrics")
+library(dplyr)
+library(ggplot2)
+library(caret)
+
+set.seed(42)
+theme_set(theme_bw(base_size = 12))
+```
+
+
+## 第一部分：模拟数据准备
+
+```{r}
+# 模拟医疗数据：预测糖尿病风险
+n <- 2000
+
+# 敏感属性：性别 (0=女性, 1=男性)
+gender <- sample(c(0, 1), n, replace = TRUE, prob = c(0.45, 0.55))
+
+# 特征
+age <- rnorm(n, 50, 12)
+bmi <- rnorm(n, 27, 5)
+blood_pressure <- rnorm(n, 130, 18)
+glucose <- rnorm(n, 110, 30)
+
+# 真实标签（有意引入性别偏差）
+prob <- plogis(-4 + 0.03 * age + 0.08 * bmi + 0.01 * blood_pressure +
+    0.02 * glucose + 0.3 * gender) # 男性风险更高
+outcome <- rbinom(n, 1, prob)
+
+data <- data.frame(
+    gender = factor(gender, labels = c("Female", "Male")),
+    age, bmi, blood_pressure, glucose, outcome
+)
+
+cat("数据概览:\n")
+cat("样本量:", n, "\n")
+cat("女性比例:", mean(gender == 0), "\n")
+cat("总体阳性率:", mean(outcome), "\n")
+cat("女性阳性率:", mean(outcome[gender == 0]), "\n")
+cat("男性阳性率:", mean(outcome[gender == 1]), "\n")
+```
+
+
+## 第二部分：训练预测模型
+
+```{r}
+# 数据分割
+train_idx <- sample(1:n, 0.7 * n)
+train_data <- data[train_idx, ]
+test_data <- data[-train_idx, ]
+
+# 训练逻辑回归（故意不包含gender作为特征，但偏差可能通过其他特征传递）
+model <- glm(outcome ~ age + bmi + blood_pressure + glucose,
+    data = train_data, family = binomial
+)
+
+# 预测
+test_data$pred_prob <- predict(model, test_data, type = "response")
+test_data$pred_class <- ifelse(test_data$pred_prob > 0.5, 1, 0)
+
+# 整体性能
+cat("\n整体准确率:", mean(test_data$pred_class == test_data$outcome), "\n")
+```
+
+
+## 第三部分：公平性指标计算
+
+### 分组性能
+
+```{r}
+# 按性别分组计算指标
+fairness_by_group <- test_data %>%
+    group_by(gender) %>%
+    summarise(
+        n = n(),
+        prevalence = mean(outcome),
+        pred_positive_rate = mean(pred_class),
+        accuracy = mean(pred_class == outcome),
+        tpr = sum(pred_class == 1 & outcome == 1) / sum(outcome == 1), # 真阳性率
+        fpr = sum(pred_class == 1 & outcome == 0) / sum(outcome == 0), # 假阳性率
+        ppv = sum(pred_class == 1 & outcome == 1) / sum(pred_class == 1), # 精确率
+        .groups = "drop"
+    )
+
+print(fairness_by_group)
+```
+
+### 公平性差距
+
+```{r}
+# 计算公平性差距
+female_metrics <- fairness_by_group %>% filter(gender == "Female")
+male_metrics <- fairness_by_group %>% filter(gender == "Male")
+
+fairness_gaps <- data.frame(
+    Metric = c("预测阳性率差距", "准确率差距", "真阳性率差距", "假阳性率差距"),
+    Gap = c(
+        abs(female_metrics$pred_positive_rate - male_metrics$pred_positive_rate),
+        abs(female_metrics$accuracy - male_metrics$accuracy),
+        abs(female_metrics$tpr - male_metrics$tpr),
+        abs(female_metrics$fpr - male_metrics$fpr)
+    )
+)
+
+fairness_gaps$Status <- ifelse(fairness_gaps$Gap < 0.1, "✓ 公平", "⚠ 需关注")
+print(fairness_gaps)
+```
+
+
+## 第四部分：公平性可视化
+
+### 指标对比图
+
+```{r}
+# 准备可视化数据
+viz_data <- fairness_by_group %>%
+    tidyr::pivot_longer(
+        cols = c(pred_positive_rate, accuracy, tpr, fpr),
+        names_to = "Metric",
+        values_to = "Value"
+    ) %>%
+    mutate(Metric = case_when(
+        Metric == "pred_positive_rate" ~ "预测阳性率",
+        Metric == "accuracy" ~ "准确率",
+        Metric == "tpr" ~ "真阳性率(TPR)",
+        Metric == "fpr" ~ "假阳性率(FPR)"
+    ))
+
+ggplot(viz_data, aes(x = Metric, y = Value, fill = gender)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    geom_hline(yintercept = 0, color = "gray50") +
+    scale_fill_manual(values = c("Female" = "#ec4899", "Male" = "#3b82f6")) +
+    labs(
+        title = "模型公平性指标对比",
+        subtitle = "按性别分组",
+        x = "", y = "指标值", fill = "性别"
+    ) +
+    theme(axis.text.x = element_text(angle = 15, hjust = 1))
+```
+
+### 校准曲线对比
+
+```{r}
+# 按性别的校准曲线
+calibration_data <- test_data %>%
+    mutate(prob_bin = cut(pred_prob, breaks = seq(0, 1, 0.1), include.lowest = TRUE)) %>%
+    group_by(gender, prob_bin) %>%
+    summarise(
+        mean_pred = mean(pred_prob),
+        mean_actual = mean(outcome),
+        n = n(),
+        .groups = "drop"
+    ) %>%
+    filter(n >= 5)
+
+ggplot(calibration_data, aes(x = mean_pred, y = mean_actual, color = gender)) +
+    geom_point(aes(size = n), alpha = 0.7) +
+    geom_line() +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray50") +
+    scale_color_manual(values = c("Female" = "#ec4899", "Male" = "#3b82f6")) +
+    scale_size_continuous(range = c(2, 8)) +
+    labs(
+        title = "按性别的模型校准曲线",
+        subtitle = "理想情况下应沿对角线",
+        x = "预测概率", y = "实际阳性率", color = "性别", size = "样本量"
+    ) +
+    coord_equal(xlim = c(0, 1), ylim = c(0, 1))
+```
+
+
+## 第五部分：正式公平性指标
+
+### 统计均等（Statistical Parity）
+
+```{r}
+# 统计均等：不同群体的预测阳性率应相同
+stat_parity <- test_data %>%
+    group_by(gender) %>%
+    summarise(positive_rate = mean(pred_class), .groups = "drop")
+
+sp_ratio <- min(stat_parity$positive_rate) / max(stat_parity$positive_rate)
+cat("统计均等比率:", round(sp_ratio, 3), "\n")
+cat("判断:", ifelse(sp_ratio >= 0.8, "满足80%规则", "可能存在歧视"), "\n")
+```
+
+### 机会均等（Equal Opportunity）
+
+```{r}
+# 机会均等：不同群体的真阳性率应相同
+equal_opp <- test_data %>%
+    filter(outcome == 1) %>%
+    group_by(gender) %>%
+    summarise(tpr = mean(pred_class), .groups = "drop")
+
+eo_ratio <- min(equal_opp$tpr) / max(equal_opp$tpr)
+cat("机会均等比率:", round(eo_ratio, 3), "\n")
+cat("判断:", ifelse(eo_ratio >= 0.8, "基本公平", "需要关注"), "\n")
+```
+
+### 预测均等（Predictive Equality）
+
+```{r}
+# 预测均等：不同群体的假阳性率应相同
+pred_eq <- test_data %>%
+    filter(outcome == 0) %>%
+    group_by(gender) %>%
+    summarise(fpr = mean(pred_class), .groups = "drop")
+
+pe_ratio <- min(pred_eq$fpr) / max(pred_eq$fpr)
+cat("预测均等比率:", round(pe_ratio, 3), "\n")
+cat("判断:", ifelse(pe_ratio >= 0.8, "基本公平", "需要关注"), "\n")
+```
+
+
+## 第六部分：公平性改进策略
+
+### 策略1：阈值调整
+
+```{r}
+# 为不同群体使用不同阈值以达到公平
+find_threshold <- function(data, target_rate) {
+    thresholds <- seq(0.1, 0.9, 0.01)
+    rates <- sapply(thresholds, function(t) mean(data$pred_prob > t))
+    thresholds[which.min(abs(rates - target_rate))]
+}
+
+# 目标：统一预测阳性率为0.3
+target_rate <- 0.3
+
+female_data <- test_data %>% filter(gender == "Female")
+male_data <- test_data %>% filter(gender == "Male")
+
+female_threshold <- find_threshold(female_data, target_rate)
+male_threshold <- find_threshold(male_data, target_rate)
+
+cat("女性阈值:", female_threshold, "\n")
+cat("男性阈值:", male_threshold, "\n")
+
+# 应用差异化阈值
+test_data$fair_pred <- ifelse(
+    test_data$gender == "Female",
+    ifelse(test_data$pred_prob > female_threshold, 1, 0),
+    ifelse(test_data$pred_prob > male_threshold, 1, 0)
+)
+
+# 验证公平性
+fair_rates <- test_data %>%
+    group_by(gender) %>%
+    summarise(rate = mean(fair_pred), .groups = "drop")
+print(fair_rates)
+```
+
+### 策略2：重采样
+
+```{r}
+# 对训练数据进行重采样以平衡群体
+# 上采样少数群体的正例
+train_balanced <- train_data %>%
+    group_by(gender, outcome) %>%
+    slice_sample(n = 200, replace = TRUE) %>%
+    ungroup()
+
+cat("平衡后训练集分布:\n")
+print(table(train_balanced$gender, train_balanced$outcome))
+```
+
+
+## 第七部分：公平性报告模板
+
+```{r}
+# 生成公平性报告
+generate_fairness_report <- function(data, pred_col, outcome_col, protected_col) {
+    results <- data %>%
+        group_by(!!sym(protected_col)) %>%
+        summarise(
+            N = n(),
+            Prevalence = mean(!!sym(outcome_col)),
+            Pred_Positive_Rate = mean(!!sym(pred_col)),
+            Accuracy = mean(!!sym(pred_col) == !!sym(outcome_col)),
+            TPR = sum(!!sym(pred_col) == 1 & !!sym(outcome_col) == 1) /
+                sum(!!sym(outcome_col) == 1),
+            FPR = sum(!!sym(pred_col) == 1 & !!sym(outcome_col) == 0) /
+                sum(!!sym(outcome_col) == 0),
+            .groups = "drop"
+        )
+
+    results
+}
+
+report <- generate_fairness_report(test_data, "pred_class", "outcome", "gender")
+cat("\n=== 公平性评估报告 ===\n\n")
+print(report)
+```
+
+
+## 常用代码速查
+
+```{r eval=FALSE}
+# ===== 分组指标 =====
+data %>%
+    group_by(protected_attribute) %>%
+    summarise(
+        tpr = sum(pred == 1 & actual == 1) / sum(actual == 1),
+        fpr = sum(pred == 1 & actual == 0) / sum(actual == 0),
+        accuracy = mean(pred == actual)
+    )
+
+# ===== 公平性比率 =====
+# 统计均等：预测阳性率之比
+# 机会均等：TPR之比
+# 预测均等：FPR之比
+
+# ===== 80%规则 =====
+# 如果比率 >= 0.8，通常认为公平
+
+# ===== 阈值调整 =====
+# 为不同群体使用不同分类阈值
+
+# ===== 重采样 =====
+# 平衡训练数据中各群体的分布
+```
+
+
+## 小结
+
+公平性评估关键步骤：
+
+1. **识别敏感属性**：性别、种族、年龄等
+2. **选择公平性定义**：根据应用场景选择
+3. **计算分组指标**：TPR、FPR、准确率等
+4. **评估差距**：使用80%规则或其他标准
+5. **改进模型**：阈值调整、重采样、公平约束
+
+> **注意**：不同公平性定义可能相互冲突，需要根据具体场景权衡。
+
+
+## 参考资源
+
+- [Fairness and Machine Learning](https://fairmlbook.org/)
+- [AI Fairness 360 (IBM)](https://ai-fairness-360.org/)
+- [Google ML Fairness](https://developers.google.com/machine-learning/fairness-overview)
