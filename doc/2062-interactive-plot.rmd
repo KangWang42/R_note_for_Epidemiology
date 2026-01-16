@@ -1,0 +1,195 @@
+---
+title: 交互式可视化进阶：plotly 与 ggiraph
+date: '2026-01-16'
+categories:
+- 数据可视化
+- 其他图形
+- 交互图
+image: images/interactive-plot-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+## 教程概览
+
+交互式图形可以让读者在网页中探索数据细节。本教程聚焦两条高效路线：
+
+- **ggplot2 → plotly**：快速让现有静态图变成交互图
+- **plotly 原生语法**：实现按钮、悬浮提示、动态筛选
+- **ggiraph**：更细粒度的 hover 样式与点击行为
+
+## 安装与加载
+
+```{r eval=FALSE}
+install.packages(c("ggplot2", "dplyr", "plotly", "ggiraph"))
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(ggiraph)
+```
+
+## 数据准备
+
+```{r}
+mtcars_tbl <- mtcars |>
+  tibble::rownames_to_column(var = "model") |>
+  mutate(
+    cyl = factor(cyl),
+    label = paste0(model, " | MPG: ", mpg, " | WT: ", wt)
+  )
+```
+
+## 1. ggplot2 快速升级为交互图
+
+```{r}
+base_plot <- ggplot(mtcars_tbl, aes(x = wt, y = mpg, color = cyl, text = label)) +
+  geom_point(size = 3, alpha = 0.85) +
+  labs(
+    title = "汽车重量与油耗",
+    x = "重量 (1000 lbs)",
+    y = "油耗 (MPG)",
+    color = "气缸数"
+  ) +
+  theme_minimal(base_size = 12)
+
+plotly::ggplotly(base_plot, tooltip = "text")
+```
+
+### 进阶提示
+
+- `tooltip = "text"` 可以精确控制悬浮内容
+- `ggplotly()` 会保留 ggplot2 主题和配色
+
+## 2. plotly 原生语法：多轨迹 + 趋势线
+
+```{r}
+trend_fit <- lm(mpg ~ wt, data = mtcars_tbl)
+trend_line <- mtcars_tbl |>
+  arrange(wt) |>
+  mutate(pred = predict(trend_fit, newdata = mtcars_tbl))
+
+plot_ly(mtcars_tbl,
+  x = ~wt,
+  y = ~mpg,
+  type = "scatter",
+  mode = "markers",
+  color = ~cyl,
+  text = ~label,
+  hovertemplate = "%{text}<extra></extra>"
+) |>
+  add_lines(
+    data = trend_line,
+    x = ~wt,
+    y = ~pred,
+    line = list(color = "#4f46e5", width = 2),
+    name = "回归趋势"
+  ) |>
+  layout(
+    title = "plotly 原生散点图 + 趋势线",
+    xaxis = list(title = "重量 (1000 lbs)"),
+    yaxis = list(title = "油耗 (MPG)"),
+    legend = list(orientation = "h", x = 0.1, y = -0.2)
+  )
+```
+
+## 3. plotly 按钮筛选
+
+```{r}
+plot_buttons <- plot_ly()
+
+cyl_levels <- levels(mtcars_tbl$cyl)
+for (cyl_value in cyl_levels) {
+  cyl_data <- mtcars_tbl |> filter(cyl == cyl_value)
+  plot_buttons <- plot_buttons |>
+    add_markers(
+      data = cyl_data,
+      x = ~wt,
+      y = ~mpg,
+      name = paste0(cyl_value, "缸"),
+      text = ~label,
+      hovertemplate = "%{text}<extra></extra>",
+      visible = cyl_value == cyl_levels[1]
+    )
+}
+
+plot_buttons |>
+  layout(
+    title = "按气缸数筛选",
+    updatemenus = list(
+      list(
+        type = "buttons",
+        direction = "right",
+        x = 0.1,
+        y = 1.15,
+        buttons = lapply(seq_along(cyl_levels), function(i) {
+          list(
+            label = paste0(cyl_levels[i], "缸"),
+            method = "update",
+            args = list(list(visible = seq_along(cyl_levels) == i))
+          )
+        })
+      )
+    )
+  )
+```
+
+## 4. ggiraph：自定义 hover 与点击
+
+```{r}
+interactive_plot <- ggplot(mtcars_tbl, aes(x = wt, y = mpg)) +
+  ggiraph::geom_point_interactive(
+    aes(
+      tooltip = label,
+      data_id = model
+    ),
+    color = "#4f46e5",
+    size = 3,
+    alpha = 0.8
+  ) +
+  labs(
+    title = "ggiraph 交互散点图",
+    x = "重量 (1000 lbs)",
+    y = "油耗 (MPG)"
+  ) +
+  theme_minimal(base_size = 12)
+
+ggiraph::girafe(
+  ggobj = interactive_plot,
+  options = list(
+    ggiraph::opts_hover(css = "fill:#ef4444;stroke:#ef4444;"),
+    ggiraph::opts_selection(type = "single")
+  )
+)
+```
+
+## 5. 导出与分享
+
+```{r eval=FALSE}
+# 保存为独立 HTML
+htmlwidgets::saveWidget(
+  plotly::ggplotly(base_plot, tooltip = "text"),
+  file = "interactive-plot.html",
+  selfcontained = TRUE
+)
+```
+
+## 小结
+
+交互图形的核心思路是：**先用 ggplot2 搭建结构，再用 plotly/ggiraph 赋予互动**。
+
+- `ggplotly()` 快速升级现有图形
+- `plot_ly()` 适合按钮与多轨迹控制
+- `ggiraph` 提供更细致的 hover 样式
+
+下一步可以结合 `crosstalk` 或 `shiny` 实现联动筛选与仪表盘。
