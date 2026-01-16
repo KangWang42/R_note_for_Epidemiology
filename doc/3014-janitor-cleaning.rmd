@@ -1,0 +1,154 @@
+---
+title: janitor 数据清洗实战
+date: '2026-01-16'
+categories:
+  - 实用操作
+  - 数据清洗
+  - janitor
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+## 简介
+
+日常分析中最耗时的步骤往往是“脏数据”清洗。`janitor` 提供了一组轻量函数，专门处理列名规范化、空行空列、重复记录以及快速列联统计等任务。
+
+本教程聚焦最常用的清洗流程，结合 `dplyr` 与 `tidyr`，构建可复用的清洗模板。
+
+## 安装与加载
+
+```{r}
+# install.packages("janitor")
+# install.packages("dplyr")
+# install.packages("tidyr")
+# install.packages("tibble")
+
+library(dplyr)
+library(janitor)
+library(tidyr)
+library(tibble)
+```
+
+## 构造一个“脏数据”示例
+
+```{r}
+raw_tbl <- data.frame(
+  "Patient ID" = c("A001", "A002", "A002", NA),
+  "Age (years)" = c(34, 29, 29, NA),
+  "BMI " = c(22.4, 27.1, 27.1, NA),
+  "smoking?" = c("yes", "no", "no", NA),
+  "Study Site" = c("A", "A", "A", NA),
+  "empty_col" = NA,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+
+raw_tbl <- as_tibble(raw_tbl)
+raw_tbl
+```
+
+这个表包含：
+
+- 非标准列名（空格、括号、标点）
+- 重复记录（患者 A002）
+- 空行与空列
+- 固定值列（Study Site）
+
+## 1. 规范列名
+
+`clean_names()` 可以直接把列名转为 snake_case，并处理重复或不合规字符。
+
+```{r}
+clean_tbl <- raw_tbl %>%
+  clean_names()
+
+clean_tbl
+```
+
+## 2. 删除空行与空列
+
+`remove_empty()` 支持同时清理空行与空列，常用于导入后快速瘦身。
+
+```{r}
+clean_tbl <- clean_tbl %>%
+  remove_empty(which = c("rows", "cols"))
+
+clean_tbl
+```
+
+## 3. 删除恒定列
+
+`remove_constant()` 可以去掉全为常数的列，减少建模噪音。
+
+```{r}
+clean_tbl <- clean_tbl %>%
+  remove_constant(na.rm = TRUE)
+
+clean_tbl
+```
+
+## 4. 快速定位重复记录
+
+`get_dupes()` 可快速标记重复组合，适合做一致性排查。
+
+```{r}
+clean_tbl %>%
+  get_dupes(patient_id)
+```
+
+## 5. 缺失值处理示例
+
+这里用 `tidyr::replace_na()` 补缺。实际场景可结合均值插补、回归插补等策略。
+
+```{r}
+filled_tbl <- clean_tbl %>%
+  replace_na(list(age_years = 0, bmi = 0, smoking = "unknown"))
+
+filled_tbl
+```
+
+## 6. 频数统计与报告表
+
+`tabyl()` 可以生成快速列联表，并搭配 `adorn_` 系列完成比例与格式化输出。
+
+```{r}
+clean_tbl %>%
+  tabyl(smoking) %>%
+  adorn_totals("row") %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting() %>%
+  adorn_ns()
+```
+
+## 7. 建议的清洗流程模板
+
+```{r}
+clean_pipeline <- function(data) {
+  data %>%
+    clean_names() %>%
+    remove_empty(which = c("rows", "cols")) %>%
+    remove_constant(na.rm = TRUE)
+}
+
+clean_pipeline(raw_tbl)
+```
+
+## 小结
+
+- `janitor` 适合用作数据进入分析前的“第一道清洗工序”。
+- 和 `dplyr`/`tidyr` 配合后，可快速形成稳定的清洗流水线。
+- 如果清洗过程需要复用，建议封装成函数并统一管理。
+
+## 参考资料
+
+- janitor 官方文档: <https://sfirke.github.io/janitor/>
+- tidyr tidy data 介绍: <https://tidyr.tidyverse.org/>
+- readr 数据导入基础: <https://readr.tidyverse.org/>

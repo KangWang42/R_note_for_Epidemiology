@@ -25794,5 +25794,174 @@
       "📊 其他图形",
       "漏斗图"
     ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html",
+    "href": "3014-janitor-cleaning.html",
+    "title": "janitor 数据清洗实战",
+    "section": "",
+    "text": "日常分析中最耗时的步骤往往是“脏数据”清洗。janitor 提供了一组轻量函数，专门处理列名规范化、空行空列、重复记录以及快速列联统计等任务。\n本教程聚焦最常用的清洗流程，结合 dplyr 与 tidyr，构建可复用的清洗模板。",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#简介",
+    "href": "3014-janitor-cleaning.html#简介",
+    "title": "janitor 数据清洗实战",
+    "section": "",
+    "text": "日常分析中最耗时的步骤往往是“脏数据”清洗。janitor 提供了一组轻量函数，专门处理列名规范化、空行空列、重复记录以及快速列联统计等任务。\n本教程聚焦最常用的清洗流程，结合 dplyr 与 tidyr，构建可复用的清洗模板。",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#安装与加载",
+    "href": "3014-janitor-cleaning.html#安装与加载",
+    "title": "janitor 数据清洗实战",
+    "section": "安装与加载",
+    "text": "安装与加载\n\n# install.packages(\"janitor\")\n# install.packages(\"dplyr\")\n# install.packages(\"tidyr\")\n# install.packages(\"tibble\")\n\nlibrary(dplyr)\nlibrary(janitor)\nlibrary(tidyr)\nlibrary(tibble)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#构造一个脏数据示例",
+    "href": "3014-janitor-cleaning.html#构造一个脏数据示例",
+    "title": "janitor 数据清洗实战",
+    "section": "构造一个“脏数据”示例",
+    "text": "构造一个“脏数据”示例\n\nraw_tbl &lt;- data.frame(\n  \"Patient ID\" = c(\"A001\", \"A002\", \"A002\", NA),\n  \"Age (years)\" = c(34, 29, 29, NA),\n  \"BMI \" = c(22.4, 27.1, 27.1, NA),\n  \"smoking?\" = c(\"yes\", \"no\", \"no\", NA),\n  \"Study Site\" = c(\"A\", \"A\", \"A\", NA),\n  \"empty_col\" = NA,\n  check.names = FALSE,\n  stringsAsFactors = FALSE\n)\n\nraw_tbl &lt;- as_tibble(raw_tbl)\nraw_tbl\n\n# A tibble: 4 × 6\n  `Patient ID` `Age (years)` `BMI ` `smoking?` `Study Site` empty_col\n  &lt;chr&gt;                &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;      &lt;chr&gt;        &lt;lgl&gt;    \n1 A001                    34   22.4 yes        A            NA       \n2 A002                    29   27.1 no         A            NA       \n3 A002                    29   27.1 no         A            NA       \n4 &lt;NA&gt;                    NA   NA   &lt;NA&gt;       &lt;NA&gt;         NA       \n\n\n这个表包含：\n\n非标准列名（空格、括号、标点）\n重复记录（患者 A002）\n空行与空列\n固定值列（Study Site）",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#规范列名",
+    "href": "3014-janitor-cleaning.html#规范列名",
+    "title": "janitor 数据清洗实战",
+    "section": "1. 规范列名",
+    "text": "1. 规范列名\nclean_names() 可以直接把列名转为 snake_case，并处理重复或不合规字符。\n\nclean_tbl &lt;- raw_tbl %&gt;%\n  clean_names()\n\nclean_tbl\n\n# A tibble: 4 × 6\n  patient_id age_years   bmi smoking study_site empty_col\n  &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;lgl&gt;    \n1 A001              34  22.4 yes     A          NA       \n2 A002              29  27.1 no      A          NA       \n3 A002              29  27.1 no      A          NA       \n4 &lt;NA&gt;              NA  NA   &lt;NA&gt;    &lt;NA&gt;       NA",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#删除空行与空列",
+    "href": "3014-janitor-cleaning.html#删除空行与空列",
+    "title": "janitor 数据清洗实战",
+    "section": "2. 删除空行与空列",
+    "text": "2. 删除空行与空列\nremove_empty() 支持同时清理空行与空列，常用于导入后快速瘦身。\n\nclean_tbl &lt;- clean_tbl %&gt;%\n  remove_empty(which = c(\"rows\", \"cols\"))\n\nclean_tbl\n\n# A tibble: 3 × 5\n  patient_id age_years   bmi smoking study_site\n  &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;     \n1 A001              34  22.4 yes     A         \n2 A002              29  27.1 no      A         \n3 A002              29  27.1 no      A",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#删除恒定列",
+    "href": "3014-janitor-cleaning.html#删除恒定列",
+    "title": "janitor 数据清洗实战",
+    "section": "3. 删除恒定列",
+    "text": "3. 删除恒定列\nremove_constant() 可以去掉全为常数的列，减少建模噪音。\n\nclean_tbl &lt;- clean_tbl %&gt;%\n  remove_constant(na.rm = TRUE)\n\nclean_tbl\n\n# A tibble: 3 × 4\n  patient_id age_years   bmi smoking\n  &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;  \n1 A001              34  22.4 yes    \n2 A002              29  27.1 no     \n3 A002              29  27.1 no",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#快速定位重复记录",
+    "href": "3014-janitor-cleaning.html#快速定位重复记录",
+    "title": "janitor 数据清洗实战",
+    "section": "4. 快速定位重复记录",
+    "text": "4. 快速定位重复记录\nget_dupes() 可快速标记重复组合，适合做一致性排查。\n\nclean_tbl %&gt;%\n  get_dupes(patient_id)\n\n# A tibble: 2 × 5\n  patient_id dupe_count age_years   bmi smoking\n  &lt;chr&gt;           &lt;int&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;  \n1 A002                2        29  27.1 no     \n2 A002                2        29  27.1 no",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#缺失值处理示例",
+    "href": "3014-janitor-cleaning.html#缺失值处理示例",
+    "title": "janitor 数据清洗实战",
+    "section": "5. 缺失值处理示例",
+    "text": "5. 缺失值处理示例\n这里用 tidyr::replace_na() 补缺。实际场景可结合均值插补、回归插补等策略。\n\nfilled_tbl &lt;- clean_tbl %&gt;%\n  replace_na(list(age_years = 0, bmi = 0, smoking = \"unknown\"))\n\nfilled_tbl\n\n# A tibble: 3 × 4\n  patient_id age_years   bmi smoking\n  &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;  \n1 A001              34  22.4 yes    \n2 A002              29  27.1 no     \n3 A002              29  27.1 no",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#频数统计与报告表",
+    "href": "3014-janitor-cleaning.html#频数统计与报告表",
+    "title": "janitor 数据清洗实战",
+    "section": "6. 频数统计与报告表",
+    "text": "6. 频数统计与报告表\ntabyl() 可以生成快速列联表，并搭配 adorn_ 系列完成比例与格式化输出。\n\nclean_tbl %&gt;%\n  tabyl(smoking) %&gt;%\n  adorn_totals(\"row\") %&gt;%\n  adorn_percentages(\"row\") %&gt;%\n  adorn_pct_formatting() %&gt;%\n  adorn_ns()\n\n smoking       n           percent\n      no 0.8 (2) 25.0% (0.6666667)\n     yes 0.8 (1) 25.0% (0.3333333)\n   Total 0.8 (3) 25.0% (1.0000000)",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#建议的清洗流程模板",
+    "href": "3014-janitor-cleaning.html#建议的清洗流程模板",
+    "title": "janitor 数据清洗实战",
+    "section": "7. 建议的清洗流程模板",
+    "text": "7. 建议的清洗流程模板\n\nclean_pipeline &lt;- function(data) {\n  data %&gt;%\n    clean_names() %&gt;%\n    remove_empty(which = c(\"rows\", \"cols\")) %&gt;%\n    remove_constant(na.rm = TRUE)\n}\n\nclean_pipeline(raw_tbl)\n\n# A tibble: 3 × 4\n  patient_id age_years   bmi smoking\n  &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;  \n1 A001              34  22.4 yes    \n2 A002              29  27.1 no     \n3 A002              29  27.1 no",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#小结",
+    "href": "3014-janitor-cleaning.html#小结",
+    "title": "janitor 数据清洗实战",
+    "section": "小结",
+    "text": "小结\n\njanitor 适合用作数据进入分析前的“第一道清洗工序”。\n和 dplyr/tidyr 配合后，可快速形成稳定的清洗流水线。\n如果清洗过程需要复用，建议封装成函数并统一管理。",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
+  },
+  {
+    "objectID": "3014-janitor-cleaning.html#参考资料",
+    "href": "3014-janitor-cleaning.html#参考资料",
+    "title": "janitor 数据清洗实战",
+    "section": "参考资料",
+    "text": "参考资料\n\njanitor 官方文档: https://sfirke.github.io/janitor/\ntidyr tidy data 介绍: https://tidyr.tidyverse.org/\nreadr 数据导入基础: https://readr.tidyverse.org/",
+    "crumbs": [
+      "主页",
+      "实用操作",
+      "🧹 数据清洗",
+      "janitor 数据清洗实战"
+    ]
   }
 ]
