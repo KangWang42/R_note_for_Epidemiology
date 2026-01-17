@@ -101,3 +101,13 @@
 - Prefer targeted edits using existing patterns.
 - Minimize changes to generated output.
 - Ask before making structural changes to navigation or sections.
+
+## Skill Auto-Load Rules
+- 当任务涉及“入门指南/学习路线/基础知识”，先加载 `section-intro-guide`.
+- 当任务涉及“实用 R 包”教程/评测/实践，先加载 `section-r-packages`.
+- 当任务涉及“统计分析方法”，先加载 `section-statistics`.
+- 当任务涉及“机器学习/深度学习/AI”，先加载 `section-ml-ai`.
+- 当任务涉及“数据导入/清洗/转换/文档写作/开发环境”，先加载 `section-operations`.
+- 当任务涉及“数据可视化/图形设计/绘图美化”，先加载 `section-visualization`.
+- 当任务涉及“卫生经济学/质性研究/信号处理等特殊应用”，先加载 `section-special`.
+
