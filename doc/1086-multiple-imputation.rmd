@@ -1,0 +1,171 @@
+---
+title: 多重插补完整教程
+subtitle: "缺失数据的系统处理与稳健推断"
+date: "2026-01-18"
+image: images/1086-multiple-imputation-cover.svg
+categories:
+- 统计分析方法
+- 高级建模
+- 缺失数据
+- multiple imputation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1086-mi-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(mice)
+library(broom)
+```
+
+## 方法背景与适用场景
+
+多重插补（Multiple Imputation, MI）是缺失数据处理中最稳健的方法之一。
+它通过“多次补全数据 + 多次建模 + 汇总结果”，降低单次插补的不确定性。
+
+适合场景：
+
+- 缺失比例中等但不能简单删除样本
+- 需要完整样本量以维持统计效能
+- 对缺失机制较为合理（MCAR/MAR）
+
+## 模型入门与核心概念
+
+多重插补的核心流程是：
+
+1. **插补**：基于已有变量生成多个“完整数据集”
+2. **分析**：在每个完整数据集上独立建模
+3. **汇总**：用 Rubin 法则汇总系数与标准误
+
+它的关键优势是能保留缺失值的不确定性，避免单次插补的过度自信。
+
+## 模型假设与前提
+
+- 缺失机制至少是 MAR（Missing At Random）。
+- 插补模型包含与缺失相关的变量。
+- 每次插补相互独立。
+
+## 数据准备与缺失模式
+
+```{r mi-data}
+set.seed(2026)
+base_data <- tibble::tibble(
+  age = round(rnorm(200, 45, 12), 1),
+  bmi = round(rnorm(200, 24, 4), 1),
+  smoke = sample(c("yes", "no"), 200, replace = TRUE),
+  outcome = rnorm(200, 5, 1.5)
+)
+
+missing_data <- base_data |>
+  mutate(
+    bmi = if_else(runif(200) < 0.2, NA_real_, bmi),
+    outcome = if_else(runif(200) < 0.15, NA_real_, outcome)
+  )
+
+mice::md.pattern(missing_data)
+```
+
+## 分析流程步骤
+
+1. 检查缺失模式并选择插补方法
+2. 执行多重插补
+3. 在每个数据集上拟合模型
+4. 汇总参数与不确定性
+
+## 代码实现
+
+### 1. 多重插补
+
+```{r mi-impute}
+set.seed(2026)
+imp <- mice(
+  missing_data,
+  m = 5,
+  method = "pmm",
+  maxit = 10,
+  seed = 2026
+)
+
+imp
+```
+
+```{r mi-diagnostics}
+plot(imp)
+```
+
+### 2. 在插补数据上建模
+
+```{r mi-model}
+mi_fit <- with(
+  imp,
+  lm(outcome ~ age + bmi + smoke)
+)
+
+mi_fit
+```
+
+### 3. 汇总结果
+
+```{r mi-pool}
+pooled <- pool(mi_fit)
+summary(pooled)
+```
+
+## 结果解读与报告
+
+```{r mi-tidy}
+pooled_summary <- summary(pooled) |>
+  as.data.frame()
+
+pooled_summary
+```
+
+```{r mi-plot}
+pooled_summary |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = estimate, y = term)) +
+  geom_point(size = 3, color = "#2563eb") +
+  geom_errorbarh(aes(xmin = estimate - 1.96 * std.error, xmax = estimate + 1.96 * std.error), height = 0.2) +
+  labs(
+    title = "多重插补后的回归系数",
+    x = "估计值 (95% CI)",
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+**报告建议**
+
+- 报告插补次数 `m` 与插补方法（如 pmm）。
+- 对比完全案例分析与插补分析的差异。
+- 提示缺失机制假设与敏感性分析。
+
+## 常见错误与纠偏
+
+- **插补模型过简单**：缺失相关变量未纳入会偏倚。
+- **m 太小**：不确定性估计不足，建议至少 5-10。
+- **忽视缺失机制**：对 MNAR 需做敏感性分析。
+- **混用数据集**：必须使用 `pool()` 汇总。
+
+## 进阶扩展
+
+- `mice::cart` 与 `mice::rf` 等非参数插补方法。
+- 对分类变量指定合适的插补方法（logreg、polyreg）。
+- 使用 `mice::complete()` 检查插补数据合理性。
+
+## 总结
+
+多重插补是处理缺失数据的标准方法，兼顾效率与稳健性。
+只要合理选择插补模型和变量，就能显著提高推断可信度。

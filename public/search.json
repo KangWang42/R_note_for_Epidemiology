@@ -27159,5 +27159,291 @@
       "🔄 数据处理",
       "tidytable - 高性能数据处理"
     ]
+  },
+  {
+    "objectID": "1085-gee.html",
+    "href": "1085-gee.html",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(tidyr)\nlibrary(ggplot2)\nlibrary(geepack)\nlibrary(broom)",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#方法背景与适用场景",
+    "href": "1085-gee.html#方法背景与适用场景",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "方法背景与适用场景",
+    "text": "方法背景与适用场景\nGEE（广义估计方程）是处理重复测量与相关数据的常用方法。 它不要求完整的随机效应分布假设，而是关注总体平均效应， 适合队列随访、聚类试验、医院/社区分层等“相关观测”场景。\n典型场景包括：\n\n同一受试者多次测量的纵向数据\n同一医院/班级内的聚类数据\n需要稳健标准误的广义线性模型",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#模型入门与核心概念",
+    "href": "1085-gee.html#模型入门与核心概念",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "模型入门与核心概念",
+    "text": "模型入门与核心概念\nGEE 可以理解为“广义线性模型 + 相关结构修正”。 它的核心是：\n\n均值模型：和 GLM 一样，用链接函数描述均值与协变量的关系。\n工作相关结构：描述同一簇（或同一受试者）内部相关性。\n稳健标准误：即使相关结构指定不完全正确，也能得到稳健估计。\n\nGEE 的重点是“总体平均效应”，而不是个体随机效应。 因此它适合关注总体规律、政策效果、群体平均差异的研究。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#模型假设与前提",
+    "href": "1085-gee.html#模型假设与前提",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "模型假设与前提",
+    "text": "模型假设与前提\n\n观测值在簇内相关，簇间独立。\n均值模型指定正确（协变量结构合理）。\n相关结构可以选错，但标准误需要稳健估计。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#数据准备与变量定义",
+    "href": "1085-gee.html#数据准备与变量定义",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "数据准备与变量定义",
+    "text": "数据准备与变量定义\n这里模拟一个随访数据：每位受试者在 4 个时间点测量连续结局。\n\nset.seed(2026)\nsubjects &lt;- 120\nvisits &lt;- 4\n\nlong_data &lt;- tidyr::crossing(\n  subject_id = 1:subjects,\n  time = 1:visits\n) |&gt;\n  mutate(\n    treatment = if_else(subject_id %% 2 == 0, 1, 0),\n    subject_effect = rnorm(subjects)[subject_id],\n    time_effect = 0.4 * time,\n    outcome = 5 + 1.2 * treatment + time_effect + subject_effect + rnorm(n())\n  ) |&gt;\n  select(subject_id, time, treatment, outcome)\n\nlong_data\n\n# A tibble: 480 × 4\n   subject_id  time treatment outcome\n        &lt;int&gt; &lt;int&gt;     &lt;dbl&gt;   &lt;dbl&gt;\n 1          1     1         0    7.83\n 2          1     2         0    8.45\n 3          1     3         0    6.95\n 4          1     4         0    8.02\n 5          2     1         1    3.78\n 6          2     2         1    6.39\n 7          2     3         1    5.78\n 8          2     4         1    6.55\n 9          3     1         0    6.09\n10          3     2         0    6.97\n# ℹ 470 more rows",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#分析流程步骤",
+    "href": "1085-gee.html#分析流程步骤",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "分析流程步骤",
+    "text": "分析流程步骤\n\n建立基线模型（忽略相关性）\n指定工作相关结构并拟合 GEE\n对比独立结构与交换结构\n解读稳健标准误与总体效应",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#代码实现",
+    "href": "1085-gee.html#代码实现",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "代码实现",
+    "text": "代码实现\n\n1. 基线模型（忽略相关）\n\nglm_fit &lt;- glm(outcome ~ treatment + time, data = long_data)\nsummary(glm_fit)\n\n\nCall:\nglm(formula = outcome ~ treatment + time, data = long_data)\n\nCoefficients:\n            Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept)   4.9186     0.1716  28.671  &lt; 2e-16 ***\ntreatment     1.5315     0.1297  11.810  &lt; 2e-16 ***\ntime          0.3635     0.0580   6.267 8.23e-10 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\n(Dispersion parameter for gaussian family taken to be 2.018163)\n\n    Null deviance: 1323.40  on 479  degrees of freedom\nResidual deviance:  962.66  on 477  degrees of freedom\nAIC: 1704.2\n\nNumber of Fisher Scoring iterations: 2\n\n\n\n\n2. GEE：独立相关结构\n\ngee_ind &lt;- geeglm(\n  outcome ~ treatment + time,\n  id = subject_id,\n  data = long_data,\n  family = gaussian,\n  corstr = \"independence\"\n)\n\nsummary(gee_ind)\n\n\nCall:\ngeeglm(formula = outcome ~ treatment + time, family = gaussian, \n    data = long_data, id = subject_id, corstr = \"independence\")\n\n Coefficients:\n            Estimate Std.err   Wald Pr(&gt;|W|)    \n(Intercept)  4.91864 0.18890 677.97  &lt; 2e-16 ***\ntreatment    1.53153 0.20468  55.99 7.29e-14 ***\ntime         0.36347 0.04258  72.87  &lt; 2e-16 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nCorrelation structure = independence \nEstimated Scale Parameters:\n\n            Estimate Std.err\n(Intercept)    2.006  0.1509\nNumber of clusters:   120  Maximum cluster size: 4 \n\n\n\n\n3. GEE：交换相关结构\n\ngee_exch &lt;- geeglm(\n  outcome ~ treatment + time,\n  id = subject_id,\n  data = long_data,\n  family = gaussian,\n  corstr = \"exchangeable\"\n)\n\nsummary(gee_exch)\n\n\nCall:\ngeeglm(formula = outcome ~ treatment + time, family = gaussian, \n    data = long_data, id = subject_id, corstr = \"exchangeable\")\n\n Coefficients:\n            Estimate Std.err  Wald Pr(&gt;|W|)    \n(Intercept)   4.9186  0.1889 678.0  &lt; 2e-16 ***\ntreatment     1.5315  0.2047  56.0  7.3e-14 ***\ntime          0.3635  0.0426  72.9  &lt; 2e-16 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nCorrelation structure = exchangeable \nEstimated Scale Parameters:\n\n            Estimate Std.err\n(Intercept)     2.01   0.151\n  Link = identity \n\nEstimated Correlation Parameters:\n      Estimate Std.err\nalpha    0.502  0.0449\nNumber of clusters:   120  Maximum cluster size: 4",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#结果解读与报告",
+    "href": "1085-gee.html#结果解读与报告",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "结果解读与报告",
+    "text": "结果解读与报告\n\ncomparison &lt;- bind_rows(\n  tidy(glm_fit) |&gt; mutate(model = \"GLM\"),\n  tidy(gee_ind) |&gt; mutate(model = \"GEE (independence)\"),\n  tidy(gee_exch) |&gt; mutate(model = \"GEE (exchangeable)\")\n)\n\ncomparison\n\n# A tibble: 9 × 6\n  term        estimate std.error statistic   p.value model             \n  &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt; &lt;chr&gt;             \n1 (Intercept)    4.92     0.172      28.7  7.79e-106 GLM               \n2 treatment      1.53     0.130      11.8  2.07e- 28 GLM               \n3 time           0.363    0.0580      6.27 8.23e- 10 GLM               \n4 (Intercept)    4.92     0.189     678.   0         GEE (independence)\n5 treatment      1.53     0.205      56.0  7.29e- 14 GEE (independence)\n6 time           0.363    0.0426     72.9  0         GEE (independence)\n7 (Intercept)    4.92     0.189     678.   0         GEE (exchangeable)\n8 treatment      1.53     0.205      56.0  7.29e- 14 GEE (exchangeable)\n9 time           0.363    0.0426     72.9  0         GEE (exchangeable)\n\n\n\ncomparison |&gt;\n  filter(term != \"(Intercept)\") |&gt;\n  ggplot(aes(x = estimate, y = model, color = term)) +\n  geom_point(size = 3) +\n  geom_errorbarh(aes(xmin = estimate - 1.96 * std.error, xmax = estimate + 1.96 * std.error), height = 0.2) +\n  labs(\n    title = \"GEE 与 GLM 参数对比\",\n    x = \"估计值 (95% CI)\",\n    y = NULL\n  ) +\n  theme_minimal(base_size = 12)\n\n\n\n\n\n\n\n\n报告建议\n\n明确说明相关结构（independence/exchangeable）。\n报告稳健标准误与置信区间。\n强调总体平均效应而非个体效应。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#常见错误与纠偏",
+    "href": "1085-gee.html#常见错误与纠偏",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "常见错误与纠偏",
+    "text": "常见错误与纠偏\n\n忽略相关性：直接用 GLM 会低估标准误。\n相关结构乱选：可做敏感性分析对比多个结构。\n簇 ID 错误：id 必须对应簇级别。\n缺失值未处理：应在建模前处理缺失。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#进阶扩展",
+    "href": "1085-gee.html#进阶扩展",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "进阶扩展",
+    "text": "进阶扩展\n\n使用 corstr = \"ar1\" 处理时间序列相关。\n二分类结局使用 family = binomial。\n与混合效应模型比较总体效应差异。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1085-gee.html#总结",
+    "href": "1085-gee.html#总结",
+    "title": "广义估计方程 (GEE) 完整教程",
+    "section": "总结",
+    "text": "总结\nGEE 是处理相关数据的稳健方法，强调总体平均效应。 对于纵向与聚类数据，建议以 GEE 作为基线模型， 并通过不同相关结构进行敏感性分析。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "广义估计方程 (GEE)"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html",
+    "href": "1086-multiple-imputation.html",
+    "title": "多重插补完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(mice)\nlibrary(broom)",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#方法背景与适用场景",
+    "href": "1086-multiple-imputation.html#方法背景与适用场景",
+    "title": "多重插补完整教程",
+    "section": "方法背景与适用场景",
+    "text": "方法背景与适用场景\n多重插补（Multiple Imputation, MI）是缺失数据处理中最稳健的方法之一。 它通过“多次补全数据 + 多次建模 + 汇总结果”，降低单次插补的不确定性。\n适合场景：\n\n缺失比例中等但不能简单删除样本\n需要完整样本量以维持统计效能\n对缺失机制较为合理（MCAR/MAR）",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#模型入门与核心概念",
+    "href": "1086-multiple-imputation.html#模型入门与核心概念",
+    "title": "多重插补完整教程",
+    "section": "模型入门与核心概念",
+    "text": "模型入门与核心概念\n多重插补的核心流程是：\n\n插补：基于已有变量生成多个“完整数据集”\n分析：在每个完整数据集上独立建模\n汇总：用 Rubin 法则汇总系数与标准误\n\n它的关键优势是能保留缺失值的不确定性，避免单次插补的过度自信。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#模型假设与前提",
+    "href": "1086-multiple-imputation.html#模型假设与前提",
+    "title": "多重插补完整教程",
+    "section": "模型假设与前提",
+    "text": "模型假设与前提\n\n缺失机制至少是 MAR（Missing At Random）。\n插补模型包含与缺失相关的变量。\n每次插补相互独立。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#数据准备与缺失模式",
+    "href": "1086-multiple-imputation.html#数据准备与缺失模式",
+    "title": "多重插补完整教程",
+    "section": "数据准备与缺失模式",
+    "text": "数据准备与缺失模式\n\nset.seed(2026)\nbase_data &lt;- tibble::tibble(\n  age = round(rnorm(200, 45, 12), 1),\n  bmi = round(rnorm(200, 24, 4), 1),\n  smoke = sample(c(\"yes\", \"no\"), 200, replace = TRUE),\n  outcome = rnorm(200, 5, 1.5)\n)\n\nmissing_data &lt;- base_data |&gt;\n  mutate(\n    bmi = if_else(runif(200) &lt; 0.2, NA_real_, bmi),\n    outcome = if_else(runif(200) &lt; 0.15, NA_real_, outcome)\n  )\n\nmice::md.pattern(missing_data)\n\n\n\n\n\n\n\n\n    age smoke outcome bmi   \n141   1     1       1   1  0\n31    1     1       1   0  1\n20    1     1       0   1  1\n8     1     1       0   0  2\n      0     0      28  39 67",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#分析流程步骤",
+    "href": "1086-multiple-imputation.html#分析流程步骤",
+    "title": "多重插补完整教程",
+    "section": "分析流程步骤",
+    "text": "分析流程步骤\n\n检查缺失模式并选择插补方法\n执行多重插补\n在每个数据集上拟合模型\n汇总参数与不确定性",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#代码实现",
+    "href": "1086-multiple-imputation.html#代码实现",
+    "title": "多重插补完整教程",
+    "section": "代码实现",
+    "text": "代码实现\n\n1. 多重插补\n\nset.seed(2026)\nimp &lt;- mice(\n  missing_data,\n  m = 5,\n  method = \"pmm\",\n  maxit = 10,\n  seed = 2026\n)\n\n\n iter imp variable\n  1   1  bmi  outcome\n  1   2  bmi  outcome\n  1   3  bmi  outcome\n  1   4  bmi  outcome\n  1   5  bmi  outcome\n  2   1  bmi  outcome\n  2   2  bmi  outcome\n  2   3  bmi  outcome\n  2   4  bmi  outcome\n  2   5  bmi  outcome\n  3   1  bmi  outcome\n  3   2  bmi  outcome\n  3   3  bmi  outcome\n  3   4  bmi  outcome\n  3   5  bmi  outcome\n  4   1  bmi  outcome\n  4   2  bmi  outcome\n  4   3  bmi  outcome\n  4   4  bmi  outcome\n  4   5  bmi  outcome\n  5   1  bmi  outcome\n  5   2  bmi  outcome\n  5   3  bmi  outcome\n  5   4  bmi  outcome\n  5   5  bmi  outcome\n  6   1  bmi  outcome\n  6   2  bmi  outcome\n  6   3  bmi  outcome\n  6   4  bmi  outcome\n  6   5  bmi  outcome\n  7   1  bmi  outcome\n  7   2  bmi  outcome\n  7   3  bmi  outcome\n  7   4  bmi  outcome\n  7   5  bmi  outcome\n  8   1  bmi  outcome\n  8   2  bmi  outcome\n  8   3  bmi  outcome\n  8   4  bmi  outcome\n  8   5  bmi  outcome\n  9   1  bmi  outcome\n  9   2  bmi  outcome\n  9   3  bmi  outcome\n  9   4  bmi  outcome\n  9   5  bmi  outcome\n  10   1  bmi  outcome\n  10   2  bmi  outcome\n  10   3  bmi  outcome\n  10   4  bmi  outcome\n  10   5  bmi  outcome\n\nimp\n\nClass: mids\nNumber of multiple imputations:  5 \nImputation methods:\n    age     bmi   smoke outcome \n     \"\"   \"pmm\"      \"\"   \"pmm\" \nPredictorMatrix:\n        age bmi smoke outcome\nage       0   1     0       1\nbmi       1   0     0       1\nsmoke     1   1     0       1\noutcome   1   1     0       0\nNumber of logged events:  1 \n  it im dep     meth   out\n1  0  0     constant smoke\n\n\n\nplot(imp)\n\n\n\n\n\n\n\n\n\n\n2. 在插补数据上建模\n\nmi_fit &lt;- with(\n  imp,\n  lm(outcome ~ age + bmi + smoke)\n)\n\nmi_fit\n\ncall :\nwith.mids(data = imp, expr = lm(outcome ~ age + bmi + smoke))\n\ncall1 :\nmice(data = missing_data, m = 5, method = \"pmm\", maxit = 10, \n    seed = 2026)\n\nnmis :\n[1]  0 39  0 28\n\nanalyses :\n[[1]]\n\nCall:\nlm(formula = outcome ~ age + bmi + smoke)\n\nCoefficients:\n(Intercept)          age          bmi     smokeyes  \n  3.5175998    0.0007881    0.0573891    0.0613578  \n\n\n[[2]]\n\nCall:\nlm(formula = outcome ~ age + bmi + smoke)\n\nCoefficients:\n(Intercept)          age          bmi     smokeyes  \n   3.745367    -0.006973     0.059598     0.103489  \n\n\n[[3]]\n\nCall:\nlm(formula = outcome ~ age + bmi + smoke)\n\nCoefficients:\n(Intercept)          age          bmi     smokeyes  \n   3.187812    -0.002788     0.076425     0.103409  \n\n\n[[4]]\n\nCall:\nlm(formula = outcome ~ age + bmi + smoke)\n\nCoefficients:\n(Intercept)          age          bmi     smokeyes  \n  3.4516391   -0.0005742    0.0563336    0.1230034  \n\n\n[[5]]\n\nCall:\nlm(formula = outcome ~ age + bmi + smoke)\n\nCoefficients:\n(Intercept)          age          bmi     smokeyes  \n  4.0859357    0.0007367    0.0314595    0.0809076  \n\n\n\n\n3. 汇总结果\n\npooled &lt;- pool(mi_fit)\nsummary(pooled)\n\n         term     estimate  std.error  statistic        df      p.value\n1 (Intercept)  3.597670791 0.83297873  4.3190428  61.97850 5.761773e-05\n2         age -0.001761995 0.00893651 -0.1971681  80.25755 8.441945e-01\n3         bmi  0.056241131 0.03140925  1.7905915  31.01638 8.312464e-02\n4    smokeyes  0.094433192 0.19512569  0.4839608 187.75546 6.289777e-01",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#结果解读与报告",
+    "href": "1086-multiple-imputation.html#结果解读与报告",
+    "title": "多重插补完整教程",
+    "section": "结果解读与报告",
+    "text": "结果解读与报告\n\npooled_summary &lt;- summary(pooled) |&gt;\n  as.data.frame()\n\npooled_summary\n\n         term     estimate  std.error  statistic        df      p.value\n1 (Intercept)  3.597670791 0.83297873  4.3190428  61.97850 5.761773e-05\n2         age -0.001761995 0.00893651 -0.1971681  80.25755 8.441945e-01\n3         bmi  0.056241131 0.03140925  1.7905915  31.01638 8.312464e-02\n4    smokeyes  0.094433192 0.19512569  0.4839608 187.75546 6.289777e-01\n\n\n\npooled_summary |&gt;\n  filter(term != \"(Intercept)\") |&gt;\n  ggplot(aes(x = estimate, y = term)) +\n  geom_point(size = 3, color = \"#2563eb\") +\n  geom_errorbarh(aes(xmin = estimate - 1.96 * std.error, xmax = estimate + 1.96 * std.error), height = 0.2) +\n  labs(\n    title = \"多重插补后的回归系数\",\n    x = \"估计值 (95% CI)\",\n    y = NULL\n  ) +\n  theme_minimal(base_size = 12)\n\n\n\n\n\n\n\n\n报告建议\n\n报告插补次数 m 与插补方法（如 pmm）。\n对比完全案例分析与插补分析的差异。\n提示缺失机制假设与敏感性分析。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#常见错误与纠偏",
+    "href": "1086-multiple-imputation.html#常见错误与纠偏",
+    "title": "多重插补完整教程",
+    "section": "常见错误与纠偏",
+    "text": "常见错误与纠偏\n\n插补模型过简单：缺失相关变量未纳入会偏倚。\nm 太小：不确定性估计不足，建议至少 5-10。\n忽视缺失机制：对 MNAR 需做敏感性分析。\n混用数据集：必须使用 pool() 汇总。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#进阶扩展",
+    "href": "1086-multiple-imputation.html#进阶扩展",
+    "title": "多重插补完整教程",
+    "section": "进阶扩展",
+    "text": "进阶扩展\n\nmice::cart 与 mice::rf 等非参数插补方法。\n对分类变量指定合适的插补方法（logreg、polyreg）。\n使用 mice::complete() 检查插补数据合理性。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
+  },
+  {
+    "objectID": "1086-multiple-imputation.html#总结",
+    "href": "1086-multiple-imputation.html#总结",
+    "title": "多重插补完整教程",
+    "section": "总结",
+    "text": "总结\n多重插补是处理缺失数据的标准方法，兼顾效率与稳健性。 只要合理选择插补模型和变量，就能显著提高推断可信度。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📐 高级建模",
+      "多重插补"
+    ]
   }
 ]

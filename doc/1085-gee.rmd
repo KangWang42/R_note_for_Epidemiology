@@ -1,0 +1,181 @@
+---
+title: 广义估计方程 (GEE) 完整教程
+subtitle: "处理重复测量与相关数据的稳健回归"
+date: "2026-01-18"
+image: images/1085-gee-cover.svg
+categories:
+- 统计分析方法
+- 高级建模
+- GEE
+- longitudinal
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.4,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1085-gee-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(geepack)
+library(broom)
+```
+
+## 方法背景与适用场景
+
+GEE（广义估计方程）是处理重复测量与相关数据的常用方法。
+它不要求完整的随机效应分布假设，而是关注总体平均效应，
+适合队列随访、聚类试验、医院/社区分层等“相关观测”场景。
+
+典型场景包括：
+
+- 同一受试者多次测量的纵向数据
+- 同一医院/班级内的聚类数据
+- 需要稳健标准误的广义线性模型
+
+## 模型入门与核心概念
+
+GEE 可以理解为“广义线性模型 + 相关结构修正”。
+它的核心是：
+
+1. **均值模型**：和 GLM 一样，用链接函数描述均值与协变量的关系。
+2. **工作相关结构**：描述同一簇（或同一受试者）内部相关性。
+3. **稳健标准误**：即使相关结构指定不完全正确，也能得到稳健估计。
+
+GEE 的重点是“总体平均效应”，而不是个体随机效应。
+因此它适合关注总体规律、政策效果、群体平均差异的研究。
+
+## 模型假设与前提
+
+- 观测值在簇内相关，簇间独立。
+- 均值模型指定正确（协变量结构合理）。
+- 相关结构可以选错，但标准误需要稳健估计。
+
+## 数据准备与变量定义
+
+这里模拟一个随访数据：每位受试者在 4 个时间点测量连续结局。
+
+```{r gee-data}
+set.seed(2026)
+subjects <- 120
+visits <- 4
+
+long_data <- tidyr::crossing(
+  subject_id = 1:subjects,
+  time = 1:visits
+) |>
+  mutate(
+    treatment = if_else(subject_id %% 2 == 0, 1, 0),
+    subject_effect = rnorm(subjects)[subject_id],
+    time_effect = 0.4 * time,
+    outcome = 5 + 1.2 * treatment + time_effect + subject_effect + rnorm(n())
+  ) |>
+  select(subject_id, time, treatment, outcome)
+
+long_data
+```
+
+## 分析流程步骤
+
+1. 建立基线模型（忽略相关性）
+2. 指定工作相关结构并拟合 GEE
+3. 对比独立结构与交换结构
+4. 解读稳健标准误与总体效应
+
+## 代码实现
+
+### 1. 基线模型（忽略相关）
+
+```{r gee-glm}
+glm_fit <- glm(outcome ~ treatment + time, data = long_data)
+summary(glm_fit)
+```
+
+### 2. GEE：独立相关结构
+
+```{r gee-independence}
+gee_ind <- geeglm(
+  outcome ~ treatment + time,
+  id = subject_id,
+  data = long_data,
+  family = gaussian,
+  corstr = "independence"
+)
+
+summary(gee_ind)
+```
+
+### 3. GEE：交换相关结构
+
+```{r gee-exchangeable}
+gee_exch <- geeglm(
+  outcome ~ treatment + time,
+  id = subject_id,
+  data = long_data,
+  family = gaussian,
+  corstr = "exchangeable"
+)
+
+summary(gee_exch)
+```
+
+## 结果解读与报告
+
+```{r gee-compare}
+comparison <- bind_rows(
+  tidy(glm_fit) |> mutate(model = "GLM"),
+  tidy(gee_ind) |> mutate(model = "GEE (independence)"),
+  tidy(gee_exch) |> mutate(model = "GEE (exchangeable)")
+)
+
+comparison
+```
+
+```{r gee-plot}
+comparison |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = estimate, y = model, color = term)) +
+  geom_point(size = 3) +
+  geom_errorbarh(aes(xmin = estimate - 1.96 * std.error, xmax = estimate + 1.96 * std.error), height = 0.2) +
+  labs(
+    title = "GEE 与 GLM 参数对比",
+    x = "估计值 (95% CI)",
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+**报告建议**
+
+- 明确说明相关结构（independence/exchangeable）。
+- 报告稳健标准误与置信区间。
+- 强调总体平均效应而非个体效应。
+
+## 常见错误与纠偏
+
+- **忽略相关性**：直接用 GLM 会低估标准误。
+- **相关结构乱选**：可做敏感性分析对比多个结构。
+- **簇 ID 错误**：`id` 必须对应簇级别。
+- **缺失值未处理**：应在建模前处理缺失。
+
+## 进阶扩展
+
+- 使用 `corstr = "ar1"` 处理时间序列相关。
+- 二分类结局使用 `family = binomial`。
+- 与混合效应模型比较总体效应差异。
+
+## 总结
+
+GEE 是处理相关数据的稳健方法，强调总体平均效应。
+对于纵向与聚类数据，建议以 GEE 作为基线模型，
+并通过不同相关结构进行敏感性分析。
