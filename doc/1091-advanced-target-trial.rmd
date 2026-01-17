@@ -1,0 +1,107 @@
+---
+title: 目标试验模拟进阶完整教程
+subtitle: "方案设计、敏感性分析与稳健推断"
+date: "2026-01-18"
+image: images/1091-advanced-target-trial-cover.svg
+categories:
+- 统计分析方法
+- 因果推断
+- 观察性研究
+- 目标试验模拟
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.4,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1091-target-trial-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(survival)
+library(ggplot2)
+```
+
+## 方法背景与适用场景
+
+目标试验模拟是把观察性数据对齐到一个“理想随机试验”的方法框架。进阶版本强调严谨的方案设计与敏感性分析，特别适合政策评估、真实世界证据（RWE）研究等需要清晰因果解释的场景。
+
+## 模型入门与核心概念
+
+目标试验模拟的关键不在模型本身，而在于“试验方案的可复现”。核心要素包括入组标准、治疗策略、随访起点、结局定义、因果对比和分析计划。进阶实践强调在方案层面提前定义这些内容，再在数据中逐一落实。
+
+## 方法对比：直接分析 vs 目标试验模拟
+
+直接分析往往容易出现时间相关偏倚，而目标试验模拟通过明确时间零点、处理策略和因果对比，显著提高结论的可解释性和规范性。
+
+## 模型假设与前提
+
+目标试验模拟依赖可识别的入组标准、清晰的随访起点、可重复的治疗策略，同时假设观察性数据中未测混杂可被限制在合理范围内。
+
+## 通俗举例：为什么时间零点重要
+
+若研究在入组后才定义治疗，容易出现“暴露后才开始随访”的时间偏倚。目标试验模拟强调“先定义时间零点，再定义治疗策略”，从而避免把未来信息带回基线。
+
+## 数据准备与变量定义
+
+```{r tte-data}
+set.seed(2026)
+size <- 500
+
+trial_data <- tibble(
+  id = 1:size,
+  age = rnorm(size, 60, 10),
+  severity = rnorm(size),
+  treated = rbinom(size, 1, plogis(-0.5 + 0.6 * severity)),
+  follow_time = rexp(size, rate = 0.08),
+  event = rbinom(size, 1, 0.5)
+)
+
+trial_data
+```
+
+## 分析流程步骤
+
+进阶流程强调“方案先行”。建议先写出完整的目标试验协议，再对照数据逐一实现：定义入组标准、治疗策略、时间零点、结局和分析计划。完成后再进入模型估计与敏感性分析。
+
+## 参数讲解与使用要点
+
+分析计划中应明确 ITT 或 per-protocol 对比，定义失访和删失策略，并说明如何处理时间依赖混杂。每一步都应在方案中预先写清楚，以保证研究可复现。
+
+## 代码实现
+
+```{r tte-fit}
+cox_fit <- coxph(Surv(follow_time, event) ~ treated + age + severity, data = trial_data)
+summary(cox_fit)
+```
+
+```{r tte-plot}
+trial_data |>
+  ggplot(aes(x = follow_time, fill = factor(treated))) +
+  geom_histogram(bins = 30, position = "identity", alpha = 0.5) +
+  labs(title = "治疗组与对照组随访时间分布", x = "Follow-up time", fill = "Treated") +
+  theme_minimal(base_size = 12)
+```
+
+## 结果解读与报告
+
+报告时需要说明目标试验协议的关键要素，强调时间零点与处理策略的定义。模型结果应放在“协议一致性”的框架下解释，并说明潜在未测混杂的敏感性分析结果。
+
+## 常见错误与纠偏
+
+常见问题包括时间零点定义不清、入组标准模糊、处理策略不一致以及未明确因果对比。纠偏方法是以协议为主线逐条核对，必要时补充敏感性分析。
+
+## 进阶扩展
+
+进阶应用可以加入负对照结局或负对照暴露，使用权重或结构模型处理时间依赖混杂，并在报告中对应 TARGET 指南的关键条目。
+
+## 总结
+
+目标试验模拟的价值在于通过清晰的试验协议提升因果推断的可信度。进阶实践强调方案先行、敏感性分析与可复现报告，使观察性研究更接近随机试验的解释标准。

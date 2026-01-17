@@ -1,0 +1,152 @@
+---
+title: 倾向评分加权诊断与稳定权重完整教程
+subtitle: "权重评估、截断与稳健推断的系统流程"
+date: "2026-01-18"
+image: images/1090-ps-weight-diagnostics-cover.svg
+categories:
+- 统计分析方法
+- 因果推断
+- IPTW
+- 倾向评分
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1090-psw-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(WeightIt)
+library(cobalt)
+library(survey)
+```
+
+## 方法背景与适用场景
+
+倾向评分加权（IPTW）能把观察性数据调整到接近随机试验的状态，但能否成立取决于权重是否稳定。临床与流行病学研究中常见的问题不是“权重有没有算”，而是“权重是否可用”。因此，加权诊断、权重截断与稳健推断是 IPTW 的核心部分。
+
+## 模型入门与核心概念
+
+IPTW 的目标是让处理组与对照组在协变量上分布一致。这个目标能否实现，取决于两件事：一是倾向评分模型是否合理，二是权重分布是否极端。权重太大意味着某些样本几乎无法在对照组中找到可比对象，此时估计结果会变得不稳定。
+
+## 方法对比：不诊断权重的风险
+
+如果直接使用未经检查的权重，可能出现估计量不稳定、标准误异常、甚至极端值主导模型结果的情况。诊断与截断的意义在于控制方差，让估计更稳健，同时避免权重分布过于偏斜。
+
+## 模型假设与前提
+
+IPTW 建立在无未测混杂和阳性假设成立的前提上，同时要求倾向评分模型能合理捕捉协变量与治疗的关系。权重诊断的目标是检验这些假设是否在数据中得到支持。
+
+## 通俗举例：为什么权重会极端
+
+如果某些高风险人群几乎都接受治疗，那么这类人被分配到对照组的概率极低。IPTW 会给这些“极少见的对照组个体”非常大的权重，从而放大随机波动。权重截断就是为了降低这些极端权重对结果的影响。
+
+## 数据准备与变量定义
+
+```{r psw-data}
+set.seed(2026)
+size <- 800
+
+ps_data <- tibble(
+  age = rnorm(size, 55, 12),
+  female = rbinom(size, 1, 0.55),
+  severity = rnorm(size),
+  comorbidity = rbinom(size, 1, 0.35)
+) |>
+  mutate(
+    treatment_prob = plogis(-1 + 0.03 * age + 0.6 * severity - 0.4 * comorbidity),
+    treatment = rbinom(size, 1, treatment_prob),
+    outcome = 12 + 2.1 * treatment + 0.4 * severity - 0.8 * comorbidity + rnorm(size)
+  )
+
+ps_data
+```
+
+## 分析流程步骤
+
+分析流程包括四个关键阶段：先估计倾向评分并计算权重，再检查权重分布，必要时进行截断或稳定化处理，最后用稳健方法估计因果效应并检验协变量平衡性。
+
+## 参数讲解与使用要点
+
+`WeightIt` 用于计算权重，`cobalt` 用于诊断协变量平衡性。权重截断常用 1%/99% 或 5%/95% 分位点；若权重分布高度偏斜，可考虑稳定权重或替换估计策略。
+
+## 代码实现
+
+### 1. 估计权重
+
+```{r psw-weightit}
+ps_weight <- weightit(
+  treatment ~ age + female + severity + comorbidity,
+  data = ps_data,
+  method = "ps",
+  estimand = "ATE"
+)
+
+ps_weight
+```
+
+### 2. 权重分布诊断
+
+```{r psw-weights}
+ps_data <- ps_data |>
+  mutate(weight = ps_weight$weights)
+
+summary(ps_data$weight)
+```
+
+```{r psw-weight-plot}
+ps_data |>
+  ggplot(aes(x = weight)) +
+  geom_histogram(bins = 30, fill = "#2563eb", alpha = 0.8) +
+  labs(title = "IPTW 权重分布", x = "Weight", y = "Count") +
+  theme_minimal(base_size = 12)
+```
+
+### 3. 协变量平衡诊断
+
+```{r psw-balance}
+bal.tab(ps_weight)
+```
+
+```{r psw-love}
+love.plot(ps_weight, stats = "mean.diffs", threshold = 0.1)
+```
+
+### 4. 截断权重并估计效应
+
+```{r psw-trim}
+ps_data <- ps_data |>
+  mutate(
+    weight_trim = pmin(pmax(weight, quantile(weight, 0.02)), quantile(weight, 0.98))
+  )
+
+svy_design <- svydesign(ids = ~1, weights = ~weight_trim, data = ps_data)
+svy_fit <- svyglm(outcome ~ treatment, design = svy_design)
+summary(svy_fit)
+```
+
+## 结果解读与报告
+
+报告时应说明权重截断阈值、截断后的权重分布，以及平衡诊断结果（如标准化差异是否低于 0.1）。随后给出加权模型的效应估计与稳健标准误，并说明与未加权估计的差异。
+
+## 常见错误与纠偏
+
+常见问题包括权重分布极端、协变量平衡不足或忽略权重诊断。解决方式是尝试截断权重、重新设定倾向评分模型，并使用 `cobalt` 的平衡诊断确认调整效果。
+
+## 进阶扩展
+
+进阶分析可以考虑稳定权重、重叠权重或采用双重稳健方法（如 AIPW），并通过敏感性分析检验结果的稳健性。
+
+## 总结
+
+IPTW 的关键不在于权重的计算，而在于权重是否稳定、协变量是否平衡。系统的诊断与截断流程能显著提升因果推断的可信度。

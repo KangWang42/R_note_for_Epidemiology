@@ -1,0 +1,119 @@
+---
+title: 时变协变量 Cox 模型完整教程
+subtitle: "把时间变化纳入生存分析"
+date: "2026-01-18"
+image: images/1089-time-varying-cox-cover.svg
+categories:
+- 统计分析方法
+- 生存分析
+- Cox 模型
+- 时间变协变量
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1089-timevary-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(survival)
+```
+
+## 方法背景与适用场景
+
+时变协变量 Cox 模型用于处理“协变量随时间变化”的场景。
+例如药物剂量、随访期间的实验指标、暴露水平等。
+传统 Cox 把协变量当作固定值，会忽略这种动态变化。
+
+## 模型入门与核心概念
+
+Cox 模型的风险函数可以写成 `h(t) = h0(t) * exp(beta * X)`。当协变量随时间变化时，`X` 不再是一个常数，而是 `X(t)`，模型也随之变成 `h(t) = h0(t) * exp(beta * X(t))`。这意味着风险随时间和协变量共同变化，能够更真实地反映随访过程中暴露变化带来的影响。
+
+## 方法对比：固定协变量 vs 时变协变量
+
+固定协变量模型适合基线变量（如性别、基因），而时变协变量模型适合随访中会变化的指标（如药物使用、实验室指标）。如果用固定协变量去近似动态暴露，往往会稀释真实效应。
+
+## 模型假设与前提
+
+时变协变量 Cox 模型仍需满足比例风险假设，同时要求数据整理为“起止时间段”格式，以便在每个区间内更新协变量。只有把时间结构整理清楚，模型才有意义。
+
+## 通俗举例：为什么需要时变协变量
+
+假设某药物在随访第 3 个月才开始使用，
+如果把它当作基线变量，会把“未使用期”也当成使用期，
+导致药物效果被稀释或扭曲。
+时变协变量模型通过拆分时间段，精准记录何时开始暴露。
+
+## 数据准备与变量定义
+
+```{r tv-data}
+set.seed(2026)
+size <- 80
+
+baseline <- tibble(
+  id = 1:size,
+  follow_time = rexp(size, rate = 0.08),
+  event = rbinom(size, 1, 0.6),
+  start_drug = runif(size, 0, 5)
+)
+
+split_data <- baseline |>
+  mutate(
+    tstart = 0,
+    tstop = follow_time,
+    drug = if_else(start_drug <= tstart, 1, 0)
+  )
+
+split_data <- survSplit(
+  data = split_data,
+  cut = sort(unique(round(baseline$start_drug, 1))),
+  end = "tstop",
+  start = "tstart",
+  event = "event"
+) |>
+  mutate(drug = if_else(tstart >= start_drug, 1, 0))
+
+split_data
+```
+
+## 分析流程步骤
+
+分析流程可以理解为三步：先构造 (start, stop] 区间格式，再在每个区间更新协变量，最后拟合时变协变量 Cox 模型。核心思想是把一名受试者的随访过程拆成多个片段，让每个片段反映真实暴露状态。
+
+## 参数讲解与使用要点
+
+`Surv(tstart, tstop, event)` 用于定义起止时间格式，`survSplit()` 可以按暴露变化时间拆分数据，而 `tt()` 则提供另一种定义时间变效应的方式。实际操作时，先用 `survSplit()` 处理数据通常更直观，也便于检查拆分结果是否合理。
+
+## 代码实现
+
+```{r tv-cox}
+cox_tv <- coxph(Surv(tstart, tstop, event) ~ drug, data = split_data)
+summary(cox_tv)
+```
+
+## 结果解读与报告
+
+- 报告药物的 HR 及其置信区间
+- 明确暴露定义与拆分时间段
+
+## 常见错误与纠偏
+
+常见错误包括拆分时间不准确、事件时间与 tstop 不一致、忽略比例风险假设。解决方式是先核对暴露开始时间和事件时间，再做 PH 假设检验，确保模型设定与数据一致。
+
+## 进阶扩展
+
+进阶应用可以使用 `tt()` 指定时间函数（如 log(time)）描述时间变效应，也可以同时纳入多个时变协变量，进一步贴近复杂的随访过程。
+## 总结
+
+时变协变量 Cox 模型让随访数据更贴近真实暴露过程，
+适合药物启用、指标变化等动态场景。

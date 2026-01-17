@@ -1,0 +1,168 @@
+---
+title: 边际结构模型 (MSM) 与 IPTW 完整教程
+subtitle: "用加权解决时变混杂的因果推断方案"
+date: "2026-01-18"
+image: images/1087-msm-iptw-cover.svg
+categories:
+- 统计分析方法
+- 因果推断
+- MSM
+- IPTW
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1087-msm-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+```
+
+## 方法背景与适用场景
+
+边际结构模型（Marginal Structural Model, MSM）是处理时变混杂的经典方法。
+当某个变量既会影响后续治疗，又会被治疗影响时，传统回归会出现偏倚。
+IPTW（逆概率加权）通过构建权重，把观测数据转换成“伪随机化”样本，
+从而估计总体平均因果效应。
+
+它常用于治疗在随访过程中反复调整、疾病严重程度既影响治疗又被治疗改善的场景。当研究目标是估计“总体平均治疗效应”而不是个体轨迹时，MSM 往往是更稳健的选择。
+
+## 模型入门与核心概念
+
+可以把 MSM 理解为两步：先用倾向性模型估计每个时间点的治疗概率，构造稳定权重；再用这些权重拟合边际模型，得到总体平均效应。IPTW 的直觉是“让接受治疗的样本代表更多同类人”，从而使处理组与对照组在协变量上看起来更像随机分配。
+
+## 方法对比：传统回归 vs MSM
+
+传统回归通过直接调整协变量来消除混杂，但遇到“协变量既是原因又是结果”的情况时容易产生偏倚。MSM/IPTW 通过加权把时变混杂拉回基线，使估计更稳健，但代价是需要稳定权重，样本量太小时容易不稳定。
+
+## 模型假设与前提
+
+MSM 假设治疗分配可被协变量充分解释（无未测混杂），每种治疗策略都有足够样本支持（阳性假设），并且权重模型指定合理。只要这些假设基本成立，MSM 的估计就更接近真实的总体平均效应。
+
+## 通俗举例：为什么传统回归会错
+
+想象糖尿病患者更严重时更容易接受强化治疗，
+而强化治疗又会降低后续严重程度。
+如果你把严重程度当作协变量直接调整，
+就相当于“调整了治疗造成的结果”，导致偏倚。
+MSM 的做法是：先用权重让治疗分配更像随机，
+再估计治疗对结局的真实影响。
+
+## 数据准备与变量定义
+
+这里模拟一个两时间点的治疗与结局数据，存在时变混杂。
+
+```{r msm-data}
+set.seed(2026)
+size <- 600
+baseline_risk <- rnorm(size)
+
+trt1_prob <- plogis(-0.3 + 0.7 * baseline_risk)
+trt1 <- rbinom(size, 1, trt1_prob)
+
+risk_t1 <- 0.6 * baseline_risk - 0.8 * trt1 + rnorm(size)
+
+trt2_prob <- plogis(-0.2 + 0.4 * baseline_risk + 0.8 * risk_t1 + 0.5 * trt1)
+trt2 <- rbinom(size, 1, trt2_prob)
+
+outcome <- 3 + 1.2 * trt1 + 1.6 * trt2 + 0.8 * risk_t1 + rnorm(size)
+
+msm_data <- tibble(
+  baseline_risk,
+  risk_t1,
+  trt1,
+  trt2,
+  outcome
+)
+
+msm_data
+```
+
+## 分析流程步骤
+
+分析流程可以概括为四步：先为每个时间点建立治疗模型，计算稳定权重；再检查权重分布并做必要的截断；最后用权重拟合边际模型并解释总体平均效应。这样做的目的，是让权重既能纠正混杂，又尽量保持数值稳定。
+## 参数讲解与使用要点
+
+`p_num` 是分子模型，只包含基线协变量；`p_den` 是分母模型，包含时变混杂。稳定权重就是分子与分母的乘积，它能避免极端权重带来的不稳定性。实践中通常在 1%/99% 或 5%/95% 位置截断权重，以平衡偏倚和方差。
+## 代码实现
+
+### 1. 计算稳定权重
+
+```{r msm-weights}
+model_num1 <- glm(trt1 ~ baseline_risk, data = msm_data, family = binomial)
+model_den1 <- glm(trt1 ~ baseline_risk, data = msm_data, family = binomial)
+
+model_num2 <- glm(trt2 ~ trt1 + baseline_risk, data = msm_data, family = binomial)
+model_den2 <- glm(trt2 ~ trt1 + baseline_risk + risk_t1, data = msm_data, family = binomial)
+
+p_num1 <- predict(model_num1, type = "response")
+p_den1 <- predict(model_den1, type = "response")
+
+p_num2 <- predict(model_num2, type = "response")
+p_den2 <- predict(model_den2, type = "response")
+
+weight1 <- if_else(trt1 == 1, p_num1 / p_den1, (1 - p_num1) / (1 - p_den1))
+weight2 <- if_else(trt2 == 1, p_num2 / p_den2, (1 - p_num2) / (1 - p_den2))
+
+msm_data <- msm_data |>
+  mutate(
+    sw = weight1 * weight2,
+    sw_trim = pmin(pmax(sw, quantile(sw, 0.02)), quantile(sw, 0.98))
+  )
+
+summary(msm_data$sw)
+```
+
+### 2. 权重分布检查
+
+```{r msm-weight-plot}
+msm_data |>
+  ggplot(aes(x = sw_trim)) +
+  geom_histogram(bins = 30, fill = "#2563eb", alpha = 0.8) +
+  labs(
+    title = "稳定权重分布（截断后）",
+    x = "Stabilized Weight",
+    y = "Count"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### 3. 边际结构模型
+
+```{r msm-fit}
+naive_fit <- lm(outcome ~ trt1 + trt2 + risk_t1, data = msm_data)
+msm_fit <- lm(outcome ~ trt1 + trt2, data = msm_data, weights = sw_trim)
+
+summary(naive_fit)
+summary(msm_fit)
+```
+
+## 结果解读与报告
+
+报告时需要说明权重截断阈值与分布范围，并对比 naive 回归与 MSM 的系数差异，强调 MSM 系数代表的是“总体平均效应”。如果两者差异明显，应解释时变混杂对估计的影响。
+
+## 常见错误与纠偏
+
+常见问题包括权重极端值过多（提示阳性假设可能被破坏）、分母模型遗漏时变混杂、以及样本量过小导致权重不稳定。实践中可通过权重截断、补充关键混杂变量、扩大样本量或做敏感性分析来改善稳定性。
+
+## 进阶扩展
+
+- 更复杂的多时间点权重构建。
+- 结合截断与平滑权重策略。
+- 使用 `ipw` 或 `WeightIt` 进行更系统的权重估计。
+
+## 总结
+
+MSM 与 IPTW 是时变混杂的标准解决方案。
+当治疗与混杂变量相互影响时，MSM 可以显著降低偏倚，
+给出更可信的总体平均因果效应。

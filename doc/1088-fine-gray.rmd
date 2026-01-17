@@ -1,0 +1,130 @@
+---
+title: Fine-Gray 竞争风险模型完整教程
+subtitle: "累积发生率视角的生存分析"
+date: "2026-01-18"
+image: images/1088-fine-gray-cover.svg
+categories:
+- 统计分析方法
+- 生存分析
+- 竞争风险
+- Fine-Gray
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.4,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1088-finegray-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(cmprsk)
+```
+
+## 方法背景与适用场景
+
+在竞争风险数据中，某些事件会阻止感兴趣事件发生。
+Fine-Gray 模型直接建模“累积发生率”，适合回答
+“在真实世界里某事件发生的总体概率有多大”。
+
+典型场景包括研究心血管死亡（非心血管死亡是竞争事件）、研究肿瘤复发（死亡阻止复发发生）、研究移植等待时间（等待期间死亡属于竞争风险）。这些场景的共同点是：一旦发生竞争事件，感兴趣事件就无法再发生。
+
+## 模型入门与核心概念
+
+Fine-Gray 模型的目标是 **亚分布风险（subdistribution hazard）**，
+它直接对应累积发生率曲线（CIF）。
+与 Cox 模型不同，它不会把竞争事件当成删失，
+因此能给出更真实的总体发生率。
+
+## 方法对比：Cox vs Fine-Gray
+
+Cox（cause-specific）更适合机制分析，关注的是瞬时风险；Fine-Gray 更适合风险预测与政策决策，关注的是累积发生率。简单来说，如果你关心“某因素是否改变了事件发生的速度”，用 Cox；如果你关心“真实世界中最终发生多少”，用 Fine-Gray。
+
+## 模型假设与前提
+
+Fine-Gray 模型要求竞争事件分类明确，且协变量与亚分布风险满足比例风险假设。事件定义清晰、模型结构合理时，亚分布风险比可用于解释累积发生率差异。
+
+## 通俗举例：为什么 KM 会高估
+
+如果把竞争事件当成删失，KM 会假设这些人“未来仍可能发生感兴趣事件”。
+实际上他们已经无法发生感兴趣事件，结果就会高估累积发生率。
+Fine-Gray 通过保留这些个体的权重，避免高估。
+
+## 数据准备与变量定义
+
+```{r finegray-data}
+set.seed(2026)
+size <- 300
+
+sim_time <- rexp(size, rate = 0.1)
+comp_time <- rexp(size, rate = 0.08)
+status <- if_else(sim_time <= comp_time, 1, 2)
+
+follow_time <- pmin(sim_time, comp_time)
+
+covariate <- rbinom(size, 1, 0.5)
+
+fg_data <- tibble(
+  time = follow_time,
+  status = status,
+  exposure = covariate
+)
+
+fg_data
+```
+
+## 分析流程步骤
+
+分析流程通常先绘制 CIF 曲线了解总体发生率，再拟合 Fine-Gray 模型，最后解读亚分布风险比。这一顺序能保证你先理解真实发生率，再讨论协变量对发生率的影响。
+
+## 参数讲解与使用要点
+
+`ftime` 表示随访时间，`fstatus` 表示结局状态（0=删失，1=感兴趣事件，2=竞争事件），`cov1` 是协变量矩阵。最容易出错的地方是 `fstatus` 编码，因此要在建模前确认状态定义一致。
+
+## 代码实现
+
+### 1. CIF 曲线
+
+```{r finegray-cif}
+fg_cif <- cuminc(ftime = fg_data$time, fstatus = fg_data$status, group = fg_data$exposure)
+fg_cif
+```
+
+```{r finegray-cif-plot}
+plot(fg_cif, col = c("#2563eb", "#ef4444"), lwd = 2)
+```
+
+### 2. Fine-Gray 模型
+
+```{r finegray-fit}
+fg_fit <- crr(
+  ftime = fg_data$time,
+  fstatus = fg_data$status,
+  cov1 = as.matrix(fg_data$exposure)
+)
+
+summary(fg_fit)
+```
+
+## 结果解读与报告
+
+报告时应给出亚分布风险比（sHR）及 95% 置信区间，并强调它反映的是累积发生率差异，而不是瞬时风险差异。为了让读者更好理解，可同时报告 Cox 的 cause-specific 结果，说明两者回答的是不同问题。
+## 常见错误与纠偏
+
+常见错误包括状态编码混乱、把竞争事件当作删失处理以及忽视比例风险假设。实践中要先确认 0/1/2 的状态定义，再检查模型是否满足比例风险假设，避免解释上的偏差。
+
+## 进阶扩展
+
+进阶应用可以使用 `riskRegression` 绘制 CIF 的预测曲线，并同步报告 cause-specific Cox 结果作为补充，以区分瞬时风险与累积发生率这两类解释视角。
+## 总结
+
+Fine-Gray 模型适合评估竞争风险下的累积发生率，
+在临床预后与真实世界风险评估中非常重要。
