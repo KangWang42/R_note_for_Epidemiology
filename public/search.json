@@ -26262,5 +26262,681 @@
       "🤖 机器学习框架",
       "K-means 聚类教程"
     ]
+  },
+  {
+    "objectID": "1080-random-forest.html",
+    "href": "1080-random-forest.html",
+    "title": "随机森林与决策树完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(rsample)\nlibrary(yardstick)\nlibrary(rpart)\nlibrary(rpart.plot)\nlibrary(ranger)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#教程目标与适用场景",
+    "href": "1080-random-forest.html#教程目标与适用场景",
+    "title": "随机森林与决策树完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\n决策树提供清晰的规则解释，随机森林通过集成提升稳健性。 本教程展示从单棵树到森林模型的完整训练、调参与解释流程。\n适合场景\n\n特征与结局之间存在非线性或交互效应\n需要兼顾预测效果与一定解释性\n变量尺度不同但希望减少复杂预处理\n\n不适合场景\n\n高维稀疏文本数据（需更适配的模型）\n要求完整可解释的线性关系场景",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#数据准备与任务定义",
+    "href": "1080-random-forest.html#数据准备与任务定义",
+    "title": "随机森林与决策树完整教程",
+    "section": "数据准备与任务定义",
+    "text": "数据准备与任务定义\n这里用 Iris 数据构造二分类任务：setosa vs 其他类别。\n\nset.seed(2026)\niris_binary &lt;- iris |&gt;\n  mutate(target = if_else(Species == \"setosa\", \"setosa\", \"other\")) |&gt;\n  select(-Species) |&gt;\n  mutate(target = factor(target, levels = c(\"setosa\", \"other\")))\n\nsplit_obj &lt;- initial_split(iris_binary, prop = 0.7, strata = target)\ntrain_data &lt;- training(split_obj)\ntest_data &lt;- testing(split_obj)\n\n\n基线：决策树模型\n\ntree_model &lt;- rpart(\n  target ~ ., \n  data = train_data,\n  method = \"class\",\n  control = rpart.control(cp = 0.01)\n)\n\nrpart.plot(tree_model, type = 4, extra = 104)\n\n\n\n\n\n\n\n\n\ntree_prob &lt;- predict(tree_model, test_data, type = \"prob\")\ntree_pred &lt;- predict(tree_model, test_data, type = \"class\")\n\ntree_metrics &lt;- tibble(\n  truth = test_data$target,\n  .pred_setosa = tree_prob[, \"setosa\"],\n  .pred_class = tree_pred\n) |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(truth, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = \"first\")\n  )\n\ntree_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#随机森林模型",
+    "href": "1080-random-forest.html#随机森林模型",
+    "title": "随机森林与决策树完整教程",
+    "section": "随机森林模型",
+    "text": "随机森林模型\n\n训练基础随机森林\n\nset.seed(2026)\nrf_model &lt;- ranger(\n  target ~ .,\n  data = train_data,\n  num.trees = 500,\n  mtry = 2,\n  min.node.size = 3,\n  probability = TRUE,\n  importance = \"permutation\"\n)\n\n\nrf_prob &lt;- predict(rf_model, data = test_data)$predictions[, \"setosa\"]\nrf_pred &lt;- if_else(rf_prob &gt;= 0.5, \"setosa\", \"other\") |&gt; factor(levels = levels(test_data$target))\n\nrf_metrics &lt;- tibble(\n  truth = test_data$target,\n  .pred_setosa = rf_prob,\n  .pred_class = rf_pred\n) |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(truth, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = \"first\")\n  )\n\nrf_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#模型选择与对比",
+    "href": "1080-random-forest.html#模型选择与对比",
+    "title": "随机森林与决策树完整教程",
+    "section": "模型选择与对比",
+    "text": "模型选择与对比\n对比结果时，树模型强调可解释，随机森林强调泛化。\n\ncomparison &lt;- bind_rows(\n  tree_metrics |&gt; mutate(model = \"Decision Tree\"),\n  rf_metrics |&gt; mutate(model = \"Random Forest\")\n) |&gt;\n  select(model, accuracy, roc_auc)\n\ncomparison\n\n# A tibble: 2 × 3\n  model         accuracy roc_auc\n  &lt;chr&gt;            &lt;dbl&gt;   &lt;dbl&gt;\n1 Decision Tree        1       1\n2 Random Forest        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#调参流程mtry-与节点规模",
+    "href": "1080-random-forest.html#调参流程mtry-与节点规模",
+    "title": "随机森林与决策树完整教程",
+    "section": "调参流程：mtry 与节点规模",
+    "text": "调参流程：mtry 与节点规模\n\nset.seed(2026)\ntuning_grid &lt;- expand.grid(\n  mtry = c(1, 2, 3),\n  min.node.size = c(1, 3, 5)\n)\n\nresults &lt;- lapply(seq_len(nrow(tuning_grid)), function(i) {\n  params &lt;- tuning_grid[i, ]\n  model &lt;- ranger(\n    target ~ .,\n    data = train_data,\n    num.trees = 400,\n    mtry = params$mtry,\n    min.node.size = params$min.node.size,\n    probability = TRUE\n  )\n  pred_prob &lt;- predict(model, data = test_data)$predictions[, \"setosa\"]\n  pred_class &lt;- if_else(pred_prob &gt;= 0.5, \"setosa\", \"other\") |&gt; factor(levels = levels(test_data$target))\n\n  tibble(\n    mtry = params$mtry,\n    min_node = params$min.node.size,\n    accuracy = yardstick::accuracy_vec(test_data$target, pred_class),\n    roc_auc = yardstick::roc_auc_vec(test_data$target, pred_prob, event_level = \"first\")\n  )\n})\n\nbind_rows(results) |&gt;\n  arrange(desc(roc_auc))\n\n# A tibble: 9 × 4\n   mtry min_node accuracy roc_auc\n  &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;\n1     1        1        1       1\n2     2        1        1       1\n3     3        1        1       1\n4     1        3        1       1\n5     2        3        1       1\n6     3        3        1       1\n7     1        5        1       1\n8     2        5        1       1\n9     3        5        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#可解释性与可视化",
+    "href": "1080-random-forest.html#可解释性与可视化",
+    "title": "随机森林与决策树完整教程",
+    "section": "可解释性与可视化",
+    "text": "可解释性与可视化\n\n1. 特征重要性\n\nimportance_df &lt;- tibble(\n  feature = names(rf_model$variable.importance),\n  importance = rf_model$variable.importance\n) |&gt;\n  arrange(desc(importance))\n\nimportance_df\n\n# A tibble: 4 × 2\n  feature      importance\n  &lt;chr&gt;             &lt;dbl&gt;\n1 Petal.Length    0.221  \n2 Petal.Width     0.198  \n3 Sepal.Length    0.00984\n4 Sepal.Width     0.00621\n\n\n\nggplot(importance_df, aes(x = reorder(feature, importance), y = importance)) +\n  geom_col(fill = \"#4f46e5\", alpha = 0.85) +\n  coord_flip() +\n  labs(\n    title = \"随机森林特征重要性\",\n    x = NULL,\n    y = \"Permutation Importance\"\n  ) +\n  theme_minimal(base_size = 12)\n\n\n\n\n\n\n\n\n\n\n2. 决策树规则解释\n单棵树可直接给出清晰的“如果-那么”规则，适合对业务方解释。 随机森林适合提升预测，但需要用特征重要性或局部解释补充说明。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#常见错误与优化",
+    "href": "1080-random-forest.html#常见错误与优化",
+    "title": "随机森林与决策树完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n忽视类别不平衡：应考虑分层抽样或调整阈值。\n树太深：会过拟合，需控制 min.node.size 或树深度。\n盲目追求高精度：结合可解释性与业务成本。\n未设置随机种子：结果不可复现。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#部署与复现建议",
+    "href": "1080-random-forest.html#部署与复现建议",
+    "title": "随机森林与决策树完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\nmodel_path &lt;- \"models/rf-iris.rds\"\nif (!dir.exists(\"models\")) dir.create(\"models\")\nsaveRDS(rf_model, model_path)\n\nloaded_model &lt;- readRDS(model_path)\nall.equal(rf_model$forest$num.trees, loaded_model$forest$num.trees)\n\n[1] TRUE\n\n\n\nif (file.exists(\"models/rf-iris.rds\")) {\n  file.remove(\"models/rf-iris.rds\")\n}\n\n[1] TRUE\n\nif (dir.exists(\"models\")) {\n  unlink(\"models\", recursive = TRUE)\n}",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1080-random-forest.html#总结",
+    "href": "1080-random-forest.html#总结",
+    "title": "随机森林与决策树完整教程",
+    "section": "总结",
+    "text": "总结\n决策树适合快速解释与沟通，随机森林适合追求稳健的预测表现。 在实际工作中，可以先用树模型建立基线，再用随机森林提升效果。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "随机森林与决策树"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html",
+    "href": "1081-svm.html",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(rsample)\nlibrary(yardstick)\nlibrary(e1071)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#教程目标与适用场景",
+    "href": "1081-svm.html#教程目标与适用场景",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\nSVM 通过最大化间隔提升分类效果，适合中小规模、边界清晰的数据。 本教程覆盖线性 SVM 与 RBF 核 SVM 的完整训练流程。\n适合场景\n\n特征维度中等、样本量中等的分类问题\n需要稳健分类边界与良好泛化\n\n不适合场景\n\n超大规模数据（训练开销高）\n高噪声或类别极度不平衡的场景（需额外处理）",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#数据准备与标准化",
+    "href": "1081-svm.html#数据准备与标准化",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "数据准备与标准化",
+    "text": "数据准备与标准化\n\nset.seed(2026)\niris_binary &lt;- iris |&gt;\n  mutate(target = if_else(Species == \"setosa\", \"setosa\", \"other\")) |&gt;\n  select(-Species) |&gt;\n  mutate(target = factor(target, levels = c(\"setosa\", \"other\")))\n\nsplit_obj &lt;- initial_split(iris_binary, prop = 0.7, strata = target)\ntrain_data &lt;- training(split_obj)\ntest_data &lt;- testing(split_obj)\n\ntrain_x &lt;- scale(select(train_data, -target))\ntest_x &lt;- scale(select(test_data, -target), center = attr(train_x, \"scaled:center\"),\n  scale = attr(train_x, \"scaled:scale\"))",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#最小可运行示例线性-svm",
+    "href": "1081-svm.html#最小可运行示例线性-svm",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "最小可运行示例：线性 SVM",
+    "text": "最小可运行示例：线性 SVM\n\nsvm_linear &lt;- svm(\n  x = train_x,\n  y = train_data$target,\n  kernel = \"linear\",\n  cost = 1,\n  probability = TRUE\n)\n\nsvm_linear\n\n\nCall:\nsvm.default(x = train_x, y = train_data$target, kernel = \"linear\", \n    cost = 1, probability = TRUE)\n\n\nParameters:\n   SVM-Type:  C-classification \n SVM-Kernel:  linear \n       cost:  1 \n\nNumber of Support Vectors:  3\n\n\n\nlinear_pred &lt;- predict(svm_linear, test_x, probability = TRUE)\nlinear_prob &lt;- attr(linear_pred, \"probabilities\")[, \"setosa\"]\n\nlinear_metrics &lt;- tibble(\n  truth = test_data$target,\n  .pred_setosa = linear_prob,\n  .pred_class = linear_pred\n) |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(truth, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = \"first\")\n  )\n\nlinear_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#进阶示例rbf-核与调参",
+    "href": "1081-svm.html#进阶示例rbf-核与调参",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "进阶示例：RBF 核与调参",
+    "text": "进阶示例：RBF 核与调参\nRBF 核可以处理非线性边界，需要调节 cost 与 gamma。\n\nset.seed(2026)\ntuned &lt;- tune(\n  svm,\n  train.x = train_x,\n  train.y = train_data$target,\n  kernel = \"radial\",\n  ranges = list(cost = 2 ^ (-1:2), gamma = 2 ^ (-2:1))\n)\n\nbest_params &lt;- tuned$best.parameters\nbest_params\n\n  cost gamma\n1  0.5  0.25\n\n\n\nsvm_rbf &lt;- svm(\n  x = train_x,\n  y = train_data$target,\n  kernel = \"radial\",\n  cost = best_params$cost,\n  gamma = best_params$gamma,\n  probability = TRUE\n)\n\nrbf_pred &lt;- predict(svm_rbf, test_x, probability = TRUE)\nrbf_prob &lt;- attr(rbf_pred, \"probabilities\")[, \"setosa\"]\n\nrbf_metrics &lt;- tibble(\n  truth = test_data$target,\n  .pred_setosa = rbf_prob,\n  .pred_class = rbf_pred\n) |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(truth, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = \"first\")\n  )\n\nrbf_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1    0.978       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#模型对比",
+    "href": "1081-svm.html#模型对比",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "模型对比",
+    "text": "模型对比\n\ncomparison &lt;- bind_rows(\n  linear_metrics |&gt; mutate(model = \"Linear SVM\"),\n  rbf_metrics |&gt; mutate(model = \"RBF SVM\")\n) |&gt;\n  select(model, accuracy, roc_auc)\n\ncomparison\n\n# A tibble: 2 × 3\n  model      accuracy roc_auc\n  &lt;chr&gt;         &lt;dbl&gt;   &lt;dbl&gt;\n1 Linear SVM    1           1\n2 RBF SVM       0.978       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#可解释性线性-svm-权重",
+    "href": "1081-svm.html#可解释性线性-svm-权重",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "可解释性：线性 SVM 权重",
+    "text": "可解释性：线性 SVM 权重\n线性 SVM 的权重反映变量对分类边界的贡献。\n\nweights &lt;- t(svm_linear$coefs) %*% svm_linear$SV\nweight_df &lt;- tibble(\n  feature = colnames(train_x),\n  weight = as.vector(weights)\n) |&gt;\n  mutate(abs_weight = abs(weight)) |&gt;\n  arrange(desc(abs_weight))\n\nweight_df\n\n# A tibble: 4 × 3\n  feature      weight abs_weight\n  &lt;chr&gt;         &lt;dbl&gt;      &lt;dbl&gt;\n1 Petal.Width   0.766      0.766\n2 Petal.Length  0.555      0.555\n3 Sepal.Width  -0.514      0.514\n4 Sepal.Length  0.212      0.212\n\n\n\nggplot(weight_df, aes(x = reorder(feature, abs_weight), y = weight)) +\n  geom_col(fill = \"#4f46e5\", alpha = 0.85) +\n  coord_flip() +\n  labs(\n    title = \"线性 SVM 权重\",\n    x = NULL,\n    y = \"权重（正负方向）\"\n  ) +\n  theme_minimal(base_size = 12)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#常见错误与优化",
+    "href": "1081-svm.html#常见错误与优化",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n忽视标准化：SVM 对尺度敏感，必须标准化。\n调参范围过窄：cost 与 gamma 需在对数尺度搜索。\n过拟合核函数：RBF 容易过拟合，需交叉验证。\n类别不平衡：可以使用 class.weights 或调整阈值。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#部署与复现建议",
+    "href": "1081-svm.html#部署与复现建议",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\nmodel_path &lt;- \"models/svm-rbf.rds\"\nif (!dir.exists(\"models\")) dir.create(\"models\")\nsaveRDS(svm_rbf, model_path)\n\nloaded_model &lt;- readRDS(model_path)\nall.equal(loaded_model$kernel, svm_rbf$kernel)\n\n[1] TRUE\n\n\n\nif (file.exists(\"models/svm-rbf.rds\")) {\n  file.remove(\"models/svm-rbf.rds\")\n}\n\n[1] TRUE\n\nif (dir.exists(\"models\")) {\n  unlink(\"models\", recursive = TRUE)\n}",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1081-svm.html#总结",
+    "href": "1081-svm.html#总结",
+    "title": "支持向量机 SVM 完整教程",
+    "section": "总结",
+    "text": "总结\n线性 SVM 解释性强，RBF 核适合非线性边界。 合理的标准化与调参是 SVM 表现的关键。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "支持向量机 (SVM)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html",
+    "href": "1082-ensemble-learning.html",
+    "title": "集成学习完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(rsample)\nlibrary(recipes)\nlibrary(parsnip)\nlibrary(workflows)\nlibrary(tune)\nlibrary(yardstick)\nlibrary(stacks)\nlibrary(baguette)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#教程目标与适用场景",
+    "href": "1082-ensemble-learning.html#教程目标与适用场景",
+    "title": "集成学习完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\n集成学习通过组合多个模型提升性能，常见方式包括 Bagging、Boosting 与 Stacking。 本教程使用 tidymodels 展示完整的建模、调参与评估流程。\n适合场景\n\n单一模型表现不稳定或方差偏大\n需要在不牺牲太多解释性的情况下提升性能\n\n不适合场景\n\n数据量极小且不可交叉验证\n需要严格可解释的单一模型结论",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#数据准备",
+    "href": "1082-ensemble-learning.html#数据准备",
+    "title": "集成学习完整教程",
+    "section": "数据准备",
+    "text": "数据准备\n\nset.seed(2026)\niris_binary &lt;- iris |&gt;\n  mutate(target = if_else(Species == \"setosa\", \"setosa\", \"other\")) |&gt;\n  select(-Species) |&gt;\n  mutate(target = factor(target, levels = c(\"setosa\", \"other\")))\n\nsplit_obj &lt;- initial_split(iris_binary, prop = 0.75, strata = target)\ntrain_data &lt;- training(split_obj)\ntest_data &lt;- testing(split_obj)\n\nml_recipe &lt;- recipe(target ~ ., data = train_data)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#基线模型单棵决策树",
+    "href": "1082-ensemble-learning.html#基线模型单棵决策树",
+    "title": "集成学习完整教程",
+    "section": "基线模型：单棵决策树",
+    "text": "基线模型：单棵决策树\n\nbase_tree &lt;- decision_tree(mode = \"classification\", tree_depth = 3) |&gt;\n  set_engine(\"rpart\")\n\nbase_workflow &lt;- workflow() |&gt;\n  add_recipe(ml_recipe) |&gt;\n  add_model(base_tree)\n\nbase_fit &lt;- fit(base_workflow, data = train_data)\n\nbase_pred &lt;- predict(base_fit, test_data, type = \"prob\") |&gt;\n  bind_cols(predict(base_fit, test_data)) |&gt;\n  bind_cols(test_data)\n\nbase_pred &lt;- base_pred |&gt;\n  mutate(\n    .pred_setosa = .pred_setosa,\n    .pred_class = factor(.pred_class, levels = levels(target))\n  )\n\nbase_metrics &lt;- base_pred |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(target, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = \"first\")\n  )\n\nbase_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#bagging降低方差",
+    "href": "1082-ensemble-learning.html#bagging降低方差",
+    "title": "集成学习完整教程",
+    "section": "Bagging：降低方差",
+    "text": "Bagging：降低方差\n\nbag_model &lt;- bag_tree(mode = \"classification\") |&gt;\n  set_engine(\"rpart\", times = 100)\n\nbag_workflow &lt;- workflow() |&gt;\n  add_recipe(ml_recipe) |&gt;\n  add_model(bag_model)\n\nbag_fit &lt;- fit(bag_workflow, data = train_data)\n\nbag_pred &lt;- predict(bag_fit, test_data, type = \"prob\") |&gt;\n  bind_cols(predict(bag_fit, test_data)) |&gt;\n  bind_cols(test_data)\n\nbag_pred &lt;- bag_pred |&gt;\n  mutate(\n    .pred_setosa = .pred_setosa,\n    .pred_class = factor(.pred_class, levels = levels(target))\n  )\n\nbag_metrics &lt;- bag_pred |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(target, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = \"first\")\n  )\n\nbag_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#boosting降低偏差",
+    "href": "1082-ensemble-learning.html#boosting降低偏差",
+    "title": "集成学习完整教程",
+    "section": "Boosting：降低偏差",
+    "text": "Boosting：降低偏差\n\nboost_model &lt;- boost_tree(\n  mode = \"classification\",\n  trees = 200,\n  tree_depth = 3,\n  learn_rate = 0.1\n) |&gt;\n  set_engine(\"xgboost\")\n\nboost_workflow &lt;- workflow() |&gt;\n  add_recipe(ml_recipe) |&gt;\n  add_model(boost_model)\n\nboost_fit &lt;- fit(boost_workflow, data = train_data)\n\nboost_pred &lt;- predict(boost_fit, test_data, type = \"prob\") |&gt;\n  bind_cols(predict(boost_fit, test_data)) |&gt;\n  bind_cols(test_data)\n\nboost_pred &lt;- boost_pred |&gt;\n  mutate(\n    .pred_setosa = .pred_setosa,\n    .pred_class = factor(.pred_class, levels = levels(target))\n  )\n\nboost_metrics &lt;- boost_pred |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(target, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = \"first\")\n  )\n\nboost_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#训练与调参交叉验证示例",
+    "href": "1082-ensemble-learning.html#训练与调参交叉验证示例",
+    "title": "集成学习完整教程",
+    "section": "训练与调参：交叉验证示例",
+    "text": "训练与调参：交叉验证示例\n\nset.seed(2026)\nfolds &lt;- vfold_cv(train_data, v = 5, strata = target)\n\nbag_tune &lt;- bag_tree(\n  mode = \"classification\",\n  tree_depth = tune(),\n  min_n = tune()\n) |&gt;\n  set_engine(\"rpart\", times = 80)\n\nboost_tune &lt;- boost_tree(\n  mode = \"classification\",\n  trees = 200,\n  tree_depth = tune(),\n  learn_rate = tune()\n) |&gt;\n  set_engine(\"xgboost\")\n\nbag_wf &lt;- workflow() |&gt;\n  add_recipe(ml_recipe) |&gt;\n  add_model(bag_tune)\n\nboost_wf &lt;- workflow() |&gt;\n  add_recipe(ml_recipe) |&gt;\n  add_model(boost_tune)\n\nbag_res &lt;- tune_grid(\n  bag_wf,\n  resamples = folds,\n  grid = 4,\n  metrics = metric_set(accuracy, roc_auc),\n  control = control_stack_grid()\n)\n\nboost_res &lt;- tune_grid(\n  boost_wf,\n  resamples = folds,\n  grid = 4,\n  metrics = metric_set(accuracy, roc_auc),\n  control = control_stack_grid()\n)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#stacking组合多个模型",
+    "href": "1082-ensemble-learning.html#stacking组合多个模型",
+    "title": "集成学习完整教程",
+    "section": "Stacking：组合多个模型",
+    "text": "Stacking：组合多个模型\n\nstacked_model &lt;- stacks() |&gt;\n  add_candidates(bag_res) |&gt;\n  add_candidates(boost_res) |&gt;\n  blend_predictions(metric = metric_set(accuracy)) |&gt;\n  fit_members()\n\nstack_pred &lt;- predict(stacked_model, test_data, type = \"prob\") |&gt;\n  bind_cols(predict(stacked_model, test_data)) |&gt;\n  bind_cols(test_data)\n\nstack_pred &lt;- stack_pred |&gt;\n  mutate(\n    .pred_setosa = .pred_setosa,\n    .pred_class = factor(.pred_class, levels = levels(target))\n  )\n\nstack_metrics &lt;- stack_pred |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(target, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = \"first\")\n  )\n\nstack_metrics\n\n# A tibble: 1 × 2\n  accuracy roc_auc\n     &lt;dbl&gt;   &lt;dbl&gt;\n1        1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#结果对比",
+    "href": "1082-ensemble-learning.html#结果对比",
+    "title": "集成学习完整教程",
+    "section": "结果对比",
+    "text": "结果对比\n\ncomparison &lt;- bind_rows(\n  base_metrics |&gt; mutate(model = \"Decision Tree\"),\n  bag_metrics |&gt; mutate(model = \"Bagging\"),\n  boost_metrics |&gt; mutate(model = \"Boosting\"),\n  stack_metrics |&gt; mutate(model = \"Stacking\")\n) |&gt;\n  select(model, accuracy, roc_auc)\n\ncomparison\n\n# A tibble: 4 × 3\n  model         accuracy roc_auc\n  &lt;chr&gt;            &lt;dbl&gt;   &lt;dbl&gt;\n1 Decision Tree        1       1\n2 Bagging              1       1\n3 Boosting             1       1\n4 Stacking             1       1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#可解释性与可视化",
+    "href": "1082-ensemble-learning.html#可解释性与可视化",
+    "title": "集成学习完整教程",
+    "section": "可解释性与可视化",
+    "text": "可解释性与可视化\n\nBagging 可查看单棵树或平均特征重要性。\nBoosting 可输出特征重要性与 SHAP（xgboost 支持）。\nStacking 通过元学习器融合，需要解释每个基模型贡献。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#常见错误与优化",
+    "href": "1082-ensemble-learning.html#常见错误与优化",
+    "title": "集成学习完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n弱模型过强：基模型过拟合会降低集成收益。\n忽视重采样：Bagging 需要随机性，避免使用完全相同数据。\n模型相关性过高：Stacking 需要差异化模型组合。\n调参网格过小：容易错过最优配置。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#部署与复现建议",
+    "href": "1082-ensemble-learning.html#部署与复现建议",
+    "title": "集成学习完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\nmodel_path &lt;- \"models/stacked-ensemble.rds\"\nif (!dir.exists(\"models\")) dir.create(\"models\")\nsaveRDS(stacked_model, model_path)\n\nloaded_model &lt;- readRDS(model_path)\nall.equal(names(loaded_model$coefs), names(stacked_model$coefs))\n\n[1] TRUE\n\n\n\nif (file.exists(\"models/stacked-ensemble.rds\")) {\n  file.remove(\"models/stacked-ensemble.rds\")\n}\n\n[1] TRUE\n\nif (dir.exists(\"models\")) {\n  unlink(\"models\", recursive = TRUE)\n}",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1082-ensemble-learning.html#总结",
+    "href": "1082-ensemble-learning.html#总结",
+    "title": "集成学习完整教程",
+    "section": "总结",
+    "text": "总结\nBagging 适合降低方差，Boosting 适合降低偏差，Stacking 适合整合优势。 在实际项目中，建议先建立单模型基线，再逐步引入集成策略。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "集成学习 (Bagging/Stacking)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html",
+    "href": "1083-dimensionality-reduction.html",
+    "title": "降维方法完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(tidyr)\nlibrary(cluster)\nlibrary(Rtsne)\nlibrary(uwot)\nlibrary(tibble)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#教程目标与适用场景",
+    "href": "1083-dimensionality-reduction.html#教程目标与适用场景",
+    "title": "降维方法完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\n降维用于高维数据的可视化与压缩，常见方法包括 PCA、t-SNE 与 UMAP。 本教程展示可解释的线性降维与强表达能力的非线性降维。\n适合场景\n\n高维数据探索与可视化\n特征压缩以提升下游模型性能\n\n不适合场景\n\n需要保留原始变量精确含义的场景\n样本量极小且特征噪声较大",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#数据准备",
+    "href": "1083-dimensionality-reduction.html#数据准备",
+    "title": "降维方法完整教程",
+    "section": "数据准备",
+    "text": "数据准备\n\nset.seed(2026)\niris_data &lt;- iris |&gt;\n  select(-Species)\n\nscaled_iris &lt;- scale(iris_data)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#最小可运行示例pca",
+    "href": "1083-dimensionality-reduction.html#最小可运行示例pca",
+    "title": "降维方法完整教程",
+    "section": "最小可运行示例：PCA",
+    "text": "最小可运行示例：PCA\n\npca_model &lt;- prcomp(scaled_iris, center = TRUE, scale. = TRUE)\nsummary(pca_model)$importance[, 1:3]\n\n                            PC1       PC2       PC3\nStandard deviation     1.708361 0.9560494 0.3830886\nProportion of Variance 0.729620 0.2285100 0.0366900\nCumulative Proportion  0.729620 0.9581300 0.9948200\n\n\n\n解释方差\n\nvariance_df &lt;- tibble(\n  component = paste0(\"PC\", seq_along(pca_model$sdev)),\n  variance = pca_model$sdev^2,\n  variance_ratio = (pca_model$sdev^2) / sum(pca_model$sdev^2)\n)\n\nvariance_df\n\n# A tibble: 4 × 3\n  component variance variance_ratio\n  &lt;chr&gt;        &lt;dbl&gt;          &lt;dbl&gt;\n1 PC1         2.92          0.730  \n2 PC2         0.914         0.229  \n3 PC3         0.147         0.0367 \n4 PC4         0.0207        0.00518\n\n\n\nggplot(variance_df, aes(x = component, y = variance_ratio)) +\n  geom_col(fill = \"#4f46e5\") +\n  geom_line(aes(group = 1), color = \"#0f172a\") +\n  labs(\n    title = \"PCA 解释方差\",\n    y = \"方差占比\",\n    x = \"主成分\"\n  ) +\n  theme_minimal(base_size = 12)\n\n\n\n\n\n\n\n\n\n\nPCA 可视化\n\npca_scores &lt;- as.data.frame(pca_model$x[, 1:2]) |&gt;\n  mutate(species = iris$Species)\n\ncolnames(pca_scores)[1:2] &lt;- c(\"PC1\", \"PC2\")\n\npca_scores |&gt;\n  ggplot(aes(x = PC1, y = PC2, color = species)) +\n  geom_point(size = 2, alpha = 0.85) +\n  labs(title = \"PCA 二维投影\") +\n  theme_minimal(base_size = 12)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#进阶示例t-sne-与-umap",
+    "href": "1083-dimensionality-reduction.html#进阶示例t-sne-与-umap",
+    "title": "降维方法完整教程",
+    "section": "进阶示例：t-SNE 与 UMAP",
+    "text": "进阶示例：t-SNE 与 UMAP\n\nset.seed(2026)\ntsne_result &lt;- Rtsne(\n  scaled_iris,\n  dims = 2,\n  perplexity = 15,\n  verbose = FALSE,\n  check_duplicates = FALSE\n)\numap_result &lt;- umap(scaled_iris, n_neighbors = 15, min_dist = 0.1)\n\ntsne_df &lt;- as.data.frame(tsne_result$Y) |&gt;\n  mutate(species = iris$Species)\ncolnames(tsne_df)[1:2] &lt;- c(\"dim1\", \"dim2\")\n\numap_df &lt;- as.data.frame(umap_result) |&gt;\n  mutate(species = iris$Species)\ncolnames(umap_df)[1:2] &lt;- c(\"dim1\", \"dim2\")\n\n\nggplot(tsne_df, aes(x = dim1, y = dim2, color = species)) +\n  geom_point(size = 2, alpha = 0.85) +\n  labs(title = \"t-SNE 投影\") +\n  theme_minimal(base_size = 12)\n\n\n\n\n\n\n\n\n\nggplot(umap_df, aes(x = dim1, y = dim2, color = species)) +\n  geom_point(size = 2, alpha = 0.85) +\n  labs(title = \"UMAP 投影\") +\n  theme_minimal(base_size = 12)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#模型选择与对比",
+    "href": "1083-dimensionality-reduction.html#模型选择与对比",
+    "title": "降维方法完整教程",
+    "section": "模型选择与对比",
+    "text": "模型选择与对比\nPCA 保留全局结构并可解释，t-SNE/UMAP 更强调局部邻近关系。 可通过下游聚类表现评估降维效果。\n\nset.seed(2026)\ncluster_labels &lt;- kmeans(scaled_iris, centers = 3)$cluster\n\nsilhouette_pca &lt;- silhouette(cluster_labels, dist(pca_model$x[, 1:2]))\nsilhouette_tsne &lt;- silhouette(cluster_labels, dist(tsne_result$Y))\nsilhouette_umap &lt;- silhouette(cluster_labels, dist(umap_result))\n\nsilhouette_summary &lt;- tibble(\n  method = c(\"PCA\", \"t-SNE\", \"UMAP\"),\n  silhouette = c(\n    mean(silhouette_pca[, \"sil_width\"]),\n    mean(silhouette_tsne[, \"sil_width\"]),\n    mean(silhouette_umap[, \"sil_width\"])\n  )\n)\n\nsilhouette_summary\n\n# A tibble: 3 × 2\n  method silhouette\n  &lt;chr&gt;       &lt;dbl&gt;\n1 PCA         0.523\n2 t-SNE       0.571\n3 UMAP        0.656",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#可解释性pca-载荷",
+    "href": "1083-dimensionality-reduction.html#可解释性pca-载荷",
+    "title": "降维方法完整教程",
+    "section": "可解释性：PCA 载荷",
+    "text": "可解释性：PCA 载荷\n\nloadings &lt;- as.data.frame(pca_model$rotation[, 1:2]) |&gt;\n  rownames_to_column(\"feature\")\n\nloadings\n\n       feature        PC1         PC2\n1 Sepal.Length  0.5210659 -0.37741762\n2  Sepal.Width -0.2693474 -0.92329566\n3 Petal.Length  0.5804131 -0.02449161\n4  Petal.Width  0.5648565 -0.06694199\n\n\n\nloadings |&gt;\n  pivot_longer(cols = c(PC1, PC2), names_to = \"component\", values_to = \"loading\") |&gt;\n  ggplot(aes(x = feature, y = loading, fill = component)) +\n  geom_col(position = \"dodge\") +\n  labs(title = \"PCA 载荷对比\", x = NULL, y = \"载荷\") +\n  theme_minimal(base_size = 12)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#常见错误与优化",
+    "href": "1083-dimensionality-reduction.html#常见错误与优化",
+    "title": "降维方法完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n未标准化：不同尺度会主导 PCA 或 UMAP 结果。\n盲目追求二维：可视化便利不代表最佳维度。\n忽视随机性：t-SNE/UMAP 需固定随机种子。\n用 t-SNE/UMAP 做线性推断：它们不保留全局线性结构。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#部署与复现建议",
+    "href": "1083-dimensionality-reduction.html#部署与复现建议",
+    "title": "降维方法完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\nmodel_path &lt;- \"models/pca-model.rds\"\nif (!dir.exists(\"models\")) dir.create(\"models\")\nsaveRDS(pca_model, model_path)\n\nloaded_model &lt;- readRDS(model_path)\nall.equal(dim(loaded_model$rotation), dim(pca_model$rotation))\n\n[1] TRUE\n\n\n\nif (file.exists(\"models/pca-model.rds\")) {\n  file.remove(\"models/pca-model.rds\")\n}\n\n[1] TRUE\n\nif (dir.exists(\"models\")) {\n  unlink(\"models\", recursive = TRUE)\n}",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1083-dimensionality-reduction.html#总结",
+    "href": "1083-dimensionality-reduction.html#总结",
+    "title": "降维方法完整教程",
+    "section": "总结",
+    "text": "总结\nPCA 适合需要解释的线性降维，t-SNE/UMAP 更擅长揭示复杂簇结构。 实际应用中可先用 PCA 建立基线，再尝试非线性降维提升表现。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "降维 (PCA/UMAP/t-SNE)"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html",
+    "href": "1084-anomaly-detection.html",
+    "title": "无监督异常检测完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(rsample)\nlibrary(yardstick)\nlibrary(isotree)\nlibrary(dbscan)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#教程目标与适用场景",
+    "href": "1084-anomaly-detection.html#教程目标与适用场景",
+    "title": "无监督异常检测完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\n异常检测用于识别少数偏离正常模式的样本，常见于欺诈检测、异常监测。 本教程展示 Isolation Forest 与 LOF 的完整流程。\n适合场景\n\n标签稀缺或没有明确异常标签\n异常比例较低且分布明显不同\n\n不适合场景\n\n异常与正常难以区分、噪声极高\n需要明确可解释规则的场景",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#数据准备与模拟异常",
+    "href": "1084-anomaly-detection.html#数据准备与模拟异常",
+    "title": "无监督异常检测完整教程",
+    "section": "数据准备与模拟异常",
+    "text": "数据准备与模拟异常\n\nset.seed(2026)\nbase_data &lt;- mtcars |&gt;\n  select(mpg, disp, hp, wt)\n\nanomalies &lt;- base_data[1:5, ] |&gt;\n  mutate(\n    mpg = mpg * 0.4,\n    disp = disp * 2,\n    hp = hp * 2.2,\n    wt = wt * 1.8\n  )\n\nfull_data &lt;- bind_rows(\n  base_data |&gt; mutate(label = \"normal\"),\n  anomalies |&gt; mutate(label = \"anomaly\")\n) |&gt;\n  mutate(label = factor(label, levels = c(\"anomaly\", \"normal\")))\n\nsplit_obj &lt;- initial_split(full_data, prop = 0.8, strata = label)\ntrain_data &lt;- training(split_obj)\ntest_data &lt;- testing(split_obj)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#最小可运行示例isolation-forest",
+    "href": "1084-anomaly-detection.html#最小可运行示例isolation-forest",
+    "title": "无监督异常检测完整教程",
+    "section": "最小可运行示例：Isolation Forest",
+    "text": "最小可运行示例：Isolation Forest\n\nset.seed(2026)\niso_model &lt;- isolation.forest(\n  as.matrix(select(train_data, -label)),\n  ntrees = 200,\n  sample_size = 0.8\n)\n\niso_scores &lt;- predict(iso_model, as.matrix(select(test_data, -label)), type = \"score\")\n\n\nthreshold &lt;- quantile(iso_scores, 0.95)\npred_label &lt;- if_else(iso_scores &gt;= threshold, \"anomaly\", \"normal\") |&gt;\n  factor(levels = levels(test_data$label))\n\niso_metrics &lt;- tibble(\n  truth = test_data$label,\n  .pred_anomaly = iso_scores,\n  .pred_class = pred_label\n) |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(truth, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(truth, .pred_anomaly, event_level = \"first\"),\n    precision = yardstick::precision_vec(truth, .pred_class, event_level = \"first\"),\n    recall = yardstick::recall_vec(truth, .pred_class, event_level = \"first\")\n  )\n\niso_metrics\n\n# A tibble: 1 × 4\n  accuracy roc_auc precision recall\n     &lt;dbl&gt;   &lt;dbl&gt;     &lt;dbl&gt;  &lt;dbl&gt;\n1     0.75   0.857         0      0",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#进阶示例lof-局部离群因子",
+    "href": "1084-anomaly-detection.html#进阶示例lof-局部离群因子",
+    "title": "无监督异常检测完整教程",
+    "section": "进阶示例：LOF 局部离群因子",
+    "text": "进阶示例：LOF 局部离群因子\n\nlof_matrix &lt;- as.matrix(select(test_data, -label))\nmin_pts &lt;- max(2, min(10, nrow(lof_matrix) - 1))\nlof_scores &lt;- lof(lof_matrix, minPts = min_pts)\nlof_threshold &lt;- quantile(lof_scores, 0.95)\nlof_pred &lt;- if_else(lof_scores &gt;= lof_threshold, \"anomaly\", \"normal\") |&gt;\n  factor(levels = levels(test_data$label))\n\nlof_metrics &lt;- tibble(\n  truth = test_data$label,\n  .pred_anomaly = lof_scores,\n  .pred_class = lof_pred\n) |&gt;\n  summarise(\n    accuracy = yardstick::accuracy_vec(truth, .pred_class),\n    roc_auc = yardstick::roc_auc_vec(truth, .pred_anomaly, event_level = \"first\"),\n    precision = yardstick::precision_vec(truth, .pred_class, event_level = \"first\"),\n    recall = yardstick::recall_vec(truth, .pred_class, event_level = \"first\")\n  )\n\nlof_metrics\n\n# A tibble: 1 × 4\n  accuracy roc_auc precision recall\n     &lt;dbl&gt;   &lt;dbl&gt;     &lt;dbl&gt;  &lt;dbl&gt;\n1     0.75   0.857         0      0",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#可视化异常分布",
+    "href": "1084-anomaly-detection.html#可视化异常分布",
+    "title": "无监督异常检测完整教程",
+    "section": "可视化异常分布",
+    "text": "可视化异常分布\n\nplot_df &lt;- test_data |&gt;\n  mutate(score = iso_scores, pred = pred_label)\n\nggplot(plot_df, aes(x = mpg, y = hp, color = pred)) +\n  geom_point(size = 2, alpha = 0.85) +\n  scale_color_manual(values = c(\"anomaly\" = \"#ef4444\", \"normal\" = \"#4f46e5\")) +\n  labs(title = \"Isolation Forest 异常检测结果\") +\n  theme_minimal(base_size = 12)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#常见错误与优化",
+    "href": "1084-anomaly-detection.html#常见错误与优化",
+    "title": "无监督异常检测完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n阈值随意选择：建议结合业务或验证集调节。\n异常比例估计错误：Isolation Forest 需合理 sample_size。\n未做标准化：在高尺度差异的变量上效果下降。\n忽视时间漂移：异常检测模型需要周期性更新。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#部署与复现建议",
+    "href": "1084-anomaly-detection.html#部署与复现建议",
+    "title": "无监督异常检测完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\nmodel_path &lt;- \"models/isolation-forest.rds\"\nif (!dir.exists(\"models\")) dir.create(\"models\")\nsaveRDS(iso_model, model_path)\n\nloaded_model &lt;- readRDS(model_path)\nall.equal(loaded_model$ntrees, iso_model$ntrees)\n\n[1] TRUE\n\n\n\nif (file.exists(\"models/isolation-forest.rds\")) {\n  file.remove(\"models/isolation-forest.rds\")\n}\n\n[1] TRUE\n\nif (dir.exists(\"models\")) {\n  unlink(\"models\", recursive = TRUE)\n}",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
+  },
+  {
+    "objectID": "1084-anomaly-detection.html#总结",
+    "href": "1084-anomaly-detection.html#总结",
+    "title": "无监督异常检测完整教程",
+    "section": "总结",
+    "text": "总结\nIsolation Forest 适合高维数据的异常识别，LOF 更强调局部密度差异。 结合业务阈值、周期性更新可以提升异常检测的稳定性。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "无监督异常检测"
+    ]
   }
 ]

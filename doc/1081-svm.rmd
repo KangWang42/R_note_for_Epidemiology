@@ -1,0 +1,211 @@
+---
+title: 支持向量机 SVM 完整教程
+subtitle: "从线性可解释模型到核函数分类器"
+date: "2026-01-17"
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 核方法
+- SVM
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1081-svm-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(yardstick)
+library(e1071)
+```
+
+## 教程目标与适用场景
+
+SVM 通过最大化间隔提升分类效果，适合中小规模、边界清晰的数据。
+本教程覆盖线性 SVM 与 RBF 核 SVM 的完整训练流程。
+
+**适合场景**
+
+- 特征维度中等、样本量中等的分类问题
+- 需要稳健分类边界与良好泛化
+
+**不适合场景**
+
+- 超大规模数据（训练开销高）
+- 高噪声或类别极度不平衡的场景（需额外处理）
+
+## 数据准备与标准化
+
+```{r data-prep}
+set.seed(2026)
+iris_binary <- iris |>
+  mutate(target = if_else(Species == "setosa", "setosa", "other")) |>
+  select(-Species) |>
+  mutate(target = factor(target, levels = c("setosa", "other")))
+
+split_obj <- initial_split(iris_binary, prop = 0.7, strata = target)
+train_data <- training(split_obj)
+test_data <- testing(split_obj)
+
+train_x <- scale(select(train_data, -target))
+test_x <- scale(select(test_data, -target), center = attr(train_x, "scaled:center"),
+  scale = attr(train_x, "scaled:scale"))
+```
+
+## 最小可运行示例：线性 SVM
+
+```{r svm-linear-fit}
+svm_linear <- svm(
+  x = train_x,
+  y = train_data$target,
+  kernel = "linear",
+  cost = 1,
+  probability = TRUE
+)
+
+svm_linear
+```
+
+```{r svm-linear-predict}
+linear_pred <- predict(svm_linear, test_x, probability = TRUE)
+linear_prob <- attr(linear_pred, "probabilities")[, "setosa"]
+
+linear_metrics <- tibble(
+  truth = test_data$target,
+  .pred_setosa = linear_prob,
+  .pred_class = linear_pred
+) |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(truth, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = "first")
+  )
+
+linear_metrics
+```
+
+## 进阶示例：RBF 核与调参
+
+RBF 核可以处理非线性边界，需要调节 `cost` 与 `gamma`。
+
+```{r svm-tuning}
+set.seed(2026)
+tuned <- tune(
+  svm,
+  train.x = train_x,
+  train.y = train_data$target,
+  kernel = "radial",
+  ranges = list(cost = 2 ^ (-1:2), gamma = 2 ^ (-2:1))
+)
+
+best_params <- tuned$best.parameters
+best_params
+```
+
+```{r svm-rbf-fit}
+svm_rbf <- svm(
+  x = train_x,
+  y = train_data$target,
+  kernel = "radial",
+  cost = best_params$cost,
+  gamma = best_params$gamma,
+  probability = TRUE
+)
+
+rbf_pred <- predict(svm_rbf, test_x, probability = TRUE)
+rbf_prob <- attr(rbf_pred, "probabilities")[, "setosa"]
+
+rbf_metrics <- tibble(
+  truth = test_data$target,
+  .pred_setosa = rbf_prob,
+  .pred_class = rbf_pred
+) |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(truth, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = "first")
+  )
+
+rbf_metrics
+```
+
+## 模型对比
+
+```{r svm-compare}
+comparison <- bind_rows(
+  linear_metrics |> mutate(model = "Linear SVM"),
+  rbf_metrics |> mutate(model = "RBF SVM")
+) |>
+  select(model, accuracy, roc_auc)
+
+comparison
+```
+
+## 可解释性：线性 SVM 权重
+
+线性 SVM 的权重反映变量对分类边界的贡献。
+
+```{r svm-weights}
+weights <- t(svm_linear$coefs) %*% svm_linear$SV
+weight_df <- tibble(
+  feature = colnames(train_x),
+  weight = as.vector(weights)
+) |>
+  mutate(abs_weight = abs(weight)) |>
+  arrange(desc(abs_weight))
+
+weight_df
+```
+
+```{r svm-weights-plot}
+ggplot(weight_df, aes(x = reorder(feature, abs_weight), y = weight)) +
+  geom_col(fill = "#4f46e5", alpha = 0.85) +
+  coord_flip() +
+  labs(
+    title = "线性 SVM 权重",
+    x = NULL,
+    y = "权重（正负方向）"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## 常见错误与优化
+
+- **忽视标准化**：SVM 对尺度敏感，必须标准化。
+- **调参范围过窄**：`cost` 与 `gamma` 需在对数尺度搜索。
+- **过拟合核函数**：RBF 容易过拟合，需交叉验证。
+- **类别不平衡**：可以使用 `class.weights` 或调整阈值。
+
+## 部署与复现建议
+
+```{r svm-save}
+model_path <- "models/svm-rbf.rds"
+if (!dir.exists("models")) dir.create("models")
+saveRDS(svm_rbf, model_path)
+
+loaded_model <- readRDS(model_path)
+all.equal(loaded_model$kernel, svm_rbf$kernel)
+```
+
+```{r svm-cleanup}
+if (file.exists("models/svm-rbf.rds")) {
+  file.remove("models/svm-rbf.rds")
+}
+if (dir.exists("models")) {
+  unlink("models", recursive = TRUE)
+}
+```
+
+## 总结
+
+线性 SVM 解释性强，RBF 核适合非线性边界。
+合理的标准化与调参是 SVM 表现的关键。

@@ -30,6 +30,11 @@
 - There is no formal test suite or lint config detected.
 - If you add new tests, document the command here.
 - Prefer manual validation by rendering the specific article you changed.
+- If a required R package is missing, install it during rendering and record the package name here.
+
+## Rendering Dependencies
+- Installed during this session: rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette.
+
 
 ## Tooling Prerequisites
 - Requires R 4.x and Quarto.
@@ -101,6 +106,7 @@
 - Prefer targeted edits using existing patterns.
 - Minimize changes to generated output.
 - Ask before making structural changes to navigation or sections.
+- When adding new articles, update `doc/0001-guide.rmd` to keep the guide in sync.
 
 ## Skill Auto-Load Rules
 - 当任务涉及“入门指南/学习路线/基础知识”，先加载 `section-intro-guide`.

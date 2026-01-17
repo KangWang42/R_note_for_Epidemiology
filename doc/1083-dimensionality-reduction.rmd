@@ -1,0 +1,215 @@
+---
+title: 降维方法完整教程
+subtitle: "PCA、UMAP 与 t-SNE 的系统实践"
+date: "2026-01-17"
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 降维
+- PCA
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1083-dimred-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(cluster)
+library(Rtsne)
+library(uwot)
+library(tibble)
+```
+
+## 教程目标与适用场景
+
+降维用于高维数据的可视化与压缩，常见方法包括 PCA、t-SNE 与 UMAP。
+本教程展示可解释的线性降维与强表达能力的非线性降维。
+
+**适合场景**
+
+- 高维数据探索与可视化
+- 特征压缩以提升下游模型性能
+
+**不适合场景**
+
+- 需要保留原始变量精确含义的场景
+- 样本量极小且特征噪声较大
+
+## 数据准备
+
+```{r data-prep}
+set.seed(2026)
+iris_data <- iris |>
+  select(-Species)
+
+scaled_iris <- scale(iris_data)
+```
+
+## 最小可运行示例：PCA
+
+```{r pca-fit}
+pca_model <- prcomp(scaled_iris, center = TRUE, scale. = TRUE)
+summary(pca_model)$importance[, 1:3]
+```
+
+### 解释方差
+
+```{r pca-variance}
+variance_df <- tibble(
+  component = paste0("PC", seq_along(pca_model$sdev)),
+  variance = pca_model$sdev^2,
+  variance_ratio = (pca_model$sdev^2) / sum(pca_model$sdev^2)
+)
+
+variance_df
+```
+
+```{r pca-scree}
+ggplot(variance_df, aes(x = component, y = variance_ratio)) +
+  geom_col(fill = "#4f46e5") +
+  geom_line(aes(group = 1), color = "#0f172a") +
+  labs(
+    title = "PCA 解释方差",
+    y = "方差占比",
+    x = "主成分"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### PCA 可视化
+
+```{r pca-plot}
+pca_scores <- as.data.frame(pca_model$x[, 1:2]) |>
+  mutate(species = iris$Species)
+
+colnames(pca_scores)[1:2] <- c("PC1", "PC2")
+
+pca_scores |>
+  ggplot(aes(x = PC1, y = PC2, color = species)) +
+  geom_point(size = 2, alpha = 0.85) +
+  labs(title = "PCA 二维投影") +
+  theme_minimal(base_size = 12)
+```
+
+## 进阶示例：t-SNE 与 UMAP
+
+```{r tsne-umap}
+set.seed(2026)
+tsne_result <- Rtsne(
+  scaled_iris,
+  dims = 2,
+  perplexity = 15,
+  verbose = FALSE,
+  check_duplicates = FALSE
+)
+umap_result <- umap(scaled_iris, n_neighbors = 15, min_dist = 0.1)
+
+tsne_df <- as.data.frame(tsne_result$Y) |>
+  mutate(species = iris$Species)
+colnames(tsne_df)[1:2] <- c("dim1", "dim2")
+
+umap_df <- as.data.frame(umap_result) |>
+  mutate(species = iris$Species)
+colnames(umap_df)[1:2] <- c("dim1", "dim2")
+```
+
+```{r tsne-plot}
+ggplot(tsne_df, aes(x = dim1, y = dim2, color = species)) +
+  geom_point(size = 2, alpha = 0.85) +
+  labs(title = "t-SNE 投影") +
+  theme_minimal(base_size = 12)
+```
+
+```{r umap-plot}
+ggplot(umap_df, aes(x = dim1, y = dim2, color = species)) +
+  geom_point(size = 2, alpha = 0.85) +
+  labs(title = "UMAP 投影") +
+  theme_minimal(base_size = 12)
+```
+
+## 模型选择与对比
+
+PCA 保留全局结构并可解释，t-SNE/UMAP 更强调局部邻近关系。
+可通过下游聚类表现评估降维效果。
+
+```{r dimred-eval}
+set.seed(2026)
+cluster_labels <- kmeans(scaled_iris, centers = 3)$cluster
+
+silhouette_pca <- silhouette(cluster_labels, dist(pca_model$x[, 1:2]))
+silhouette_tsne <- silhouette(cluster_labels, dist(tsne_result$Y))
+silhouette_umap <- silhouette(cluster_labels, dist(umap_result))
+
+silhouette_summary <- tibble(
+  method = c("PCA", "t-SNE", "UMAP"),
+  silhouette = c(
+    mean(silhouette_pca[, "sil_width"]),
+    mean(silhouette_tsne[, "sil_width"]),
+    mean(silhouette_umap[, "sil_width"])
+  )
+)
+
+silhouette_summary
+```
+
+## 可解释性：PCA 载荷
+
+```{r pca-loadings}
+loadings <- as.data.frame(pca_model$rotation[, 1:2]) |>
+  rownames_to_column("feature")
+
+loadings
+```
+
+```{r pca-loading-plot}
+loadings |>
+  pivot_longer(cols = c(PC1, PC2), names_to = "component", values_to = "loading") |>
+  ggplot(aes(x = feature, y = loading, fill = component)) +
+  geom_col(position = "dodge") +
+  labs(title = "PCA 载荷对比", x = NULL, y = "载荷") +
+  theme_minimal(base_size = 12)
+```
+
+## 常见错误与优化
+
+- **未标准化**：不同尺度会主导 PCA 或 UMAP 结果。
+- **盲目追求二维**：可视化便利不代表最佳维度。
+- **忽视随机性**：t-SNE/UMAP 需固定随机种子。
+- **用 t-SNE/UMAP 做线性推断**：它们不保留全局线性结构。
+
+## 部署与复现建议
+
+```{r dimred-save}
+model_path <- "models/pca-model.rds"
+if (!dir.exists("models")) dir.create("models")
+saveRDS(pca_model, model_path)
+
+loaded_model <- readRDS(model_path)
+all.equal(dim(loaded_model$rotation), dim(pca_model$rotation))
+```
+
+```{r dimred-cleanup}
+if (file.exists("models/pca-model.rds")) {
+  file.remove("models/pca-model.rds")
+}
+if (dir.exists("models")) {
+  unlink("models", recursive = TRUE)
+}
+```
+
+## 总结
+
+PCA 适合需要解释的线性降维，t-SNE/UMAP 更擅长揭示复杂簇结构。
+实际应用中可先用 PCA 建立基线，再尝试非线性降维提升表现。

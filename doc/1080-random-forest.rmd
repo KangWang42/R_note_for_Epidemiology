@@ -1,0 +1,240 @@
+---
+title: 随机森林与决策树完整教程
+subtitle: "从可解释树模型到稳健的森林集成"
+date: "2026-01-17"
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 树模型
+- 随机森林
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.5,
+  fig.height = 5,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1080-random-forest-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(yardstick)
+library(rpart)
+library(rpart.plot)
+library(ranger)
+```
+
+## 教程目标与适用场景
+
+决策树提供清晰的规则解释，随机森林通过集成提升稳健性。
+本教程展示从单棵树到森林模型的完整训练、调参与解释流程。
+
+**适合场景**
+
+- 特征与结局之间存在非线性或交互效应
+- 需要兼顾预测效果与一定解释性
+- 变量尺度不同但希望减少复杂预处理
+
+**不适合场景**
+
+- 高维稀疏文本数据（需更适配的模型）
+- 要求完整可解释的线性关系场景
+
+## 数据准备与任务定义
+
+这里用 Iris 数据构造二分类任务：`setosa` vs 其他类别。
+
+```{r data-prep}
+set.seed(2026)
+iris_binary <- iris |>
+  mutate(target = if_else(Species == "setosa", "setosa", "other")) |>
+  select(-Species) |>
+  mutate(target = factor(target, levels = c("setosa", "other")))
+
+split_obj <- initial_split(iris_binary, prop = 0.7, strata = target)
+train_data <- training(split_obj)
+test_data <- testing(split_obj)
+```
+
+### 基线：决策树模型
+
+```{r decision-tree-fit}
+tree_model <- rpart(
+  target ~ ., 
+  data = train_data,
+  method = "class",
+  control = rpart.control(cp = 0.01)
+)
+
+rpart.plot(tree_model, type = 4, extra = 104)
+```
+
+```{r decision-tree-predict}
+tree_prob <- predict(tree_model, test_data, type = "prob")
+tree_pred <- predict(tree_model, test_data, type = "class")
+
+tree_metrics <- tibble(
+  truth = test_data$target,
+  .pred_setosa = tree_prob[, "setosa"],
+  .pred_class = tree_pred
+) |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(truth, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = "first")
+  )
+
+tree_metrics
+```
+
+## 随机森林模型
+
+### 训练基础随机森林
+
+```{r rf-fit}
+set.seed(2026)
+rf_model <- ranger(
+  target ~ .,
+  data = train_data,
+  num.trees = 500,
+  mtry = 2,
+  min.node.size = 3,
+  probability = TRUE,
+  importance = "permutation"
+)
+```
+
+```{r rf-predict}
+rf_prob <- predict(rf_model, data = test_data)$predictions[, "setosa"]
+rf_pred <- if_else(rf_prob >= 0.5, "setosa", "other") |> factor(levels = levels(test_data$target))
+
+rf_metrics <- tibble(
+  truth = test_data$target,
+  .pred_setosa = rf_prob,
+  .pred_class = rf_pred
+) |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(truth, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(truth, .pred_setosa, event_level = "first")
+  )
+
+rf_metrics
+```
+
+## 模型选择与对比
+
+对比结果时，树模型强调可解释，随机森林强调泛化。
+
+```{r model-compare}
+comparison <- bind_rows(
+  tree_metrics |> mutate(model = "Decision Tree"),
+  rf_metrics |> mutate(model = "Random Forest")
+) |>
+  select(model, accuracy, roc_auc)
+
+comparison
+```
+
+## 调参流程：mtry 与节点规模
+
+```{r rf-tuning}
+set.seed(2026)
+tuning_grid <- expand.grid(
+  mtry = c(1, 2, 3),
+  min.node.size = c(1, 3, 5)
+)
+
+results <- lapply(seq_len(nrow(tuning_grid)), function(i) {
+  params <- tuning_grid[i, ]
+  model <- ranger(
+    target ~ .,
+    data = train_data,
+    num.trees = 400,
+    mtry = params$mtry,
+    min.node.size = params$min.node.size,
+    probability = TRUE
+  )
+  pred_prob <- predict(model, data = test_data)$predictions[, "setosa"]
+  pred_class <- if_else(pred_prob >= 0.5, "setosa", "other") |> factor(levels = levels(test_data$target))
+
+  tibble(
+    mtry = params$mtry,
+    min_node = params$min.node.size,
+    accuracy = yardstick::accuracy_vec(test_data$target, pred_class),
+    roc_auc = yardstick::roc_auc_vec(test_data$target, pred_prob, event_level = "first")
+  )
+})
+
+bind_rows(results) |>
+  arrange(desc(roc_auc))
+```
+
+## 可解释性与可视化
+
+### 1. 特征重要性
+
+```{r rf-importance}
+importance_df <- tibble(
+  feature = names(rf_model$variable.importance),
+  importance = rf_model$variable.importance
+) |>
+  arrange(desc(importance))
+
+importance_df
+```
+
+```{r rf-importance-plot}
+ggplot(importance_df, aes(x = reorder(feature, importance), y = importance)) +
+  geom_col(fill = "#4f46e5", alpha = 0.85) +
+  coord_flip() +
+  labs(
+    title = "随机森林特征重要性",
+    x = NULL,
+    y = "Permutation Importance"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### 2. 决策树规则解释
+
+单棵树可直接给出清晰的“如果-那么”规则，适合对业务方解释。
+随机森林适合提升预测，但需要用特征重要性或局部解释补充说明。
+
+## 常见错误与优化
+
+- **忽视类别不平衡**：应考虑分层抽样或调整阈值。
+- **树太深**：会过拟合，需控制 `min.node.size` 或树深度。
+- **盲目追求高精度**：结合可解释性与业务成本。
+- **未设置随机种子**：结果不可复现。
+
+## 部署与复现建议
+
+```{r rf-save}
+model_path <- "models/rf-iris.rds"
+if (!dir.exists("models")) dir.create("models")
+saveRDS(rf_model, model_path)
+
+loaded_model <- readRDS(model_path)
+all.equal(rf_model$forest$num.trees, loaded_model$forest$num.trees)
+```
+
+```{r rf-cleanup}
+if (file.exists("models/rf-iris.rds")) {
+  file.remove("models/rf-iris.rds")
+}
+if (dir.exists("models")) {
+  unlink("models", recursive = TRUE)
+}
+```
+
+## 总结
+
+决策树适合快速解释与沟通，随机森林适合追求稳健的预测表现。
+在实际工作中，可以先用树模型建立基线，再用随机森林提升效果。

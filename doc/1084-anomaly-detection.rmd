@@ -1,0 +1,176 @@
+---
+title: 无监督异常检测完整教程
+subtitle: "Isolation Forest 与 LOF 的实战流程"
+date: "2026-01-17"
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 无监督
+- 异常检测
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1084-anomaly-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(yardstick)
+library(isotree)
+library(dbscan)
+```
+
+## 教程目标与适用场景
+
+异常检测用于识别少数偏离正常模式的样本，常见于欺诈检测、异常监测。
+本教程展示 Isolation Forest 与 LOF 的完整流程。
+
+**适合场景**
+
+- 标签稀缺或没有明确异常标签
+- 异常比例较低且分布明显不同
+
+**不适合场景**
+
+- 异常与正常难以区分、噪声极高
+- 需要明确可解释规则的场景
+
+## 数据准备与模拟异常
+
+```{r data-prep}
+set.seed(2026)
+base_data <- mtcars |>
+  select(mpg, disp, hp, wt)
+
+anomalies <- base_data[1:5, ] |>
+  mutate(
+    mpg = mpg * 0.4,
+    disp = disp * 2,
+    hp = hp * 2.2,
+    wt = wt * 1.8
+  )
+
+full_data <- bind_rows(
+  base_data |> mutate(label = "normal"),
+  anomalies |> mutate(label = "anomaly")
+) |>
+  mutate(label = factor(label, levels = c("anomaly", "normal")))
+
+split_obj <- initial_split(full_data, prop = 0.8, strata = label)
+train_data <- training(split_obj)
+test_data <- testing(split_obj)
+```
+
+## 最小可运行示例：Isolation Forest
+
+```{r iso-fit}
+set.seed(2026)
+iso_model <- isolation.forest(
+  as.matrix(select(train_data, -label)),
+  ntrees = 200,
+  sample_size = 0.8
+)
+
+iso_scores <- predict(iso_model, as.matrix(select(test_data, -label)), type = "score")
+```
+
+```{r iso-eval}
+threshold <- quantile(iso_scores, 0.95)
+pred_label <- if_else(iso_scores >= threshold, "anomaly", "normal") |>
+  factor(levels = levels(test_data$label))
+
+iso_metrics <- tibble(
+  truth = test_data$label,
+  .pred_anomaly = iso_scores,
+  .pred_class = pred_label
+) |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(truth, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(truth, .pred_anomaly, event_level = "first"),
+    precision = yardstick::precision_vec(truth, .pred_class, event_level = "first"),
+    recall = yardstick::recall_vec(truth, .pred_class, event_level = "first")
+  )
+
+iso_metrics
+```
+
+## 进阶示例：LOF 局部离群因子
+
+```{r lof-fit}
+lof_matrix <- as.matrix(select(test_data, -label))
+min_pts <- max(2, min(10, nrow(lof_matrix) - 1))
+lof_scores <- lof(lof_matrix, minPts = min_pts)
+lof_threshold <- quantile(lof_scores, 0.95)
+lof_pred <- if_else(lof_scores >= lof_threshold, "anomaly", "normal") |>
+  factor(levels = levels(test_data$label))
+
+lof_metrics <- tibble(
+  truth = test_data$label,
+  .pred_anomaly = lof_scores,
+  .pred_class = lof_pred
+) |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(truth, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(truth, .pred_anomaly, event_level = "first"),
+    precision = yardstick::precision_vec(truth, .pred_class, event_level = "first"),
+    recall = yardstick::recall_vec(truth, .pred_class, event_level = "first")
+  )
+
+lof_metrics
+```
+
+## 可视化异常分布
+
+```{r anomaly-plot}
+plot_df <- test_data |>
+  mutate(score = iso_scores, pred = pred_label)
+
+ggplot(plot_df, aes(x = mpg, y = hp, color = pred)) +
+  geom_point(size = 2, alpha = 0.85) +
+  scale_color_manual(values = c("anomaly" = "#ef4444", "normal" = "#4f46e5")) +
+  labs(title = "Isolation Forest 异常检测结果") +
+  theme_minimal(base_size = 12)
+```
+
+## 常见错误与优化
+
+- **阈值随意选择**：建议结合业务或验证集调节。
+- **异常比例估计错误**：Isolation Forest 需合理 `sample_size`。
+- **未做标准化**：在高尺度差异的变量上效果下降。
+- **忽视时间漂移**：异常检测模型需要周期性更新。
+
+## 部署与复现建议
+
+```{r anomaly-save}
+model_path <- "models/isolation-forest.rds"
+if (!dir.exists("models")) dir.create("models")
+saveRDS(iso_model, model_path)
+
+loaded_model <- readRDS(model_path)
+all.equal(loaded_model$ntrees, iso_model$ntrees)
+```
+
+```{r anomaly-cleanup}
+if (file.exists("models/isolation-forest.rds")) {
+  file.remove("models/isolation-forest.rds")
+}
+if (dir.exists("models")) {
+  unlink("models", recursive = TRUE)
+}
+```
+
+## 总结
+
+Isolation Forest 适合高维数据的异常识别，LOF 更强调局部密度差异。
+结合业务阈值、周期性更新可以提升异常检测的稳定性。

@@ -1,0 +1,291 @@
+---
+title: 集成学习完整教程
+subtitle: "Bagging、Boosting 与 Stacking 的系统实践"
+date: "2026-01-17"
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 集成学习
+- bagging
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.5,
+  fig.height = 5,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1082-ensemble-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(recipes)
+library(parsnip)
+library(workflows)
+library(tune)
+library(yardstick)
+library(stacks)
+library(baguette)
+```
+
+## 教程目标与适用场景
+
+集成学习通过组合多个模型提升性能，常见方式包括 Bagging、Boosting 与 Stacking。
+本教程使用 tidymodels 展示完整的建模、调参与评估流程。
+
+**适合场景**
+
+- 单一模型表现不稳定或方差偏大
+- 需要在不牺牲太多解释性的情况下提升性能
+
+**不适合场景**
+
+- 数据量极小且不可交叉验证
+- 需要严格可解释的单一模型结论
+
+## 数据准备
+
+```{r data-prep}
+set.seed(2026)
+iris_binary <- iris |>
+  mutate(target = if_else(Species == "setosa", "setosa", "other")) |>
+  select(-Species) |>
+  mutate(target = factor(target, levels = c("setosa", "other")))
+
+split_obj <- initial_split(iris_binary, prop = 0.75, strata = target)
+train_data <- training(split_obj)
+test_data <- testing(split_obj)
+
+ml_recipe <- recipe(target ~ ., data = train_data)
+```
+
+## 基线模型：单棵决策树
+
+```{r baseline-tree}
+base_tree <- decision_tree(mode = "classification", tree_depth = 3) |>
+  set_engine("rpart")
+
+base_workflow <- workflow() |>
+  add_recipe(ml_recipe) |>
+  add_model(base_tree)
+
+base_fit <- fit(base_workflow, data = train_data)
+
+base_pred <- predict(base_fit, test_data, type = "prob") |>
+  bind_cols(predict(base_fit, test_data)) |>
+  bind_cols(test_data)
+
+base_pred <- base_pred |>
+  mutate(
+    .pred_setosa = .pred_setosa,
+    .pred_class = factor(.pred_class, levels = levels(target))
+  )
+
+base_metrics <- base_pred |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(target, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = "first")
+  )
+
+base_metrics
+```
+
+## Bagging：降低方差
+
+```{r bagging-fit}
+bag_model <- bag_tree(mode = "classification") |>
+  set_engine("rpart", times = 100)
+
+bag_workflow <- workflow() |>
+  add_recipe(ml_recipe) |>
+  add_model(bag_model)
+
+bag_fit <- fit(bag_workflow, data = train_data)
+
+bag_pred <- predict(bag_fit, test_data, type = "prob") |>
+  bind_cols(predict(bag_fit, test_data)) |>
+  bind_cols(test_data)
+
+bag_pred <- bag_pred |>
+  mutate(
+    .pred_setosa = .pred_setosa,
+    .pred_class = factor(.pred_class, levels = levels(target))
+  )
+
+bag_metrics <- bag_pred |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(target, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = "first")
+  )
+
+bag_metrics
+```
+
+## Boosting：降低偏差
+
+```{r boosting-fit}
+boost_model <- boost_tree(
+  mode = "classification",
+  trees = 200,
+  tree_depth = 3,
+  learn_rate = 0.1
+) |>
+  set_engine("xgboost")
+
+boost_workflow <- workflow() |>
+  add_recipe(ml_recipe) |>
+  add_model(boost_model)
+
+boost_fit <- fit(boost_workflow, data = train_data)
+
+boost_pred <- predict(boost_fit, test_data, type = "prob") |>
+  bind_cols(predict(boost_fit, test_data)) |>
+  bind_cols(test_data)
+
+boost_pred <- boost_pred |>
+  mutate(
+    .pred_setosa = .pred_setosa,
+    .pred_class = factor(.pred_class, levels = levels(target))
+  )
+
+boost_metrics <- boost_pred |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(target, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = "first")
+  )
+
+boost_metrics
+```
+
+## 训练与调参：交叉验证示例
+
+```{r tuning-resamples}
+set.seed(2026)
+folds <- vfold_cv(train_data, v = 5, strata = target)
+
+bag_tune <- bag_tree(
+  mode = "classification",
+  tree_depth = tune(),
+  min_n = tune()
+) |>
+  set_engine("rpart", times = 80)
+
+boost_tune <- boost_tree(
+  mode = "classification",
+  trees = 200,
+  tree_depth = tune(),
+  learn_rate = tune()
+) |>
+  set_engine("xgboost")
+
+bag_wf <- workflow() |>
+  add_recipe(ml_recipe) |>
+  add_model(bag_tune)
+
+boost_wf <- workflow() |>
+  add_recipe(ml_recipe) |>
+  add_model(boost_tune)
+
+bag_res <- tune_grid(
+  bag_wf,
+  resamples = folds,
+  grid = 4,
+  metrics = metric_set(accuracy, roc_auc),
+  control = control_stack_grid()
+)
+
+boost_res <- tune_grid(
+  boost_wf,
+  resamples = folds,
+  grid = 4,
+  metrics = metric_set(accuracy, roc_auc),
+  control = control_stack_grid()
+)
+```
+
+## Stacking：组合多个模型
+
+```{r stacking-fit}
+stacked_model <- stacks() |>
+  add_candidates(bag_res) |>
+  add_candidates(boost_res) |>
+  blend_predictions(metric = metric_set(accuracy)) |>
+  fit_members()
+
+stack_pred <- predict(stacked_model, test_data, type = "prob") |>
+  bind_cols(predict(stacked_model, test_data)) |>
+  bind_cols(test_data)
+
+stack_pred <- stack_pred |>
+  mutate(
+    .pred_setosa = .pred_setosa,
+    .pred_class = factor(.pred_class, levels = levels(target))
+  )
+
+stack_metrics <- stack_pred |>
+  summarise(
+    accuracy = yardstick::accuracy_vec(target, .pred_class),
+    roc_auc = yardstick::roc_auc_vec(target, .pred_setosa, event_level = "first")
+  )
+
+stack_metrics
+```
+
+## 结果对比
+
+```{r ensemble-compare}
+comparison <- bind_rows(
+  base_metrics |> mutate(model = "Decision Tree"),
+  bag_metrics |> mutate(model = "Bagging"),
+  boost_metrics |> mutate(model = "Boosting"),
+  stack_metrics |> mutate(model = "Stacking")
+) |>
+  select(model, accuracy, roc_auc)
+
+comparison
+```
+
+## 可解释性与可视化
+
+- Bagging 可查看单棵树或平均特征重要性。
+- Boosting 可输出特征重要性与 SHAP（xgboost 支持）。
+- Stacking 通过元学习器融合，需要解释每个基模型贡献。
+
+## 常见错误与优化
+
+- **弱模型过强**：基模型过拟合会降低集成收益。
+- **忽视重采样**：Bagging 需要随机性，避免使用完全相同数据。
+- **模型相关性过高**：Stacking 需要差异化模型组合。
+- **调参网格过小**：容易错过最优配置。
+
+## 部署与复现建议
+
+```{r ensemble-save}
+model_path <- "models/stacked-ensemble.rds"
+if (!dir.exists("models")) dir.create("models")
+saveRDS(stacked_model, model_path)
+
+loaded_model <- readRDS(model_path)
+all.equal(names(loaded_model$coefs), names(stacked_model$coefs))
+```
+
+```{r ensemble-cleanup}
+if (file.exists("models/stacked-ensemble.rds")) {
+  file.remove("models/stacked-ensemble.rds")
+}
+if (dir.exists("models")) {
+  unlink("models", recursive = TRUE)
+}
+```
+
+## 总结
+
+Bagging 适合降低方差，Boosting 适合降低偏差，Stacking 适合整合优势。
+在实际项目中，建议先建立单模型基线，再逐步引入集成策略。
