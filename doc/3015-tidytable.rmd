@@ -1,0 +1,181 @@
+---
+title: tidytable 数据处理完全指南
+subtitle: "dplyr 语法 + data.table 性能的整合路线"
+date: "2026-01-18"
+image: images/3015-tidytable-cover.svg
+categories:
+- 实用 R 包
+- 数据处理
+- tidytable
+- data.table
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.4,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/3015-tidytable-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(tidytable)
+library(ggplot2)
+```
+
+## 包简介与定位
+
+tidytable 通过复刻 dplyr 语法，让你用熟悉的 tidyverse 风格获得 data.table 的速度。
+它适合在数据量较大、需要高性能处理的场景，同时保持管道式的可读性。
+
+**适合场景**
+
+- 想用 dplyr 语法但需要 data.table 的速度
+- 中大型数据的筛选、聚合、排序、连接操作
+- 需要在生产环境中降低内存占用
+
+**替代方案**
+
+- `dplyr`：更强调语法统一，但在超大数据下速度较慢
+- `data.table`：性能更强，但语法风格不同
+- `duckplyr`：适合 DuckDB 驱动的磁盘级处理
+
+## 模型/工具入门：从0理解 tidytable 工作流
+
+tidytable 的核心思想是：把 `data.table` 的高性能写成 `dplyr` 语法。
+你可以将它看作 “data.table 引擎 + dplyr 接口” 的组合。它默认返回 `data.table`
+对象（同时兼容 tibble 的显示风格），因此读取与写回都更高效。
+
+工作流上依旧保持 tidyverse 的顺序：
+
+1. `tidytable::as_tidytable()` 把数据变为 tidytable
+2. 用 `select()`、`filter()`、`mutate()` 做数据加工
+3. 用 `summarise()`、`count()`、`group_by()` 输出结果
+4. 使用 `left_join()`、`inner_join()` 连接多表
+
+## 安装与环境
+
+```{r install-tidytable, eval=FALSE}
+install.packages("tidytable")
+```
+
+tidytable 依赖 data.table，因此首次安装会编译并占用一定时间。
+建议在高性能场景中优先使用它。
+
+## 核心功能清单
+
+| 操作 | tidytable 函数 | 功能说明 |
+|------|----------------|----------|
+| 选择列 | `select()` | 选取字段、重命名 |
+| 过滤行 | `filter()` | 条件筛选 |
+| 新变量 | `mutate()` | 创建或转换变量 |
+| 聚合 | `summarise()` | 分组统计 |
+| 排序 | `arrange()` | 排序与排名 |
+| 连接 | `left_join()` | 多表合并 |
+| 重塑 | `pivot_longer()` | 宽长表转换 |
+
+## 完整示例流程：从数据读取到汇总输出
+
+```{r tidytable-data}
+set.seed(2026)
+raw_data <- tibble::tibble(
+  subject_id = 1:200,
+  group = sample(c("control", "treatment"), 200, replace = TRUE),
+  age = round(rnorm(200, 45, 12), 1),
+  bmi = round(rnorm(200, 24, 4), 1),
+  outcome = rbinom(200, 1, 0.35)
+)
+
+study_data <- tidytable::as_tidytable(raw_data)
+```
+
+```{r tidytable-transform}
+summary_tbl <- study_data |>
+  filter(age >= 18) |>
+  mutate(bmi_group = case_when(
+    bmi < 18.5 ~ "under",
+    bmi < 24 ~ "normal",
+    bmi < 28 ~ "over",
+    TRUE ~ "obese"
+  )) |>
+  group_by(group, bmi_group) |>
+  summarise(
+    n = n(),
+    outcome_rate = mean(outcome),
+    mean_age = mean(age),
+    .groups = "drop"
+  ) |>
+  arrange(desc(outcome_rate))
+
+summary_tbl
+```
+
+**解释要点**
+
+- `as_tidytable()` 把 tibble 转为 tidytable 对象，后续操作都是 data.table 引擎。
+- `case_when()` 在 tidytable 中保持与 dplyr 一致的写法。
+- `summarise()` 会输出 data.table 格式，但展示仍然友好。
+
+## 代码逐段解释
+
+1. **模拟数据**：构造含分组与结局的简化数据集，便于复现。
+2. **筛选与派生变量**：用 `filter()` 和 `mutate()` 组合生成 BMI 分组。
+3. **分组统计**：`group_by()` + `summarise()` 输出平均年龄和结局率。
+4. **排序结果**：`arrange()` 将高风险组合排在前面。
+
+## 进阶示例：连接与管道式清洗
+
+```{r tidytable-join}
+followup_data <- tidytable::as_tidytable(
+  tibble::tibble(
+    subject_id = sample(1:200, 160),
+    followup_month = sample(3:24, 160, replace = TRUE)
+  )
+)
+
+joined_data <- study_data |>
+  left_join(followup_data, by = "subject_id") |>
+  mutate(
+    followup_month = if_else(is.na(followup_month), 0, followup_month),
+    risk_flag = outcome == 1 & followup_month < 6
+  )
+
+joined_data |>
+  count(risk_flag)
+```
+
+**解释要点**
+
+- tidytable 的 `left_join()` 直接调用 data.table join，速度优势明显。
+- `if_else()` 与 dplyr 保持一致，兼顾可读性。
+
+## 常见错误与排查
+
+- **结果类型不一致**：tidytable 默认返回 data.table，可用 `as_tibble()` 转换。
+- **忘记加载 tidytable**：部分 dplyr 函数会被 tidytable 覆盖。
+- **列名冲突**：join 后需检查列名是否自动重命名。
+- **NA 处理不足**：大数据下 NA 会导致统计偏差。
+
+## 性能与最佳实践
+
+- 处理大型数据时，先转为 tidytable 再进入管道。
+- 尽量减少中间对象，使用管道保持单次流式处理。
+- 对频繁 join 的表先设置 key：`tidytable::set_key()`。
+
+## 扩展阅读与关联包
+
+- [data.table 官方文档](https://rdatatable.gitlab.io/data.table/)
+- [tidytable CRAN](https://cran.r-project.org/package=tidytable)
+- [duckplyr](3013-duckplyr.html)：DuckDB 后端的 dplyr 加速
+- [arrow](1072-arrow-bigdata.html)：列式存储与大数据处理
+
+## 总结
+
+tidytable 让你以 dplyr 语法享受 data.table 的性能优势，
+非常适合在数据处理阶段提升速度与可读性。
