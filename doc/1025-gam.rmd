@@ -219,7 +219,23 @@ draw(gam_seasonal, select = 1) +
 
 ---
 
+## 平滑函数选择与可解释性
+
+GAM 的平滑项决定模型的“弯曲程度”。
+常用基函数包括薄板样条（默认）、立方回归样条、循环样条。
+当变量存在周期性（如季节效应）时建议使用 `bs = "cc"`。
+
+平滑项的解释重点是“方向与非线性形态”，
+而非单点效应。可结合一阶导数判断上升/下降区间。
+
+```{r}
+# 提取平滑项的一阶导数（gratia）
+sm_deriv <- derivatives(gam_full, term = "s(temperature)")
+head(sm_deriv)
+```
+
 ## 控制平滑度
+
 
 ### 节点数 (k)
 
@@ -330,6 +346,11 @@ summary(gam_mixed)
 
 ### 残差检查
 
+GAM 的残差诊断重点是过拟合与欠拟合。若 `gam.check()`
+提示 k 不足，应提升 k 或调整平滑类型；若残差显示结构性趋势，
+说明模型遗漏关键协变量或需要交互项。
+
+
 ```{r fig.height=6}
 # 使用 gam.check
 gam.check(gam_full)
@@ -347,6 +368,14 @@ appraise(gam_full)
 AIC(gam1, gam_full, gam_seasonal)
 ```
 
+### 平滑项显著性
+
+```{r}
+# 平滑项显著性（edf 与 p 值）
+summary(gam_full)$s.table
+```
+
+
 ### 偏差解释
 
 ```{r}
@@ -356,7 +385,14 @@ cat("偏差解释率:", round(summary(gam_full)$dev.expl * 100, 1), "%\n")
 
 ---
 
+## 结果解读与报告
+
+报告 GAM 结果时需给出平滑项的 EDF、p 值与解释的偏差比例。
+在图中明确非线性区间与方向（上升/下降），
+并说明是否控制了季节性或其他协变量。
+
 ## 模型预测
+
 
 ### 边际效应
 
