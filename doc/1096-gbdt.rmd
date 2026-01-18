@@ -1,0 +1,163 @@
+---
+title: GBDT 梯度提升树完整教程
+subtitle: "从残差拟合到学习率调参的系统实践"
+date: "2026-01-18"
+image: images/1096-gbdt-cover.svg
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 集成学习
+- GBDT
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1096-gbdt-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(yardstick)
+library(gbm)
+```
+
+## 教程目标与适用场景
+
+GBDT 通过逐步拟合残差构建强预测模型，适合结构化数据的分类与回归。
+本教程展示 Boosting 逻辑、学习率与迭代策略、早停与评估流程。
+
+**适合场景**
+
+- 结构化表格数据的高精度预测
+- 需要非线性和特征交互建模
+- 对特征尺度不敏感的场景
+
+**不适合场景**
+
+- 超大规模数据但资源有限
+- 强时序依赖或高维稀疏文本数据
+
+## 模型入门：GBDT 的核心思想
+
+GBDT 将模型表示为加法树：每一棵树都拟合前一轮的残差，
+逐步降低损失函数。学习率控制每次更新幅度，树深度控制模型复杂度。
+
+## 数据准备与任务定义
+
+使用 Iris 数据构建二分类任务：`setosa` vs 其他类别。
+
+```{r data-prep}
+set.seed(2026)
+
+iris_binary <- iris |>
+  mutate(target = if_else(Species == "setosa", 1, 0))
+
+split_obj <- initial_split(iris_binary, prop = 0.7, strata = target)
+train_data <- training(split_obj)
+test_data <- testing(split_obj)
+
+train_data <- train_data |>
+  mutate(target_label = factor(if_else(target == 1, "setosa", "other"),
+    levels = c("setosa", "other")
+  ))
+
+test_data <- test_data |>
+  mutate(target_label = factor(if_else(target == 1, "setosa", "other"),
+    levels = c("setosa", "other")
+  ))
+```
+
+## 模型选择与对比
+
+GBDT 通常作为高性能模型，与随机森林或 XGBoost 对比。
+学习率较小、树数较多的配置通常更稳健。
+
+## 训练与调参流程
+
+### 基础训练
+
+```{r gbdt-train}
+set.seed(2026)
+
+gbdt_model <- gbm(
+  formula = target ~ .,
+  distribution = "bernoulli",
+  data = train_data,
+  n.trees = 300,
+  interaction.depth = 3,
+  shrinkage = 0.05,
+  n.minobsinnode = 10,
+  bag.fraction = 0.8,
+  verbose = FALSE
+)
+```
+
+### 选择最优树数
+
+```{r gbdt-best}
+set.seed(2026)
+
+best_iter <- gbm.perf(gbdt_model, method = "OOB", plot.it = FALSE)
+best_iter
+```
+
+## 评估指标与结果解读
+
+```{r gbdt-predict}
+prob_pred <- predict(gbdt_model, newdata = test_data, n.trees = best_iter, type = "response")
+class_pred <- if_else(prob_pred > 0.5, "setosa", "other") |>
+  factor(levels = levels(test_data$target_label))
+
+gbdt_eval <- tibble(
+  truth = test_data$target_label,
+  estimate = class_pred
+)
+
+metrics <- metric_set(accuracy, kap)
+metrics(gbdt_eval, truth = truth, estimate = estimate)
+```
+
+## 可解释性与可视化
+
+```{r gbdt-importance}
+importance <- summary(gbdt_model, n.trees = best_iter, plotit = FALSE)
+importance_df <- as_tibble(importance)
+
+importance_df
+```
+
+```{r gbdt-importance-plot}
+ggplot(importance_df, aes(x = reorder(var, rel.inf), y = rel.inf)) +
+  geom_col(fill = "#10b981", alpha = 0.8) +
+  coord_flip() +
+  labs(title = "GBDT 特征重要性", x = "特征", y = "相对重要性") +
+  theme_bw(base_size = 12)
+```
+
+## 常见错误与优化
+
+1. 学习率过大导致过拟合或不稳定。
+2. 树深度过深导致泛化下降。
+3. 不做早停导致训练过度。
+4. 类别不平衡未调整权重。
+
+## 部署与复现建议
+
+- 保存最优树数与超参数配置。
+- 对生产环境设定固定阈值并监控漂移。
+- 需要更高性能时升级到 XGBoost/LightGBM。
+
+## 总结
+
+GBDT 通过逐步拟合残差实现高精度预测，是表格数据的强力基线模型。
+控制学习率、树深度与早停策略，是稳定性能的关键。

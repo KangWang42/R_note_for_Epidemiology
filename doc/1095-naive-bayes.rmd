@@ -1,0 +1,141 @@
+---
+title: 朴素贝叶斯完整教程
+subtitle: "从概率建模到文本分类的实战流程"
+date: "2026-01-18"
+image: images/1095-naive-bayes-cover.svg
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 概率模型
+- 朴素贝叶斯
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1095-naive-bayes-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(yardstick)
+library(e1071)
+```
+
+## 教程目标与适用场景
+
+朴素贝叶斯通过条件独立假设构建概率模型，在文本分类与小样本场景中表现稳定。
+本教程展示从概率建模、平滑处理到分类评估的完整流程。
+
+**适合场景**
+
+- 文本分类与主题识别
+- 小样本、特征较多的分类任务
+- 需要概率输出的决策场景
+
+**不适合场景**
+
+- 强特征相关性的数据
+- 需要复杂非线性边界的任务
+
+## 模型入门：朴素贝叶斯的核心思想
+
+朴素贝叶斯基于贝叶斯公式，假设特征在给定类别条件下相互独立。
+尽管假设较强，但在许多实际场景中仍能获得稳定表现。
+
+核心公式：
+
+\[
+P(y\mid x) \propto P(y) \prod_{j=1}^p P(x_j\mid y)
+\]
+
+## 数据准备与任务定义
+
+使用 Iris 数据构建三分类任务，并比较高斯朴素贝叶斯的效果。
+
+```{r data-prep}
+set.seed(2026)
+
+iris_split <- initial_split(iris, prop = 0.7, strata = Species)
+train_data <- training(iris_split)
+test_data <- testing(iris_split)
+```
+
+## 模型选择与对比
+
+朴素贝叶斯可作为基线模型，与逻辑回归、KNN 等方法对比。
+当特征较多且相关性不强时，朴素贝叶斯往往具备良好泛化能力。
+
+## 训练与调参流程
+
+### 基础训练
+
+```{r nb-train}
+set.seed(2026)
+
+nb_model <- naiveBayes(Species ~ ., data = train_data)
+nb_model
+```
+
+### 平滑与分布假设
+
+高斯朴素贝叶斯默认假设连续变量服从正态分布。
+对离散或计数特征，可考虑多项式或伯努利变体。
+
+## 评估指标与结果解读
+
+```{r nb-predict}
+nb_pred <- predict(nb_model, newdata = test_data)
+
+nb_eval <- tibble(
+  truth = test_data$Species,
+  estimate = nb_pred
+)
+
+metrics <- metric_set(accuracy, kap)
+metrics(nb_eval, truth = truth, estimate = estimate)
+```
+
+对类别不均衡的任务，可增加 macro F1、灵敏度与特异度指标。
+
+## 可解释性与可视化
+
+朴素贝叶斯输出的条件概率可用于解释特征对分类的贡献。
+
+```{r nb-visual}
+nb_scores <- nb_model$tables$Sepal.Length
+nb_scores_df <- tibble(
+  class = names(nb_scores),
+  mean = sapply(nb_scores, function(x) x["mean"]),
+  sd = sapply(nb_scores, function(x) x["sd"])
+)
+
+nb_scores_df
+```
+
+## 常见错误与优化
+
+1. 忽略类别先验导致分类偏差。
+2. 连续变量分布偏离正态，需变换或离散化。
+3. 训练集类别不均衡导致预测偏移。
+4. 特征相关性过强，假设失效。
+
+## 部署与复现建议
+
+- 固定特征工程流程，确保线上特征与训练一致。
+- 记录先验分布与平滑参数，便于复现。
+- 对文本任务保留词典与 TF-IDF 规则。
+
+## 总结
+
+朴素贝叶斯是快速、稳定且易解释的概率分类模型。
+在文本分类与小样本任务中仍然是高性价比的首选基线。

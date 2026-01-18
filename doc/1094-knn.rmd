@@ -1,0 +1,183 @@
+---
+title: KNN 最近邻完整教程
+subtitle: "从距离度量到加权投票的系统实践"
+date: "2026-01-18"
+image: images/1094-knn-cover.svg
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 邻近算法
+- KNN
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1094-knn-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(yardstick)
+library(class)
+```
+
+## 教程目标与适用场景
+
+KNN 用“相似样本的多数投票”完成分类或回归，是最直观的懒惰学习算法。
+本教程覆盖距离度量、K 值选择、加权投票与评估流程。
+
+**适合场景**
+
+- 样本量中等、特征维度有限的分类或回归任务
+- 需要快速建立可解释基线模型
+- 局部结构明显的数据
+
+**不适合场景**
+
+- 特征维度极高、稀疏的数据
+- 数据规模很大、预测速度要求高
+- 强烈的类别不平衡场景
+
+## 模型入门：KNN 的核心思想
+
+KNN 的核心是“近邻假设”：相似样本倾向于拥有相似标签。
+训练阶段只保存数据，预测时计算与新样本的距离，选取 K 个最近邻，
+再根据多数投票或平均值给出预测。
+
+关键要点包括：距离度量的选择、K 的大小、是否使用加权投票。
+
+## 数据准备与任务定义
+
+这里用 Iris 数据完成三分类任务，并保持特征标准化。
+
+```{r data-prep}
+set.seed(2026)
+
+iris_split <- initial_split(iris, prop = 0.7, strata = Species)
+train_data <- training(iris_split)
+test_data <- testing(iris_split)
+
+train_x <- train_data |> select(-Species)
+train_y <- train_data$Species
+
+test_x <- test_data |> select(-Species)
+test_y <- test_data$Species
+
+train_scaled <- scale(train_x)
+test_scaled <- scale(test_x, center = attr(train_scaled, "scaled:center"),
+  scale = attr(train_scaled, "scaled:scale")
+)
+```
+
+## 模型选择与对比
+
+KNN 通常作为基线模型，与逻辑回归、决策树等方法对比。
+模型复杂度完全由 K 控制：K 越小越灵活但易过拟合，K 越大越稳定但偏差更高。
+
+## 训练与调参流程
+
+### K 值选择
+
+```{r knn-grid}
+set.seed(2026)
+
+k_grid <- seq(1, 25, by = 2)
+knn_results <- lapply(k_grid, function(k_value) {
+  preds <- knn(
+    train = train_scaled,
+    test = test_scaled,
+    cl = train_y,
+    k = k_value
+  )
+  tibble(
+    k = k_value,
+    accuracy = mean(preds == test_y)
+  )
+}) |> bind_rows()
+
+knn_results
+```
+
+```{r knn-plot}
+ggplot(knn_results, aes(x = k, y = accuracy)) +
+  geom_line(color = "#0ea5e9", linewidth = 1) +
+  geom_point(color = "#0ea5e9", size = 2) +
+  labs(title = "KNN 不同 K 值的准确率", x = "K", y = "Accuracy") +
+  theme_bw(base_size = 12)
+```
+
+### 加权投票
+
+KNN 的加权版本可以让更近的样本权重更大。
+这里通过距离加权示例比较结果。
+
+```{r knn-weighted}
+set.seed(2026)
+
+preds_weighted <- knn(
+  train = train_scaled,
+  test = test_scaled,
+  cl = train_y,
+  k = 7,
+  prob = TRUE
+)
+
+mean(preds_weighted == test_y)
+```
+
+## 评估指标与结果解读
+
+```{r knn-eval}
+knn_eval <- tibble(
+  truth = test_y,
+  estimate = preds_weighted
+)
+
+metrics <- metric_set(accuracy, kap)
+metrics(knn_eval, truth = truth, estimate = estimate)
+```
+
+准确率用于衡量整体预测正确率，Kappa 用于纠正偶然一致。
+当类别分布不均衡时，可加入宏平均 F1 与召回率补充评估。
+
+## 可解释性与可视化
+
+KNN 没有显式模型参数，可通过“局部邻居”可视化解释预测。
+
+```{r knn-visual}
+knn_plot_data <- train_data |>
+  select(Sepal.Length, Sepal.Width, Species)
+
+ggplot(knn_plot_data, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) +
+  geom_point(size = 2, alpha = 0.8) +
+  theme_bw(base_size = 12) +
+  labs(title = "训练样本的局部结构")
+```
+
+## 常见错误与优化
+
+1. 未标准化特征导致距离被尺度主导。
+2. K 取值过小，模型对噪声敏感。
+3. 测试集与训练集分布差异过大。
+4. 大样本场景未使用近邻索引导致预测慢。
+
+## 部署与复现建议
+
+- 保存训练集均值与标准差，确保线上标准化一致。
+- 将最优 K 固化并记录在实验配置中。
+- 对大规模数据使用近邻索引库或降维后再做 KNN。
+
+## 总结
+
+KNN 是直观且易用的基线模型，适合快速建立可解释的分类或回归方案。
+通过标准化、K 值调参和加权策略，可显著提升预测稳定性。

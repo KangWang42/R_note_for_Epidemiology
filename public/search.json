@@ -28654,5 +28654,434 @@
       "📊 基础回归",
       "有序回归"
     ]
+  },
+  {
+    "objectID": "1094-knn.html",
+    "href": "1094-knn.html",
+    "title": "KNN 最近邻完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(rsample)\nlibrary(yardstick)\nlibrary(class)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#教程目标与适用场景",
+    "href": "1094-knn.html#教程目标与适用场景",
+    "title": "KNN 最近邻完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\nKNN 用“相似样本的多数投票”完成分类或回归，是最直观的懒惰学习算法。 本教程覆盖距离度量、K 值选择、加权投票与评估流程。\n适合场景\n\n样本量中等、特征维度有限的分类或回归任务\n需要快速建立可解释基线模型\n局部结构明显的数据\n\n不适合场景\n\n特征维度极高、稀疏的数据\n数据规模很大、预测速度要求高\n强烈的类别不平衡场景",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#模型入门knn-的核心思想",
+    "href": "1094-knn.html#模型入门knn-的核心思想",
+    "title": "KNN 最近邻完整教程",
+    "section": "模型入门：KNN 的核心思想",
+    "text": "模型入门：KNN 的核心思想\nKNN 的核心是“近邻假设”：相似样本倾向于拥有相似标签。 训练阶段只保存数据，预测时计算与新样本的距离，选取 K 个最近邻， 再根据多数投票或平均值给出预测。\n关键要点包括：距离度量的选择、K 的大小、是否使用加权投票。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#数据准备与任务定义",
+    "href": "1094-knn.html#数据准备与任务定义",
+    "title": "KNN 最近邻完整教程",
+    "section": "数据准备与任务定义",
+    "text": "数据准备与任务定义\n这里用 Iris 数据完成三分类任务，并保持特征标准化。\n\nset.seed(2026)\n\niris_split &lt;- initial_split(iris, prop = 0.7, strata = Species)\ntrain_data &lt;- training(iris_split)\ntest_data &lt;- testing(iris_split)\n\ntrain_x &lt;- train_data |&gt; select(-Species)\ntrain_y &lt;- train_data$Species\n\ntest_x &lt;- test_data |&gt; select(-Species)\ntest_y &lt;- test_data$Species\n\ntrain_scaled &lt;- scale(train_x)\ntest_scaled &lt;- scale(test_x, center = attr(train_scaled, \"scaled:center\"),\n  scale = attr(train_scaled, \"scaled:scale\")\n)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#模型选择与对比",
+    "href": "1094-knn.html#模型选择与对比",
+    "title": "KNN 最近邻完整教程",
+    "section": "模型选择与对比",
+    "text": "模型选择与对比\nKNN 通常作为基线模型，与逻辑回归、决策树等方法对比。 模型复杂度完全由 K 控制：K 越小越灵活但易过拟合，K 越大越稳定但偏差更高。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#训练与调参流程",
+    "href": "1094-knn.html#训练与调参流程",
+    "title": "KNN 最近邻完整教程",
+    "section": "训练与调参流程",
+    "text": "训练与调参流程\n\nK 值选择\n\nset.seed(2026)\n\nk_grid &lt;- seq(1, 25, by = 2)\nknn_results &lt;- lapply(k_grid, function(k_value) {\n  preds &lt;- knn(\n    train = train_scaled,\n    test = test_scaled,\n    cl = train_y,\n    k = k_value\n  )\n  tibble(\n    k = k_value,\n    accuracy = mean(preds == test_y)\n  )\n}) |&gt; bind_rows()\n\nknn_results\n\n# A tibble: 13 × 2\n       k accuracy\n   &lt;dbl&gt;    &lt;dbl&gt;\n 1     1    0.956\n 2     3    0.978\n 3     5    0.978\n 4     7    0.978\n 5     9    0.978\n 6    11    0.956\n 7    13    0.933\n 8    15    0.956\n 9    17    0.956\n10    19    0.933\n11    21    0.933\n12    23    0.911\n13    25    0.889\n\n\n\nggplot(knn_results, aes(x = k, y = accuracy)) +\n  geom_line(color = \"#0ea5e9\", linewidth = 1) +\n  geom_point(color = \"#0ea5e9\", size = 2) +\n  labs(title = \"KNN 不同 K 值的准确率\", x = \"K\", y = \"Accuracy\") +\n  theme_bw(base_size = 12)\n\n\n\n\n\n\n\n\n\n\n加权投票\nKNN 的加权版本可以让更近的样本权重更大。 这里通过距离加权示例比较结果。\n\nset.seed(2026)\n\npreds_weighted &lt;- knn(\n  train = train_scaled,\n  test = test_scaled,\n  cl = train_y,\n  k = 7,\n  prob = TRUE\n)\n\nmean(preds_weighted == test_y)\n\n[1] 0.9777778",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#评估指标与结果解读",
+    "href": "1094-knn.html#评估指标与结果解读",
+    "title": "KNN 最近邻完整教程",
+    "section": "评估指标与结果解读",
+    "text": "评估指标与结果解读\n\nknn_eval &lt;- tibble(\n  truth = test_y,\n  estimate = preds_weighted\n)\n\nmetrics &lt;- metric_set(accuracy, kap)\nmetrics(knn_eval, truth = truth, estimate = estimate)\n\n# A tibble: 2 × 3\n  .metric  .estimator .estimate\n  &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;\n1 accuracy multiclass     0.978\n2 kap      multiclass     0.967\n\n\n准确率用于衡量整体预测正确率，Kappa 用于纠正偶然一致。 当类别分布不均衡时，可加入宏平均 F1 与召回率补充评估。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#可解释性与可视化",
+    "href": "1094-knn.html#可解释性与可视化",
+    "title": "KNN 最近邻完整教程",
+    "section": "可解释性与可视化",
+    "text": "可解释性与可视化\nKNN 没有显式模型参数，可通过“局部邻居”可视化解释预测。\n\nknn_plot_data &lt;- train_data |&gt;\n  select(Sepal.Length, Sepal.Width, Species)\n\nggplot(knn_plot_data, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) +\n  geom_point(size = 2, alpha = 0.8) +\n  theme_bw(base_size = 12) +\n  labs(title = \"训练样本的局部结构\")",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#常见错误与优化",
+    "href": "1094-knn.html#常见错误与优化",
+    "title": "KNN 最近邻完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n未标准化特征导致距离被尺度主导。\nK 取值过小，模型对噪声敏感。\n测试集与训练集分布差异过大。\n大样本场景未使用近邻索引导致预测慢。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#部署与复现建议",
+    "href": "1094-knn.html#部署与复现建议",
+    "title": "KNN 最近邻完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\n保存训练集均值与标准差，确保线上标准化一致。\n将最优 K 固化并记录在实验配置中。\n对大规模数据使用近邻索引库或降维后再做 KNN。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1094-knn.html#总结",
+    "href": "1094-knn.html#总结",
+    "title": "KNN 最近邻完整教程",
+    "section": "总结",
+    "text": "总结\nKNN 是直观且易用的基线模型，适合快速建立可解释的分类或回归方案。 通过标准化、K 值调参和加权策略，可显著提升预测稳定性。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "KNN 最近邻"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html",
+    "href": "1095-naive-bayes.html",
+    "title": "朴素贝叶斯完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(rsample)\nlibrary(yardstick)\nlibrary(e1071)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#教程目标与适用场景",
+    "href": "1095-naive-bayes.html#教程目标与适用场景",
+    "title": "朴素贝叶斯完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\n朴素贝叶斯通过条件独立假设构建概率模型，在文本分类与小样本场景中表现稳定。 本教程展示从概率建模、平滑处理到分类评估的完整流程。\n适合场景\n\n文本分类与主题识别\n小样本、特征较多的分类任务\n需要概率输出的决策场景\n\n不适合场景\n\n强特征相关性的数据\n需要复杂非线性边界的任务",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#模型入门朴素贝叶斯的核心思想",
+    "href": "1095-naive-bayes.html#模型入门朴素贝叶斯的核心思想",
+    "title": "朴素贝叶斯完整教程",
+    "section": "模型入门：朴素贝叶斯的核心思想",
+    "text": "模型入门：朴素贝叶斯的核心思想\n朴素贝叶斯基于贝叶斯公式，假设特征在给定类别条件下相互独立。 尽管假设较强，但在许多实际场景中仍能获得稳定表现。\n核心公式：\n[ P(yx) P(y) _{j=1}^p P(x_jy) ]",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#数据准备与任务定义",
+    "href": "1095-naive-bayes.html#数据准备与任务定义",
+    "title": "朴素贝叶斯完整教程",
+    "section": "数据准备与任务定义",
+    "text": "数据准备与任务定义\n使用 Iris 数据构建三分类任务，并比较高斯朴素贝叶斯的效果。\n\nset.seed(2026)\n\niris_split &lt;- initial_split(iris, prop = 0.7, strata = Species)\ntrain_data &lt;- training(iris_split)\ntest_data &lt;- testing(iris_split)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#模型选择与对比",
+    "href": "1095-naive-bayes.html#模型选择与对比",
+    "title": "朴素贝叶斯完整教程",
+    "section": "模型选择与对比",
+    "text": "模型选择与对比\n朴素贝叶斯可作为基线模型，与逻辑回归、KNN 等方法对比。 当特征较多且相关性不强时，朴素贝叶斯往往具备良好泛化能力。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#训练与调参流程",
+    "href": "1095-naive-bayes.html#训练与调参流程",
+    "title": "朴素贝叶斯完整教程",
+    "section": "训练与调参流程",
+    "text": "训练与调参流程\n\n基础训练\n\nset.seed(2026)\n\nnb_model &lt;- naiveBayes(Species ~ ., data = train_data)\nnb_model\n\n\nNaive Bayes Classifier for Discrete Predictors\n\nCall:\nnaiveBayes.default(x = X, y = Y, laplace = laplace)\n\nA-priori probabilities:\nY\n    setosa versicolor  virginica \n 0.3333333  0.3333333  0.3333333 \n\nConditional probabilities:\n            Sepal.Length\nY                [,1]      [,2]\n  setosa     5.020000 0.3367666\n  versicolor 5.988571 0.5126468\n  virginica  6.651429 0.5746464\n\n            Sepal.Width\nY                [,1]      [,2]\n  setosa     3.397143 0.4090777\n  versicolor 2.768571 0.2978071\n  virginica  2.994286 0.3114887\n\n            Petal.Length\nY                [,1]      [,2]\n  setosa     1.477143 0.1646488\n  versicolor 4.271429 0.4693998\n  virginica  5.608571 0.5392650\n\n            Petal.Width\nY                 [,1]      [,2]\n  setosa     0.2457143 0.1120474\n  versicolor 1.3171429 0.1838889\n  virginica  2.0600000 0.3021492\n\n\n\n\n平滑与分布假设\n高斯朴素贝叶斯默认假设连续变量服从正态分布。 对离散或计数特征，可考虑多项式或伯努利变体。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#评估指标与结果解读",
+    "href": "1095-naive-bayes.html#评估指标与结果解读",
+    "title": "朴素贝叶斯完整教程",
+    "section": "评估指标与结果解读",
+    "text": "评估指标与结果解读\n\nnb_pred &lt;- predict(nb_model, newdata = test_data)\n\nnb_eval &lt;- tibble(\n  truth = test_data$Species,\n  estimate = nb_pred\n)\n\nmetrics &lt;- metric_set(accuracy, kap)\nmetrics(nb_eval, truth = truth, estimate = estimate)\n\n# A tibble: 2 × 3\n  .metric  .estimator .estimate\n  &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;\n1 accuracy multiclass     0.933\n2 kap      multiclass     0.9  \n\n\n对类别不均衡的任务，可增加 macro F1、灵敏度与特异度指标。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#可解释性与可视化",
+    "href": "1095-naive-bayes.html#可解释性与可视化",
+    "title": "朴素贝叶斯完整教程",
+    "section": "可解释性与可视化",
+    "text": "可解释性与可视化\n朴素贝叶斯输出的条件概率可用于解释特征对分类的贡献。\n\nnb_scores &lt;- nb_model$tables$Sepal.Length\nnb_scores_df &lt;- tibble(\n  class = names(nb_scores),\n  mean = sapply(nb_scores, function(x) x[\"mean\"]),\n  sd = sapply(nb_scores, function(x) x[\"sd\"])\n)\n\nnb_scores_df\n\n# A tibble: 6 × 2\n   mean    sd\n  &lt;dbl&gt; &lt;dbl&gt;\n1    NA    NA\n2    NA    NA\n3    NA    NA\n4    NA    NA\n5    NA    NA\n6    NA    NA",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#常见错误与优化",
+    "href": "1095-naive-bayes.html#常见错误与优化",
+    "title": "朴素贝叶斯完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n忽略类别先验导致分类偏差。\n连续变量分布偏离正态，需变换或离散化。\n训练集类别不均衡导致预测偏移。\n特征相关性过强，假设失效。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#部署与复现建议",
+    "href": "1095-naive-bayes.html#部署与复现建议",
+    "title": "朴素贝叶斯完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\n固定特征工程流程，确保线上特征与训练一致。\n记录先验分布与平滑参数，便于复现。\n对文本任务保留词典与 TF-IDF 规则。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1095-naive-bayes.html#总结",
+    "href": "1095-naive-bayes.html#总结",
+    "title": "朴素贝叶斯完整教程",
+    "section": "总结",
+    "text": "总结\n朴素贝叶斯是快速、稳定且易解释的概率分类模型。 在文本分类与小样本任务中仍然是高性价比的首选基线。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "朴素贝叶斯"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html",
+    "href": "1096-gbdt.html",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "",
+    "text": "library(dplyr)\nlibrary(ggplot2)\nlibrary(rsample)\nlibrary(yardstick)\nlibrary(gbm)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#教程目标与适用场景",
+    "href": "1096-gbdt.html#教程目标与适用场景",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "教程目标与适用场景",
+    "text": "教程目标与适用场景\nGBDT 通过逐步拟合残差构建强预测模型，适合结构化数据的分类与回归。 本教程展示 Boosting 逻辑、学习率与迭代策略、早停与评估流程。\n适合场景\n\n结构化表格数据的高精度预测\n需要非线性和特征交互建模\n对特征尺度不敏感的场景\n\n不适合场景\n\n超大规模数据但资源有限\n强时序依赖或高维稀疏文本数据",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#模型入门gbdt-的核心思想",
+    "href": "1096-gbdt.html#模型入门gbdt-的核心思想",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "模型入门：GBDT 的核心思想",
+    "text": "模型入门：GBDT 的核心思想\nGBDT 将模型表示为加法树：每一棵树都拟合前一轮的残差， 逐步降低损失函数。学习率控制每次更新幅度，树深度控制模型复杂度。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#数据准备与任务定义",
+    "href": "1096-gbdt.html#数据准备与任务定义",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "数据准备与任务定义",
+    "text": "数据准备与任务定义\n使用 Iris 数据构建二分类任务：setosa vs 其他类别。\n\nset.seed(2026)\n\niris_binary &lt;- iris |&gt;\n  mutate(target = if_else(Species == \"setosa\", 1, 0))\n\nsplit_obj &lt;- initial_split(iris_binary, prop = 0.7, strata = target)\ntrain_data &lt;- training(split_obj)\ntest_data &lt;- testing(split_obj)\n\ntrain_data &lt;- train_data |&gt;\n  mutate(target_label = factor(if_else(target == 1, \"setosa\", \"other\"),\n    levels = c(\"setosa\", \"other\")\n  ))\n\ntest_data &lt;- test_data |&gt;\n  mutate(target_label = factor(if_else(target == 1, \"setosa\", \"other\"),\n    levels = c(\"setosa\", \"other\")\n  ))",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#模型选择与对比",
+    "href": "1096-gbdt.html#模型选择与对比",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "模型选择与对比",
+    "text": "模型选择与对比\nGBDT 通常作为高性能模型，与随机森林或 XGBoost 对比。 学习率较小、树数较多的配置通常更稳健。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#训练与调参流程",
+    "href": "1096-gbdt.html#训练与调参流程",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "训练与调参流程",
+    "text": "训练与调参流程\n\n基础训练\n\nset.seed(2026)\n\ngbdt_model &lt;- gbm(\n  formula = target ~ .,\n  distribution = \"bernoulli\",\n  data = train_data,\n  n.trees = 300,\n  interaction.depth = 3,\n  shrinkage = 0.05,\n  n.minobsinnode = 10,\n  bag.fraction = 0.8,\n  verbose = FALSE\n)\n\n\n\n选择最优树数\n\nset.seed(2026)\n\nbest_iter &lt;- gbm.perf(gbdt_model, method = \"OOB\", plot.it = FALSE)\nbest_iter\n\n[1] 300\nattr(,\"smoother\")\nCall:\nloess(formula = object$oobag.improve ~ x, enp.target = min(max(4, \n    length(x)/10), 50))\n\nNumber of Observations: 300 \nEquivalent Number of Parameters: 24.11 \nResidual Standard Error: 0.0009006",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#评估指标与结果解读",
+    "href": "1096-gbdt.html#评估指标与结果解读",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "评估指标与结果解读",
+    "text": "评估指标与结果解读\n\nprob_pred &lt;- predict(gbdt_model, newdata = test_data, n.trees = best_iter, type = \"response\")\nclass_pred &lt;- if_else(prob_pred &gt; 0.5, \"setosa\", \"other\") |&gt;\n  factor(levels = levels(test_data$target_label))\n\ngbdt_eval &lt;- tibble(\n  truth = test_data$target_label,\n  estimate = class_pred\n)\n\nmetrics &lt;- metric_set(accuracy, kap)\nmetrics(gbdt_eval, truth = truth, estimate = estimate)\n\n# A tibble: 2 × 3\n  .metric  .estimator .estimate\n  &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;\n1 accuracy binary             1\n2 kap      binary             1",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#可解释性与可视化",
+    "href": "1096-gbdt.html#可解释性与可视化",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "可解释性与可视化",
+    "text": "可解释性与可视化\n\nimportance &lt;- summary(gbdt_model, n.trees = best_iter, plotit = FALSE)\nimportance_df &lt;- as_tibble(importance)\n\nimportance_df\n\n# A tibble: 6 × 2\n  var           rel.inf\n  &lt;chr&gt;           &lt;dbl&gt;\n1 Species      6.69e+ 1\n2 Petal.Length 2.73e+ 1\n3 target_label 5.38e+ 0\n4 Petal.Width  4.89e- 1\n5 Sepal.Length 1.34e-28\n6 Sepal.Width  1.48e-29\n\n\n\nggplot(importance_df, aes(x = reorder(var, rel.inf), y = rel.inf)) +\n  geom_col(fill = \"#10b981\", alpha = 0.8) +\n  coord_flip() +\n  labs(title = \"GBDT 特征重要性\", x = \"特征\", y = \"相对重要性\") +\n  theme_bw(base_size = 12)",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#常见错误与优化",
+    "href": "1096-gbdt.html#常见错误与优化",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "常见错误与优化",
+    "text": "常见错误与优化\n\n学习率过大导致过拟合或不稳定。\n树深度过深导致泛化下降。\n不做早停导致训练过度。\n类别不平衡未调整权重。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#部署与复现建议",
+    "href": "1096-gbdt.html#部署与复现建议",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "部署与复现建议",
+    "text": "部署与复现建议\n\n保存最优树数与超参数配置。\n对生产环境设定固定阈值并监控漂移。\n需要更高性能时升级到 XGBoost/LightGBM。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
+  },
+  {
+    "objectID": "1096-gbdt.html#总结",
+    "href": "1096-gbdt.html#总结",
+    "title": "GBDT 梯度提升树完整教程",
+    "section": "总结",
+    "text": "总结\nGBDT 通过逐步拟合残差实现高精度预测，是表格数据的强力基线模型。 控制学习率、树深度与早停策略，是稳定性能的关键。",
+    "crumbs": [
+      "主页",
+      "机器学习与AI",
+      "🤖 机器学习框架",
+      "GBDT 梯度提升树"
+    ]
   }
 ]
