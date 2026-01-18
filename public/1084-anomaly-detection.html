@@ -1865,6 +1865,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><strong>阈值选择</strong>：常用分位数、验证集或成本敏感策略。</li>
 <li><strong>可用指标</strong>：ROC AUC 反映区分度，召回率体现漏报风险。</li>
 </ul>
+<p>对于极度不平衡的异常检测，PR AUC 比 ROC AUC 更敏感， 可以用于比较模型在异常样本上的识别能力。</p>
 </section>
 <section id="评价指标选择" class="level3">
 <h3 class="anchored" data-anchor-id="评价指标选择">评价指标选择</h3>
@@ -1911,22 +1912,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>threshold <span class="ot">&lt;-</span> <span class="fu">quantile</span>(iso_scores, <span class="fl">0.95</span>)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>pred_label <span class="ot">&lt;-</span> <span class="fu">if_else</span>(iso_scores <span class="sc">&gt;=</span> threshold, <span class="st">"anomaly"</span>, <span class="st">"normal"</span>) <span class="sc">|&gt;</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">factor</span>(<span class="at">levels =</span> <span class="fu">levels</span>(test_data<span class="sc">$</span>label))</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>iso_metrics <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">truth =</span> test_data<span class="sc">$</span>label,</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">.pred_anomaly =</span> iso_scores,</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">.pred_class =</span> pred_label</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">accuracy =</span> yardstick<span class="sc">::</span><span class="fu">accuracy_vec</span>(truth, .pred_class),</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">roc_auc =</span> yardstick<span class="sc">::</span><span class="fu">roc_auc_vec</span>(truth, .pred_anomaly, <span class="at">event_level =</span> <span class="st">"first"</span>),</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">precision =</span> yardstick<span class="sc">::</span><span class="fu">precision_vec</span>(truth, .pred_class, <span class="at">event_level =</span> <span class="st">"first"</span>),</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">recall =</span> yardstick<span class="sc">::</span><span class="fu">recall_vec</span>(truth, .pred_class, <span class="at">event_level =</span> <span class="st">"first"</span>)</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>iso_metrics</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 若有标注数据，可在验证集上寻找使 F1 或召回率最优的阈值</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>pred_label <span class="ot">&lt;-</span> <span class="fu">if_else</span>(iso_scores <span class="sc">&gt;=</span> threshold, <span class="st">"anomaly"</span>, <span class="st">"normal"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">factor</span>(<span class="at">levels =</span> <span class="fu">levels</span>(test_data<span class="sc">$</span>label))</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>iso_metrics <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">truth =</span> test_data<span class="sc">$</span>label,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">.pred_anomaly =</span> iso_scores,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">.pred_class =</span> pred_label</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">accuracy =</span> yardstick<span class="sc">::</span><span class="fu">accuracy_vec</span>(truth, .pred_class),</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">roc_auc =</span> yardstick<span class="sc">::</span><span class="fu">roc_auc_vec</span>(truth, .pred_anomaly, <span class="at">event_level =</span> <span class="st">"first"</span>),</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">precision =</span> yardstick<span class="sc">::</span><span class="fu">precision_vec</span>(truth, .pred_class, <span class="at">event_level =</span> <span class="st">"first"</span>),</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">recall =</span> yardstick<span class="sc">::</span><span class="fu">recall_vec</span>(truth, .pred_class, <span class="at">event_level =</span> <span class="st">"first"</span>)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>iso_metrics</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 1 × 4
   accuracy roc_auc precision recall

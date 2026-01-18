@@ -56,6 +56,14 @@ KNN 的核心是“近邻假设”：相似样本倾向于拥有相似标签。
 
 关键要点包括：距离度量的选择、K 的大小、是否使用加权投票。
 
+### 距离度量与权重直觉
+
+- **欧氏距离**：最常用，适合数值型特征且尺度一致的场景。
+- **曼哈顿距离**：对异常值略稳健，适合高维稀疏特征。
+- **闵可夫斯基距离**：欧氏与曼哈顿的统一形式，可通过参数调节。
+
+当类别边界较模糊时，可用距离加权投票，让更近邻居权重更高。
+
 ## 数据准备与任务定义
 
 这里用 Iris 数据完成三分类任务，并保持特征标准化。
@@ -78,6 +86,9 @@ test_scaled <- scale(test_x, center = attr(train_scaled, "scaled:center"),
   scale = attr(train_scaled, "scaled:scale")
 )
 ```
+
+标准化可以避免某个特征因量纲较大而主导距离计算。
+若训练集与测试集使用不同的缩放参数，预测将产生偏移。
 
 ## 模型选择与对比
 
@@ -135,6 +146,29 @@ preds_weighted <- knn(
 mean(preds_weighted == test_y)
 ```
 
+为了直观看出加权策略的影响，可以与相同 K 的普通投票做对比。
+
+```{r knn-compare}
+set.seed(2026)
+
+preds_plain <- knn(
+  train = train_scaled,
+  test = test_scaled,
+  cl = train_y,
+  k = 7
+)
+
+comparison <- tibble(
+  method = c("plain", "weighted"),
+  accuracy = c(
+    mean(preds_plain == test_y),
+    mean(preds_weighted == test_y)
+  )
+)
+
+comparison
+```
+
 ## 评估指标与结果解读
 
 ```{r knn-eval}
@@ -149,6 +183,9 @@ metrics(knn_eval, truth = truth, estimate = estimate)
 
 准确率用于衡量整体预测正确率，Kappa 用于纠正偶然一致。
 当类别分布不均衡时，可加入宏平均 F1 与召回率补充评估。
+
+KNN 对数据泄露非常敏感：标准化、特征选择都要在训练集完成，
+再将同样的参数应用到测试集或新样本。
 
 ## 可解释性与可视化
 

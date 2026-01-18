@@ -1773,7 +1773,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#教程目标与适用场景" id="toc-教程目标与适用场景" class="nav-link active" data-scroll-target="#教程目标与适用场景">教程目标与适用场景</a></li>
-  <li><a href="#模型入门knn-的核心思想" id="toc-模型入门knn-的核心思想" class="nav-link" data-scroll-target="#模型入门knn-的核心思想">模型入门：KNN 的核心思想</a></li>
+  <li><a href="#模型入门knn-的核心思想" id="toc-模型入门knn-的核心思想" class="nav-link" data-scroll-target="#模型入门knn-的核心思想">模型入门：KNN 的核心思想</a>
+  <ul class="collapse">
+  <li><a href="#距离度量与权重直觉" id="toc-距离度量与权重直觉" class="nav-link" data-scroll-target="#距离度量与权重直觉">距离度量与权重直觉</a></li>
+  </ul></li>
   <li><a href="#数据准备与任务定义" id="toc-数据准备与任务定义" class="nav-link" data-scroll-target="#数据准备与任务定义">数据准备与任务定义</a></li>
   <li><a href="#模型选择与对比" id="toc-模型选择与对比" class="nav-link" data-scroll-target="#模型选择与对比">模型选择与对比</a></li>
   <li><a href="#训练与调参流程" id="toc-训练与调参流程" class="nav-link" data-scroll-target="#训练与调参流程">训练与调参流程</a>
@@ -1851,6 +1854,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="模型入门knn-的核心思想">模型入门：KNN 的核心思想</h2>
 <p>KNN 的核心是“近邻假设”：相似样本倾向于拥有相似标签。 训练阶段只保存数据，预测时计算与新样本的距离，选取 K 个最近邻， 再根据多数投票或平均值给出预测。</p>
 <p>关键要点包括：距离度量的选择、K 的大小、是否使用加权投票。</p>
+<section id="距离度量与权重直觉" class="level3">
+<h3 class="anchored" data-anchor-id="距离度量与权重直觉">距离度量与权重直觉</h3>
+<ul>
+<li><strong>欧氏距离</strong>：最常用，适合数值型特征且尺度一致的场景。</li>
+<li><strong>曼哈顿距离</strong>：对异常值略稳健，适合高维稀疏特征。</li>
+<li><strong>闵可夫斯基距离</strong>：欧氏与曼哈顿的统一形式，可通过参数调节。</li>
+</ul>
+<p>当类别边界较模糊时，可用距离加权投票，让更近邻居权重更高。</p>
+</section>
 </section>
 <section id="数据准备与任务定义" class="level2">
 <h2 class="anchored" data-anchor-id="数据准备与任务定义">数据准备与任务定义</h2>
@@ -1873,6 +1885,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">scale =</span> <span class="fu">attr</span>(train_scaled, <span class="st">"scaled:scale"</span>)</span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
+<p>标准化可以避免某个特征因量纲较大而主导距离计算。 若训练集与测试集使用不同的缩放参数，预测将产生偏移。</p>
 </section>
 <section id="模型选择与对比" class="level2">
 <h2 class="anchored" data-anchor-id="模型选择与对比">模型选择与对比</h2>
@@ -1953,18 +1966,46 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>[1] 0.9777778</code></pre>
 </div>
 </div>
+<p>为了直观看出加权策略的影响，可以与相同 K 的普通投票做对比。</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>preds_plain <span class="ot">&lt;-</span> <span class="fu">knn</span>(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">train =</span> train_scaled,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">test =</span> test_scaled,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">cl =</span> train_y,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">k =</span> <span class="dv">7</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>comparison <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">method =</span> <span class="fu">c</span>(<span class="st">"plain"</span>, <span class="st">"weighted"</span>),</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">accuracy =</span> <span class="fu">c</span>(</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mean</span>(preds_plain <span class="sc">==</span> test_y),</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mean</span>(preds_weighted <span class="sc">==</span> test_y)</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>comparison</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 2
+  method   accuracy
+  &lt;chr&gt;       &lt;dbl&gt;
+1 plain       0.978
+2 weighted    0.978</code></pre>
+</div>
+</div>
 </section>
 </section>
 <section id="评估指标与结果解读" class="level2">
 <h2 class="anchored" data-anchor-id="评估指标与结果解读">评估指标与结果解读</h2>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>knn_eval <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">truth =</span> test_y,</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">estimate =</span> preds_weighted</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>metrics <span class="ot">&lt;-</span> <span class="fu">metric_set</span>(accuracy, kap)</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="fu">metrics</span>(knn_eval, <span class="at">truth =</span> truth, <span class="at">estimate =</span> estimate)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>knn_eval <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">truth =</span> test_y,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">estimate =</span> preds_weighted</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>metrics <span class="ot">&lt;-</span> <span class="fu">metric_set</span>(accuracy, kap)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="fu">metrics</span>(knn_eval, <span class="at">truth =</span> truth, <span class="at">estimate =</span> estimate)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 2 × 3
   .metric  .estimator .estimate
@@ -1974,18 +2015,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>准确率用于衡量整体预测正确率，Kappa 用于纠正偶然一致。 当类别分布不均衡时，可加入宏平均 F1 与召回率补充评估。</p>
+<p>KNN 对数据泄露非常敏感：标准化、特征选择都要在训练集完成， 再将同样的参数应用到测试集或新样本。</p>
 </section>
 <section id="可解释性与可视化" class="level2">
 <h2 class="anchored" data-anchor-id="可解释性与可视化">可解释性与可视化</h2>
 <p>KNN 没有显式模型参数，可通过“局部邻居”可视化解释预测。</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>knn_plot_data <span class="ot">&lt;-</span> train_data <span class="sc">|&gt;</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Sepal.Length, Sepal.Width, Species)</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(knn_plot_data, <span class="fu">aes</span>(<span class="at">x =</span> Sepal.Length, <span class="at">y =</span> Sepal.Width, <span class="at">color =</span> Species)) <span class="sc">+</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">12</span>) <span class="sc">+</span></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"训练样本的局部结构"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>knn_plot_data <span class="ot">&lt;-</span> train_data <span class="sc">|&gt;</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Sepal.Length, Sepal.Width, Species)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(knn_plot_data, <span class="fu">aes</span>(<span class="at">x =</span> Sepal.Length, <span class="at">y =</span> Sepal.Width, <span class="at">color =</span> Species)) <span class="sc">+</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">12</span>) <span class="sc">+</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"训练样本的局部结构"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
