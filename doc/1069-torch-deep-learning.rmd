@@ -23,7 +23,27 @@ knitr::opts_chunk$set(
 
 **torch** 是 R 语言中 PyTorch 的原生实现，提供了强大的深度学习能力，支持 GPU 加速计算。与 keras/tensorflow 不同，torch 不需要 Python 依赖，是 R 原生的深度学习解决方案。
 
+## 方法框架与学习路径
+
+深度学习入门需要先理解“张量计算 → 自动微分 → 网络结构 → 训练流程”。
+实践建议从线性模型与 MLP 起步，掌握损失函数、优化器与训练循环，
+再扩展到卷积与序列模型。这样能确保读者先理解方法框架，再进入代码细节。
+
+### 核心术语与流程
+
+- **张量（Tensor）**：神经网络的基本数据结构，支持 GPU 加速。
+- **自动微分（Autograd）**：负责计算梯度，驱动参数更新。
+- **模块（nn_module）**：定义可复用的网络结构。
+- **训练循环**：前向传播 → 计算损失 → 反向传播 → 参数更新。
+
+### 评价指标与任务定位
+
+本教程主要使用分类任务示例，核心指标是准确率与损失曲线。
+在真实任务中，应根据任务类型选择合适指标，例如分类的 F1/PR AUC，
+回归的 RMSE/MAE，并配合验证集做早停。
+
 ### torch vs keras
+
 
 | 特点 | torch | keras |
 |------|-------|-------|
@@ -44,7 +64,7 @@ knitr::opts_chunk$set(
 ```{r}
 library(torch)
 
-# 首次使用需要安装torch后端（约200MB）
+# 首次使用需要安装 torch 后端（约 200MB）
 if (!torch_is_installed()) {
     install_torch()
 }
@@ -55,6 +75,12 @@ library(dplyr)
 set.seed(42)
 torch_manual_seed(42)
 ```
+
+## 数据准备与任务定义
+
+本教程用可控的二分类模拟数据演示完整流程，便于理解损失、指标与训练曲线。
+实际任务中应替换为真实数据，并根据业务目标设置类别比例与评估指标。
+
 
 
 ## 第一部分：张量基础
@@ -454,9 +480,40 @@ model <- torch_load("model.pt")
 ```
 
 
+## 常见错误与优化
+
+- **数据未划分训练/验证**：无法判断过拟合，建议保留验证集。
+- **未使用 `with_no_grad()`**：评估时会占用不必要显存。
+- **学习率不合适**：过大会发散，过小会收敛慢。
+- **未固定随机种子**：结果难复现，尤其在 GPU 场景。
+
+## 部署与复现建议
+
+```{r}
+# 保存模型参数（推荐）
+model_path <- "models/torch-classifier.pt"
+if (!dir.exists("models")) dir.create("models")
+torch_save(model, model_path)
+
+# 加载模型参数
+loaded_state <- torch_load(model_path)
+model$load_state_dict(loaded_state)
+```
+
+```{r}
+# 清理
+if (file.exists("models/torch-classifier.pt")) {
+    file.remove("models/torch-classifier.pt")
+}
+if (dir.exists("models")) {
+    unlink("models", recursive = TRUE)
+}
+```
+
 ## 小结
 
-torch 的核心工作流程：
+ torch 的核心工作流程：
+
 
 1. **数据准备**：创建 Dataset 和 DataLoader
 2. **模型定义**：使用 nn_module 定义网络结构
