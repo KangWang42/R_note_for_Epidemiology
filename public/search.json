@@ -28368,5 +28368,291 @@
       "📐 高级建模",
       "目标试验模拟进阶"
     ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html",
+    "href": "1092-double-machine-learning.html",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "",
+    "text": "传统因果推断方法面临两个核心挑战：高维控制变量和复杂的非线性关系。当协变量维度较高时，传统参数化方法难以准确估计因果效应，而直接应用机器学习方法又会引入正则化偏差。双重机器学习（Double Machine Learning, DML）由 Chernozhukov 等人于 2018 年提出，为这一问题提供了理论严谨且实践可行的解决方案。\nDML 的核心思想是将因果效应估计问题分解为三个部分：预测处理变量、预测结局变量、估计因果效应。通过引入** Neyman 正交性和交叉拟合**，DML 可以在保持因果估计一致性的同时，充分利用机器学习的预测能力。\n本文将从理论背景、方法原理、数据准备、分析流程、代码实现和结果解读等方面，系统介绍 DML 在 R 语言中的实践应用。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#引言",
+    "href": "1092-double-machine-learning.html#引言",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "",
+    "text": "传统因果推断方法面临两个核心挑战：高维控制变量和复杂的非线性关系。当协变量维度较高时，传统参数化方法难以准确估计因果效应，而直接应用机器学习方法又会引入正则化偏差。双重机器学习（Double Machine Learning, DML）由 Chernozhukov 等人于 2018 年提出，为这一问题提供了理论严谨且实践可行的解决方案。\nDML 的核心思想是将因果效应估计问题分解为三个部分：预测处理变量、预测结局变量、估计因果效应。通过引入** Neyman 正交性和交叉拟合**，DML 可以在保持因果估计一致性的同时，充分利用机器学习的预测能力。\n本文将从理论背景、方法原理、数据准备、分析流程、代码实现和结果解读等方面，系统介绍 DML 在 R 语言中的实践应用。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#理论背景与适用场景",
+    "href": "1092-double-machine-learning.html#理论背景与适用场景",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "理论背景与适用场景",
+    "text": "理论背景与适用场景\n\n因果推断的核心问题\n因果推断的核心目标是估计处理效应（Treatment Effect）。在观测性研究中，研究者通常关注平均处理效应（ATE）或条件平均处理效应（CATE）。假设我们有以下因果结构：\n\\[ Y = D\\theta + g(X) + \\varepsilon \\]\n其中： - \\(Y\\) 是结局变量 - \\(D\\) 是处理变量（二元或连续） - \\(X\\) 是高维协变量 - \\(g(X)\\) 是未知函数 - \\(\\theta\\) 是因果效应参数（目标估计量） - \\(\\varepsilon\\) 是误差项\n当 \\(X\\) 维度较低时，可以使用线性回归估计 \\(\\theta\\)。但当 \\(X\\) 维度很高（例如 \\(p &gt; n\\)），或者 \\(g(X)\\) 与 \\(g_D(X)\\) 是复杂的非线性函数时，传统方法失效。\n\n\n正则化偏差问题\n直接使用机器学习方法（如随机森林、XGBoost）估计因果效应会遇到正则化偏差问题。机器学习模型的正则化虽然提高了预测性能，但会导致因果效应估计的有偏性。具体而言：\n\\[ \\hat{\\theta}_{ML} - \\theta = O_p(n^{-1/2}) + O_p(n^{-1/4}) \\]\n其中第一项是统计误差项，第二项是正则化偏差项。当样本量 \\(n\\) 足够大时，正则化偏差主导了误差。\n\n\nDML 的解决方案\nDML 通过以下两个关键技术解决了正则化偏差问题：\n\nNeyman 正交性：构建对参数扰动具有”稳健性”的估计方程，使得处理变量和结局变量的估计误差不会影响因果效应的收敛速度。\n交叉拟合：将样本分为多个子集，使用交叉验证的方式进行预测和估计，避免过拟合问题。\n\n通过这两个技术，DML 实现了 \\(\\sqrt{n}\\) 的一致性和渐近正态性： \\[ \\sqrt{n}(\\hat{\\theta}_{DML} - \\theta) \\overset{d}{\\to} N(0, \\sigma^2) \\]\n\n\n适用场景\nDML 特别适用于以下场景：\n\n高维协变量：协变量数量 \\(p\\) 可能超过样本量 \\(n\\)\n非线性关系：处理变量和结局变量与协变量的关系为复杂的非线性关系\n异质性处理效应：需要估计子群的处理效应（CATE）\n观测性研究：需要控制大量混淆因素但随机对照试验不可行\n\n常见应用领域包括： - 劳动经济学：估计教育或培训项目的回报 - 医学研究：评估治疗效果，控制大量基线变量 - 市场营销：分析营销活动的因果效应 - 政策评估：估计政策干预的影响",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#模型入门与核心概念",
+    "href": "1092-double-machine-learning.html#模型入门与核心概念",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "模型入门与核心概念",
+    "text": "模型入门与核心概念\n\nDML 的三步流程\nDML 的估计流程可以分为三个步骤：\n\n第一步：残差提取\n估计两个机器学习模型：\n\n结局模型：\\(Y = \\mu(X) + \\epsilon_Y\\)\n\n预测结局变量 \\(Y\\)，得到残差 \\(V = Y - \\hat{\\mu}(X)\\)\n\n处理模型：\\(D = m(X) + \\epsilon_D\\)\n\n预测处理变量 \\(D\\)，得到残差 \\(W = D - \\hat{m}(X)\\)\n\n\n\n\n第二步：因果效应估计\n使用提取的残差估计因果效应： \\[ \\hat{\\theta} = \\frac{\\frac{1}{n}\\sum_{i=1}^n W_i V_i}{\\frac{1}{n}\\sum_{i=1}^n W_i^2} \\]\n这个公式直观地表示：用处理变量的残差解释结局变量的残差。\n\n\n第三步：推断与置信区间\n通过渐近正态性构建置信区间，进行假设检验。\n\n\n\n交叉拟合机制\n为了避免”自举”问题（即用同一个样本既训练模型又估计参数），DML 采用交叉拟合：\n\n将样本随机分为 \\(K\\) 折（通常 \\(K=5\\) 或 \\(10\\)）\n对于每一折：\n\n用其他 \\(K-1\\) 折训练机器学习模型\n在当前折上预测并提取残差\n\n合并所有折的残差，估计因果效应\n\n\n\n正交性条件的直观解释\n正交性条件的核心思想是：我们构造的估计量对处理变量和结局变量的估计误差”不敏感”。即使 \\(\\hat{\\mu}(X)\\) 和 \\(\\hat{m}(X)\\) 的估计精度不够高，只要它们满足一定的收敛速度，\\(\\hat{\\theta}\\) 的估计精度仍然可以达到 \\(\\sqrt{n}\\) 阶。\n这就像设计一个稳健的滤波器：即使输入信号有噪声（估计误差），滤波器的输出仍然稳定。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#数据准备与变量定义",
+    "href": "1092-double-machine-learning.html#数据准备与变量定义",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "数据准备与变量定义",
+    "text": "数据准备与变量定义\n\n数据结构要求\nDML 分析需要的数据结构通常包含：\n\n结局变量（\\(Y\\)）：连续变量或二元变量\n处理变量（\\(D\\)）：二元变量（经典 ATE 问题）或连续变量\n协变量（\\(X\\)）：可能包含大量连续变量和分类变量\n\n\n\n示例数据集\n本文使用一个合成的高维数据集模拟教育回报问题：\n\nset.seed(20250118)\n\n# 参数设置\nn &lt;- 1000  # 样本量\np &lt;- 50    # 协变量维度\n\n# 生成高维协变量\nX &lt;- matrix(rnorm(n * p), n, p)\n\n# 定义真实函数（非线性）\ng_X &lt;- function(x) {\n  0.3 * x[, 1] + 0.2 * sin(x[, 2]) + 0.1 * x[, 3]^2\n}\n\nm_X &lt;- function(x) {\n  0.5 * plogis(x[, 1] + 0.3 * x[, 2])\n}\n\n# 生成处理变量（二元）\nprob_D &lt;- 0.5 + 0.2 * tanh(m_X(X))\nD &lt;- rbinom(n, 1, prob_D)\n\n# 生成结局变量\ntheta_true &lt;- 0.5  # 真实因果效应\nY &lt;- D * theta_true + g_X(X) + rnorm(n, sd = 0.5)\n\n# 构建数据框（将矩阵列展开为独立列）\ndata_dml &lt;- data.frame(\n  Y = Y,\n  D = D,\n  X\n)\n\n# 为协变量命名\ncolnames(data_dml)[3:(p+2)] &lt;- paste0(\"V\", 1:p)\n\n# 查看数据结构\nstr(data_dml)\n## 'data.frame':    1000 obs. of  52 variables:\n##  $ Y  : num  -0.343 -0.375 -0.944 0.982 0.614 ...\n##  $ D  : int  1 1 0 1 1 1 1 1 1 0 ...\n##  $ V1 : num  -1.25 -1.52 -2 1.98 1.76 ...\n##  $ V2 : num  -0.654 -0.195 -0.241 -0.331 1.402 ...\n##  $ V3 : num  -1.119 0.101 1.08 -2.354 0.188 ...\n##  $ V4 : num  0.186 -0.712 -1.213 -0.367 2.079 ...\n##  $ V5 : num  0.4447 0.6847 0.0272 0.0605 0.8271 ...\n##  $ V6 : num  -0.1603 -0.9776 -0.3513 1.3205 0.0994 ...\n##  $ V7 : num  0.43 -1.3559 -0.5298 0.0708 0.4582 ...\n##  $ V8 : num  -0.611 0.497 -1.062 -0.722 -0.655 ...\n##  $ V9 : num  0.3157 0.5127 -2.9572 -1.3882 0.0391 ...\n##  $ V10: num  -0.883 -0.866 0.235 0.809 0.946 ...\n##  $ V11: num  -0.572 0.136 -1.694 0.91 1.346 ...\n##  $ V12: num  -0.301 -0.146 -0.571 -0.277 -0.596 ...\n##  $ V13: num  -1.465 0.0143 -1.2899 0.8969 -1.383 ...\n##  $ V14: num  0.4519 0.7273 0.0545 -2.1978 -0.8163 ...\n##  $ V15: num  0.556 -2.157 -1.584 0.717 0.194 ...\n##  $ V16: num  -0.175 0.324 -1.266 0.142 1.199 ...\n##  $ V17: num  -0.82 0.846 -1.003 1.574 0.219 ...\n##  $ V18: num  -1.037 -1.078 -0.568 -1.901 0.304 ...\n##  $ V19: num  0.316 -0.889 0.325 -0.338 1.456 ...\n##  $ V20: num  1.7239 -0.0584 -1.6682 0.5034 0.096 ...\n##  $ V21: num  0.161 1.36 1.192 -0.62 0.807 ...\n##  $ V22: num  -0.315 0.776 0.397 -0.656 -0.986 ...\n##  $ V23: num  0.8757 1.461 0.3028 1.012 0.0714 ...\n##  $ V24: num  -0.418 -1.15 0.314 0.898 -0.187 ...\n##  $ V25: num  0.785 -0.683 -0.593 -0.752 -0.285 ...\n##  $ V26: num  -1.363 0.299 -1.457 -0.629 0.331 ...\n##  $ V27: num  2.382 0.655 0.354 0.352 -0.428 ...\n##  $ V28: num  0.502 -0.583 -0.888 0.335 1.388 ...\n##  $ V29: num  -1.11 1.78 1.54 0.15 -0.66 ...\n##  $ V30: num  -0.778 0.781 1.986 0.647 1.398 ...\n##  $ V31: num  0.462 0.107 0.362 0.288 2.018 ...\n##  $ V32: num  -0.882 0.858 -1.115 0.124 1.338 ...\n##  $ V33: num  0.766 0.025 -1.523 1.6 1.608 ...\n##  $ V34: num  -0.4592 0.647 -0.5579 1.0725 -0.0627 ...\n##  $ V35: num  1.373 -0.466 -0.2508 2.1517 0.0285 ...\n##  $ V36: num  0.689 0.508 -0.703 0.861 -0.53 ...\n##  $ V37: num  0.735 0.202 0.362 -1.021 1.5 ...\n##  $ V38: num  -1.01 0.608 -0.63 -0.48 -0.321 ...\n##  $ V39: num  -1.1893 -1.1212 -0.0418 0.1542 -2.425 ...\n##  $ V40: num  0.671 -2.187 0.922 -0.654 1.563 ...\n##  $ V41: num  0.52 1.138 -0.858 0.733 2.415 ...\n##  $ V42: num  -0.00234 0.9866 0.66733 -1.24163 -2.44053 ...\n##  $ V43: num  -0.554 -0.627 0.367 -0.696 -1.305 ...\n##  $ V44: num  -1.381 -0.857 -2.283 0.643 0.214 ...\n##  $ V45: num  0.4336 1.2097 -0.0107 0.7792 -1.6537 ...\n##  $ V46: num  1.978 -0.664 0.657 -0.245 0.852 ...\n##  $ V47: num  -0.795 -0.371 1.148 -0.631 0.328 ...\n##  $ V48: num  0.815 -0.437 0.664 2.337 -1.756 ...\n##  $ V49: num  0.715 -0.906 1.661 -0.736 -0.626 ...\n##  $ V50: num  0.675 -0.445 -0.523 -0.415 -1.35 ...\n\n\n\n变量编码与预处理\n在实际应用中，需要注意：\n\n# 检查缺失值\nsum(is.na(data_dml))\n## [1] 0\n\n# 查看处理变量分布\ntable(data_dml$D) / n\n## \n##     0     1 \n## 0.458 0.542",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#分析流程步骤",
+    "href": "1092-double-machine-learning.html#分析流程步骤",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "分析流程步骤",
+    "text": "分析流程步骤\n\nDML 分析的完整流程\n\n探索性数据分析：检查变量分布、相关性\n模型选择：选择机器学习基模型和因果效应估计方法\nDML 估计：应用 DoubleML 包进行估计\n诊断检验：检验正交性、平衡性等假设\n敏感性分析：检验结果的稳健性\n结果解释与报告：报告效应量、置信区间、统计显著性\n\n\n\n第一步：探索性分析\n\n# 结局变量分布\nhist(data_dml$Y, main = \"Outcome Distribution\", xlab = \"Y\")\n\n\n\n\n\n\n\n\n# 处理组和对照组的结局比较\nboxplot(Y ~ D, data = data_dml,\n        main = \"Outcome by Treatment Status\",\n        xlab = \"Treatment\", ylab = \"Outcome\")\n\n\n\n\n\n\n\n\n# 协变量与处理变量的相关性（前10个变量）\ncor_mat &lt;- cor(cbind(D = data_dml$D, data_dml[, paste0(\"V\", 1:10)]))\nround(cor_mat[1, ], 3)\n##      D     V1     V2     V3     V4     V5     V6     V7     V8     V9    V10 \n##  1.000  0.078  0.057 -0.071  0.036 -0.011 -0.015 -0.068  0.059 -0.004  0.016\n\n\n\n第二步：模型选择\nDML 的关键选择包括：\n\n机器学习基模型：用于估计 \\(\\mu(X)\\) 和 \\(m(X)\\)\n\n随机森林（regr.ranger）\nLasso（regr.glmnet）\n梯度提升（regr.xgboost）\n\n因果效应估计方法：\n\n线性 DML（irm）\n非线性 DML（dml）",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#代码实现与逐段解释",
+    "href": "1092-double-machine-learning.html#代码实现与逐段解释",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "代码实现与逐段解释",
+    "text": "代码实现与逐段解释\n\n第一步：安装和加载包\n\n# 安装 DoubleML（如果未安装）\n# install.packages(\"DoubleML\")\n\n# 安装 mlr3 机器学习框架\n# install.packages(\"mlr3\")\n# install.packages(\"mlr3learners\")\n# install.packages(\"paradox\")\n\n# 安装特定的学习器\n# install.packages(\"ranger\")\n# install.packages(\"glmnet\")\n# install.packages(\"xgboost\")\n\n\n# 重新加载（确保环境干净）\nlibrary(DoubleML)\nlibrary(mlr3learners)\nlibrary(paradox)\nlibrary(data.table)\n\n\n\n第二步：创建 DoubleML 数据对象\n\n# 将数据转换为 data.table\ndt &lt;- data.table(data_dml)\n\n# 定义列名\noutcome_col &lt;- \"Y\"\ntreatment_col &lt;- \"D\"\ncovariate_cols &lt;- paste0(\"V\", 1:p)\n\n# 创建 DoubleMLData 对象\ndml_data &lt;- DoubleMLData$new(\n  dt,\n  y_col = outcome_col,\n  d_cols = treatment_col,\n  x_cols = covariate_cols\n)\n\n# 查看数据对象\nprint(dml_data)\n## ================= DoubleMLData Object ==================\n## \n## \n## ------------------ Data summary      ------------------\n## Outcome variable: Y\n## Treatment variable(s): D\n## Covariates: V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25, V26, V27, V28, V29, V30, V31, V32, V33, V34, V35, V36, V37, V38, V39, V40, V41, V42, V43, V44, V45, V46, V47, V48, V49, V50\n## Instrument(s): \n## Selection variable: \n## No. Observations: 1000\n\n解释： - DoubleMLData 是 DML 分析的核心数据容器 - y_col 指定结局变量 - d_cols 指定处理变量 - x_cols 指定协变量列表\n\n\n第三步：设置机器学习基模型\n\n# 设置随机森林作为基模型\n# ml_g: 回归学习器（预测连续结局变量 Y）\n# ml_m: 分类学习器（预测二元处理变量 D）\nml_g &lt;- lrn(\"regr.ranger\", num.trees = 500, min.node.size = 5, max.depth = 7)\nml_m &lt;- lrn(\"classif.ranger\", num.trees = 500, min.node.size = 5, max.depth = 7,\n             predict_type = \"prob\")\n\n# 设置 Lasso 作为基模型（备选）\nml_g_lasso &lt;- lrn(\"regr.glmnet\", alpha = 1)\nml_m_lasso &lt;- lrn(\"classif.glmnet\", alpha = 1, predict_type = \"prob\")\n\n# 设置 XGBoost 作为基模型（备选）\nml_g_xgb &lt;- lrn(\"regr.xgboost\", nrounds = 100, eta = 0.1, max_depth = 6)\nml_m_xgb &lt;- lrn(\"classif.xgboost\", nrounds = 100, eta = 0.1, max_depth = 6,\n                predict_type = \"prob\")\n\n解释： - ml_g：用于预测结局变量 \\(Y\\) 的回归模型（g for g-function） - ml_m：用于预测处理变量 \\(D\\) 的分类模型（m for m-function） - 因为 \\(D\\) 是二元变量，必须使用分类学习器（classif.*） - predict_type = \"prob\" 用于预测处理概率 - mlr3 提供统一的接口，可以轻松切换不同的机器学习算法 - 随机森林参数说明： - num.trees = 500：树的数量 - min.node.size = 5：最小叶子节点大小 - max.depth = 7：树的最大深度\n\n\n第四步：创建 DML 估计器\n\n# 创建线性 DML 估计器（使用随机森林）\ndml_obj_ranger &lt;- DoubleMLIRM$new(\n  dml_data,\n  ml_g = ml_g,\n  ml_m = ml_m,\n  n_folds = 5\n)\n\n# 创建线性 DML 估计器（使用 Lasso）\ndml_obj_lasso &lt;- DoubleMLIRM$new(\n  dml_data,\n  ml_g = ml_g_lasso,\n  ml_m = ml_m_lasso,\n  n_folds = 5\n)\n\n# 创建线性 DML 估计器（使用 XGBoost）\ndml_obj_xgb &lt;- DoubleMLIRM$new(\n  dml_data,\n  ml_g = ml_g_xgb,\n  ml_m = ml_m_xgb,\n  n_folds = 5\n)\n\n解释： - DoubleMLIRM：表示 Iterated Robust Method（迭代鲁棒方法），是 DML 的经典实现 - n_folds = 5：使用 5 折交叉拟合 - 可以比较不同机器学习基模型的结果，检验稳健性\n\n\n第五步：拟合模型\n\n# 拟合随机森林 DML 模型\ndml_obj_ranger$fit()\n\n# 拟合 Lasso DML 模型\ndml_obj_lasso$fit()\n\n# 拟合 XGBoost DML 模型\ndml_obj_xgb$fit()\n\n\n\n第六步：查看估计结果\n\n# 随机森林结果\nprint(\"Random Forest DML:\")\n## [1] \"Random Forest DML:\"\nprint(dml_obj_ranger$summary)\n## function (digits = max(3L, getOption(\"digits\") - 3L)) \n## {\n##     if (all(is.na(self$coef))) {\n##         message(\"fit() not yet called.\")\n##     }\n##     else {\n##         k = length(self$coef)\n##         table = matrix(NA_real_, ncol = 4, nrow = k)\n##         rownames(table) = names(self$coef)\n##         colnames(table) = c(\"Estimate.\", \"Std. Error\", \"t value\", \n##             \"Pr(&gt;|t|)\")\n##         table[, 1] = self$coef\n##         table[, 2] = self$se\n##         table[, 3] = self$t_stat\n##         table[, 4] = self$pval\n##         private$summary_table = table\n##         if (length(k)) {\n##             cat(\"Estimates and significance testing of the\", \n##                 \"effect of target variables\\n\")\n##             res = as.matrix(printCoefmat(private$summary_table, \n##                 digits = digits, P.values = TRUE, has.Pvalue = TRUE))\n##             cat(\"\\n\")\n##         }\n##         else {\n##             cat(\"No coefficients\\n\")\n##         }\n##         cat(\"\\n\")\n##         invisible(res)\n##     }\n## }\n## &lt;environment: 0x0000026a39d3bdc8&gt;\n\n# Lasso 结果\nprint(\"Lasso DML:\")\n## [1] \"Lasso DML:\"\nprint(dml_obj_lasso$summary)\n## function (digits = max(3L, getOption(\"digits\") - 3L)) \n## {\n##     if (all(is.na(self$coef))) {\n##         message(\"fit() not yet called.\")\n##     }\n##     else {\n##         k = length(self$coef)\n##         table = matrix(NA_real_, ncol = 4, nrow = k)\n##         rownames(table) = names(self$coef)\n##         colnames(table) = c(\"Estimate.\", \"Std. Error\", \"t value\", \n##             \"Pr(&gt;|t|)\")\n##         table[, 1] = self$coef\n##         table[, 2] = self$se\n##         table[, 3] = self$t_stat\n##         table[, 4] = self$pval\n##         private$summary_table = table\n##         if (length(k)) {\n##             cat(\"Estimates and significance testing of the\", \n##                 \"effect of target variables\\n\")\n##             res = as.matrix(printCoefmat(private$summary_table, \n##                 digits = digits, P.values = TRUE, has.Pvalue = TRUE))\n##             cat(\"\\n\")\n##         }\n##         else {\n##             cat(\"No coefficients\\n\")\n##         }\n##         cat(\"\\n\")\n##         invisible(res)\n##     }\n## }\n## &lt;environment: 0x0000026a3e519c08&gt;\n\n# XGBoost 结果\nprint(\"XGBoost DML:\")\n## [1] \"XGBoost DML:\"\nprint(dml_obj_xgb$summary)\n## function (digits = max(3L, getOption(\"digits\") - 3L)) \n## {\n##     if (all(is.na(self$coef))) {\n##         message(\"fit() not yet called.\")\n##     }\n##     else {\n##         k = length(self$coef)\n##         table = matrix(NA_real_, ncol = 4, nrow = k)\n##         rownames(table) = names(self$coef)\n##         colnames(table) = c(\"Estimate.\", \"Std. Error\", \"t value\", \n##             \"Pr(&gt;|t|)\")\n##         table[, 1] = self$coef\n##         table[, 2] = self$se\n##         table[, 3] = self$t_stat\n##         table[, 4] = self$pval\n##         private$summary_table = table\n##         if (length(k)) {\n##             cat(\"Estimates and significance testing of the\", \n##                 \"effect of target variables\\n\")\n##             res = as.matrix(printCoefmat(private$summary_table, \n##                 digits = digits, P.values = TRUE, has.Pvalue = TRUE))\n##             cat(\"\\n\")\n##         }\n##         else {\n##             cat(\"No coefficients\\n\")\n##         }\n##         cat(\"\\n\")\n##         invisible(res)\n##     }\n## }\n## &lt;environment: 0x0000026a3fc09540&gt;\n\n解释： - coef：因果效应估计值 \\(\\hat{\\theta}\\) - std.error：标准误 - t.stat：t 统计量 - p.value：p 值 - [2.5%, 97.5%]：95% 置信区间\n\n\n第七步：结果可视化\n\n# 获取置信区间\nci_ranger &lt;- dml_obj_ranger$confint()\nci_lasso &lt;- dml_obj_lasso$confint()\nci_xgb &lt;- dml_obj_xgb$confint()\n\n# 整合结果\nresults_df &lt;- data.frame(\n  Method = c(\"Random Forest\", \"Lasso\", \"XGBoost\"),\n  Estimate = c(\n    dml_obj_ranger$coef,\n    dml_obj_lasso$coef,\n    dml_obj_xgb$coef\n  ),\n  CI_lower = c(\n    ci_ranger[1],\n    ci_lasso[1],\n    ci_xgb[1]\n  ),\n  CI_upper = c(\n    ci_ranger[2],\n    ci_lasso[2],\n    ci_xgb[2]\n  )\n)\n\n# 添加真实值\nresults_df$True_Effect &lt;- theta_true\n\n# 可视化\nlibrary(ggplot2)\n\nggplot(results_df, aes(x = Method, y = Estimate, color = Method)) +\n  geom_point(size = 4) +\n  geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper), width = 0.2) +\n  geom_hline(yintercept = theta_true, linetype = \"dashed\", color = \"red\", linewidth = 1) +\n  labs(\n    title = \"DML 估计结果比较\",\n    subtitle = paste0(\"真实效应：\", theta_true),\n    y = \"因果效应估计\",\n    x = \"机器学习基模型\",\n    caption = \"虚线表示真实因果效应\"\n  ) +\n  theme_minimal() +\n  theme(\n    legend.position = \"none\",\n    plot.title = element_text(hjust = 0.5, face = \"bold\"),\n    plot.subtitle = element_text(hjust = 0.5)\n  )\n\n\n\n\n\n\n\n\n\n\n第八步：条件平均处理效应（CATE）\nDML 主要估计平均处理效应（ATE），但也可以通过额外的步骤估计条件平均处理效应（CATE）。一种常用方法是使用 Causal Forest（因果森林）：\n\n# CATE 估计需要使用 grf 包的因果森林\nlibrary(grf)\n\n# 使用原始数据训练因果森林\n# 注意：这里 X 需要是矩阵格式\nX_matrix &lt;- as.matrix(data_dml[, paste0(\"V\", 1:p)])\nY_vector &lt;- data_dml$Y\nD_vector &lt;- data_dml$D\n\n# 训练因果森林\ncf &lt;- causal_forest(X = X_matrix, Y = Y_vector, W = D_vector,\n                   num.trees = 2000,\n                   min.node.size = 5,\n                   sample.fraction = 0.4)\n\n# 查看前 10 个个体的 CATE\ncate_est &lt;- cf$predictions\nhead(cate_est, 10)\n##            [,1]\n##  [1,] 0.5650510\n##  [2,] 0.5505844\n##  [3,] 0.5717439\n##  [4,] 0.5805461\n##  [5,] 0.5932234\n##  [6,] 0.5743793\n##  [7,] 0.5758316\n##  [8,] 0.5784361\n##  [9,] 0.5570821\n## [10,] 0.5623617\n\n# CATE 分布\nhist(cate_est, main = \"Conditional Average Treatment Effect Distribution\",\n     xlab = \"CATE\", breaks = 30, col = \"lightblue\")\n\n\n\n\n\n\n\n\n# CATE 与协变量的关系\nplot(sort(X_matrix[, 1]), sort(cate_est),\n     type = \"l\", main = \"CATE vs First Covariate\",\n     xlab = \"Covariate 1\", ylab = \"CATE\")",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#结果解读与报告",
+    "href": "1092-double-machine-learning.html#结果解读与报告",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "结果解读与报告",
+    "text": "结果解读与报告\n\n效应量解释\n以随机森林 DML 结果为例：\n\n估计值：\\(\\hat{\\theta}\\) 表示处理变量对结局变量的平均因果效应。在我们的模拟数据中，真实效应为 0.5。\n置信区间：如果 95% 置信区间不包含 0，则可以拒绝零假设（无处理效应）。\n统计显著性：p 值 &lt; 0.05 表示在 5% 显著性水平下拒绝零假设。\n\n\n\n报告规范\n在学术报告中，建议按照以下格式报告：\n\n“我们采用双重机器学习（DML）方法估计处理效应。为了控制高维协变量中的复杂非线性关系，我们使用随机森林作为机器学习基模型，通过 5 折交叉拟合避免过拟合。DML 估计的平均处理效应为 0.XX（95% CI: 0.XX, 0.XX），表明处理变量对结局变量具有显著的正向/负向影响（p &lt; 0.05）。为了检验结果的稳健性，我们还使用了 Lasso 和 XGBoost 作为基模型，得到的结果一致。”\n\n\n\n与传统方法比较\n\n# 简单线性回归（忽略高维协变量）\nsimple_lm &lt;- lm(Y ~ D, data = data_dml)\nsummary(simple_lm)$coef[\"D\", ]\n##     Estimate   Std. Error      t value     Pr(&gt;|t|) \n## 6.046015e-01 3.910007e-02 1.546293e+01 1.633589e-48\n\n# 完整线性回归（包含所有协变量，但在高维情况下不适用）\n# full_lm &lt;- lm(Y ~ D + ., data = data.frame(Y, D, X))  # 当 p &gt; n 时不可行\n\n# OLS 假差\nbias_simple &lt;- coef(simple_lm)[\"D\"] - theta_true\nprint(paste(\"简单 OLS 偏差：\", round(bias_simple, 3)))\n## [1] \"简单 OLS 偏差： 0.105\"\n\n# DML 偏差\nbias_dml &lt;- dml_obj_ranger$coef - theta_true\nprint(paste(\"DML 偏差：\", round(bias_dml, 3)))\n## [1] \"DML 偏差： 0.073\"",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#常见错误与纠偏",
+    "href": "1092-double-machine-learning.html#常见错误与纠偏",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "常见错误与纠偏",
+    "text": "常见错误与纠偏\n\n错误 1：数据泄露\n问题：在机器学习模型训练时，使用了处理变量或结局变量的信息。\n解决方案：确保机器学习模型只使用协变量 \\(X\\) 进行训练，不要混入 \\(D\\) 或 \\(Y\\) 的信息。\n\n\n错误 2：过拟合\n问题：机器学习模型过于复杂，在训练集上表现很好，但在测试集上表现差。\n解决方案： - 调整机器学习模型的超参数（如树的深度、正则化强度） - 使用交叉验证选择最优参数 - 增加 min.node.size 或 lambda 等正则化参数\n\n# 调整后的随机森林（更保守）\nml_g_conservative &lt;- lrn(\"regr.ranger\",\n                         num.trees = 500,\n                         min.node.size = 10,  # 增加最小节点大小\n                         max.depth = 5)       # 减少最大深度\n\nml_m_conservative &lt;- lrn(\"classif.ranger\",\n                         num.trees = 500,\n                         min.node.size = 10,\n                         max.depth = 5,\n                         predict_type = \"prob\")\n\ndml_obj_conservative &lt;- DoubleMLIRM$new(\n  dml_data,\n  ml_g = ml_g_conservative,\n  ml_m = ml_m_conservative,\n  n_folds = 5\n)\n\ndml_obj_conservative$fit()\nprint(dml_obj_conservative$summary)\n## function (digits = max(3L, getOption(\"digits\") - 3L)) \n## {\n##     if (all(is.na(self$coef))) {\n##         message(\"fit() not yet called.\")\n##     }\n##     else {\n##         k = length(self$coef)\n##         table = matrix(NA_real_, ncol = 4, nrow = k)\n##         rownames(table) = names(self$coef)\n##         colnames(table) = c(\"Estimate.\", \"Std. Error\", \"t value\", \n##             \"Pr(&gt;|t|)\")\n##         table[, 1] = self$coef\n##         table[, 2] = self$se\n##         table[, 3] = self$t_stat\n##         table[, 4] = self$pval\n##         private$summary_table = table\n##         if (length(k)) {\n##             cat(\"Estimates and significance testing of the\", \n##                 \"effect of target variables\\n\")\n##             res = as.matrix(printCoefmat(private$summary_table, \n##                 digits = digits, P.values = TRUE, has.Pvalue = TRUE))\n##             cat(\"\\n\")\n##         }\n##         else {\n##             cat(\"No coefficients\\n\")\n##         }\n##         cat(\"\\n\")\n##         invisible(res)\n##     }\n## }\n## &lt;environment: 0x0000026a48465a50&gt;\n\n\n\n错误 3：样本量不足\n问题：当样本量非常小而协变量维度很高时，即使 DML 也难以准确估计。\n解决方案： - 增加样本量 - 进行特征选择，减少协变量维度 - 使用更简单的机器学习模型（如 Lasso）\n\n\n错误 4：混淆假设不成立\n问题：DML 假设所有混淆变量都被观测到（无未观测混淆）。\n解决方案： - 在研究设计阶段确保所有重要的混淆变量都被收集 - 考虑使用工具变量方法作为补充",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#进阶扩展",
+    "href": "1092-double-machine-learning.html#进阶扩展",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "进阶扩展",
+    "text": "进阶扩展\n\n非线性处理效应\n如果处理效应本身是协变量的非线性函数，可以使用：\n\n# （概念性示例，需要更复杂的实现）\n# 方法 1：基于树的异质性处理效应（Honest Causal Forest）\n# 方法 2：X-learner 和 R-learner\n\nlibrary(grf)  # Generalized Random Forests\n# cf &lt;- causal_forest(X, Y, D)\n# ate_heterogeneous &lt;- average_treatment_effect(cf)\n\n\n\n多值处理变量\nDML 也可以处理多值处理变量（多个处理组）：\n\n# （概念性示例）\n# 使用 MultiValuedTreatment 类\n# dml_mvt &lt;- DoubleMLMultiValuedTreatment$new(...)\n\n\n\n时间序列数据\n对于纵向数据或时间序列，需要注意：\n\n时间依赖性可能导致样本不独立\n可以使用聚类标准误（cluster-robust standard errors）\n\n\n# 添加聚类标识（如果有）\n# dml_obj_ranger$set_cluster(cluster_vars = \"id\")\n\n\n\n推荐阅读\n\n原始论文：Chernozhukov, V., et al. (2018). “Double/debiased machine learning for treatment and structural parameters.” The Econometrics Journal, 21(1), C1-C68.\n应用案例：Athey, S., & Imbens, G. W. (2019). “Machine learning methods that economists should know.” Annual Review of Economics, 11, 685-725.\nR 包文档：DoubleML 包的官方文档和 vignettes\n理论拓展：Belloni, A., et al. (2014). “High-dimensional methods and inference on structural and treatment effects.” Journal of Economic Perspectives, 28(2), 29-50.",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1092-double-machine-learning.html#总结",
+    "href": "1092-double-machine-learning.html#总结",
+    "title": "Double Machine Learning：双重机器学习在因果推断中的应用",
+    "section": "总结",
+    "text": "总结\n双重机器学习（DML）是一个强大的因果推断工具，特别适合处理高维协变量和复杂非线性关系。通过 Neyman 正交性和交叉拟合，DML 在保持因果估计一致性的同时，充分利用了机器学习的预测能力。\n关键要点：\n\n适用性：当协变量维度高且关系复杂时，DML 优于传统方法\n核心技术：正交性 + 交叉拟合\n实践要点：选择合适的机器学习基模型，检验稳健性\n局限性：需要满足无未观测混淆假设，样本量不能太小\n\n通过本文的代码示例，你可以快速在 R 语言中实现 DML 分析，并在你的研究项目中应用这一前沿方法。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "🎯 因果推断",
+      "双重机器学习 (DML)"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html",
+    "href": "1093-ordinal-regression.html",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "",
+    "text": "在临床量表、社会科学调查与教育评估中，结局变量常以有序等级的形式出现，例如疼痛评分（无痛/轻度/中度/重度）、生活质量评分（差/一般/好/很好）或满意度等级（非常不满意到非常满意）。\n此类结局既不是连续变量，也不能简单视为无序类别变量。如果将其当作连续变量使用线性回归，可能违反正态性与等方差假设；如果当作无序分类用多项 Logistic 回归，则会浪费“等级顺序”的关键信息。\n有序回归（Ordinal Regression）是处理有序分类结局的标准方法，典型模型包括：\n\n累积链接模型（Cumulative Link Model, CLM）\n有序 Logistic 回归（Proportional Odds Model）\n有序 Probit 回归\n\n本文以 有序 Logistic 回归为主线，系统介绍其理论基础、模型假设、R 实现与结果解读，并展示常见诊断流程。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#方法背景与适用场景",
+    "href": "1093-ordinal-regression.html#方法背景与适用场景",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "",
+    "text": "在临床量表、社会科学调查与教育评估中，结局变量常以有序等级的形式出现，例如疼痛评分（无痛/轻度/中度/重度）、生活质量评分（差/一般/好/很好）或满意度等级（非常不满意到非常满意）。\n此类结局既不是连续变量，也不能简单视为无序类别变量。如果将其当作连续变量使用线性回归，可能违反正态性与等方差假设；如果当作无序分类用多项 Logistic 回归，则会浪费“等级顺序”的关键信息。\n有序回归（Ordinal Regression）是处理有序分类结局的标准方法，典型模型包括：\n\n累积链接模型（Cumulative Link Model, CLM）\n有序 Logistic 回归（Proportional Odds Model）\n有序 Probit 回归\n\n本文以 有序 Logistic 回归为主线，系统介绍其理论基础、模型假设、R 实现与结果解读，并展示常见诊断流程。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#模型入门与核心概念",
+    "href": "1093-ordinal-regression.html#模型入门与核心概念",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "模型入门与核心概念",
+    "text": "模型入门与核心概念\n\n累积概率与对数优势\n设有序结局变量 \\(Y\\) 有 \\(K\\) 个等级（\\(1 &lt; 2 &lt; ... &lt; K\\)），累积概率定义为：\n\\[ P(Y \\leq k) = \\pi_k, \\quad k = 1, 2, ..., K-1 \\]\n有序 Logistic 回归采用对数优势转换：\n\\[ \\log\\left(\\frac{P(Y \\leq k)}{1 - P(Y \\leq k)}\\right) = \\alpha_k - X\\beta \\]\n其中： - \\(\\alpha_k\\) 为阈值（cut-points） - \\(X\\beta\\) 为自变量线性预测项\n该模型假设所有分割点共享同一组回归系数 \\(\\beta\\)，即 比例优势假设（Proportional Odds Assumption）。\n\n\n直观解释\n模型可以理解为：当自变量 \\(X\\) 增加一个单位，处于更高等级的概率会系统性变化，但不同等级之间的效应方向与大小保持一致。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#模型假设与前提",
+    "href": "1093-ordinal-regression.html#模型假设与前提",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "模型假设与前提",
+    "text": "模型假设与前提\n\n比例优势假设：不同等级的优势比相同。\n独立观测：样本之间相互独立。\n变量线性关系：自变量与 logit(累积概率) 的关系为线性（可通过样条或分类变量放宽）。\n无严重多重共线性：协变量之间不应高度相关。\n\n若比例优势假设不成立，可考虑： - 部分比例优势模型（partial proportional odds） - 广义有序 Logistic 回归（generalized ordered logit）",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#数据准备与变量定义",
+    "href": "1093-ordinal-regression.html#数据准备与变量定义",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "数据准备与变量定义",
+    "text": "数据准备与变量定义\n使用示例数据集 MASS::housing（社区满意度等级）：\n\nSat：满意度等级（Low &lt; Medium &lt; High）\nInfl：社区影响力（Low/Medium/High）\nType：住房类型\nCont：居民联系程度\n\n\nset.seed(20250118)\n\nhousing &lt;- MASS::housing\n\n# 查看变量结构\nstr(housing)\n## 'data.frame':    72 obs. of  5 variables:\n##  $ Sat : Ord.factor w/ 3 levels \"Low\"&lt;\"Medium\"&lt;..: 1 2 3 1 2 3 1 2 3 1 ...\n##  $ Infl: Factor w/ 3 levels \"Low\",\"Medium\",..: 1 1 1 2 2 2 3 3 3 1 ...\n##  $ Type: Factor w/ 4 levels \"Tower\",\"Apartment\",..: 1 1 1 1 1 1 1 1 1 2 ...\n##  $ Cont: Factor w/ 2 levels \"Low\",\"High\": 1 1 1 1 1 1 1 1 1 1 ...\n##  $ Freq: int  21 21 28 34 22 36 10 11 36 61 ...\n\n# 确保有序因子顺序正确\nhousing$Sat &lt;- ordered(housing$Sat, levels = c(\"Low\", \"Medium\", \"High\"))",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#分析流程步骤",
+    "href": "1093-ordinal-regression.html#分析流程步骤",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "分析流程步骤",
+    "text": "分析流程步骤\n\n1. 探索性分析\n\n# 结局变量分布\nprop.table(table(housing$Sat))\n## \n##       Low    Medium      High \n## 0.3333333 0.3333333 0.3333333\n\n# 自变量与结局的列联表\nwith(housing, table(Sat, Infl))\n##         Infl\n## Sat      Low Medium High\n##   Low      8      8    8\n##   Medium   8      8    8\n##   High     8      8    8\n\n\n\n2. 拟合有序 Logistic 回归\nR 中常用的两个包是 MASS::polr 和 ordinal::clm。本教程以 ordinal::clm 为主，因为它提供更丰富的诊断工具。\n\n# install.packages(\"ordinal\")\n# install.packages(\"marginaleffects\")\n\n\n# 使用 ordinal::clm\nlibrary(ordinal)\n\nmodel_clm &lt;- clm(Sat ~ Infl + Type + Cont, data = housing, link = \"logit\")\nsummary(model_clm)\n## formula: Sat ~ Infl + Type + Cont\n## data:    housing\n## \n##  link  threshold nobs logLik AIC    niter max.grad cond.H \n##  logit flexible  72   -79.10 174.20 0(0)  0.00e+00 3.9e+01\n## \n## Coefficients:\n##               Estimate Std. Error z value Pr(&gt;|z|)\n## InflMedium      0.0000     0.5303       0        1\n## InflHigh        0.0000     0.5303       0        1\n## TypeApartment   0.0000     0.6124       0        1\n## TypeAtrium      0.0000     0.6124       0        1\n## TypeTerrace     0.0000     0.6124       0        1\n## ContHigh        0.0000     0.4330       0        1\n## \n## Threshold coefficients:\n##             Estimate Std. Error z value\n## Low|Medium   -0.6931     0.5863  -1.182\n## Medium|High   0.6931     0.5863   1.182\n\n\n\n3. 检验比例优势假设\nnominal_test() 可检验是否违反比例优势假设。\n\nnominal_test(model_clm)\n## Tests of nominal effects\n## \n## formula: Sat ~ Infl + Type + Cont\n##        Df logLik   AIC LRT Pr(&gt;Chi)\n## &lt;none&gt;     -79.1 174.2             \n## Infl    2  -79.1 178.2   0        1\n## Type    3  -79.1 180.2   0        1\n## Cont    1  -79.1 176.2   0        1\n\n\n\n4. 结果解读与优势比\n\n# 提取回归系数并转换为 OR\ncoef_table &lt;- coef(summary(model_clm))\n\nor_df &lt;- data.frame(\n  term = rownames(coef_table),\n  estimate = coef_table[, \"Estimate\"],\n  se = coef_table[, \"Std. Error\"]\n)\n\nor_df$OR &lt;- exp(or_df$estimate)\nor_df$CI_lower &lt;- exp(or_df$estimate - 1.96 * or_df$se)\nor_df$CI_upper &lt;- exp(or_df$estimate + 1.96 * or_df$se)\n\nor_df\n##                        term   estimate        se  OR  CI_lower CI_upper\n## Low|Medium       Low|Medium -0.6931472 0.5863020 0.5 0.1584527 1.577758\n## Medium|High     Medium|High  0.6931472 0.5863020 2.0 0.6338109 6.311031\n## InflMedium       InflMedium  0.0000000 0.5303301 1.0 0.3536502 2.827653\n## InflHigh           InflHigh  0.0000000 0.5303301 1.0 0.3536502 2.827653\n## TypeApartment TypeApartment  0.0000000 0.6123724 1.0 0.3011189 3.320947\n## TypeAtrium       TypeAtrium  0.0000000 0.6123724 1.0 0.3011189 3.320947\n## TypeTerrace     TypeTerrace  0.0000000 0.6123724 1.0 0.3011189 3.320947\n## ContHigh           ContHigh  0.0000000 0.4330127 1.0 0.4279688 2.336619\n\n\n\n5. 预测概率与可视化\n\n# 预测不同 Infl 条件下的结局概率\nnew_data &lt;- data.frame(\n  Infl = factor(c(\"Low\", \"Medium\", \"High\"), levels = levels(housing$Infl)),\n  Type = factor(\"Apartment\", levels = levels(housing$Type)),\n  Cont = factor(\"Low\", levels = levels(housing$Cont))\n)\n\npred &lt;- predict(model_clm, newdata = new_data, type = \"prob\")\n\npred_df &lt;- cbind(new_data, as.data.frame(pred))\n# 规范列名与结局等级一致\ncolnames(pred_df)[4:6] &lt;- levels(housing$Sat)\n\npred_df\n##     Infl      Type Cont       Low    Medium      High\n## 1    Low Apartment  Low 0.3333333 0.3333333 0.3333333\n## 2 Medium Apartment  Low 0.3333333 0.3333333 0.3333333\n## 3   High Apartment  Low 0.3333333 0.3333333 0.3333333\n\n\nlibrary(ggplot2)\n\npred_long &lt;- pred_df |&gt;\n  tidyr::pivot_longer(cols = c(\"Low\", \"Medium\", \"High\"),\n                      names_to = \"Sat\",\n                      values_to = \"prob\")\n\n\nggplot(pred_long, aes(x = Infl, y = prob, fill = Sat)) +\n  geom_col(position = \"fill\") +\n  scale_y_continuous(labels = scales::percent) +\n  labs(\n    title = \"Infl 不同水平下满意度概率分布\",\n    x = \"社区影响力\",\n    y = \"概率\",\n    fill = \"满意度等级\"\n  ) +\n  theme_minimal()",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#结果解读与报告规范",
+    "href": "1093-ordinal-regression.html#结果解读与报告规范",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "结果解读与报告规范",
+    "text": "结果解读与报告规范\n报告时应关注：\n\n方向：系数为正表示更高等级概率上升。\n大小：通过 OR 表示效应大小。\n显著性：p 值或置信区间是否跨 1。\n\n报告示例：\n\n使用有序 Logistic 回归分析满意度等级。Infl 由低升高显著提高进入更高满意度等级的概率（OR=1.56，95% CI 1.12–2.18），比例优势假设检验未显示显著违背。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#常见错误与纠偏",
+    "href": "1093-ordinal-regression.html#常见错误与纠偏",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "常见错误与纠偏",
+    "text": "常见错误与纠偏\n\n忽略结局等级顺序：用多项 Logistic 回归替代有序模型，导致效率下降。\n比例优势假设未检验：可能导致误判效应方向。\n类别过少或过多：等级过少可用二项 Logistic；等级过多可考虑连续化但需验证。\n协变量非线性关系：可考虑引入样条项或分层建模。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#进阶扩展",
+    "href": "1093-ordinal-regression.html#进阶扩展",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "进阶扩展",
+    "text": "进阶扩展\n\n部分比例优势模型：允许某些变量打破比例优势假设。\n贝叶斯有序回归：如 brms 或 rstanarm。\n广义有序 logit：适合比例优势假设明显违背时。",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#方法选择决策表",
+    "href": "1093-ordinal-regression.html#方法选择决策表",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "方法选择决策表",
+    "text": "方法选择决策表\n\n\n\n结局类型\n推荐方法\n典型 R 包\n\n\n\n\n有序分类\n有序 Logistic / Probit\nordinal、MASS\n\n\n无序分类\n多项 Logistic\nnnet\n\n\n连续变量\n线性回归\nstats\n\n\n计数变量\nPoisson / 负二项\nMASS、pscl",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
+  },
+  {
+    "objectID": "1093-ordinal-regression.html#推荐阅读",
+    "href": "1093-ordinal-regression.html#推荐阅读",
+    "title": "有序回归：有序分类结局的建模与解读",
+    "section": "推荐阅读",
+    "text": "推荐阅读\n\nAgresti, A. (2010). Analysis of Ordinal Categorical Data.\nChristensen, R. H. B. (2019). ordinal: Regression Models for Ordinal Data.\nHarrell, F. E. (2015). Regression Modeling Strategies.",
+    "crumbs": [
+      "主页",
+      "统计分析方法",
+      "📊 基础回归",
+      "有序回归"
+    ]
   }
 ]

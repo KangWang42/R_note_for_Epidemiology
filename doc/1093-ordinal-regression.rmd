@@ -1,0 +1,225 @@
+---
+title: "有序回归：有序分类结局的建模与解读"
+author: "Kang Wang"
+date: "2025-01-18"
+image: "images/1093-ordinal-regression.svg"
+categories:
+  - 统计方法
+  - 回归分析
+  - 临床研究
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 8,
+  fig.height = 6,
+  collapse = TRUE
+)
+```
+
+## 方法背景与适用场景
+
+在临床量表、社会科学调查与教育评估中，结局变量常以有序等级的形式出现，例如疼痛评分（无痛/轻度/中度/重度）、生活质量评分（差/一般/好/很好）或满意度等级（非常不满意到非常满意）。
+
+此类结局既不是连续变量，也不能简单视为无序类别变量。如果将其当作连续变量使用线性回归，可能违反正态性与等方差假设；如果当作无序分类用多项 Logistic 回归，则会浪费“等级顺序”的关键信息。
+
+**有序回归（Ordinal Regression）**是处理有序分类结局的标准方法，典型模型包括：
+
+- 累积链接模型（Cumulative Link Model, CLM）
+- 有序 Logistic 回归（Proportional Odds Model）
+- 有序 Probit 回归
+
+本文以 **有序 Logistic 回归**为主线，系统介绍其理论基础、模型假设、R 实现与结果解读，并展示常见诊断流程。
+
+## 模型入门与核心概念
+
+### 累积概率与对数优势
+
+设有序结局变量 $Y$ 有 $K$ 个等级（$1 < 2 < ... < K$），累积概率定义为：
+
+$$ P(Y \leq k) = \pi_k, \quad k = 1, 2, ..., K-1 $$
+
+有序 Logistic 回归采用对数优势转换：
+
+$$ \log\left(\frac{P(Y \leq k)}{1 - P(Y \leq k)}\right) = \alpha_k - X\beta $$
+
+其中：
+- $\alpha_k$ 为阈值（cut-points）
+- $X\beta$ 为自变量线性预测项
+
+该模型假设所有分割点共享同一组回归系数 $\beta$，即 **比例优势假设（Proportional Odds Assumption）**。
+
+### 直观解释
+
+模型可以理解为：当自变量 $X$ 增加一个单位，处于更高等级的概率会系统性变化，但不同等级之间的效应方向与大小保持一致。
+
+## 模型假设与前提
+
+1. **比例优势假设**：不同等级的优势比相同。
+2. **独立观测**：样本之间相互独立。
+3. **变量线性关系**：自变量与 logit(累积概率) 的关系为线性（可通过样条或分类变量放宽）。
+4. **无严重多重共线性**：协变量之间不应高度相关。
+
+若比例优势假设不成立，可考虑：
+- 部分比例优势模型（partial proportional odds）
+- 广义有序 Logistic 回归（generalized ordered logit）
+
+## 数据准备与变量定义
+
+使用示例数据集 `MASS::housing`（社区满意度等级）：
+
+- **Sat**：满意度等级（Low < Medium < High）
+- **Infl**：社区影响力（Low/Medium/High）
+- **Type**：住房类型
+- **Cont**：居民联系程度
+
+```{r data-load}
+set.seed(20250118)
+
+housing <- MASS::housing
+
+# 查看变量结构
+str(housing)
+
+# 确保有序因子顺序正确
+housing$Sat <- ordered(housing$Sat, levels = c("Low", "Medium", "High"))
+```
+
+## 分析流程步骤
+
+### 1. 探索性分析
+
+```{r eda}
+# 结局变量分布
+prop.table(table(housing$Sat))
+
+# 自变量与结局的列联表
+with(housing, table(Sat, Infl))
+```
+
+### 2. 拟合有序 Logistic 回归
+
+R 中常用的两个包是 `MASS::polr` 和 `ordinal::clm`。本教程以 `ordinal::clm` 为主，因为它提供更丰富的诊断工具。
+
+```{r install-packages, eval=FALSE}
+# install.packages("ordinal")
+# install.packages("marginaleffects")
+```
+
+```{r fit-clm}
+# 使用 ordinal::clm
+library(ordinal)
+
+model_clm <- clm(Sat ~ Infl + Type + Cont, data = housing, link = "logit")
+summary(model_clm)
+```
+
+### 3. 检验比例优势假设
+
+`nominal_test()` 可检验是否违反比例优势假设。
+
+```{r po-test}
+nominal_test(model_clm)
+```
+
+### 4. 结果解读与优势比
+
+```{r odds-ratio}
+# 提取回归系数并转换为 OR
+coef_table <- coef(summary(model_clm))
+
+or_df <- data.frame(
+  term = rownames(coef_table),
+  estimate = coef_table[, "Estimate"],
+  se = coef_table[, "Std. Error"]
+)
+
+or_df$OR <- exp(or_df$estimate)
+or_df$CI_lower <- exp(or_df$estimate - 1.96 * or_df$se)
+or_df$CI_upper <- exp(or_df$estimate + 1.96 * or_df$se)
+
+or_df
+```
+
+### 5. 预测概率与可视化
+
+```{r predict-prob}
+# 预测不同 Infl 条件下的结局概率
+new_data <- data.frame(
+  Infl = factor(c("Low", "Medium", "High"), levels = levels(housing$Infl)),
+  Type = factor("Apartment", levels = levels(housing$Type)),
+  Cont = factor("Low", levels = levels(housing$Cont))
+)
+
+pred <- predict(model_clm, newdata = new_data, type = "prob")
+
+pred_df <- cbind(new_data, as.data.frame(pred))
+# 规范列名与结局等级一致
+colnames(pred_df)[4:6] <- levels(housing$Sat)
+
+pred_df
+```
+
+```{r plot-prob}
+library(ggplot2)
+
+pred_long <- pred_df |>
+  tidyr::pivot_longer(cols = c("Low", "Medium", "High"),
+                      names_to = "Sat",
+                      values_to = "prob")
+
+
+ggplot(pred_long, aes(x = Infl, y = prob, fill = Sat)) +
+  geom_col(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Infl 不同水平下满意度概率分布",
+    x = "社区影响力",
+    y = "概率",
+    fill = "满意度等级"
+  ) +
+  theme_minimal()
+```
+
+## 结果解读与报告规范
+
+报告时应关注：
+
+- **方向**：系数为正表示更高等级概率上升。
+- **大小**：通过 OR 表示效应大小。
+- **显著性**：p 值或置信区间是否跨 1。
+
+报告示例：
+
+> 使用有序 Logistic 回归分析满意度等级。Infl 由低升高显著提高进入更高满意度等级的概率（OR=1.56，95% CI 1.12–2.18），比例优势假设检验未显示显著违背。
+
+## 常见错误与纠偏
+
+1. **忽略结局等级顺序**：用多项 Logistic 回归替代有序模型，导致效率下降。
+2. **比例优势假设未检验**：可能导致误判效应方向。
+3. **类别过少或过多**：等级过少可用二项 Logistic；等级过多可考虑连续化但需验证。
+4. **协变量非线性关系**：可考虑引入样条项或分层建模。
+
+## 进阶扩展
+
+- **部分比例优势模型**：允许某些变量打破比例优势假设。
+- **贝叶斯有序回归**：如 `brms` 或 `rstanarm`。
+- **广义有序 logit**：适合比例优势假设明显违背时。
+
+## 方法选择决策表
+
+| 结局类型 | 推荐方法 | 典型 R 包 |
+| --- | --- | --- |
+| 有序分类 | 有序 Logistic / Probit | ordinal、MASS |
+| 无序分类 | 多项 Logistic | nnet |
+| 连续变量 | 线性回归 | stats |
+| 计数变量 | Poisson / 负二项 | MASS、pscl |
+
+## 推荐阅读
+
+1. Agresti, A. (2010). *Analysis of Ordinal Categorical Data*.
+2. Christensen, R. H. B. (2019). *ordinal: Regression Models for Ordinal Data*.
+3. Harrell, F. E. (2015). *Regression Modeling Strategies*.

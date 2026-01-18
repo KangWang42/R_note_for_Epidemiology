@@ -33,7 +33,7 @@
 - If a required R package is missing, install it during rendering and record the package name here.
 
 ## Rendering Dependencies
-- Installed during this session: rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette, tidytable.
+- Installed during this session: rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette, tidytable, DoubleML, clusterGeneration, readstata13, mlr3learners, paradox, DiceKriging, grf.
 
 
 ## Tooling Prerequisites
