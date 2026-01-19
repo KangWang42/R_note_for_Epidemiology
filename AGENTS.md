@@ -3,117 +3,205 @@
 ## Scope
 - Applies to the whole repository unless a deeper AGENTS.md exists.
 - This repo is a Quarto website with source files in `doc/` and outputs in `public/`.
-- Prefer editing source files only; generated content lives under `public/`.
+- Edit source files only; never manually edit generated content under `public/`.
 
 ## Repository Layout
-- `doc/`: Quarto source, `.rmd`/`.qmd` articles, assets, config.
-- `doc/_quarto.yml`: site config; output directory is `../public`.
-- `doc/images/`, `doc/figure/`: media and generated figures.
-- `public/`: built website output (do not edit by hand).
-- `.github/workflows/deploy.yml`: deploys `public/` on push to `main`.
+```
+├── doc/                    # Quarto source files
+│   ├── _quarto.yml         # Site config (output → ../public)
+│   ├── index.qmd           # Homepage
+│   ├── *.rmd / *.qmd       # Tutorial articles
+│   ├── sections/           # Auto-generated category pages
+│   ├── generate_sections.R # Pre-render script
+│   ├── images/             # Static media
+│   └── figure/             # Generated figures
+├── public/                 # Built website output (do not edit)
+├── .github/workflows/      # CI/CD: deploys public/ on push to main
+└── AGENTS.md               # This file
+```
 
-## Build / Preview / Render
-- From repo root, preview the site:
-  - `quarto preview doc`
-- From `doc/`, preview the site:
-  - `quarto preview`
-- Render the full site:
-  - `quarto render doc`
-- Render a single article:
-  - `quarto render doc/0011-rmarkdown.rmd`
-  - `quarto render doc/0013-positron.qmd`
-- Render a specific section file:
-  - `quarto render doc/sections/guide.qmd`
-- Clean output by deleting `public/` (only if asked).
+## Build / Preview / Render Commands
 
-## Testing / Linting
-- There is no formal test suite or lint config detected.
-- If you add new tests, document the command here.
-- Prefer manual validation by rendering the specific article you changed.
-- If a required R package is missing, install it during rendering and record the package name here.
+```bash
+# Preview site (with hot reload)
+quarto preview doc
 
-## Rendering Dependencies
-- Installed during this session: rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette, tidytable, DoubleML, clusterGeneration, readstata13, mlr3learners, paradox, DiceKriging, grf.
+# From doc/ directory
+cd doc && quarto preview
 
+# Render entire site
+quarto render doc
+
+# Render single article (preferred for testing changes)
+quarto render doc/1014-purrr.rmd
+quarto render doc/0013-positron.qmd
+
+# Render section page
+quarto render doc/sections/guide.qmd
+
+# Clean build (only if explicitly requested)
+rm -rf public && quarto render doc
+```
+
+## Testing / Validation
+
+- **No formal test suite** - validation is via successful rendering.
+- **Validate changes** by rendering the specific file you modified.
+- Check for R package errors; install missing packages and document them below.
+- Skim HTML output for layout issues, broken links, and warning messages.
+
+### Installed R Dependencies (from past sessions)
+rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette, tidytable, DoubleML, clusterGeneration, readstata13, mlr3learners, paradox, DiceKriging, grf
 
 ## Tooling Prerequisites
-- Requires R 4.x and Quarto.
-- R packages are article-specific; install per the tutorial content.
-- Consider using `renv` only if the repo adds it.
 
-## Code Style: R and Quarto
-- Use tidyverse-style formatting (2 spaces; no tabs).
-- Keep line width around 80 where reasonable.
-- Use snake_case for variables and functions.
-- Use explicit, descriptive names; avoid one-letter variables.
-- Prefer native pipe `|>` (or `%>%` if existing code uses it).
-- Keep function definitions and library calls at the top of a chunk.
-- Use explicit namespace calls (`pkg::fn`) for non-core functions.
+- **R**: ≥ 4.3 required
+- **Quarto**: ≥ 1.4 required
+- R packages are article-specific; install as needed per tutorial content.
+- No `renv` lockfile; packages are managed ad-hoc.
 
-## Imports and Dependencies
-- Use `library()` in R chunks only when several functions are used.
-- For one-off calls, prefer `pkg::fn`.
-- Do not load unused packages.
-- Avoid attaching packages in global setup chunks unless needed.
+## Code Style: R
+
+### Formatting
+- **Indentation**: 2 spaces, no tabs
+- **Line width**: ~80 characters where reasonable
+- **Naming**: `snake_case` for variables and functions
+- **Pipes**: Prefer native `|>`, accept `%>%` in existing code
+
+### Imports
+- Use `library()` only when multiple functions from a package are used.
+- Prefer `pkg::fn()` for one-off calls.
+- Never load unused packages.
+- Keep `library()` calls at the top of chunks.
+
+```r
+# Good: explicit namespace for one-off use
+result <- dplyr::filter(data, x > 0)
+
+# Good: library() when using many functions
+library(ggplot2)
+ggplot(data, aes(x, y)) + geom_point() + theme_minimal()
+
+# Bad: loading package for single function
+library(scales)
+comma(1000)  # Use scales::comma(1000) instead
+```
+
+### Functions
+- Use explicit, descriptive names; avoid single-letter variables.
+- Validate inputs in reusable functions (types, ranges, missing values).
+- Use informative error messages with `stop()`.
+
+```r
+# Good
+calculate_bmi <- function(weight_kg, height_m) {
+  if (!is.numeric(weight_kg) || !is.numeric(height_m)) {
+    stop("weight_kg and height_m must be numeric")
+  }
+  weight_kg / height_m^2
+}
+```
 
 ## Quarto / RMarkdown Conventions
-- Use clear chunk labels and keep them unique.
-- Include chunk options like `echo`, `message`, `warning` deliberately.
-- Use `set.seed()` for any stochastic output.
-- Prefer `include = FALSE` or `echo = FALSE` when output is not needed.
-- Avoid hard-coded absolute paths; use relative paths from `doc/`.
-- Store images in `doc/images/` or `doc/figure/`.
-- Reference figures with relative paths and descriptive filenames.
 
-## Error Handling and Robustness
-- Validate inputs in reusable functions (types, ranges, missing values).
-- Use informative error messages with `stop()` when necessary.
-- Avoid suppressing warnings unless they are known and documented.
+### YAML Header Template
+```yaml
+---
+title: 'Title: 中文副标题'
+date: '2024-10-20'
+categories:
+- 实用 R 包
+- 数据处理
+image: figure/default-cover1.png
+---
+```
+
+### Chunk Setup Pattern
+```r
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+set.seed(42)  # For reproducibility when needed
+```
+
+### Chunk Guidelines
+- Use clear, unique chunk labels.
+- Set `echo`, `message`, `warning` deliberately.
+- Use `set.seed()` for any stochastic output.
+- Use `include = FALSE` or `echo = FALSE` when output is not needed.
+- Avoid hard-coded absolute paths; use relative paths from `doc/`.
 
 ## Naming and Content Rules
-- Article filenames follow numeric prefixes (e.g., `1014-purrr.rmd`).
-- Keep new files consistent with existing naming scheme.
-- Add new entries to `doc/_quarto.yml` sidebar if needed.
-- Keep headings in Chinese consistent with existing style.
 
-## Content Quality
+### File Naming Convention
+```
+[Section][Number]-[topic].rmd
+
+Sections:
+  00xx = 入门指南 (Guide)
+  10xx = 统计分析方法 (Statistics)
+  20xx = 数据可视化 (Visualization)
+  30xx = 实用操作 (Operations)
+  40xx = 应用开发 (Applications)
+
+Examples:
+  0011-rmarkdown.rmd
+  1014-purrr.rmd
+  2025-bindboxplot.rmd
+  3002-datatable.rmd
+```
+
+### Content Guidelines
+- Keep headings in Chinese, consistent with existing style.
 - Ensure examples are reproducible and minimal.
-- Prefer vectorized operations over explicit loops when possible.
+- Prefer vectorized operations over explicit loops.
 - Use consistent terminology between text and code.
-- Avoid changes to unrelated sections or topics.
 
 ## Generated Output
-- Do not manually edit `public/`.
-- Regenerate `public/` with `quarto render` when needed.
-- Keep `_freeze` behavior consistent with `execute.freeze: auto`.
+
+- **Never edit `public/` manually** - it is auto-generated.
+- Regenerate with `quarto render doc` when needed.
+- `_freeze` behavior: `execute.freeze: auto` (in `_quarto.yml`).
+- Sections are auto-generated via `doc/generate_sections.R` (pre-render).
 
 ## Git Hygiene
-- Keep commits scoped to source files under `doc/`.
-- Avoid committing large generated assets unless required.
-- If `public/` is updated, ensure it is the result of a render.
 
-## Repo Rules in Other Locations
-- No `.cursor/rules`, `.cursorrules`, or `.github/copilot-instructions.md` found.
-- If any are added later, include their rules here.
+- Scope commits to source files under `doc/`.
+- Avoid committing large generated assets unless required.
+- If `public/` changes, ensure it resulted from a render.
+- Do not push to `main` without successful local render.
 
 ## Validation Checklist
-- Render the changed article with `quarto render doc/<file>`.
-- Skim the output HTML for warnings and layout issues.
-- Ensure links to images and sections resolve correctly.
-- Confirm sidebar entries match new content when added.
+
+Before committing changes:
+1. [ ] Render the changed file: `quarto render doc/<file>`
+2. [ ] Check for R errors or missing packages in console output
+3. [ ] Skim HTML output for layout issues
+4. [ ] Verify images and internal links resolve correctly
+5. [ ] If adding new article, update `doc/_quarto.yml` sidebar
+6. [ ] If adding new article, update `doc/0001-guide.rmd` to keep guide in sync
 
 ## Notes for Agentic Edits
+
 - Prefer targeted edits using existing patterns.
-- Minimize changes to generated output.
+- Minimize changes to unrelated sections.
 - Ask before making structural changes to navigation or sections.
-- When adding new articles, update `doc/0001-guide.rmd` to keep the guide in sync.
+- When uncertain about Chinese terminology, maintain existing usage.
+- For new tutorials, copy structure from similar existing `.rmd` files.
 
 ## Skill Auto-Load Rules
-- 当任务涉及“入门指南/学习路线/基础知识”，先加载 `section-intro-guide`.
-- 当任务涉及“实用 R 包”教程/评测/实践，先加载 `section-r-packages`.
-- 当任务涉及“统计分析方法”，先加载 `section-statistics`.
-- 当任务涉及“机器学习/深度学习/AI”，先加载 `section-ml-ai`.
-- 当任务涉及“数据导入/清洗/转换/文档写作/开发环境”，先加载 `section-operations`.
-- 当任务涉及“数据可视化/图形设计/绘图美化”，先加载 `section-visualization`.
-- 当任务涉及“卫生经济学/质性研究/信号处理等特殊应用”，先加载 `section-special`.
 
+Load these skills based on task type:
+
+| Task Type | Skill to Load |
+|-----------|---------------|
+| 入门指南/学习路线/基础知识 | `section-intro-guide` |
+| 实用 R 包教程/评测/实践 | `section-r-packages` |
+| 统计分析方法 | `section-statistics` |
+| 机器学习/深度学习/AI | `section-ml-ai` |
+| 数据导入/清洗/转换/开发环境 | `section-operations` |
+| 数据可视化/图形设计/绘图美化 | `section-visualization` |
+| 卫生经济学/质性研究/信号处理 | `section-special` |
+
+## External Rules
+
+- No `.cursor/rules`, `.cursorrules`, or `.github/copilot-instructions.md` detected.
+- If any are added later, incorporate their rules into this file.
