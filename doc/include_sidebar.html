@@ -1,0 +1,296 @@
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // --- Sidebar Logic ---
+        // Try to find the margin sidebar container
+        let marginSidebar = document.querySelector('#quarto-margin-sidebar');
+        
+        // If not found, and we are on a desktop screen, maybe we need to create it?
+        // Quarto sometimes doesn't render it if TOC is empty.
+        // Let's check if we are in a layout that supports it.
+        if (!marginSidebar && window.innerWidth >= 992) {
+            const sidebarColumn = document.querySelector('.sidebar'); // Left sidebar
+            const contentColumn = document.querySelector('main.content'); // Main content
+            
+            // If we have left sidebar and content, but no right sidebar, we might want to inject one.
+            // But usually Quarto structure is strict.
+            // Let's look for the parent container of TOC.
+            const toc = document.querySelector('nav[role="doc-toc"]');
+            if (toc) {
+                marginSidebar = toc.parentElement;
+            }
+        }
+
+        if (!marginSidebar) {
+             // If still not found, check if there is a placeholder or if we should append to body for debugging (not recommended)
+             // For now, if no margin sidebar, we skip to avoid breaking layout.
+             // Exception: Index page might hide it via CSS.
+             const indexMargin = document.querySelector('.margin-sidebar');
+             if (indexMargin) marginSidebar = indexMargin;
+        }
+
+        if (!marginSidebar) return;
+
+        // Create Container for Custom Cards
+        const customSidebarContainer = document.createElement('div');
+        customSidebarContainer.className = 'custom-sidebar-cards';
+        
+        // Helper to resolve paths based on current location
+        const isSectionPage = window.location.pathname.includes('/sections/');
+        const resolvePath = (path) => {
+            if (isSectionPage) {
+                // If we are deep in /sections/, links to root need ../
+                if (!path.startsWith('sections/')) return '../' + path;
+                return path.replace('sections/', '');
+            }
+            return path;
+        };
+
+        // --- 1. Quick Links Card (快捷入口) ---
+        const quickLinksHtml = `
+            <div class="sidebar-card quick-links">
+                <div class="sidebar-card-header">
+                    <span class="header-icon">🚀</span> 快捷入口
+                </div>
+                <div class="quick-links-grid">
+                    <a href="${resolvePath('0001-guide.html')}" class="quick-link-item" title="学习路线">
+                        <span class="emoji">🗺️</span>
+                        <span class="text">路线</span>
+                    </a>
+                    <a href="${resolvePath('sections/packages.html')}" class="quick-link-item" title="实用R包">
+                        <span class="emoji">📦</span>
+                        <span class="text">R包</span>
+                    </a>
+                    <a href="${resolvePath('sections/visualization.html')}" class="quick-link-item" title="可视化">
+                        <span class="emoji">🎨</span>
+                        <span class="text">绘图</span>
+                    </a>
+                    <a href="${resolvePath('sections/statistics.html')}" class="quick-link-item" title="统计方法">
+                        <span class="emoji">📐</span>
+                        <span class="text">统计</span>
+                    </a>
+                    <a href="${resolvePath('sections/machine-learning.html')}" class="quick-link-item" title="机器学习">
+                        <span class="emoji">🤖</span>
+                        <span class="text">ML/AI</span>
+                    </a>
+                    <a href="${resolvePath('sections/operation.html')}" class="quick-link-item" title="实用操作">
+                        <span class="emoji">🛠️</span>
+                        <span class="text">实操</span>
+                    </a>
+                </div>
+            </div>
+        `;
+
+        // --- 2. Daily Recommendation Card (每日推荐) ---
+        const mainSidebar = document.querySelector('#quarto-sidebar');
+        let randomLinkHtml = '';
+        
+        if (mainSidebar) {
+            const links = Array.from(mainSidebar.querySelectorAll('a.sidebar-item-text'));
+            const validLinks = links.filter(a => {
+                return a.href && 
+                       !a.href.endsWith('#') && 
+                       !a.href.includes('javascript:') &&
+                       a.href !== window.location.href;
+            });
+
+            if (validLinks.length > 0) {
+                const today = new Date();
+                const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+                const randomIndex = seed % validLinks.length;
+                const dailyLink = validLinks[randomIndex];
+                const dailyTitle = dailyLink.innerText.trim();
+                
+                let category = "精选教程";
+                const parentSection = dailyLink.closest('.sidebar-item-section');
+                if (parentSection) {
+                    const sectionTitle = parentSection.querySelector('.sidebar-item-text');
+                    if (sectionTitle) category = sectionTitle.innerText.trim();
+                }
+
+                randomLinkHtml = `
+                    <div class="sidebar-card daily-recommendation">
+                        <div class="sidebar-card-header">
+                            <span class="header-icon">📅</span> 每日推荐
+                        </div>
+                        <div class="daily-card-body">
+                            <span class="daily-tag">${category}</span>
+                            <a href="${dailyLink.href}" class="daily-title">${dailyTitle}</a>
+                            <p class="daily-desc">每天进步一点点，探索 R 语言的无限可能。</p>
+                            <a href="${dailyLink.href}" class="daily-btn">立即阅读 →</a>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Assemble content
+        customSidebarContainer.innerHTML = quickLinksHtml + randomLinkHtml;
+
+        // Check if TOC exists to determine insertion point
+        const tocElement = marginSidebar.querySelector('#TOC') || marginSidebar.querySelector('nav[role="doc-toc"]');
+        
+        if (tocElement) {
+             // If TOC exists, check its height. If it's effectively empty (like on index page sometimes), overwrite or append.
+             // But usually we append AFTER TOC.
+             tocElement.after(customSidebarContainer);
+        } else {
+             // No TOC, just append to sidebar
+             marginSidebar.appendChild(customSidebarContainer);
+        }
+    });
+</script>
+
+<style>
+/* 确保右侧栏容器本身可见且有宽度 */
+#quarto-margin-sidebar {
+    display: block !important;
+    width: 280px !important;
+    min-width: 280px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Custom Sidebar Cards Styles */
+/* 增加选择器权重 */
+html body #quarto-margin-sidebar .custom-sidebar-cards {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sidebar-card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.sidebar-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    border-color: #d1d5db;
+}
+
+.sidebar-card-header {
+    background: #f8fafc;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748b;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.header-icon {
+    font-size: 0.9rem;
+}
+
+/* Quick Links Grid */
+.quick-links-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 0.75rem 0.5rem;
+    gap: 0.5rem;
+}
+
+.quick-link-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 0.25rem;
+    text-decoration: none;
+    color: #64748b;
+    border-radius: 8px;
+    transition: all 0.2s;
+    background: transparent;
+}
+
+.quick-link-item:hover {
+    background: #f1f5f9;
+    color: #4f46e5;
+    transform: translateY(-1px);
+}
+
+.quick-link-item .emoji {
+    font-size: 1.25rem;
+    margin-bottom: 0.35rem;
+}
+
+.quick-link-item .text {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Daily Recommendation */
+.daily-card-body {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.daily-tag {
+    font-size: 0.65rem;
+    background: #eef2ff;
+    color: #4f46e5;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.daily-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.6rem;
+    line-height: 1.4;
+    text-decoration: none;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: color 0.2s;
+}
+
+.daily-title:hover {
+    color: #4f46e5;
+}
+
+.daily-desc {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.daily-btn {
+    font-size: 0.8rem;
+    color: #4f46e5;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: gap 0.2s;
+}
+
+.daily-btn:hover {
+    gap: 4px;
+    color: #4338ca;
+}
+</style>

@@ -218,49 +218,75 @@ section.level1, section.level2 { margin-top: 0 !important; padding-top: 0 !impor
   align-items: center;
   gap: 0.4rem;
 }
+/* 优美的长钝椭圆搜索框 */
 .search-box {
   width: 100%;
+  max-width: 560px;
+  height: 52px;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  background: transparent;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 0.5rem 0.8rem;
-  box-shadow: none;
-  transition: border-color 0.2s ease;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 26px;
+  padding: 0 6px 0 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: all 0.25s ease;
+  margin: 0 auto;
+  position: relative;
+  z-index: 10;
 }
 .search-box:focus-within {
   border-color: #3b82f6;
-  box-shadow: none;
+  box-shadow: 0 4px 16px rgba(59,130,246,0.15);
 }
 .search-icon {
-  color: #64748b;
-  font-size: 1.1rem;
+  display: none;
 }
 .search-input {
   flex: 1;
-  border: none;
-  outline: none;
+  border: none !important;
+  outline: none !important;
   font-size: 1rem;
-  background: transparent;
-  color: #0f172a;
+  background: transparent !important;
+  color: #1e293b;
   pointer-events: auto;
+  border-radius: 0 !important;
+  height: auto !important;
+  padding: 0 12px 0 0 !important;
 }
 .search-input::placeholder {
   color: #94a3b8;
 }
 .search-clear {
-  border: none;
-  background: transparent;
-  color: #94a3b8;
-  font-size: 1.05rem;
-  cursor: pointer;
-  transition: color 0.2s ease, transform 0.2s ease;
+  display: none;
 }
-.search-clear:hover {
-  color: #475569;
+.search-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: #3b82f6;
+  color: #ffffff;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 11;
+}
+.search-btn i {
+  pointer-events: none;
+}
+.search-btn:hover {
+  background: #2563eb;
   transform: scale(1.05);
+}
+.search-btn:active {
+  background: #1d4ed8;
+  transform: scale(0.95);
 }
 .content-tabs {
   display: flex;
@@ -420,7 +446,8 @@ section.level1, section.level2 { margin-top: 0 !important; padding-top: 0 !impor
     font-size: 0.95rem;
   }
   .search-box {
-    padding: 0.55rem 0.9rem;
+    height: 40px;
+    padding: 0 0.65rem;
   }
   .mode-btn {
     font-size: 0.75rem;
@@ -2189,14 +2216,11 @@ R 语言学习笔记
 覆盖统计分析、机器学习与实用 R 包的系统教程与实践指南。
 </p>
 <div class="search-wrapper">
-  <div class="search-container">
-    <div class="search-box">
-      <i class="bi bi-search search-icon"></i>
-      <input type="text" id="homepage-search" class="search-input" placeholder="搜索教程..." autocomplete="off">
-      <button class="search-clear" id="search-clear" aria-label="Clear search">
-        <i class="bi bi-x-circle-fill"></i>
-      </button>
-    </div>
+  <div class="search-box">
+    <input type="text" id="homepage-search" class="search-input" placeholder="搜索教程、R包、统计方法..." autocomplete="off">
+    <button class="search-btn" id="search-btn" aria-label="搜索">
+      <i class="bi bi-search"></i>
+    </button>
   </div>
   <div id="homepage-search-results" class="search-results-dropdown"></div>
 </div>
@@ -2213,11 +2237,14 @@ R 语言学习笔记
 </div>
 </div>
 <script>
+// 全局变量，供侧边栏使用
+window.searchData = [];
+
 document.addEventListener('DOMContentLoaded', async function() {
   // ==================== 搜索功能 ====================
   const searchInput = document.getElementById('homepage-search');
   const searchResults = document.getElementById('homepage-search-results');
-  const searchClear = document.getElementById('search-clear');
+  const searchBtn = document.getElementById('search-btn');
   
   let searchData = [];
   
@@ -2225,6 +2252,8 @@ document.addEventListener('DOMContentLoaded', async function() {
   try {
     const response = await fetch('search.json');
     searchData = await response.json();
+    // 同步到全局变量
+    window.searchData = searchData;
     searchData = searchData.filter(item => {
       const hasTitle = item.title && item.title.length > 0;
       const hasText = item.text && item.text.length > 20;
@@ -2236,12 +2265,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('无法加载搜索数据:', error);
   }
   
-  // 清除按钮
-  if (searchClear) {
-    searchClear.addEventListener('click', () => {
-      searchInput.value = '';
-      searchResults.classList.remove('visible');
-      searchResults.innerHTML = '';
+  // 搜索按钮点击事件
+  if (searchBtn) {
+    searchBtn.addEventListener('click', (e) => {
+      console.log('搜索按钮被点击了！', e.target);
+      const query = searchInput.value.trim();
+      if (query.length >= 2) {
+        performSearch(query);
+      } else {
+        // 如果输入为空，聚焦到输入框
+        searchInput.focus();
+      }
     });
   }
   
@@ -2260,7 +2294,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.search-wrapper')) {
+      if (!e.target.closest('.search-box') && !e.target.closest('.search-results-dropdown')) {
         searchResults.classList.remove('visible');
       }
     });
@@ -2715,8 +2749,323 @@ document.addEventListener('DOMContentLoaded', function() {
     observer.observe(listing, { childList: true, subtree: true });
   }
 });
+
+// ==================== 自定义侧边栏卡片 ====================
+document.addEventListener('DOMContentLoaded', function() {
+  // 等待搜索数据加载完成后再构建侧边栏
+  setTimeout(() => {
+    const marginSidebar = document.querySelector('#quarto-margin-sidebar');
+    if (!marginSidebar) return;
+
+    const isSectionPage = window.location.pathname.includes('/sections/');
+    const resolvePath = (path) => {
+      if (isSectionPage) {
+        if (!path.startsWith('sections/')) return '../' + path;
+        return path.replace('sections/', '');
+      }
+      return path;
+    };
+
+    const customSidebarContainer = document.createElement('div');
+    customSidebarContainer.className = 'custom-sidebar-cards';
+
+    const quickLinksHtml = `
+      <div class="sidebar-card quick-links">
+        <div class="sidebar-card-header"><span class="header-icon">🚀</span> 快捷入口</div>
+        <div class="quick-links-grid">
+          <a href="${resolvePath('0001-guide.html')}" class="quick-link-item" title="学习路线"><span class="emoji">🗺️</span><span class="text">路线</span></a>
+          <a href="${resolvePath('sections/packages.html')}" class="quick-link-item" title="实用R包"><span class="emoji">📦</span><span class="text">R包</span></a>
+          <a href="${resolvePath('sections/visualization.html')}" class="quick-link-item" title="可视化"><span class="emoji">🎨</span><span class="text">绘图</span></a>
+          <a href="${resolvePath('sections/statistics.html')}" class="quick-link-item" title="统计方法"><span class="emoji">📐</span><span class="text">统计</span></a>
+          <a href="${resolvePath('sections/machine-learning.html')}" class="quick-link-item" title="机器学习"><span class="emoji">🤖</span><span class="text">ML/AI</span></a>
+          <a href="${resolvePath('sections/operation.html')}" class="quick-link-item" title="实用操作"><span class="emoji">🛠️</span><span class="text">实操</span></a>
+        </div>
+      </div>
+    `;
+
+    // 每日推荐卡片逻辑 - 支持多个推荐和刷新
+    let recommendationHtml = '';
+    const data = window.searchData || [];
+    const filteredData = data.filter(item => item && item.title && item.href && item.title.length > 0);
+    
+    // 获取随机推荐（不重复）
+    function getRandomItems(arr, count) {
+      const shuffled = [...arr].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, Math.min(count, arr.length));
+    }
+    
+    // 渲染推荐卡片
+    function renderRecommendations(container) {
+      if (filteredData.length === 0) return;
+      
+      const items = getRandomItems(filteredData, 3); // 显示3个推荐
+      const cardsHtml = items.map((item, idx) => `
+        <div class="recommend-item" data-index="${idx}">
+          <span class="recommend-tag">${item.section || '精选'}</span>
+          <a href="${item.href}" class="recommend-title">${item.title}</a>
+        </div>
+      `).join('');
+      
+      container.innerHTML = `
+        <div class="sidebar-card-header">
+          <span class="header-icon">🎯</span> 随机推荐
+          <span class="refresh-btn" title="换一批" id="refresh-recommendations">🔄</span>
+        </div>
+        <div class="recommend-list">
+          ${cardsHtml}
+        </div>
+      `;
+      
+      // 绑定刷新按钮事件
+      const refreshBtn = container.querySelector('#refresh-recommendations');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          refreshBtn.style.transform = 'rotate(360deg)';
+          setTimeout(() => {
+            refreshBtn.style.transform = 'rotate(0deg)';
+            renderRecommendations(container);
+          }, 300);
+        });
+      }
+    }
+    
+    // 创建推荐卡片容器
+    const recommendCard = document.createElement('div');
+    recommendCard.className = 'sidebar-card recommendations';
+    
+    customSidebarContainer.innerHTML = quickLinksHtml;
+    customSidebarContainer.appendChild(recommendCard);
+    
+    // 渲染初始推荐
+    if (filteredData.length > 0) {
+      renderRecommendations(recommendCard);
+    }
+    
+    const toc = marginSidebar.querySelector('#TOC') || marginSidebar.querySelector('nav');
+    if (toc) toc.after(customSidebarContainer);
+    else marginSidebar.appendChild(customSidebarContainer);
+  }, 500); // 等待 500ms 确保搜索数据已加载
+});
 </script>
 <style>
+/* Force sidebar visibility and fix scroll/click issues */
+#quarto-margin-sidebar {
+  display: block !important;
+  width: 280px !important;
+  min-width: 280px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: sticky !important;
+  top: 80px !important;
+  height: fit-content !important;
+  max-height: calc(100vh - 100px) !important;
+  overflow-y: auto !important;
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+}
+
+/* Hide potential overlay elements that might block clicks on RIGHT sidebar */
+.quarto-sidebar-toggle-title,
+.zindex-over-content,
+#quarto-toc-toggle,
+#quarto-margin-sidebar > nav,
+#quarto-margin-sidebar > .nav-page {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* Ensure custom sidebar cards are always visible and clickable */
+.custom-sidebar-cards {
+  display: flex !important;
+  flex-direction: column;
+  gap: 1rem;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 1001 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.sidebar-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  overflow: hidden;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 1002 !important;
+}
+
+.sidebar-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+}
+
+.sidebar-card-header {
+  background: #f8fafc;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.quick-links-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0.75rem 0.5rem;
+  gap: 0.5rem;
+}
+
+.quick-link-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 0.25rem;
+  text-decoration: none;
+  color: #64748b;
+  border-radius: 8px;
+  pointer-events: auto !important;
+  cursor: pointer;
+  position: relative !important;
+  z-index: 1003 !important;
+}
+
+.quick-link-item:hover {
+  background: #f1f5f9;
+  color: #4f46e5;
+}
+
+.quick-link-item .emoji {
+  font-size: 1.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.quick-link-item .text {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.daily-card-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.daily-tag {
+  font-size: 0.65rem;
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 0.6rem;
+  width: fit-content;
+}
+
+.daily-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.6rem;
+  text-decoration: none;
+  pointer-events: auto !important;
+  cursor: pointer;
+}
+
+.daily-title:hover {
+  color: #4f46e5;
+}
+
+.daily-desc {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.daily-btn {
+  font-size: 0.8rem;
+  color: #4f46e5;
+  font-weight: 600;
+  text-decoration: none;
+  pointer-events: auto !important;
+  cursor: pointer;
+}
+
+/* 新的推荐列表样式 */
+.sidebar-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.refresh-btn {
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: transform 0.3s ease;
+  user-select: none;
+  opacity: 0.6;
+}
+
+.refresh-btn:hover {
+  opacity: 1;
+  transform: rotate(180deg);
+}
+
+.recommend-list {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.recommend-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.recommend-item:hover {
+  background: #eef2ff;
+  transform: translateX(3px);
+}
+
+.recommend-tag {
+  font-size: 0.6rem;
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 2px 6px;
+  border-radius: 4px;
+  width: fit-content;
+  font-weight: 500;
+}
+
+.recommend-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  text-decoration: none;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.recommend-title:hover {
+  color: #4f46e5;
+}
+
 .homepage-search-script {
   display: none;
 }
