@@ -1,0 +1,330 @@
+---
+title: R语言动态图表与动画可视化（gganimate）
+date: '2026-01-19'
+categories:
+- 数据可视化
+- 动画图
+- 时间序列
+image: images/gganimate_cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 9,
+    fig.height = 6,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 动态可视化的用途与场景
+
+动画可视化（Animated Visualization）用于展示**随时间或状态变化的数据过程**。与静态图相比，动画能更直观地表达趋势、变化速度与阶段性特征，尤其适用于时间序列、生命周期与状态切换的解释。
+
+### 典型场景
+
+| 场景 | 说明 | 示例 |
+|------|------|------|
+| **趋势演化** | 数值随时间连续变化 | 销量、气温、指数走势 |
+| **结构变化** | 多类别比例或排名变化 | 市场份额、排名变化 |
+| **空间迁移** | 位置随时间移动 | 轨迹、迁徙、物流路线 |
+| **状态切换** | 事件导致阶段变化 | 政策前后、干预前后 |
+
+### 不适合的场景
+
+- 数据点过少（动画没有信息增量）
+- 频繁跳变导致难以追踪
+- 需要精确读取数值（静态图更清晰）
+
+---
+
+## gganimate 的工作原理
+
+`gganimate` 将 `ggplot2` 图形扩展为**帧序列**，再由渲染器（如 `gifski`）输出为 GIF 或视频。核心逻辑是：
+
+1. 先用 `ggplot2` 创建**基础静态图**
+2. 追加**动画语法**（`transition_*`、`shadow_*`、`enter_*`、`exit_*`）
+3. 使用 `animate()` 渲染为 GIF/MP4
+
+### 常用动画语法
+
+| 功能 | 常用函数 | 用途 |
+|------|---------|------|
+| 时间推进 | `transition_time()` | 按时间变量推进 |
+| 状态切换 | `transition_states()` | 按类别状态分段 |
+| 持续绘制 | `transition_reveal()` | 逐步展示轨迹 |
+| 残影 | `shadow_mark()` | 保留历史轨迹 |
+| 出入场 | `enter_fade()`、`exit_fade()` | 控制出现/消失效果 |
+
+---
+
+## 安装与依赖
+
+```{r eval=FALSE}
+install.packages(c("gganimate", "gifski", "transformr"))
+```
+
+- `gganimate`：动画语法
+- `gifski`：GIF 渲染器（推荐）
+- `transformr`：平滑路径插值（更流畅的动画）
+
+---
+
+## 数据准备
+
+动画图需要**长格式数据**，至少包含：
+
+- `time`：时间或帧变量
+- `group`：分组标识
+- `value`：数值或位置
+
+下面构造一个模拟数据集，展示三类产品的月度销量变化。
+
+```{r}
+set.seed(42)
+
+sales_data <- data.frame(
+    month = rep(1:12, 3),
+    product = rep(c("A产品", "B产品", "C产品"), each = 12)
+)
+
+sales_data <- dplyr::mutate(
+    sales_data,
+    value = dplyr::case_when(
+        product == "A产品" ~ 80 + month * 2 + rnorm(12, 0, 3),
+        product == "B产品" ~ 60 + month * 3 + rnorm(12, 0, 4),
+        TRUE ~ 50 + month * 1.5 + rnorm(12, 0, 3)
+    )
+)
+
+head(sales_data)
+```
+
+---
+
+## 基础版本：折线动画（transition_reveal）
+
+`transition_reveal()` 适合展示**连续时间序列**的逐步呈现。
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+if (!requireNamespace("gganimate", quietly = TRUE)) {
+    message("请先安装 gganimate 包: install.packages('gganimate')")
+} else {
+    p_line <- ggplot(sales_data, aes(x = month, y = value, color = product)) +
+        geom_line(linewidth = 1.2) +
+        geom_point(size = 2) +
+        scale_x_continuous(breaks = 1:12) +
+        labs(
+            title = "产品销量随时间变化",
+            subtitle = "月份：{frame_along}",
+            x = "月份",
+            y = "销量",
+            color = "产品"
+        ) +
+        theme_minimal(base_size = 12) +
+        gganimate::transition_reveal(month)
+
+    p_line
+}
+```
+
+### 代码解析
+
+- `transition_reveal(month)`：以 `month` 作为时间推进轴
+- `subtitle = "月份：{frame_along}"`：显示当前帧对应的时间
+- 线条逐步被“揭示”，适合趋势展示
+
+---
+
+## 输出动画文件
+
+渲染动画并保存到 `doc/figure/`：
+
+```{r eval=FALSE}
+anim_line <- animate(
+    p_line,
+    nframes = 120,
+    fps = 12,
+    width = 800,
+    height = 500,
+    renderer = gifski_renderer()
+)
+
+anim_save("figure/gganimate-line.gif", animation = anim_line)
+```
+
+- `nframes`：帧数（越多越流畅）
+- `fps`：每秒帧数（影响速度）
+- `renderer`：推荐 `gifski_renderer()` 输出 GIF
+
+---
+
+## 进阶版本：散点动画（transition_time + shadow）
+
+使用 `transition_time()` 可让散点随时间移动，并用 `shadow_mark()` 保留历史轨迹，增强故事性。
+
+```{r}
+# 模拟城市指标变化数据
+set.seed(123)
+
+city_data <- data.frame(
+    year = rep(2015:2024, 6),
+    city = rep(c("北京", "上海", "深圳", "广州", "杭州", "成都"), each = 10)
+)
+
+city_data <- dplyr::mutate(
+    city_data,
+    gdp = runif(60, 0.8, 1.5) * (year - 2014) * 100,
+    income = runif(60, 30, 80) + (year - 2014) * 2
+)
+
+if (!requireNamespace("gganimate", quietly = TRUE)) {
+    message("请先安装 gganimate 包: install.packages('gganimate')")
+} else {
+    p_scatter <- ggplot(city_data, aes(x = gdp, y = income, color = city)) +
+        geom_point(size = 4, alpha = 0.8) +
+        scale_x_continuous(labels = scales::comma) +
+        labs(
+            title = "城市经济指标演化",
+            subtitle = "年份：{frame_time}",
+            x = "GDP（亿元）",
+            y = "人均收入（万元）"
+        ) +
+        theme_minimal(base_size = 12) +
+        gganimate::transition_time(year) +
+        gganimate::shadow_mark(alpha = 0.2, size = 2)
+
+    p_scatter
+}
+```
+
+### 代码解析
+
+- `transition_time(year)`：按年份推进
+- `shadow_mark()`：保留历史点，显示移动轨迹
+- 适合展示“发展轨迹”或“随时间演化的空间关系”
+
+---
+
+## 进阶版本：状态切换动画（transition_states）
+
+当数据分为清晰阶段时，使用 `transition_states()` 更自然。
+
+```{r}
+policy_data <- data.frame(
+    phase = rep(c("政策前", "试点期", "全面推广"), each = 6),
+    region = rep(c("华北", "华东", "华南", "西南", "西北", "东北"), 3),
+    value = c(55, 60, 62, 48, 50, 45,  
+              60, 68, 70, 55, 58, 52,
+              72, 80, 85, 65, 68, 60)
+)
+
+if (!requireNamespace("gganimate", quietly = TRUE)) {
+    message("请先安装 gganimate 包: install.packages('gganimate')")
+} else {
+    p_state <- ggplot(policy_data, aes(x = region, y = value, fill = region)) +
+        geom_col(width = 0.7, alpha = 0.85) +
+        labs(
+            title = "政策阶段性效果变化",
+            subtitle = "阶段：{closest_state}",
+            x = NULL,
+            y = "指标值"
+        ) +
+        theme_minimal(base_size = 12) +
+        theme(legend.position = "none") +
+        gganimate::transition_states(
+            phase,
+            transition_length = 2,
+            state_length = 1
+        ) +
+        gganimate::enter_fade() +
+        gganimate::exit_fade()
+
+    p_state
+}
+```
+
+---
+
+## 样式与美化建议
+
+1. **控制动画节奏**：
+   - `fps` 与 `nframes` 决定速度
+   - 推荐 `fps = 10-15`，保持流畅且不刺眼
+
+2. **保持视觉稳定**：
+   - 固定坐标轴范围，避免画面跳动
+   - 使用 `scale_x_continuous(limits = ...)` 与 `scale_y_continuous(limits = ...)`
+
+3. **减少视觉噪声**：
+   - 动画元素不要过多
+   - 标签简洁，必要时只显示关键点
+
+4. **输出尺寸控制**：
+   - GIF 文件过大时，降低 `nframes` 或尺寸
+   - 如果用于网页，推荐宽度 600-800 px
+
+---
+
+## 常见问题与解决方案
+
+### 1. 无法生成动画
+
+**原因**：缺少渲染器
+
+**解决方案**：
+
+```{r eval=FALSE}
+install.packages("gifski")
+```
+
+### 2. 动画卡顿或不流畅
+
+**原因**：`nframes` 太少或数据点过多
+
+**解决方案**：
+- 增加 `nframes`
+- 降低 `fps`
+- 简化图形元素
+
+### 3. 轨迹不连续
+
+**原因**：缺少插值计算
+
+**解决方案**：
+
+```{r eval=FALSE}
+install.packages("transformr")
+```
+
+---
+
+## 进阶扩展方向
+
+- **输出 MP4**：使用 `av_renderer()` 生成高质量视频
+- **交互式动画**：与 `plotly` 结合用于网页
+- **仪表盘嵌入**：将动画输出嵌入 Quarto 页面
+- **动画对比**：与静态图并排展示，提高可读性
+
+---
+
+## 总结
+
+动画可视化是表达“变化过程”的高效工具。`gganimate` 与 `ggplot2` 无缝整合，既保留熟悉的语法结构，也能产出高质量动画图。实践时应优先考虑：
+
+1. **数据是否适合动画表达**
+2. **时间或状态维度是否清晰**
+3. **动画节奏是否合理**
+
+### 相关教程
+
+- [折线图与时间序列](2029-bindlineplot.html)
+- [散点图与趋势线](2026-bindscatterplot.html)
+- [交互式可视化进阶](2062-interactive-plot.html)
