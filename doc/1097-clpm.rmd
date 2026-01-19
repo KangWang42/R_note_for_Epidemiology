@@ -1,0 +1,272 @@
+---
+title: 交叉滞后面板模型（CLPM）完全教程
+date: '2026-01-19'
+categories:
+- 统计分析方法
+- 高级建模
+- 纵向研究
+image: images/1097-clpm-cover.svg
+description: 详解交叉滞后面板模型的核心思想、假设、建模流程与 R 语言 lavaan 实现。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1097-clpm-"
+)
+```
+
+## 方法背景与适用场景
+
+**交叉滞后面板模型（Cross-Lagged Panel Model, CLPM）**是纵向数据中研究变量之间**时间先后影响**的经典方法。它同时估计：
+
+1. **自回归效应（autoregressive）**：变量自身的稳定性与延续性
+2. **交叉滞后效应（cross-lagged）**：变量之间的时序影响方向
+
+CLPM 的典型问题是：
+
+- “X 的早期水平是否影响 Y 的后期水平？”
+- “X 与 Y 哪一个对对方的影响更强？”
+- “在控制自身稳定性的情况下，变量间是否存在时间因果顺序？”
+
+---
+
+## 模型入门与核心概念
+
+CLPM 的核心结构可以理解为**两条自回归路径 + 两条交叉路径**：
+
+```
+X1 → X2 → X3
+Y1 → Y2 → Y3
+X1 → Y2, X2 → Y3
+Y1 → X2, Y2 → X3
+```
+
+### 关键术语
+
+| 术语 | 含义 | 作用 |
+|------|------|------|
+| 自回归效应 | X_t 由 X_{t-1} 预测 | 稳定性/惯性 |
+| 交叉滞后效应 | Y_t 由 X_{t-1} 预测 | 时间顺序影响 |
+| 同期相关 | X_t 与 Y_t 相关 | 控制同步关系 |
+
+---
+
+## 模型假设与前提
+
+CLPM 的有效性依赖以下前提：
+
+1. **时间点间隔相对一致**：相邻波次间隔应相近
+2. **测量稳定性**：同一变量跨时间测量含义一致
+3. **无遗漏重要混杂**：未观测变量可能导致偏差
+4. **线性关系与正态性（或近似）**：lavaan 默认使用正态估计
+
+若数据存在个体间稳定差异，可以考虑 **RI-CLPM**（随机截距交叉滞后模型）作为扩展。
+
+---
+
+## 数据准备与变量定义
+
+CLPM 需要**同一组样本的多期重复测量**，常见结构：
+
+| id | x1 | x2 | x3 | y1 | y2 | y3 |
+|----|----|----|----|----|----|----|
+
+下面模拟一个三波数据集：
+
+```{r clpm-data}
+set.seed(2026)
+
+n <- 300
+
+x1 <- rnorm(n, 0, 1)
+y1 <- 0.4 * x1 + rnorm(n, 0, 1)
+
+x2 <- 0.6 * x1 + 0.2 * y1 + rnorm(n, 0, 1)
+y2 <- 0.6 * y1 + 0.3 * x1 + rnorm(n, 0, 1)
+
+x3 <- 0.6 * x2 + 0.2 * y2 + rnorm(n, 0, 1)
+y3 <- 0.6 * y2 + 0.3 * x2 + rnorm(n, 0, 1)
+
+panel_data <- data.frame(
+  id = 1:n,
+  x1 = x1, x2 = x2, x3 = x3,
+  y1 = y1, y2 = y2, y3 = y3
+)
+
+head(panel_data)
+```
+
+---
+
+## 探索性可视化（趋势与稳定性）
+
+使用均值轨迹展示变量随时间的整体变化：
+
+```{r clpm-trend}
+library(ggplot2)
+
+trend_data <- data.frame(
+  time = rep(1:3, 2),
+  variable = rep(c("X", "Y"), each = 3),
+  mean_value = c(
+    mean(panel_data$x1), mean(panel_data$x2), mean(panel_data$x3),
+    mean(panel_data$y1), mean(panel_data$y2), mean(panel_data$y3)
+  )
+)
+
+ggplot(trend_data, aes(x = time, y = mean_value, color = variable)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3) +
+  scale_x_continuous(breaks = 1:3, labels = c("T1", "T2", "T3")) +
+  labs(
+    title = "变量随时间的平均轨迹",
+    x = "时间",
+    y = "均值",
+    color = "变量"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+---
+
+## 模型设定与 lavaan 语法
+
+CLPM 在 `lavaan` 中通常用字符串定义路径：
+
+```{r clpm-model}
+clpm_model <- "
+  # 自回归路径
+  x2 ~ a1*x1
+  x3 ~ a2*x2
+  y2 ~ b1*y1
+  y3 ~ b2*y2
+
+  # 交叉滞后路径
+  x2 ~ c1*y1
+  x3 ~ c2*y2
+  y2 ~ d1*x1
+  y3 ~ d2*x2
+
+  # 同期相关
+  x1 ~~ y1
+  x2 ~~ y2
+  x3 ~~ y3
+"
+```
+
+### 等值约束（可选）
+
+若认为时间间隔相同且效应稳定，可加上等值约束：
+
+```{r clpm-constraint, eval=FALSE}
+clpm_model_equal <- "
+  x2 ~ a*x1
+  x3 ~ a*x2
+  y2 ~ b*y1
+  y3 ~ b*y2
+  x2 ~ c*y1
+  x3 ~ c*y2
+  y2 ~ d*x1
+  y3 ~ d*x2
+  x1 ~~ y1
+  x2 ~~ y2
+  x3 ~~ y3
+"
+```
+
+---
+
+## 模型估计与结果输出
+
+```{r clpm-fit}
+if (!requireNamespace("lavaan", quietly = TRUE)) {
+  message("请先安装 lavaan 包: install.packages('lavaan')")
+} else {
+  fit <- lavaan::sem(clpm_model, data = panel_data, meanstructure = TRUE)
+
+  summary(fit, standardized = TRUE, fit.measures = TRUE)
+}
+```
+
+### 关键输出解释
+
+- **a1, a2, b1, b2**：自回归效应，越大表示稳定性越强
+- **c1, c2, d1, d2**：交叉滞后效应，反映变量间时间影响方向
+- **CFI / TLI / RMSEA / SRMR**：模型拟合指标
+
+---
+
+## 报告与结果解读示例
+
+可以按如下格式汇报：
+
+> 在控制自回归效应后，X 对 Y 的交叉滞后效应显著（d1 = 0.21, p < 0.05），而 Y 对 X 的效应较弱（c1 = 0.08, p = 0.12）。模型拟合良好（CFI = 0.97, RMSEA = 0.04）。
+
+---
+
+## 模型诊断与稳健性
+
+建议至少进行以下诊断：
+
+1. **拟合指数检查**：CFI/TLI > 0.90，RMSEA < 0.08
+2. **路径稳定性**：比较等值约束模型与非约束模型
+3. **残差相关**：查看是否存在系统性误差
+
+```{r clpm-fit-measures}
+if (requireNamespace("lavaan", quietly = TRUE)) {
+  lavaan::fitMeasures(fit, c("cfi", "tli", "rmsea", "srmr"))
+}
+```
+
+---
+
+## 常见错误与纠偏
+
+### 1. 自回归效应过小
+
+可能意味着变量本身不稳定，或测量误差较大。建议检查量表可靠性或增加波次。
+
+### 2. 交叉滞后显著但方向反常
+
+需考虑：
+- 遗漏变量导致的虚假关系
+- 变量编码方向是否一致
+- 样本量不足导致不稳定
+
+### 3. 拟合指标较差
+
+可尝试：
+- 增加时间点
+- 加入测量模型（SEM 框架）
+- 考虑 RI-CLPM
+
+---
+
+## 进阶扩展
+
+1. **RI-CLPM**：控制个体稳定差异，避免把个体差异误当作交叉滞后效应
+2. **多群组 CLPM**：比较不同人群路径差异
+3. **潜变量 CLPM**：在 SEM 中引入测量模型，处理测量误差
+
+---
+
+## 总结
+
+CLPM 是纵向研究中判断变量先后影响的核心工具。使用时需重点关注：
+
+- 自回归效应是否足够强
+- 交叉滞后效应是否稳定且有理论支持
+- 模型拟合是否合理
+
+### 相关教程
+
+- [结构方程模型 (SEM)](1032-sem.html)
+- [多水平模型](1024-multilevel.html)
+- [广义估计方程 (GEE)](1085-gee.html)
