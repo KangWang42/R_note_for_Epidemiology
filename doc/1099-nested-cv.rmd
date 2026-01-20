@@ -1,0 +1,554 @@
+---
+title: 嵌套交叉验证完整教程
+subtitle: "内外双层循环的无偏模型评估方法"
+date: "2026-01-20"
+image: images/1099-nested-cv-cover.svg
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 模型评估
+- 交叉验证
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.5,
+  fig.height = 5,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1099-nested-cv-"
+)
+```
+
+```{r packages}
+library(mlr3verse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+## 教程目标与适用场景
+
+嵌套交叉验证（Nested Cross-Validation）是一种用于同时完成超参数调优与模型性能评估的无偏方法。在机器学习实践中，如果用同一份数据既调参又评估，会导致性能估计偏高，这正是嵌套交叉验证要解决的核心问题。
+
+本教程将系统讲解嵌套交叉验证的原理、为什么需要它、如何用 mlr3 框架实现完整流程，以及如何正确解读输出结果。
+
+**适合场景**
+
+- 需要同时进行超参数调优和无偏性能评估
+- 数据量有限，无法预留独立测试集
+- 希望获得泛化误差的可靠估计
+- 模型选择与性能报告需要严谨分离
+
+**不适合场景**
+
+- 数据量极大，可以预留独立测试集
+- 计算资源非常有限，无法承担双层循环开销
+- 只需要快速探索，不要求严谨的性能估计
+
+## 为什么需要嵌套交叉验证
+
+### 普通交叉验证的问题
+
+在传统的机器学习流程中，研究者常常使用 K 折交叉验证来调优超参数，然后直接报告交叉验证的平均性能作为模型泛化能力的估计。这种做法存在一个根本性问题：用于选择最优超参数的数据同时也被用于评估性能，导致性能估计存在乐观偏差（optimistic bias）。
+
+具体而言，假设使用 5 折交叉验证选择超参数，每一折的验证集都参与了"选择哪组超参数最好"这一决策。由于超参数是根据这些验证集的表现来选择的，最终报告的交叉验证分数会高估模型在真正未见数据上的表现。这种现象称为"信息泄露"或"选择偏差"。
+
+### 嵌套交叉验证的解决方案
+
+嵌套交叉验证通过引入双层循环结构来解决这个问题：
+
+1. **外层循环（Outer Loop）**：负责无偏的性能评估。将数据划分为 K 个外层折叠，每次用 K-1 个折叠进行完整的模型训练（包括调参），用剩余 1 个折叠评估性能。
+2. **内层循环（Inner Loop）**：负责超参数调优。在外层的训练集上再做一次 K 折交叉验证，找到最优超参数。
+
+这样，外层每一折的测试集从未参与过任何超参数选择决策，因此外层 K 次评估的平均值是泛化性能的无偏估计。
+
+### 数学直觉
+
+设 $D$ 为完整数据集，$D_{train}^{(k)}$ 和 $D_{test}^{(k)}$ 分别为外层第 $k$ 折的训练集和测试集。对于每个外层折叠 $k$：
+
+1. 在 $D_{train}^{(k)}$ 上通过内层交叉验证选择最优超参数 $\lambda^*_k$
+2. 用 $\lambda^*_k$ 在完整的 $D_{train}^{(k)}$ 上训练最终模型
+3. 在 $D_{test}^{(k)}$ 上评估该模型
+
+外层的平均性能 $\frac{1}{K}\sum_{k=1}^K \text{Performance}(D_{test}^{(k)})$ 是泛化误差的无偏估计。
+
+## 嵌套交叉验证的流程图解
+
+下图展示了 5×5 嵌套交叉验证的结构（外层 5 折，内层 5 折）：
+
+```
+外层第1折：
+  训练集(折2-5) ──────────────────────────────┐
+     └── 内层5折CV选择超参数                    │
+     └── 用最优超参数在训练集上重新训练         │
+  测试集(折1) ──── 评估性能 ───────────────────┘
+  
+外层第2折：
+  训练集(折1,3-5) ─────────────────────────────┐
+     └── 内层5折CV选择超参数                    │
+     └── 用最优超参数在训练集上重新训练         │
+  测试集(折2) ──── 评估性能 ───────────────────┘
+  
+... 重复5次 ...
+
+最终报告：5次外层评估的平均性能
+```
+
+## mlr3 框架简介
+
+mlr3 是 R 语言中现代化的机器学习框架，采用 R6 面向对象设计。它将机器学习流程分解为独立的模块：Task（任务）、Learner（学习器）、Resampling（重采样）、Measure（评估指标）和 Tuner（调参器）。这种模块化设计使得实现嵌套交叉验证变得直观且灵活。
+
+在 mlr3 中，嵌套交叉验证的实现依赖于 `AutoTuner` 类，它将超参数调优封装为一个可以像普通学习器一样使用的对象。外层重采样只需对这个 `AutoTuner` 对象进行评估，内层调参过程被自动处理。
+
+## 数据准备
+
+本教程使用经典的 `iris` 数据集演示分类任务，使用 `mtcars` 数据集演示回归任务。为了突出嵌套交叉验证的价值，我们选择需要调参的模型（如决策树、随机森林）。
+
+```{r data-prep}
+set.seed(2026)
+
+# 分类任务：预测鸢尾花种类
+task_iris <- TaskClassif$new(
+
+  id = "iris_species",
+  backend = iris,
+  target = "Species"
+)
+
+# 回归任务：预测汽车油耗
+task_mtcars <- TaskRegr$new(
+  id = "mtcars_mpg",
+  backend = mtcars,
+  target = "mpg"
+)
+
+task_iris
+```
+
+```{r data-explore}
+# 查看数据基本信息
+cat("分类任务样本数:", task_iris$nrow, "\n")
+cat("特征数:", length(task_iris$feature_names), "\n")
+cat("类别分布:\n")
+table(iris$Species)
+```
+
+## 方法一：使用 mlr3 实现嵌套交叉验证
+
+### 步骤 1：定义学习器与超参数搜索空间
+
+首先定义一个需要调参的学习器。这里使用决策树分类器 `classif.rpart`，它有两个关键超参数：`cp`（复杂度参数）和 `minsplit`（最小分裂样本数）。
+
+```{r define-learner}
+# 定义决策树学习器
+learner_rpart <- lrn("classif.rpart", predict_type = "prob")
+
+# 查看可调参数
+learner_rpart$param_set
+```
+
+```{r define-search-space}
+# 定义超参数搜索空间
+search_space <- ps(
+  cp = p_dbl(lower = 0.001, upper = 0.1),
+  minsplit = p_int(lower = 5, upper = 30)
+)
+
+search_space
+```
+
+### 步骤 2：配置内层调参器
+
+内层循环负责超参数调优。我们使用网格搜索（Grid Search）作为调参策略，3 折交叉验证作为内层重采样方法。
+
+```{r inner-tuning}
+# 内层重采样：3折交叉验证
+inner_resampling <- rsmp("cv", folds = 3)
+
+# 调参终止条件：评估20组超参数
+terminator <- trm("evals", n_evals = 20)
+
+# 调参器：网格搜索
+tuner <- tnr("grid_search", resolution = 5)
+
+# 评估指标：分类准确率
+measure <- msr("classif.acc")
+```
+
+### 步骤 3：创建 AutoTuner 对象
+
+`auto_tuner()` 将学习器和调参过程封装在一起。从外层循环的视角看，它就像一个普通的学习器，但训练时会自动进行内层调参。
+
+```{r auto-tuner}
+at <- auto_tuner(
+  tuner = tuner,
+  learner = learner_rpart,
+  resampling = inner_resampling,
+  measure = measure,
+  search_space = search_space,
+  terminator = terminator,
+  store_tuning_instance = TRUE
+)
+
+at
+```
+
+### 步骤 4：配置外层重采样并执行嵌套交叉验证
+
+外层循环使用 5 折交叉验证。对 `AutoTuner` 对象进行 `resample()` 操作即可完成完整的嵌套交叉验证。
+
+```{r outer-cv}
+set.seed(2026)
+
+# 外层重采样：5折交叉验证
+outer_resampling <- rsmp("cv", folds = 5)
+
+# 执行嵌套交叉验证
+rr <- resample(
+  task = task_iris,
+  learner = at,
+  resampling = outer_resampling,
+  store_models = TRUE
+)
+
+rr
+```
+
+### 步骤 5：查看结果
+
+```{r nested-results}
+# 外层每折的性能
+outer_scores <- rr$score(msr("classif.acc"))
+outer_scores[, .(iteration, classif.acc)]
+```
+
+```{r nested-summary}
+# 汇总统计
+cat("嵌套交叉验证结果:\n")
+cat("平均准确率:", round(mean(outer_scores$classif.acc), 4), "\n")
+cat("标准差:", round(sd(outer_scores$classif.acc), 4), "\n")
+cat("最小值:", round(min(outer_scores$classif.acc), 4), "\n")
+cat("最大值:", round(max(outer_scores$classif.acc), 4), "\n")
+```
+
+### 步骤 6：查看每折选择的最优超参数
+
+嵌套交叉验证的一个重要输出是每个外层折叠选择的最优超参数。如果不同折叠选择的超参数差异很大，说明模型对数据划分敏感，可能需要更多数据或更稳定的模型。
+
+```{r optimal-params}
+# 提取每折的最优超参数
+optimal_params <- lapply(seq_len(5), function(i) {
+  model <- rr$learners[[i]]
+  tuning_result <- model$tuning_result
+  data.frame(
+    fold = i,
+    cp = tuning_result$cp,
+    minsplit = tuning_result$minsplit,
+    inner_score = tuning_result$classif.acc
+  )
+})
+
+params_df <- bind_rows(optimal_params)
+knitr::kable(params_df, digits = 4, caption = "各外层折叠的最优超参数")
+```
+
+## 可视化分析
+
+### 外层性能分布
+
+```{r plot-outer-scores}
+scores_df <- data.frame(
+  fold = factor(1:5),
+  accuracy = outer_scores$classif.acc
+)
+
+ggplot(scores_df, aes(x = fold, y = accuracy, fill = fold)) +
+  geom_col(width = 0.6, alpha = 0.85) +
+  geom_hline(
+    yintercept = mean(scores_df$accuracy),
+    linetype = "dashed",
+    color = "#4f46e5",
+    linewidth = 1
+  ) +
+  scale_fill_manual(values = c("#4f46e5", "#10b981", "#f97316", "#8b5cf6", "#06b6d4")) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(
+    title = "嵌套交叉验证外层性能",
+    subtitle = paste0("5折平均准确率: ", round(mean(scores_df$accuracy) * 100, 1), "%"),
+    x = "外层折叠",
+    y = "分类准确率"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+### 超参数稳定性分析
+
+```{r plot-params}
+params_long <- params_df |>
+  select(fold, cp, minsplit) |>
+  pivot_longer(cols = c(cp, minsplit), names_to = "parameter", values_to = "value") |>
+  mutate(fold = factor(fold))
+
+ggplot(params_long, aes(x = fold, y = value, fill = parameter)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.85) +
+  facet_wrap(~parameter, scales = "free_y", ncol = 1) +
+  scale_fill_manual(values = c("#4f46e5", "#10b981")) +
+  labs(
+    title = "各折叠选择的最优超参数",
+    subtitle = "超参数稳定性反映模型对数据划分的敏感度",
+    x = "外层折叠",
+    y = "参数值"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+## 与普通交叉验证的对比
+
+为了展示嵌套交叉验证的价值，我们比较两种方法的性能估计。
+
+### 普通交叉验证（有乐观偏差）
+
+```{r simple-cv}
+set.seed(2026)
+
+# 普通5折交叉验证调参
+instance <- ti(
+  task = task_iris,
+  learner = learner_rpart,
+  resampling = rsmp("cv", folds = 5),
+  measures = msr("classif.acc"),
+  search_space = search_space,
+  terminator = trm("evals", n_evals = 20)
+)
+
+tuner$optimize(instance)
+
+simple_cv_score <- instance$result_y
+cat("普通交叉验证最优分数:", round(simple_cv_score, 4), "\n")
+```
+
+### 对比分析
+
+```{r comparison}
+comparison_df <- data.frame(
+  method = c("普通交叉验证", "嵌套交叉验证"),
+  accuracy = c(simple_cv_score, mean(outer_scores$classif.acc)),
+  type = c("有偏估计", "无偏估计")
+)
+
+ggplot(comparison_df, aes(x = method, y = accuracy, fill = type)) +
+  geom_col(width = 0.5, alpha = 0.85) +
+  geom_text(aes(label = scales::percent(accuracy, accuracy = 0.1)), 
+            vjust = -0.5, size = 4) +
+  scale_fill_manual(values = c("#f97316", "#10b981")) +
+  scale_y_continuous(limits = c(0, 1.1), labels = scales::percent) +
+  labs(
+    title = "普通交叉验证 vs 嵌套交叉验证",
+    subtitle = "普通CV倾向于高估模型性能",
+    x = "",
+    y = "分类准确率",
+    fill = "估计类型"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+**解读**：普通交叉验证报告的性能通常高于嵌套交叉验证，因为前者存在选择偏差。差异的大小取决于数据复杂度、超参数搜索空间和模型灵活性。在高维数据或复杂模型上，这种差异可能更明显。
+
+## 回归任务示例
+
+嵌套交叉验证同样适用于回归问题。下面使用 `mtcars` 数据集演示。
+
+```{r regression-nested-cv}
+set.seed(2026)
+
+# 定义随机森林回归器
+learner_rf <- lrn("regr.ranger", num.trees = 100)
+
+# 搜索空间
+search_space_rf <- ps(
+  mtry = p_int(lower = 2, upper = 8),
+  min.node.size = p_int(lower = 3, upper = 15)
+)
+
+# 创建AutoTuner
+at_rf <- auto_tuner(
+  tuner = tnr("grid_search", resolution = 4),
+  learner = learner_rf,
+  resampling = rsmp("cv", folds = 3),
+  measure = msr("regr.rmse"),
+  search_space = search_space_rf,
+  terminator = trm("evals", n_evals = 15)
+)
+
+# 执行嵌套交叉验证
+rr_rf <- resample(
+  task = task_mtcars,
+  learner = at_rf,
+  resampling = rsmp("cv", folds = 5),
+  store_models = TRUE
+)
+
+# 结果
+rf_scores <- rr_rf$score(msr("regr.rmse"))
+cat("回归任务嵌套CV结果:\n")
+cat("平均RMSE:", round(mean(rf_scores$regr.rmse), 3), "\n")
+cat("标准差:", round(sd(rf_scores$regr.rmse), 3), "\n")
+```
+
+## 计算复杂度与优化建议
+
+### 计算开销分析
+
+嵌套交叉验证的计算复杂度为 $O(K_{outer} \times K_{inner} \times N_{params})$，其中：
+- $K_{outer}$：外层折叠数
+- $K_{inner}$：内层折叠数
+- $N_{params}$：超参数组合数
+
+例如，5×5 嵌套 CV 配合 100 组超参数，需要训练 $5 \times 5 \times 100 = 2500$ 个模型。
+
+### 优化策略
+
+1. **减少折叠数**：外层 5 折、内层 3 折通常足够
+2. **使用随机搜索**：比网格搜索更高效
+3. **并行计算**：mlr3 原生支持并行化
+4. **早停策略**：设置合理的终止条件
+
+```{r parallel-example, eval=FALSE}
+# 启用并行计算
+future::plan("multisession", workers = 4)
+
+# 执行嵌套交叉验证（自动并行）
+rr_parallel <- resample(
+  task = task_iris,
+  learner = at,
+  resampling = outer_resampling,
+  store_models = TRUE
+)
+
+# 恢复串行模式
+future::plan("sequential")
+```
+
+## 常见错误与排查
+
+### 1. 数据泄露
+
+**错误**：在整个数据集上做特征选择或标准化，然后再做嵌套交叉验证。
+
+**正确做法**：将预处理步骤放入 mlr3 的 Pipeline 中，确保每折独立处理。
+
+```{r pipeline-example, eval=FALSE}
+# 正确：预处理作为Pipeline的一部分
+po_scale <- po("scale")
+po_learner <- po("learner", learner_rpart)
+
+graph <- po_scale %>>% po_learner
+graph_learner <- GraphLearner$new(graph)
+```
+
+### 2. K 值选择不当
+
+**建议**：
+- 外层：5-10 折，确保测试集有足够样本
+- 内层：3-5 折，平衡计算开销与调参稳定性
+- 小数据集：考虑留一法（LOO）作为外层
+
+### 3. 忽略超参数稳定性
+
+如果各折选择的最优超参数差异很大，可能表明：
+- 搜索空间设置不合理
+- 模型对数据划分过于敏感
+- 需要更多数据或更简单的模型
+
+### 4. 结果报告不完整
+
+完整的嵌套交叉验证报告应包括：
+- 外层性能的均值和标准差
+- 各折选择的最优超参数
+- 与普通 CV 的对比（如适用）
+
+## 结果解读与报告规范
+
+### 报告模板
+
+在论文或报告中，嵌套交叉验证的结果应按如下方式报告：
+
+> 模型性能通过 5×3 嵌套交叉验证评估。外层 5 折用于无偏性能估计，内层 3 折用于超参数调优。决策树分类器在超参数空间 (cp ∈ [0.001, 0.1], minsplit ∈ [5, 30]) 上进行网格搜索优化。嵌套交叉验证的平均准确率为 XX.X% (SD = X.X%)，表明模型具有较好的泛化能力。
+
+### 关键输出解读
+
+```{r final-summary}
+# 完整结果汇总
+summary_df <- data.frame(
+  指标 = c("外层折叠数", "内层折叠数", "超参数组合数", 
+           "平均准确率", "准确率标准差", "95%置信区间"),
+  值 = c("5", "3", "20",
+         paste0(round(mean(outer_scores$classif.acc) * 100, 1), "%"),
+         paste0(round(sd(outer_scores$classif.acc) * 100, 1), "%"),
+         paste0("[", 
+                round((mean(outer_scores$classif.acc) - 1.96 * sd(outer_scores$classif.acc)) * 100, 1), "%, ",
+                round((mean(outer_scores$classif.acc) + 1.96 * sd(outer_scores$classif.acc)) * 100, 1), "%]"))
+)
+
+knitr::kable(summary_df, caption = "嵌套交叉验证结果汇总")
+```
+
+## 进阶扩展
+
+### 1. 与其他评估方法的对比
+
+| 方法 | 适用场景 | 偏差 | 计算开销 |
+|------|----------|------|----------|
+| 留出法 | 大数据集 | 高 | 低 |
+| 普通K折CV | 中等数据、无调参 | 中 | 中 |
+| 嵌套CV | 需要调参的场景 | 低 | 高 |
+| Bootstrap | 小样本置信区间 | 中 | 高 |
+
+### 2. 嵌套交叉验证的变体
+
+- **重复嵌套CV**：多次运行嵌套CV，报告多次结果的分布
+- **分层嵌套CV**：确保每折的类别比例一致
+- **时间序列嵌套CV**：使用时间分割而非随机分割
+
+### 3. 最终模型的训练
+
+嵌套交叉验证给出的是性能估计，而非最终模型。如果需要部署模型，应在完整数据集上重新进行超参数调优并训练最终模型。
+
+```{r final-model, eval=FALSE}
+# 在完整数据上重新调参并训练
+final_instance <- ti(
+  task = task_iris,
+  learner = learner_rpart,
+  resampling = rsmp("cv", folds = 5),
+  measures = msr("classif.acc"),
+  search_space = search_space,
+  terminator = trm("evals", n_evals = 20)
+)
+
+tuner$optimize(final_instance)
+
+# 用最优参数训练最终模型
+final_learner <- lrn("classif.rpart")
+final_learner$param_set$values <- final_instance$result_learner_param_vals
+final_learner$train(task_iris)
+```
+
+## 总结
+
+嵌套交叉验证是同时进行超参数调优与无偏性能评估的标准方法。虽然计算开销较大，但它能够避免普通交叉验证中的选择偏差，提供可靠的泛化误差估计。
+
+核心要点：
+
+1. **外层循环**评估性能，**内层循环**调优超参数
+2. mlr3 的 `AutoTuner` 简化了实现过程
+3. 关注超参数稳定性，不稳定可能暗示模型问题
+4. 报告时包括均值、标准差和置信区间
+5. 最终模型需要在完整数据上重新训练
+
+在需要严谨报告模型性能的场景（如论文发表、临床验证），嵌套交叉验证是首选方法。
