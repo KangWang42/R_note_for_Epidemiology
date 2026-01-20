@@ -1,0 +1,247 @@
+---
+title: AUC 与 AUPRC 对比与应用
+date: '2026-01-20'
+categories:
+- 统计分析方法
+- 模型评估
+- AUC
+- AUPRC
+image: images/1100-auc-auprc-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+## 方法背景与适用场景
+
+在二分类预测中，**AUC**（ROC 曲线下面积）与 **AUPRC**（精确率-召回率曲线下面积）都是常见的整体性能指标。AUC强调模型对正负样本的整体区分能力，而AUPRC强调在正类稀少时对“找到正类”的有效性。
+
+当正类比例很低（例如罕见疾病、欺诈检测、异常告警）时，ROC 曲线往往显得过于乐观，此时 AUPRC 更能反映实际使用价值；当类别相对平衡、关注整体区分度时，AUC更稳健、解释也更直观。
+
+## 核心概念与指标关系
+
+### ROC 与 PR 的差异
+
+ROC 以 **灵敏度 (TPR)** 和 **1-特异度 (FPR)** 为坐标；PR 以 **召回率 (Recall)** 和 **精确率 (Precision)** 为坐标。两者都来源于同一组阈值下的混淆矩阵，但关注点不同。
+
+| 指标 | 公式 | 关注点 |
+|---|---|---|
+| TPR / Recall | TP / (TP + FN) | 找到正类的能力 |
+| FPR | FP / (FP + TN) | 误报正类的比例 |
+| Precision | TP / (TP + FP) | 预测为正中有多少是真的 |
+| AUC | ROC 曲线面积 | 整体区分度 |
+| AUPRC | PR 曲线面积 | 稀有正类识别质量 |
+
+### 基线的含义
+
+ROC 的随机基线是 0.5；而 PR 曲线的随机基线等于 **正类比例（prevalence）**。当正类很少时，AUPRC 的基线会非常低，因此 AUPRC 的解读必须结合正类比例。
+
+## 模型假设与前提
+
+1. 结局为二分类，且已明确“正类”的定义。
+2. 模型输出为可排序的评分或概率，阈值变化能形成曲线。
+3. 评估应在独立验证集或交叉验证中完成。
+4. 需要报告正类比例，否则 AUPRC 缺乏可比性。
+
+## 数据准备与变量定义
+
+典型数据结构包含：
+
+- `outcome`：二分类结局 (0/1)
+- `score`：模型预测概率或评分
+- `train/test`：用于模型训练与评估的分割
+
+## 分析流程步骤
+
+1. 明确正类定义与业务目标（发现正类 vs 控制误报）
+2. 选择评估指标（AUC、AUPRC、阈值型指标）
+3. 计算 ROC 与 PR 曲线
+4. 选择阈值并形成混淆矩阵
+5. 报告 AUC、AUPRC 与正类比例
+
+### 方法选择决策表
+
+| 情境 | 推荐指标 | 理由 |
+|---|---|---|
+| 正类比例很低 | AUPRC | 更反映正类识别质量 |
+| 类别相对均衡 | AUC | 区分度稳定且易解读 |
+| 强调误报成本 | Precision/FPR | 直接反映误报风险 |
+| 强调漏报成本 | Recall/TPR | 直接反映漏报风险 |
+
+## 相关内容：阈值、成本与校准
+
+1. **阈值与业务成本**：在同一条曲线上，不同阈值对应不同误报/漏报权衡，阈值应由业务成本驱动，而非“默认 0.5”。
+2. **校准 vs 区分**：AUC/AUPRC衡量区分能力，不代表概率校准程度，必要时需校准曲线或Brier分数。
+3. **正类比例变化**：AUPRC对比例变化高度敏感，不同数据集间比较时必须报告 prevalence。
+
+## 代码实现
+
+下面用模拟的**严重类别不平衡数据**展示 AUC 与 AUPRC 的差异，并给出阈值选择与结果解释方式。
+
+### 1. 构建模拟数据
+
+```{r}
+set.seed(42)
+
+n <- 3000
+positive_rate <- 0.06
+
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+lin_pred <- -3.2 + 1.4 * x1 + 0.8 * x2
+prob <- plogis(lin_pred)
+
+outcome <- rbinom(n, 1, prob)
+data <- data.frame(outcome, x1, x2)
+
+cat("实际正类比例:", round(mean(outcome), 3), "\n")
+```
+
+### 2. 训练模型并生成预测分数
+
+```{r}
+set.seed(42)
+train_index <- sample(seq_len(n), size = 0.7 * n)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+model <- glm(outcome ~ x1 + x2, data = train_data, family = binomial)
+test_data$score <- predict(model, newdata = test_data, type = "response")
+```
+
+### 3. 计算 AUC 与 ROC 曲线
+
+```{r}
+library(pROC)
+library(ggplot2)
+library(dplyr)
+
+roc_obj <- roc(test_data$outcome, test_data$score)
+auc_value <- auc(roc_obj)
+
+roc_df <- data.frame(
+  fpr = 1 - roc_obj$specificities,
+  tpr = roc_obj$sensitivities
+)
+
+cat("AUC:", round(auc_value, 3), "\n")
+```
+
+```{r}
+ggplot(roc_df, aes(x = fpr, y = tpr)) +
+  geom_line(color = "#2563eb", linewidth = 1.1) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray60") +
+  labs(
+    title = "ROC 曲线",
+    x = "1 - 特异度 (FPR)",
+    y = "灵敏度 (TPR)"
+  )
+```
+
+### 4. 计算 AUPRC 与 PR 曲线
+
+```{r}
+library(PRROC)
+
+scores_pos <- test_data$score[test_data$outcome == 1]
+scores_neg <- test_data$score[test_data$outcome == 0]
+
+pr_obj <- pr.curve(scores.class0 = scores_pos, scores.class1 = scores_neg, curve = TRUE)
+auprc_value <- pr_obj$auc.integral
+
+pr_df <- data.frame(
+  recall = pr_obj$curve[, 1],
+  precision = pr_obj$curve[, 2]
+)
+
+cat("AUPRC:", round(auprc_value, 3), "\n")
+cat("随机基线(正类比例):", round(mean(test_data$outcome), 3), "\n")
+```
+
+```{r}
+ggplot(pr_df, aes(x = recall, y = precision)) +
+  geom_line(color = "#f97316", linewidth = 1.1) +
+  geom_hline(yintercept = mean(test_data$outcome), linetype = "dashed", color = "gray60") +
+  labs(
+    title = "PR 曲线",
+    x = "召回率 (Recall)",
+    y = "精确率 (Precision)"
+  )
+```
+
+### 5. 阈值选择与混淆矩阵
+
+```{r}
+thresholds <- seq(0.01, 0.99, by = 0.01)
+
+calc_metrics <- function(threshold, truth, score) {
+  pred <- ifelse(score >= threshold, 1, 0)
+  tp <- sum(pred == 1 & truth == 1)
+  fp <- sum(pred == 1 & truth == 0)
+  fn <- sum(pred == 0 & truth == 1)
+  tn <- sum(pred == 0 & truth == 0)
+
+  precision <- ifelse(tp + fp == 0, NA, tp / (tp + fp))
+  recall <- ifelse(tp + fn == 0, NA, tp / (tp + fn))
+  f1 <- ifelse(is.na(precision + recall) | (precision + recall == 0), NA,
+    2 * precision * recall / (precision + recall)
+  )
+
+  data.frame(
+    threshold, tp, fp, fn, tn,
+    precision, recall, f1
+  )
+}
+
+metric_table <- bind_rows(lapply(thresholds, calc_metrics,
+  truth = test_data$outcome,
+  score = test_data$score
+))
+
+best_row <- metric_table %>% filter(f1 == max(f1, na.rm = TRUE)) %>% slice(1)
+best_row
+```
+
+```{r}
+best_threshold <- best_row$threshold
+pred_best <- ifelse(test_data$score >= best_threshold, 1, 0)
+
+confusion <- table(
+  预测 = factor(pred_best, levels = c(0, 1)),
+  真实 = factor(test_data$outcome, levels = c(0, 1))
+)
+confusion
+```
+
+## 结果解读与报告
+
+报告时建议同时给出 AUC、AUPRC 与正类比例，并解释阈值下的精确率与召回率：
+
+- 本例 AUC 反映整体区分度，但 AUPRC 更能体现“找到少数正类”的效果。
+- 若正类比例仅为 6%，即使 AUC 很高，AUPRC 仍可能偏低。
+- 阈值选择应结合业务成本，报告最佳阈值对应的精确率与召回率。
+
+## 常见错误与纠偏
+
+1. **未报告正类比例**：AUPRC缺乏基线参照，必须同时报告 prevalence。
+2. **用分类结果计算曲线**：ROC/PR 需要连续评分，而不是二值预测。
+3. **不同数据集直接比较 AUPRC**：正类比例不同会显著改变 AUPRC。
+4. **只看AUC忽视阈值表现**：高 AUC 可能对应很低 Precision。
+
+## 进阶扩展
+
+1. **平均精确率 (Average Precision, AP)**：与 AUPRC 类似但计算方式不同。
+2. **部分 AUC (pAUC)**：关注特定 FPR 区间的模型表现。
+3. **成本敏感评估**：结合决策曲线分析 (Decision Curve Analysis)。
+4. **概率校准**：使用校准曲线或 Brier 分数评估概率质量。
+
+## 小结
+
+AUC 适合衡量整体区分能力，AUPRC更适合稀有事件的预测评估。二者并不冲突，推荐在不平衡场景下**同时报告** AUC、AUPRC 与正类比例，并结合阈值型指标解释实际应用效果。
