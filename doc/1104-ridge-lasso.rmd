@@ -1,0 +1,256 @@
+---
+title: '岭回归与 Lasso 回归'
+date: '2025-01-20'
+categories:
+- 统计分析方法
+- 机器学习
+- 回归分析
+image: figure/ridge-lasso-cover.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(glmnet)
+library(caret)
+set.seed(42)
+```
+
+# 岭回归与 Lasso 回归
+
+在常规的线性回归（OLS）中，当特征数量较多或特征之间存在高度共线性（Multicollinearity）时，模型容易出现过拟合，导致在测试集上的表现不佳。
+
+为了解决这个问题，我们可以引入**正则化（Regularization）**项，通过对回归系数施加惩罚来约束模型的复杂度。最常见的两种正则化方法就是 **Ridge Regression（岭回归）** 和 **Lasso Regression（套索回归）**。
+
+## 核心概念
+
+### 1. 为什么需要正则化？
+
+普通最小二乘法（OLS）的目标是最小化残差平方和（RSS）：
+$$ \text{Minimize: } \sum (y_i - \hat{y}_i)^2 $$
+
+当变量之间存在多重共线性时，OLS 估计的系数方差会变得非常大，导致模型不稳定。正则化通过在目标函数中增加一个惩罚项，以偏差（Bias）换取方差（Variance）的降低，从而提高模型的泛化能力。
+
+### 2. 岭回归 (Ridge Regression)
+
+岭回归在损失函数中增加了系数的 **L2 范数**惩罚项：
+$$ \text{Minimize: } RSS + \lambda \sum_{j=1}^p \beta_j^2 $$
+
+*   **特点**：倾向于将系数压缩到接近于 0，但不会完全变为 0。
+*   **适用场景**：处理多重共线性，保留所有变量。
+
+### 3. Lasso 回归 (Least Absolute Shrinkage and Selection Operator)
+
+Lasso 回归在损失函数中增加了系数的 **L1 范数**惩罚项：
+$$ \text{Minimize: } RSS + \lambda \sum_{j=1}^p |\beta_j| $$
+
+*   **特点**：可以将部分系数压缩为 0，从而实现**特征选择**（Feature Selection）。
+*   **适用场景**：变量筛选，稀疏模型构建。
+
+### 4. 弹性网络 (Elastic Net)
+
+Elastic Net 结合了 L1 和 L2 正则化：
+$$ \text{Minimize: } RSS + \lambda \left( (1-\alpha) \sum \beta_j^2 / 2 + \alpha \sum |\beta_j| \right) $$
+
+*   $\alpha=0$：Ridge
+*   $\alpha=1$：Lasso
+
+---
+
+## 准备工作
+
+我们将使用 `mtcars` 数据集进行演示，预测汽车的燃油效率 (`mpg`)。为了模拟高维数据和共线性，我们将添加一些噪声变量和交互项。
+
+### 加载数据与预处理
+
+`glmnet` 包要求输入数据必须是 **矩阵（Matrix）** 格式，不能是 Dataframe。
+
+```{r}
+# 加载数据
+data(mtcars)
+
+# 生成一些交互项以增加复杂度和共线性
+mtcars_ext <- mtcars %>%
+  mutate(
+    wt_hp = wt * hp,
+    drat_disp = drat * disp,
+    qsec_vs = qsec * vs
+  )
+
+# 定义自变量矩阵 (x) 和因变量向量 (y)
+# 注意：glmnet 默认会自动进行标准化，所以这里不需要手动 scale
+x <- as.matrix(mtcars_ext %>% select(-mpg))
+y <- mtcars_ext$mpg
+
+# 划分训练集和测试集
+set.seed(123)
+train_index <- createDataPartition(y, p = 0.7, list = FALSE)
+x_train <- x[train_index, ]
+y_train <- y[train_index]
+x_test <- x[-train_index, ]
+y_test <- y[-train_index]
+
+dim(x_train)
+```
+
+---
+
+## 岭回归 (Ridge Regression)
+
+在 `glmnet` 中，设置参数 `alpha = 0` 即为岭回归。
+
+### 1. 训练模型
+
+我们需要选择一个最优的惩罚系数 $\lambda$（Lambda）。`glmnet` 会自动计算一系列 $\lambda$ 值。
+
+```{r}
+# 训练岭回归模型
+# alpha = 0 表示 Ridge
+fit_ridge <- glmnet(x_train, y_train, alpha = 0)
+
+# 绘制系数随 lambda 变化的路径图
+plot(fit_ridge, xvar = "lambda", label = TRUE)
+title("Ridge Regression Coefficients Path", line = 2.5)
+```
+
+图中每一条线代表一个变量的系数。随着 $\lambda$（横坐标，对数标度）变大，惩罚力度增加，所有系数都趋向于 0。
+
+### 2. 交叉验证选择最佳 Lambda
+
+我们使用 `cv.glmnet` 进行 k 折交叉验证（默认 10 折），找出均方误差（MSE）最小的 $\lambda$。
+
+```{r}
+# 交叉验证
+set.seed(123)
+cv_ridge <- cv.glmnet(x_train, y_train, alpha = 0)
+
+# 绘制 CV 误差图
+plot(cv_ridge)
+
+# 查看最佳 lambda
+best_lambda_ridge <- cv_ridge$lambda.min
+cat("最佳 Lambda (min):", best_lambda_ridge, "\n")
+```
+
+图中：
+*   左侧虚线：`lambda.min`，即 MSE 最小的 $\lambda$。
+*   右侧虚线：`lambda.1se`，即在最小 MSE 的一个标准误范围内，模型最简单的 $\lambda$（更强的正则化）。
+
+### 3. 模型预测与评估
+
+使用最佳 $\lambda$ 在测试集上进行预测。
+
+```{r}
+# 预测
+pred_ridge <- predict(cv_ridge, s = best_lambda_ridge, newx = x_test)
+
+# 计算 RMSE
+rmse_ridge <- sqrt(mean((y_test - pred_ridge)^2))
+cat("Ridge RMSE:", rmse_ridge, "\n")
+```
+
+---
+
+## Lasso 回归
+
+设置参数 `alpha = 1` 即为 Lasso 回归。
+
+### 1. 训练模型与可视化
+
+```{r}
+# 训练 Lasso 模型
+fit_lasso <- glmnet(x_train, y_train, alpha = 1)
+
+# 绘制系数路径图
+plot(fit_lasso, xvar = "lambda", label = TRUE)
+title("Lasso Regression Coefficients Path", line = 2.5)
+```
+
+**注意观察**：与 Ridge 不同，Lasso 的系数路径中，随着 $\lambda$ 增大，变量系数是**逐个**变为 0 的。这就是 Lasso 能够进行特征选择的原因。
+
+### 2. 交叉验证选择 Lambda
+
+```{r}
+set.seed(123)
+cv_lasso <- cv.glmnet(x_train, y_train, alpha = 1)
+
+plot(cv_lasso)
+
+best_lambda_lasso <- cv_lasso$lambda.min
+cat("最佳 Lambda (min):", best_lambda_lasso, "\n")
+```
+
+### 3. 查看被筛选出的变量
+
+使用最佳 $\lambda$ 查看哪些变量的系数不为 0。
+
+```{r}
+# 提取系数
+coef_lasso <- coef(cv_lasso, s = best_lambda_lasso)
+
+# 转换为数据框展示非零系数
+coef_df <- as.data.frame(as.matrix(coef_lasso))
+colnames(coef_df) <- "Coefficient"
+coef_df %>% 
+  filter(Coefficient != 0) %>% 
+  arrange(desc(abs(Coefficient)))
+```
+
+### 4. 模型预测与评估
+
+```{r}
+pred_lasso <- predict(cv_lasso, s = best_lambda_lasso, newx = x_test)
+rmse_lasso <- sqrt(mean((y_test - pred_lasso)^2))
+cat("Lasso RMSE:", rmse_lasso, "\n")
+```
+
+---
+
+## 弹性网络 (Elastic Net)
+
+如果希望结合两者的优点（既能筛选变量，又处理共线性群组效应），可以使用 Elastic Net。通常我们可以通过遍历 `alpha` (0 到 1 之间) 来寻找最优组合，或者直接指定一个中间值（如 0.5）。
+
+```{r}
+# 训练 Elastic Net (alpha = 0.5)
+set.seed(123)
+cv_elnet <- cv.glmnet(x_train, y_train, alpha = 0.5)
+best_lambda_elnet <- cv_elnet$lambda.min
+
+pred_elnet <- predict(cv_elnet, s = best_lambda_elnet, newx = x_test)
+rmse_elnet <- sqrt(mean((y_test - pred_elnet)^2))
+cat("Elastic Net (alpha=0.5) RMSE:", rmse_elnet, "\n")
+```
+
+---
+
+## 总结与对比
+
+最后，我们将三种模型在测试集上的表现进行对比。
+
+```{r}
+results <- data.frame(
+  Model = c("Ridge", "Lasso", "Elastic Net"),
+  RMSE = c(rmse_ridge, rmse_lasso, rmse_elnet)
+)
+
+results %>% 
+  arrange(RMSE) %>%
+  knitr::kable(digits = 3, caption = "模型性能对比 (RMSE)")
+```
+
+### 方法选择指南
+
+| 特性 | Ridge (岭回归) | Lasso (套索回归) |
+| :--- | :--- | :--- |
+| **惩罚项** | L2 (平方) | L1 (绝对值) |
+| **特征选择** | 否 (系数接近 0 但不为 0) | **是** (系数可以为 0) |
+| **多重共线性** | 很好地处理，保留相关变量 | 倾向于从相关变量中选一个，忽略其他的 |
+| **适用场景** | 变量都有用，主要为了防止过拟合 | 认为只有部分变量有用，需要稀疏模型 |
+| **解释性** | 较低 (所有变量都在模型中) | **较高** (模型更简单) |
+
+在实际应用中，如果你的特征数量远大于样本量 ($p > n$），或者你怀疑只有少数特征起作用，Lasso 是更好的选择；如果你希望保留所有特征的影响，Ridge 可能表现更稳健。
+
+## 参考文献
+
+1.  Friedman, J., Hastie, T., & Tibshirani, R. (2010). Regularization Paths for Generalized Linear Models via Coordinate Descent. *Journal of Statistical Software*, 33(1), 1-22.
+2.  Zou, H., & Hastie, T. (2005). Regularization and variable selection via the elastic net. *Journal of the Royal Statistical Society: Series B*, 67(2), 301-320.

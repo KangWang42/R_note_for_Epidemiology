@@ -6,8 +6,9 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
+<meta name="dcterms.date" content="2025-01-20">
 
-<title>统计分析方法 – R 语言学习笔记</title>
+<title>岭回归与 Lasso 回归 – R 语言学习笔记</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,26 +21,61 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
-<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="../site_libs/clipboard/clipboard.min.js"></script>
-<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="../site_libs/quarto-search/fuse.min.js"></script>
-<script src="../site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="../">
-<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
-<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
-<script src="../site_libs/quarto-html/popper.min.js"></script>
-<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="../site_libs/quarto-html/anchor.min.js"></script>
-<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-8b4baf804e461d9b72633f0de59a0cac.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-f04c1bab01eaa4046294d2af630dbbb8.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-8b4baf804e461d9b72633f0de59a0cac.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f04c1bab01eaa4046294d2af630dbbb8.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -69,8 +105,37 @@ ul.task-list li input[type="checkbox"] {
 }</script>
 <style>html{ scroll-behavior: smooth; }</style>
 
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
-<link rel="stylesheet" href="../styles.css">
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="styles.css">
 </head>
 
 <body class="nav-sidebar floating nav-fixed quarto-light">
@@ -80,7 +145,7 @@ ul.task-list li input[type="checkbox"] {
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a class="navbar-brand" href="../index.html">
+    <a class="navbar-brand" href="./index.html">
     <span class="navbar-title">R 语言学习笔记</span>
     </a>
   </div>
@@ -91,7 +156,7 @@ ul.task-list li input[type="checkbox"] {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link" href="../index.html"> 
+    <a class="nav-link" href="./index.html"> 
 <span class="menu-text">主页</span></a>
   </li>  
   <li class="nav-item dropdown ">
@@ -100,15 +165,15 @@ ul.task-list li input[type="checkbox"] {
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu-">    
         <li>
-    <a class="dropdown-item" href="../sections/guide.html#学习路线">
+    <a class="dropdown-item" href="./sections/guide.html#学习路线">
  <span class="dropdown-text">📘 学习路线</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/guide.html#基础知识">
+    <a class="dropdown-item" href="./sections/guide.html#基础知识">
  <span class="dropdown-text">📖 基础知识</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/guide.html#工作流程">
+    <a class="dropdown-item" href="./sections/guide.html#工作流程">
  <span class="dropdown-text">⚙️ 工作流程</span></a>
   </li>  
     </ul>
@@ -119,15 +184,15 @@ ul.task-list li input[type="checkbox"] {
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu-r-包">    
         <li>
-    <a class="dropdown-item" href="../sections/packages.html#表格制作">
+    <a class="dropdown-item" href="./sections/packages.html#表格制作">
  <span class="dropdown-text">📊 表格制作</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/packages.html#数据处理">
+    <a class="dropdown-item" href="./sections/packages.html#数据处理">
  <span class="dropdown-text">🔄 数据处理</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/packages.html#模型整理">
+    <a class="dropdown-item" href="./sections/packages.html#模型整理">
  <span class="dropdown-text">📈 模型整理</span></a>
   </li>  
     </ul>
@@ -138,31 +203,31 @@ ul.task-list li input[type="checkbox"] {
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu--1">    
         <li>
-    <a class="dropdown-item" href="../sections/statistics.html#基础回归">
+    <a class="dropdown-item" href="./sections/statistics.html#基础回归">
  <span class="dropdown-text">📊 基础回归</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/statistics.html#生存分析">
+    <a class="dropdown-item" href="./sections/statistics.html#生存分析">
  <span class="dropdown-text">⏱️ 生存分析</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/statistics.html#因果推断">
+    <a class="dropdown-item" href="./sections/statistics.html#因果推断">
  <span class="dropdown-text">🎯 因果推断</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/statistics.html#高级建模">
+    <a class="dropdown-item" href="./sections/statistics.html#高级建模">
  <span class="dropdown-text">📐 高级建模</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/statistics.html#贝叶斯统计">
+    <a class="dropdown-item" href="./sections/statistics.html#贝叶斯统计">
  <span class="dropdown-text">📈 贝叶斯统计</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/statistics.html#模型评估">
+    <a class="dropdown-item" href="./sections/statistics.html#模型评估">
  <span class="dropdown-text">🎯 模型评估</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/statistics.html#综述方法">
+    <a class="dropdown-item" href="./sections/statistics.html#综述方法">
  <span class="dropdown-text">📚 综述方法</span></a>
   </li>  
     </ul>
@@ -173,15 +238,15 @@ ul.task-list li input[type="checkbox"] {
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu-ai">    
         <li>
-    <a class="dropdown-item" href="../sections/machine-learning.html#机器学习框架">
+    <a class="dropdown-item" href="./sections/machine-learning.html#机器学习框架">
  <span class="dropdown-text">🤖 机器学习框架</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/machine-learning.html#深度学习">
+    <a class="dropdown-item" href="./sections/machine-learning.html#深度学习">
  <span class="dropdown-text">🧠 深度学习</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/machine-learning.html#ai-工具">
+    <a class="dropdown-item" href="./sections/machine-learning.html#ai-工具">
  <span class="dropdown-text">🛠️ AI 工具</span></a>
   </li>  
     </ul>
@@ -192,23 +257,23 @@ ul.task-list li input[type="checkbox"] {
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu--2">    
         <li>
-    <a class="dropdown-item" href="../sections/operation.html#数据导入导出">
+    <a class="dropdown-item" href="./sections/operation.html#数据导入导出">
  <span class="dropdown-text">📥 数据导入导出</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/operation.html#数据清洗">
+    <a class="dropdown-item" href="./sections/operation.html#数据清洗">
  <span class="dropdown-text">🧹 数据清洗</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/operation.html#数据转换">
+    <a class="dropdown-item" href="./sections/operation.html#数据转换">
  <span class="dropdown-text">🔄 数据转换</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/operation.html#文档写作">
+    <a class="dropdown-item" href="./sections/operation.html#文档写作">
  <span class="dropdown-text">📝 文档写作</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/operation.html#开发环境">
+    <a class="dropdown-item" href="./sections/operation.html#开发环境">
  <span class="dropdown-text">💻 开发环境</span></a>
   </li>  
     </ul>
@@ -219,39 +284,39 @@ ul.task-list li input[type="checkbox"] {
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu--3">    
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#图形基础">
+    <a class="dropdown-item" href="./sections/visualization.html#图形基础">
  <span class="dropdown-text">🏗️ 图形基础</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#图形组合">
+    <a class="dropdown-item" href="./sections/visualization.html#图形组合">
  <span class="dropdown-text">🔀 图形组合</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#分布图">
+    <a class="dropdown-item" href="./sections/visualization.html#分布图">
  <span class="dropdown-text">📊 分布图</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#趋势图">
+    <a class="dropdown-item" href="./sections/visualization.html#趋势图">
  <span class="dropdown-text">📈 趋势图</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#比较图">
+    <a class="dropdown-item" href="./sections/visualization.html#比较图">
  <span class="dropdown-text">📊 比较图</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#关系图">
+    <a class="dropdown-item" href="./sections/visualization.html#关系图">
  <span class="dropdown-text">🔄 关系图</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#特殊图形">
+    <a class="dropdown-item" href="./sections/visualization.html#特殊图形">
  <span class="dropdown-text">🎨 特殊图形</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#专题图">
+    <a class="dropdown-item" href="./sections/visualization.html#专题图">
  <span class="dropdown-text">🗺️ 专题图</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/visualization.html#进阶美化">
+    <a class="dropdown-item" href="./sections/visualization.html#进阶美化">
  <span class="dropdown-text">✨ 进阶美化</span></a>
   </li>  
     </ul>
@@ -262,15 +327,15 @@ ul.task-list li input[type="checkbox"] {
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu--4">    
         <li>
-    <a class="dropdown-item" href="../sections/special.html#卫生经济学">
+    <a class="dropdown-item" href="./sections/special.html#卫生经济学">
  <span class="dropdown-text">💰 卫生经济学</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/special.html#质性研究">
+    <a class="dropdown-item" href="./sections/special.html#质性研究">
  <span class="dropdown-text">🔬 质性研究</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../sections/special.html#信号处理">
+    <a class="dropdown-item" href="./sections/special.html#信号处理">
  <span class="dropdown-text">📡 信号处理</span></a>
   </li>  
     </ul>
@@ -293,7 +358,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">统计分析方法</li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">统计分析方法</li><li class="breadcrumb-item"><a href="./1019-logistic.html">📊 基础回归</a></li><li class="breadcrumb-item"><a href="./1104-ridge-lasso.html">岭回归与 Lasso</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -333,7 +398,7 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../0001-guide.html" class="sidebar-item-text sidebar-link">
+  <a href="./0001-guide.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">新手入门指南</span></a>
   </div>
 </li>
@@ -350,19 +415,19 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RMarkdown 入门</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Quarto vs RMarkdown</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../0013-positron.html" class="sidebar-item-text sidebar-link">
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Positron IDE 教程</span></a>
   </div>
 </li>
@@ -379,7 +444,7 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3006-reproducible-research.html" class="sidebar-item-text sidebar-link">
+  <a href="./3006-reproducible-research.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">可重复研究工作流</span></a>
   </div>
 </li>
@@ -407,31 +472,31 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
+  <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">bruceR - 统计分析工具</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1012-comparegroups.html" class="sidebar-item-text sidebar-link">
+  <a href="./1012-comparegroups.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">compareGroups - 描述性表</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1013-scitb.html" class="sidebar-item-text sidebar-link">
+  <a href="./1013-scitb.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">scitb - 快速基线表</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1053-gtsummary.html" class="sidebar-item-text sidebar-link">
+  <a href="./1053-gtsummary.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">gtsummary - 发表级表格</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1067-gt-tables.html" class="sidebar-item-text sidebar-link">
+  <a href="./1067-gt-tables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">gt - 现代表格系统</span></a>
   </div>
 </li>
@@ -448,37 +513,37 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1014-purrr.html" class="sidebar-item-text sidebar-link">
+  <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">purrr - 函数式编程</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1014-future.html" class="sidebar-item-text sidebar-link">
+  <a href="./1014-future.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">future - 并行计算</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1045-rstatix.html" class="sidebar-item-text sidebar-link">
+  <a href="./1045-rstatix.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">rstatix - 管道式统计</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1071-targets-workflow.html" class="sidebar-item-text sidebar-link">
+  <a href="./1071-targets-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">targets - 工作流管理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1072-arrow-bigdata.html" class="sidebar-item-text sidebar-link">
+  <a href="./1072-arrow-bigdata.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">arrow - 大数据处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3015-tidytable.html" class="sidebar-item-text sidebar-link">
+  <a href="./3015-tidytable.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">tidytable - 高性能数据处理</span></a>
   </div>
 </li>
@@ -495,13 +560,13 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1043-broom.html" class="sidebar-item-text sidebar-link">
+  <a href="./1043-broom.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">broom - 模型整理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1064-marginaleffects.html" class="sidebar-item-text sidebar-link">
+  <a href="./1064-marginaleffects.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">marginaleffects - 边际效应</span></a>
   </div>
 </li>
@@ -520,58 +585,58 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true">
  <span class="menu-text">📊 基础回归</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1019-logistic.html" class="sidebar-item-text sidebar-link">
+  <a href="./1019-logistic.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Logistic 回归</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1021-linear-regression.html" class="sidebar-item-text sidebar-link">
+  <a href="./1021-linear-regression.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">多元线性回归</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1104-ridge-lasso.html" class="sidebar-item-text sidebar-link">
+  <a href="./1104-ridge-lasso.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">岭回归与 Lasso</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1026-poisson.html" class="sidebar-item-text sidebar-link">
+  <a href="./1026-poisson.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Poisson/负二项回归</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1036-anova.html" class="sidebar-item-text sidebar-link">
+  <a href="./1036-anova.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">方差分析 (ANOVA)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1074-quantile-regression.html" class="sidebar-item-text sidebar-link">
+  <a href="./1074-quantile-regression.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">分位数回归</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1075-zero-inflated.html" class="sidebar-item-text sidebar-link">
+  <a href="./1075-zero-inflated.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">零膨胀模型</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1093-ordinal-regression.html" class="sidebar-item-text sidebar-link">
+  <a href="./1093-ordinal-regression.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">有序回归</span></a>
   </div>
 </li>
@@ -588,43 +653,43 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1020-survival.html" class="sidebar-item-text sidebar-link">
+  <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">生存分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1050-competing-risks.html" class="sidebar-item-text sidebar-link">
+  <a href="./1050-competing-risks.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">竞争风险分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1027-rcs.html" class="sidebar-item-text sidebar-link">
+  <a href="./1027-rcs.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">限制性立方样条 (RCS)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1017-timeseries.html" class="sidebar-item-text sidebar-link">
+  <a href="./1017-timeseries.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">时间序列分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1055-tx-effects-survival.html" class="sidebar-item-text sidebar-link">
+  <a href="./1055-tx-effects-survival.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">治疗效果分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1061-random-survival-forest.html" class="sidebar-item-text sidebar-link">
+  <a href="./1061-random-survival-forest.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">随机生存森林 (RSF)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1077-composite-endpoints.html" class="sidebar-item-text sidebar-link">
+  <a href="./1077-composite-endpoints.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">复合结局分析</span></a>
   </div>
 </li>
@@ -641,79 +706,79 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1018-psm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">倾向性得分匹配</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1028-did.html" class="sidebar-item-text sidebar-link">
+  <a href="./1028-did.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">双重差分法 (DiD)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1023-mediation.html" class="sidebar-item-text sidebar-link">
+  <a href="./1023-mediation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">中介效应分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1054-subgroup.html" class="sidebar-item-text sidebar-link">
+  <a href="./1054-subgroup.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">亚组分析与交互作用</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1056-dag.html" class="sidebar-item-text sidebar-link">
+  <a href="./1056-dag.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">DAG 因果图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1057-target-trial.html" class="sidebar-item-text sidebar-link">
+  <a href="./1057-target-trial.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">目标试验模拟</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1058-mendelian-randomization.html" class="sidebar-item-text sidebar-link">
+  <a href="./1058-mendelian-randomization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">孟德尔随机化</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1060-instrumental-variables.html" class="sidebar-item-text sidebar-link">
+  <a href="./1060-instrumental-variables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">工具变量法 (IV)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1059-evalue.html" class="sidebar-item-text sidebar-link">
+  <a href="./1059-evalue.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">E值敏感性分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1065-tmle-doubly-robust.html" class="sidebar-item-text sidebar-link">
+  <a href="./1065-tmle-doubly-robust.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">TMLE 双重稳健估计</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1066-causalimpact.html" class="sidebar-item-text sidebar-link">
+  <a href="./1066-causalimpact.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">CausalImpact 时间序列因果</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1076-ipw-weighting.html" class="sidebar-item-text sidebar-link">
+  <a href="./1076-ipw-weighting.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">IPW 倒概率加权</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1092-double-machine-learning.html" class="sidebar-item-text sidebar-link">
+  <a href="./1092-double-machine-learning.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">双重机器学习 (DML)</span></a>
   </div>
 </li>
@@ -730,97 +795,97 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1024-multilevel.html" class="sidebar-item-text sidebar-link">
+  <a href="./1024-multilevel.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">多水平模型</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1025-gam.html" class="sidebar-item-text sidebar-link">
+  <a href="./1025-gam.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">广义加性模型 (GAM)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1085-gee.html" class="sidebar-item-text sidebar-link">
+  <a href="./1085-gee.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">广义估计方程 (GEE)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1086-multiple-imputation.html" class="sidebar-item-text sidebar-link">
+  <a href="./1086-multiple-imputation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">多重插补</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1087-msm-iptw.html" class="sidebar-item-text sidebar-link">
+  <a href="./1087-msm-iptw.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">边际结构模型 (MSM) 与 IPTW</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1088-fine-gray.html" class="sidebar-item-text sidebar-link">
+  <a href="./1088-fine-gray.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Fine-Gray 竞争风险模型</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1089-time-varying-cox.html" class="sidebar-item-text sidebar-link">
+  <a href="./1089-time-varying-cox.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">时变协变量 Cox 模型</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1090-ps-weight-diagnostics.html" class="sidebar-item-text sidebar-link">
+  <a href="./1090-ps-weight-diagnostics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">倾向评分权重诊断</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1091-advanced-target-trial.html" class="sidebar-item-text sidebar-link">
+  <a href="./1091-advanced-target-trial.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">目标试验模拟进阶</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1032-sem.html" class="sidebar-item-text sidebar-link">
+  <a href="./1032-sem.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">结构方程模型 (SEM)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1097-clpm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1097-clpm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">交叉滞后面板模型 (CLPM)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1031-lca.html" class="sidebar-item-text sidebar-link">
+  <a href="./1031-lca.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">潜类别分析 (LCA)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1098-gbtm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1098-gbtm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">基于群组的轨迹模型 (GBTM)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1039-pca.html" class="sidebar-item-text sidebar-link">
+  <a href="./1039-pca.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">主成分分析 (PCA)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
+  <a href="./1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">因子分析 (EFA/CFA)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1037-plspm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1037-plspm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">PLS-PM 路径模型</span></a>
   </div>
 </li>
@@ -837,19 +902,19 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1051-bayesian.html" class="sidebar-item-text sidebar-link">
+  <a href="./1051-bayesian.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">贝叶斯统计入门</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1078-rstanarm-bayesian.html" class="sidebar-item-text sidebar-link">
+  <a href="./1078-rstanarm-bayesian.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">rstanarm 贝叶斯回归</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1073-prophet-forecasting.html" class="sidebar-item-text sidebar-link">
+  <a href="./1073-prophet-forecasting.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">prophet 时间序列预测</span></a>
   </div>
 </li>
@@ -866,43 +931,43 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1052-bootstrap.html" class="sidebar-item-text sidebar-link">
+  <a href="./1052-bootstrap.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bootstrap与置换检验</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1047-roc-analysis.html" class="sidebar-item-text sidebar-link">
+  <a href="./1047-roc-analysis.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ROC 分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1100-auc-auprc.html" class="sidebar-item-text sidebar-link">
+  <a href="./1100-auc-auprc.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AUC 与 AUPRC 对比</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1102-dca.html" class="sidebar-item-text sidebar-link">
+  <a href="./1102-dca.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">决策曲线分析 (DCA)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1103-robustness-analysis.html" class="sidebar-item-text sidebar-link">
+  <a href="./1103-robustness-analysis.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">回归模型稳健性分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1048-power-analysis.html" class="sidebar-item-text sidebar-link">
+  <a href="./1048-power-analysis.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">样本量计算</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1049-eda.html" class="sidebar-item-text sidebar-link">
+  <a href="./1049-eda.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">探索性数据分析</span></a>
   </div>
 </li>
@@ -919,25 +984,25 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
+  <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Meta 分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1041-network-meta.html" class="sidebar-item-text sidebar-link">
+  <a href="./1041-network-meta.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">网状 Meta 分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1029-umbrella-review.html" class="sidebar-item-text sidebar-link">
+  <a href="./1029-umbrella-review.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">伞状综述</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1040-scoping-review.html" class="sidebar-item-text sidebar-link">
+  <a href="./1040-scoping-review.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">范围综述</span></a>
   </div>
 </li>
@@ -965,91 +1030,91 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1016-mlr3.html" class="sidebar-item-text sidebar-link">
+  <a href="./1016-mlr3.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">mlr3 机器学习</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1042-tidymodels.html" class="sidebar-item-text sidebar-link">
+  <a href="./1042-tidymodels.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">tidymodels 机器学习</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1101-ml-metrics.html" class="sidebar-item-text sidebar-link">
+  <a href="./1101-ml-metrics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">机器学习预测指标</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1079-kmeans.html" class="sidebar-item-text sidebar-link">
+  <a href="./1079-kmeans.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">K-means 聚类教程</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1094-knn.html" class="sidebar-item-text sidebar-link">
+  <a href="./1094-knn.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">KNN 最近邻</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1095-naive-bayes.html" class="sidebar-item-text sidebar-link">
+  <a href="./1095-naive-bayes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">朴素贝叶斯</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1096-gbdt.html" class="sidebar-item-text sidebar-link">
+  <a href="./1096-gbdt.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">GBDT 梯度提升树</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1068-xgboost.html" class="sidebar-item-text sidebar-link">
+  <a href="./1068-xgboost.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">XGBoost 梯度提升</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1070-fairmetrics.html" class="sidebar-item-text sidebar-link">
+  <a href="./1070-fairmetrics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">fairmetrics 公平性评估</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1080-random-forest.html" class="sidebar-item-text sidebar-link">
+  <a href="./1080-random-forest.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">随机森林与决策树</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1081-svm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1081-svm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">支持向量机 (SVM)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1082-ensemble-learning.html" class="sidebar-item-text sidebar-link">
+  <a href="./1082-ensemble-learning.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">集成学习 (Bagging/Stacking)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1083-dimensionality-reduction.html" class="sidebar-item-text sidebar-link">
+  <a href="./1083-dimensionality-reduction.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">降维 (PCA/UMAP/t-SNE)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1084-anomaly-detection.html" class="sidebar-item-text sidebar-link">
+  <a href="./1084-anomaly-detection.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">无监督异常检测</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1099-nested-cv.html" class="sidebar-item-text sidebar-link">
+  <a href="./1099-nested-cv.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">嵌套交叉验证</span></a>
   </div>
 </li>
@@ -1066,13 +1131,13 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-19" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1044-lstm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1044-lstm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">LSTM 深度学习</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1069-torch-deep-learning.html" class="sidebar-item-text sidebar-link">
+  <a href="./1069-torch-deep-learning.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">torch 深度学习</span></a>
   </div>
 </li>
@@ -1089,43 +1154,43 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-20" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../5001-opencode.html" class="sidebar-item-text sidebar-link">
+  <a href="./5001-opencode.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">OpenCode AI 编程代理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../5002-opencode-skills.html" class="sidebar-item-text sidebar-link">
+  <a href="./5002-opencode-skills.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">OpenCode Skills 技能系统</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../5003-ohmyopencode.html" class="sidebar-item-text sidebar-link">
+  <a href="./5003-ohmyopencode.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Oh My OpenCode 增强插件</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../5004-opencode-mcp.html" class="sidebar-item-text sidebar-link">
+  <a href="./5004-opencode-mcp.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">OpenCode MCP 详解</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../5005-opencode-agents.html" class="sidebar-item-text sidebar-link">
+  <a href="./5005-opencode-agents.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">OpenCode Agents 代理系统</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../5006-opencode-lsp.html" class="sidebar-item-text sidebar-link">
+  <a href="./5006-opencode-lsp.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">OpenCode LSP 语言服务器</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../5007-opencode-vs-claude-code.html" class="sidebar-item-text sidebar-link">
+  <a href="./5007-opencode-vs-claude-code.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">OpenCode vs Claude Code 对比指南</span></a>
   </div>
 </li>
@@ -1153,37 +1218,37 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-22" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3001-imports.html" class="sidebar-item-text sidebar-link">
+  <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">数据导入导出</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3002-datatable.html" class="sidebar-item-text sidebar-link">
+  <a href="./3002-datatable.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">data.table 完全指南</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3003-dplyr-tidyr.html" class="sidebar-item-text sidebar-link">
+  <a href="./3003-dplyr-tidyr.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">dplyr/tidyr 数据处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3012-readr-readxl.html" class="sidebar-item-text sidebar-link">
+  <a href="./3012-readr-readxl.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">readr/readxl - 高效读取</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3013-duckplyr.html" class="sidebar-item-text sidebar-link">
+  <a href="./3013-duckplyr.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">duckplyr - 高性能数据处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3005-pdf-reading.html" class="sidebar-item-text sidebar-link">
+  <a href="./3005-pdf-reading.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">PDF文件读取</span></a>
   </div>
 </li>
@@ -1200,19 +1265,19 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-23" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1046-missing-data.html" class="sidebar-item-text sidebar-link">
+  <a href="./1046-missing-data.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">缺失值处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1063-outlier-detection.html" class="sidebar-item-text sidebar-link">
+  <a href="./1063-outlier-detection.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">异常值检测与处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3014-janitor-cleaning.html" class="sidebar-item-text sidebar-link">
+  <a href="./3014-janitor-cleaning.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">janitor 数据清洗实战</span></a>
   </div>
 </li>
@@ -1229,25 +1294,25 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-24" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3010-stringr.html" class="sidebar-item-text sidebar-link">
+  <a href="./3010-stringr.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">stringr - 字符串处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3009-datetime.html" class="sidebar-item-text sidebar-link">
+  <a href="./3009-datetime.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">日期时间处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3011-forcats.html" class="sidebar-item-text sidebar-link">
+  <a href="./3011-forcats.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">forcats - 因子处理</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3008-regexp.html" class="sidebar-item-text sidebar-link">
+  <a href="./3008-regexp.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">正则表达式</span></a>
   </div>
 </li>
@@ -1264,13 +1329,13 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-25" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
+  <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RMarkdown 入门</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
+  <a href="./0012-quarto-vs-rmd.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Quarto vs RMarkdown</span></a>
   </div>
 </li>
@@ -1287,31 +1352,31 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-26" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../0013-positron.html" class="sidebar-item-text sidebar-link">
+  <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Positron IDE 教程</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../4001-shiny.html" class="sidebar-item-text sidebar-link">
+  <a href="./4001-shiny.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Shiny Web 应用</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3006-reproducible-research.html" class="sidebar-item-text sidebar-link">
+  <a href="./3006-reproducible-research.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">可重复研究工作流</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3004-web-scraping.html" class="sidebar-item-text sidebar-link">
+  <a href="./3004-web-scraping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">网络爬虫入门</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../3007-research-databases.html" class="sidebar-item-text sidebar-link">
+  <a href="./3007-research-databases.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">主流科研数据库指南</span></a>
   </div>
 </li>
@@ -1339,31 +1404,31 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-28" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2032-ggplot2-intro.html" class="sidebar-item-text sidebar-link">
+  <a href="./2032-ggplot2-intro.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ggplot2 可视化入门</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2033-ggplot2-styling.html" class="sidebar-item-text sidebar-link">
+  <a href="./2033-ggplot2-styling.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ggplot2 样式设置详解</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2011-viscolor.html" class="sidebar-item-text sidebar-link">
+  <a href="./2011-viscolor.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">配色方案</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2013-legend.html" class="sidebar-item-text sidebar-link">
+  <a href="./2013-legend.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">图例自定义</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2061-base-r-graphics.html" class="sidebar-item-text sidebar-link">
+  <a href="./2061-base-r-graphics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Base R 绑图基础</span></a>
   </div>
 </li>
@@ -1380,19 +1445,19 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-29" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2012-patchwork.html" class="sidebar-item-text sidebar-link">
+  <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">patchwork - 图片拼接</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2021-cowplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2021-cowplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">cowplot - 图形组合</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2031-bindcomplex.html" class="sidebar-item-text sidebar-link">
+  <a href="./2031-bindcomplex.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">复杂组合图</span></a>
   </div>
 </li>
@@ -1409,25 +1474,25 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-30" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">箱线图与小提琴图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2027-bindhistogram.html" class="sidebar-item-text sidebar-link">
+  <a href="./2027-bindhistogram.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">直方图与密度图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2043-bindjoyplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2043-bindjoyplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Joy Plot 山脊图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2041-bindjitter.html" class="sidebar-item-text sidebar-link">
+  <a href="./2041-bindjitter.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">抖动图与蜂群图</span></a>
   </div>
 </li>
@@ -1444,25 +1509,25 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-31" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">散点图与趋势线</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2029-bindlineplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2029-bindlineplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">折线图与时间序列</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2030-bindareaplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2030-bindareaplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">面积图与堆叠图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2048-bindpeakvalley.html" class="sidebar-item-text sidebar-link">
+  <a href="./2048-bindpeakvalley.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">时序峰谷标记图</span></a>
   </div>
 </li>
@@ -1479,31 +1544,31 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-32" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
+  <a href="./2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">柱状图与饼图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2035-bindlollipop.html" class="sidebar-item-text sidebar-link">
+  <a href="./2035-bindlollipop.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">棒棒糖图与排序图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2036-binddivergent.html" class="sidebar-item-text sidebar-link">
+  <a href="./2036-binddivergent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">发散型图表</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2039-binddumbbell.html" class="sidebar-item-text sidebar-link">
+  <a href="./2039-binddumbbell.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">哑铃图与坡度图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2047-bindbullet.html" class="sidebar-item-text sidebar-link">
+  <a href="./2047-bindbullet.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">子弹图</span></a>
   </div>
 </li>
@@ -1520,31 +1585,31 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-33" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2040-bindbubblechart.html" class="sidebar-item-text sidebar-link">
+  <a href="./2040-bindbubblechart.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">气泡图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2042-bindmarginal.html" class="sidebar-item-text sidebar-link">
+  <a href="./2042-bindmarginal.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">边缘分布图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2049-bindcorrplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2049-bindcorrplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">相关图矩阵</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2051-bindpairplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2051-bindpairplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">矩阵图与成对图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2057-bindparallel.html" class="sidebar-item-text sidebar-link">
+  <a href="./2057-bindparallel.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">平行坐标图</span></a>
   </div>
 </li>
@@ -1561,37 +1626,37 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-34" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2037-bindwaffle.html" class="sidebar-item-text sidebar-link">
+  <a href="./2037-bindwaffle.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">华夫饼图与树形图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2038-bindpyramid.html" class="sidebar-item-text sidebar-link">
+  <a href="./2038-bindpyramid.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">人口金字塔图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2045-binddonut.html" class="sidebar-item-text sidebar-link">
+  <a href="./2045-binddonut.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">环形图与甜甜圈图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2044-bindcalendar.html" class="sidebar-item-text sidebar-link">
+  <a href="./2044-bindcalendar.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">日历热图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2046-bindwaterfall.html" class="sidebar-item-text sidebar-link">
+  <a href="./2046-bindwaterfall.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">瀑布图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2058-bindmosaic.html" class="sidebar-item-text sidebar-link">
+  <a href="./2058-bindmosaic.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">马赛克图</span></a>
   </div>
 </li>
@@ -1608,37 +1673,37 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-35" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2015-map.html" class="sidebar-item-text sidebar-link">
+  <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">地图绑制</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2014-sankey.html" class="sidebar-item-text sidebar-link">
+  <a href="./2014-sankey.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">桑基图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2016-forestplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2016-forestplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">森林图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2020-heatmap.html" class="sidebar-item-text sidebar-link">
+  <a href="./2020-heatmap.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">热图绑制完全指南</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2024-venn.html" class="sidebar-item-text sidebar-link">
+  <a href="./2024-venn.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">韦恩图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2023-radar.html" class="sidebar-item-text sidebar-link">
+  <a href="./2023-radar.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">雷达图</span></a>
   </div>
 </li>
@@ -1655,61 +1720,61 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-36" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2050-bindcountplot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2050-bindcountplot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">计数图与分类图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2052-bindacf.html" class="sidebar-item-text sidebar-link">
+  <a href="./2052-bindacf.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">自相关图 ACF/PACF</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2053-bindwordcloud.html" class="sidebar-item-text sidebar-link">
+  <a href="./2053-bindwordcloud.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">词云图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2054-bindnetwork.html" class="sidebar-item-text sidebar-link">
+  <a href="./2054-bindnetwork.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">网络关系图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2055-bindgantt.html" class="sidebar-item-text sidebar-link">
+  <a href="./2055-bindgantt.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">甘特图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2056-bindfunnel.html" class="sidebar-item-text sidebar-link">
+  <a href="./2056-bindfunnel.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">漏斗图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2059-bindribbon.html" class="sidebar-item-text sidebar-link">
+  <a href="./2059-bindribbon.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">置信区间图</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2060-ml-visualization.html" class="sidebar-item-text sidebar-link">
+  <a href="./2060-ml-visualization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">机器学习可视化</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2064-gganimate.html" class="sidebar-item-text sidebar-link">
+  <a href="./2064-gganimate.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">动态图表与动画可视化</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2062-interactive-plot.html" class="sidebar-item-text sidebar-link">
+  <a href="./2062-interactive-plot.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">交互式可视化进阶</span></a>
   </div>
 </li>
@@ -1726,31 +1791,31 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-37" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2017-ggtext.html" class="sidebar-item-text sidebar-link">
+  <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ggtext - 中英文字体混合</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2018-tidyplots.html" class="sidebar-item-text sidebar-link">
+  <a href="./2018-tidyplots.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">tidyplots - 极简可视化</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2022-ggally.html" class="sidebar-item-text sidebar-link">
+  <a href="./2022-ggally.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">GGally - 可视化扩展</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2019-dualaxis.html" class="sidebar-item-text sidebar-link">
+  <a href="./2019-dualaxis.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">双坐标轴</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../2034-ggguides.html" class="sidebar-item-text sidebar-link">
+  <a href="./2034-ggguides.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ggguides - 图例简化</span></a>
   </div>
 </li>
@@ -1778,13 +1843,13 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-39" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1015-health-economics.html" class="sidebar-item-text sidebar-link">
+  <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">卫生经济学分析</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1062-treeage-pro.html" class="sidebar-item-text sidebar-link">
+  <a href="./1062-treeage-pro.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">TreeAge Pro 决策分析</span></a>
   </div>
 </li>
@@ -1801,7 +1866,7 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-40" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
+  <a href="./1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">质性研究与文本挖掘</span></a>
   </div>
 </li>
@@ -1818,25 +1883,25 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-41" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1096-wavelet-transform.html" class="sidebar-item-text sidebar-link">
+  <a href="./1096-wavelet-transform.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">小波变换 (Wavelet Transform)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1033-dlnm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1033-dlnm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">分布滞后非线性模型 (DLNM)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1034-nvmd.html" class="sidebar-item-text sidebar-link">
+  <a href="./1034-nvmd.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">变分模态分解 (VMD)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../1035-fft-nvmd-gmm.html" class="sidebar-item-text sidebar-link">
+  <a href="./1035-fft-nvmd-gmm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">FFT + VMD + GMM</span></a>
   </div>
 </li>
@@ -1849,21 +1914,71 @@ ul.task-list li input[type="checkbox"] {
 </nav>
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
-    
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#岭回归与-lasso-回归" id="toc-岭回归与-lasso-回归" class="nav-link active" data-scroll-target="#岭回归与-lasso-回归">岭回归与 Lasso 回归</a>
+  <ul class="collapse">
+  <li><a href="#核心概念" id="toc-核心概念" class="nav-link" data-scroll-target="#核心概念">核心概念</a>
+  <ul class="collapse">
+  <li><a href="#为什么需要正则化" id="toc-为什么需要正则化" class="nav-link" data-scroll-target="#为什么需要正则化">1. 为什么需要正则化？</a></li>
+  <li><a href="#岭回归-ridge-regression" id="toc-岭回归-ridge-regression" class="nav-link" data-scroll-target="#岭回归-ridge-regression">2. 岭回归 (Ridge Regression)</a></li>
+  <li><a href="#lasso-回归-least-absolute-shrinkage-and-selection-operator" id="toc-lasso-回归-least-absolute-shrinkage-and-selection-operator" class="nav-link" data-scroll-target="#lasso-回归-least-absolute-shrinkage-and-selection-operator">3. Lasso 回归 (Least Absolute Shrinkage and Selection Operator)</a></li>
+  <li><a href="#弹性网络-elastic-net" id="toc-弹性网络-elastic-net" class="nav-link" data-scroll-target="#弹性网络-elastic-net">4. 弹性网络 (Elastic Net)</a></li>
+  </ul></li>
+  <li><a href="#准备工作" id="toc-准备工作" class="nav-link" data-scroll-target="#准备工作">准备工作</a>
+  <ul class="collapse">
+  <li><a href="#加载数据与预处理" id="toc-加载数据与预处理" class="nav-link" data-scroll-target="#加载数据与预处理">加载数据与预处理</a></li>
+  </ul></li>
+  <li><a href="#岭回归-ridge-regression-1" id="toc-岭回归-ridge-regression-1" class="nav-link" data-scroll-target="#岭回归-ridge-regression-1">岭回归 (Ridge Regression)</a>
+  <ul class="collapse">
+  <li><a href="#训练模型" id="toc-训练模型" class="nav-link" data-scroll-target="#训练模型">1. 训练模型</a></li>
+  <li><a href="#交叉验证选择最佳-lambda" id="toc-交叉验证选择最佳-lambda" class="nav-link" data-scroll-target="#交叉验证选择最佳-lambda">2. 交叉验证选择最佳 Lambda</a></li>
+  <li><a href="#模型预测与评估" id="toc-模型预测与评估" class="nav-link" data-scroll-target="#模型预测与评估">3. 模型预测与评估</a></li>
+  </ul></li>
+  <li><a href="#lasso-回归" id="toc-lasso-回归" class="nav-link" data-scroll-target="#lasso-回归">Lasso 回归</a>
+  <ul class="collapse">
+  <li><a href="#训练模型与可视化" id="toc-训练模型与可视化" class="nav-link" data-scroll-target="#训练模型与可视化">1. 训练模型与可视化</a></li>
+  <li><a href="#交叉验证选择-lambda" id="toc-交叉验证选择-lambda" class="nav-link" data-scroll-target="#交叉验证选择-lambda">2. 交叉验证选择 Lambda</a></li>
+  <li><a href="#查看被筛选出的变量" id="toc-查看被筛选出的变量" class="nav-link" data-scroll-target="#查看被筛选出的变量">3. 查看被筛选出的变量</a></li>
+  <li><a href="#模型预测与评估-1" id="toc-模型预测与评估-1" class="nav-link" data-scroll-target="#模型预测与评估-1">4. 模型预测与评估</a></li>
+  </ul></li>
+  <li><a href="#弹性网络-elastic-net-1" id="toc-弹性网络-elastic-net-1" class="nav-link" data-scroll-target="#弹性网络-elastic-net-1">弹性网络 (Elastic Net)</a></li>
+  <li><a href="#总结与对比" id="toc-总结与对比" class="nav-link" data-scroll-target="#总结与对比">总结与对比</a>
+  <ul class="collapse">
+  <li><a href="#方法选择指南" id="toc-方法选择指南" class="nav-link" data-scroll-target="#方法选择指南">方法选择指南</a></li>
+  </ul></li>
+  <li><a href="#参考文献" id="toc-参考文献" class="nav-link" data-scroll-target="#参考文献">参考文献</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
 <!-- main -->
-<main class="content column-page-right" id="quarto-document-content">
+<main class="content column-body" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default">
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">统计分析方法</li><li class="breadcrumb-item"><a href="./1019-logistic.html">📊 基础回归</a></li><li class="breadcrumb-item"><a href="./1104-ridge-lasso.html">岭回归与 Lasso</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">统计分析方法</h1>
-<p class="subtitle lead">从基础回归到因果推断，系统掌握核心统计方法</p>
-</div>
+<h1 class="title">岭回归与 Lasso 回归</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">统计分析方法</div>
+    <div class="quarto-category">机器学习</div>
+    <div class="quarto-category">回归分析</div>
+  </div>
+  </div>
 
 
 
-<div class="quarto-title-meta column-page-right">
+<div class="quarto-title-meta column-body">
 
     
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">January 20, 2025</p>
+    </div>
+  </div>
   
     
   </div>
@@ -1873,235 +1988,339 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<section id="统计建模方法库" class="level2 hero-section">
-<h2 class="anchored" data-anchor-id="统计建模方法库">📊 统计建模方法库</h2>
-<p>这里收集了使用 R 语言实现的各类分析方法，涵盖<strong>回归分析</strong>、<strong>生存分析</strong>、<strong>因果推断</strong>、<strong>高级建模</strong>等领域。</p>
+<section id="岭回归与-lasso-回归" class="level1">
+<h1>岭回归与 Lasso 回归</h1>
+<p>在常规的线性回归（OLS）中，当特征数量较多或特征之间存在高度共线性（Multicollinearity）时，模型容易出现过拟合，导致在测试集上的表现不佳。</p>
+<p>为了解决这个问题，我们可以引入<strong>正则化（Regularization）</strong>项，通过对回归系数施加惩罚来约束模型的复杂度。最常见的两种正则化方法就是 <strong>Ridge Regression（岭回归）</strong> 和 <strong>Lasso Regression（套索回归）</strong>。</p>
+<section id="核心概念" class="level2">
+<h2 class="anchored" data-anchor-id="核心概念">核心概念</h2>
+<section id="为什么需要正则化" class="level3">
+<h3 class="anchored" data-anchor-id="为什么需要正则化">1. 为什么需要正则化？</h3>
+<p>普通最小二乘法（OLS）的目标是最小化残差平方和（RSS）： <span class="math display">\[ \text{Minimize: } \sum (y_i - \hat{y}_i)^2 \]</span></p>
+<p>当变量之间存在多重共线性时，OLS 估计的系数方差会变得非常大，导致模型不稳定。正则化通过在目标函数中增加一个惩罚项，以偏差（Bias）换取方差（Variance）的降低，从而提高模型的泛化能力。</p>
 </section>
-<div class="method-categories">
-<section id="基础回归" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="基础回归">📊 基础回归</h3>
-<p>经典回归方法</p>
+<section id="岭回归-ridge-regression" class="level3">
+<h3 class="anchored" data-anchor-id="岭回归-ridge-regression">2. 岭回归 (Ridge Regression)</h3>
+<p>岭回归在损失函数中增加了系数的 <strong>L2 范数</strong>惩罚项： <span class="math display">\[ \text{Minimize: } RSS + \lambda \sum_{j=1}^p \beta_j^2 \]</span></p>
 <ul>
-<li><a href="../1019-logistic.html"><strong>Logistic 回归</strong></a></li>
-<li><a href="../1021-linear-regression.html"><strong>多元线性回归</strong></a></li>
-<li><a href="../1104-ridge-lasso.html"><strong>岭回归与 Lasso</strong></a></li>
-<li><a href="../1026-poisson.html"><strong>Poisson/负二项回归</strong></a></li>
-<li><a href="../1036-anova.html"><strong>方差分析 (ANOVA)</strong></a></li>
-<li><a href="../1074-quantile-regression.html"><strong>分位数回归</strong></a></li>
-<li><a href="../1075-zero-inflated.html"><strong>零膨胀模型</strong></a></li>
-<li><a href="../1093-ordinal-regression.html"><strong>有序回归</strong></a></li>
+<li><strong>特点</strong>：倾向于将系数压缩到接近于 0，但不会完全变为 0。</li>
+<li><strong>适用场景</strong>：处理多重共线性，保留所有变量。</li>
 </ul>
 </section>
-<section id="生存分析" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="生存分析">⏱️ 生存分析</h3>
-<p>事件时间研究</p>
+<section id="lasso-回归-least-absolute-shrinkage-and-selection-operator" class="level3">
+<h3 class="anchored" data-anchor-id="lasso-回归-least-absolute-shrinkage-and-selection-operator">3. Lasso 回归 (Least Absolute Shrinkage and Selection Operator)</h3>
+<p>Lasso 回归在损失函数中增加了系数的 <strong>L1 范数</strong>惩罚项： <span class="math display">\[ \text{Minimize: } RSS + \lambda \sum_{j=1}^p |\beta_j| \]</span></p>
 <ul>
-<li><a href="../1020-survival.html"><strong>生存分析</strong></a></li>
-<li><a href="../1050-competing-risks.html"><strong>竞争风险分析</strong></a></li>
-<li><a href="../1027-rcs.html"><strong>限制性立方样条 (RCS)</strong></a></li>
-<li><a href="../1017-timeseries.html"><strong>时间序列分析</strong></a></li>
-<li><a href="../1055-tx-effects-survival.html"><strong>治疗效果分析</strong></a></li>
-<li><a href="../1061-random-survival-forest.html"><strong>随机生存森林 (RSF)</strong></a></li>
-<li><a href="../1077-composite-endpoints.html"><strong>复合结局分析</strong></a></li>
+<li><strong>特点</strong>：可以将部分系数压缩为 0，从而实现<strong>特征选择</strong>（Feature Selection）。</li>
+<li><strong>适用场景</strong>：变量筛选，稀疏模型构建。</li>
 </ul>
 </section>
-<section id="因果推断" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="因果推断">🎯 因果推断</h3>
-<p>从关联到因果</p>
+<section id="弹性网络-elastic-net" class="level3">
+<h3 class="anchored" data-anchor-id="弹性网络-elastic-net">4. 弹性网络 (Elastic Net)</h3>
+<p>Elastic Net 结合了 L1 和 L2 正则化： <span class="math display">\[ \text{Minimize: } RSS + \lambda \left( (1-\alpha) \sum \beta_j^2 / 2 + \alpha \sum |\beta_j| \right) \]</span></p>
 <ul>
-<li><a href="../1018-psm.html"><strong>倾向性得分匹配</strong></a></li>
-<li><a href="../1028-did.html"><strong>双重差分法 (DiD)</strong></a></li>
-<li><a href="../1023-mediation.html"><strong>中介效应分析</strong></a></li>
-<li><a href="../1054-subgroup.html"><strong>亚组分析与交互作用</strong></a></li>
-<li><a href="../1056-dag.html"><strong>DAG 因果图</strong></a></li>
-<li><a href="../1057-target-trial.html"><strong>目标试验模拟</strong></a></li>
-<li><a href="../1058-mendelian-randomization.html"><strong>孟德尔随机化</strong></a></li>
-<li><a href="../1060-instrumental-variables.html"><strong>工具变量法 (IV)</strong></a></li>
-<li><a href="../1059-evalue.html"><strong>E值敏感性分析</strong></a></li>
-<li><a href="../1065-tmle-doubly-robust.html"><strong>TMLE 双重稳健估计</strong></a></li>
-<li><a href="../1066-causalimpact.html"><strong>CausalImpact 时间序列因果</strong></a></li>
-<li><a href="../1076-ipw-weighting.html"><strong>IPW 倒概率加权</strong></a></li>
-<li><a href="../1092-double-machine-learning.html"><strong>双重机器学习 (DML)</strong></a></li>
+<li><span class="math inline">\(\alpha=0\)</span>：Ridge</li>
+<li><span class="math inline">\(\alpha=1\)</span>：Lasso</li>
 </ul>
+<hr>
 </section>
-<section id="高级建模" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="高级建模">📐 高级建模</h3>
-<p>复杂数据结构</p>
-<ul>
-<li><a href="../1024-multilevel.html"><strong>多水平模型</strong></a></li>
-<li><a href="../1025-gam.html"><strong>广义加性模型 (GAM)</strong></a></li>
-<li><a href="../1085-gee.html"><strong>广义估计方程 (GEE)</strong></a></li>
-<li><a href="../1086-multiple-imputation.html"><strong>多重插补</strong></a></li>
-<li><a href="../1087-msm-iptw.html"><strong>边际结构模型 (MSM) 与 IPTW</strong></a></li>
-<li><a href="../1088-fine-gray.html"><strong>Fine-Gray 竞争风险模型</strong></a></li>
-<li><a href="../1089-time-varying-cox.html"><strong>时变协变量 Cox 模型</strong></a></li>
-<li><a href="../1090-ps-weight-diagnostics.html"><strong>倾向评分权重诊断</strong></a></li>
-<li><a href="../1091-advanced-target-trial.html"><strong>目标试验模拟进阶</strong></a></li>
-<li><a href="../1032-sem.html"><strong>结构方程模型 (SEM)</strong></a></li>
-<li><a href="../1097-clpm.html"><strong>交叉滞后面板模型 (CLPM)</strong></a></li>
-<li><a href="../1031-lca.html"><strong>潜类别分析 (LCA)</strong></a></li>
-<li><a href="../1098-gbtm.html"><strong>基于群组的轨迹模型 (GBTM)</strong></a></li>
-<li><a href="../1039-pca.html"><strong>主成分分析 (PCA)</strong></a></li>
-<li><a href="../1038-efa-cfa.html"><strong>因子分析 (EFA/CFA)</strong></a></li>
-<li><a href="../1037-plspm.html"><strong>PLS-PM 路径模型</strong></a></li>
-</ul>
 </section>
-<section id="贝叶斯统计" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="贝叶斯统计">📈 贝叶斯统计</h3>
-<p>概率推断方法</p>
-<ul>
-<li><a href="../1051-bayesian.html"><strong>贝叶斯统计入门</strong></a></li>
-<li><a href="../1078-rstanarm-bayesian.html"><strong>rstanarm 贝叶斯回归</strong></a></li>
-<li><a href="../1073-prophet-forecasting.html"><strong>prophet 时间序列预测</strong></a></li>
-</ul>
-</section>
-<section id="模型评估" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="模型评估">🎯 模型评估</h3>
-<p>验证与诊断</p>
-<ul>
-<li><a href="../1052-bootstrap.html"><strong>Bootstrap与置换检验</strong></a></li>
-<li><a href="../1047-roc-analysis.html"><strong>ROC 分析</strong></a></li>
-<li><a href="../1100-auc-auprc.html"><strong>AUC 与 AUPRC 对比</strong></a></li>
-<li><a href="../1102-dca.html"><strong>决策曲线分析 (DCA)</strong></a></li>
-<li><a href="../1103-robustness-analysis.html"><strong>回归模型稳健性分析</strong></a></li>
-<li><a href="../1048-power-analysis.html"><strong>样本量计算</strong></a></li>
-<li><a href="../1049-eda.html"><strong>探索性数据分析</strong></a></li>
-</ul>
-</section>
-<section id="综述方法" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="综述方法">📚 综述方法</h3>
-<p>证据综合</p>
-<ul>
-<li><a href="../1022-meta-analysis.html"><strong>Meta 分析</strong></a></li>
-<li><a href="../1041-network-meta.html"><strong>网状 Meta 分析</strong></a></li>
-<li><a href="../1029-umbrella-review.html"><strong>伞状综述</strong></a></li>
-<li><a href="../1040-scoping-review.html"><strong>范围综述</strong></a></li>
-</ul>
-</section>
+<section id="准备工作" class="level2">
+<h2 class="anchored" data-anchor-id="准备工作">准备工作</h2>
+<p>我们将使用 <code>mtcars</code> 数据集进行演示，预测汽车的燃油效率 (<code>mpg</code>)。为了模拟高维数据和共线性，我们将添加一些噪声变量和交互项。</p>
+<section id="加载数据与预处理" class="level3">
+<h3 class="anchored" data-anchor-id="加载数据与预处理">加载数据与预处理</h3>
+<p><code>glmnet</code> 包要求输入数据必须是 <strong>矩阵（Matrix）</strong> 格式，不能是 Dataframe。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 加载数据</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(mtcars)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 生成一些交互项以增加复杂度和共线性</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>mtcars_ext <span class="ot">&lt;-</span> mtcars <span class="sc">%&gt;%</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">wt_hp =</span> wt <span class="sc">*</span> hp,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">drat_disp =</span> drat <span class="sc">*</span> disp,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">qsec_vs =</span> qsec <span class="sc">*</span> vs</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 定义自变量矩阵 (x) 和因变量向量 (y)</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 注意：glmnet 默认会自动进行标准化，所以这里不需要手动 scale</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>x <span class="ot">&lt;-</span> <span class="fu">as.matrix</span>(mtcars_ext <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="sc">-</span>mpg))</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>y <span class="ot">&lt;-</span> mtcars_ext<span class="sc">$</span>mpg</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 划分训练集和测试集</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>train_index <span class="ot">&lt;-</span> <span class="fu">createDataPartition</span>(y, <span class="at">p =</span> <span class="fl">0.7</span>, <span class="at">list =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>x_train <span class="ot">&lt;-</span> x[train_index, ]</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>y_train <span class="ot">&lt;-</span> y[train_index]</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>x_test <span class="ot">&lt;-</span> x[<span class="sc">-</span>train_index, ]</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>y_test <span class="ot">&lt;-</span> y[<span class="sc">-</span>train_index]</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="fu">dim</span>(x_train)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 24 13</code></pre>
 </div>
-<style>
-/* 禁用此页面的所有自动编号 */
-h2::before, h3::before {
-  content: none !important;
-  counter-increment: none !important;
-}
+</div>
+<hr>
+</section>
+</section>
+<section id="岭回归-ridge-regression-1" class="level2">
+<h2 class="anchored" data-anchor-id="岭回归-ridge-regression-1">岭回归 (Ridge Regression)</h2>
+<p>在 <code>glmnet</code> 中，设置参数 <code>alpha = 0</code> 即为岭回归。</p>
+<section id="训练模型" class="level3">
+<h3 class="anchored" data-anchor-id="训练模型">1. 训练模型</h3>
+<p>我们需要选择一个最优的惩罚系数 <span class="math inline">\(\lambda\)</span>（Lambda）。<code>glmnet</code> 会自动计算一系列 <span class="math inline">\(\lambda\)</span> 值。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 训练岭回归模型</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># alpha = 0 表示 Ridge</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>fit_ridge <span class="ot">&lt;-</span> <span class="fu">glmnet</span>(x_train, y_train, <span class="at">alpha =</span> <span class="dv">0</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘制系数随 lambda 变化的路径图</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(fit_ridge, <span class="at">xvar =</span> <span class="st">"lambda"</span>, <span class="at">label =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span>(<span class="st">"Ridge Regression Coefficients Path"</span>, <span class="at">line =</span> <span class="fl">2.5</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1104-ridge-lasso_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>图中每一条线代表一个变量的系数。随着 <span class="math inline">\(\lambda\)</span>（横坐标，对数标度）变大，惩罚力度增加，所有系数都趋向于 0。</p>
+</section>
+<section id="交叉验证选择最佳-lambda" class="level3">
+<h3 class="anchored" data-anchor-id="交叉验证选择最佳-lambda">2. 交叉验证选择最佳 Lambda</h3>
+<p>我们使用 <code>cv.glmnet</code> 进行 k 折交叉验证（默认 10 折），找出均方误差（MSE）最小的 <span class="math inline">\(\lambda\)</span>。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 交叉验证</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>cv_ridge <span class="ot">&lt;-</span> <span class="fu">cv.glmnet</span>(x_train, y_train, <span class="at">alpha =</span> <span class="dv">0</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘制 CV 误差图</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(cv_ridge)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1104-ridge-lasso_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看最佳 lambda</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>best_lambda_ridge <span class="ot">&lt;-</span> cv_ridge<span class="sc">$</span>lambda.min</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"最佳 Lambda (min):"</span>, best_lambda_ridge, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>最佳 Lambda (min): 2.884685 </code></pre>
+</div>
+</div>
+<p>图中： * 左侧虚线：<code>lambda.min</code>，即 MSE 最小的 <span class="math inline">\(\lambda\)</span>。 * 右侧虚线：<code>lambda.1se</code>，即在最小 MSE 的一个标准误范围内，模型最简单的 <span class="math inline">\(\lambda\)</span>（更强的正则化）。</p>
+</section>
+<section id="模型预测与评估" class="level3">
+<h3 class="anchored" data-anchor-id="模型预测与评估">3. 模型预测与评估</h3>
+<p>使用最佳 <span class="math inline">\(\lambda\)</span> 在测试集上进行预测。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 预测</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>pred_ridge <span class="ot">&lt;-</span> <span class="fu">predict</span>(cv_ridge, <span class="at">s =</span> best_lambda_ridge, <span class="at">newx =</span> x_test)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 计算 RMSE</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>rmse_ridge <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((y_test <span class="sc">-</span> pred_ridge)<span class="sc">^</span><span class="dv">2</span>))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Ridge RMSE:"</span>, rmse_ridge, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Ridge RMSE: 2.121316 </code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="lasso-回归" class="level2">
+<h2 class="anchored" data-anchor-id="lasso-回归">Lasso 回归</h2>
+<p>设置参数 <code>alpha = 1</code> 即为 Lasso 回归。</p>
+<section id="训练模型与可视化" class="level3">
+<h3 class="anchored" data-anchor-id="训练模型与可视化">1. 训练模型与可视化</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 训练 Lasso 模型</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>fit_lasso <span class="ot">&lt;-</span> <span class="fu">glmnet</span>(x_train, y_train, <span class="at">alpha =</span> <span class="dv">1</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 绘制系数路径图</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(fit_lasso, <span class="at">xvar =</span> <span class="st">"lambda"</span>, <span class="at">label =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span>(<span class="st">"Lasso Regression Coefficients Path"</span>, <span class="at">line =</span> <span class="fl">2.5</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1104-ridge-lasso_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p><strong>注意观察</strong>：与 Ridge 不同，Lasso 的系数路径中，随着 <span class="math inline">\(\lambda\)</span> 增大，变量系数是<strong>逐个</strong>变为 0 的。这就是 Lasso 能够进行特征选择的原因。</p>
+</section>
+<section id="交叉验证选择-lambda" class="level3">
+<h3 class="anchored" data-anchor-id="交叉验证选择-lambda">2. 交叉验证选择 Lambda</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>cv_lasso <span class="ot">&lt;-</span> <span class="fu">cv.glmnet</span>(x_train, y_train, <span class="at">alpha =</span> <span class="dv">1</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(cv_lasso)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="1104-ridge-lasso_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>best_lambda_lasso <span class="ot">&lt;-</span> cv_lasso<span class="sc">$</span>lambda.min</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"最佳 Lambda (min):"</span>, best_lambda_lasso, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>最佳 Lambda (min): 0.9228876 </code></pre>
+</div>
+</div>
+</section>
+<section id="查看被筛选出的变量" class="level3">
+<h3 class="anchored" data-anchor-id="查看被筛选出的变量">3. 查看被筛选出的变量</h3>
+<p>使用最佳 <span class="math inline">\(\lambda\)</span> 查看哪些变量的系数不为 0。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 提取系数</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>coef_lasso <span class="ot">&lt;-</span> <span class="fu">coef</span>(cv_lasso, <span class="at">s =</span> best_lambda_lasso)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 转换为数据框展示非零系数</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>coef_df <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(<span class="fu">as.matrix</span>(coef_lasso))</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(coef_df) <span class="ot">&lt;-</span> <span class="st">"Coefficient"</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>coef_df <span class="sc">%&gt;%</span> </span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Coefficient <span class="sc">!=</span> <span class="dv">0</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(<span class="fu">abs</span>(Coefficient)))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>            Coefficient
+(Intercept) 35.90020392
+wt          -3.57503165
+cyl         -0.31200143
+hp          -0.01553831</code></pre>
+</div>
+</div>
+</section>
+<section id="模型预测与评估-1" class="level3">
+<h3 class="anchored" data-anchor-id="模型预测与评估-1">4. 模型预测与评估</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>pred_lasso <span class="ot">&lt;-</span> <span class="fu">predict</span>(cv_lasso, <span class="at">s =</span> best_lambda_lasso, <span class="at">newx =</span> x_test)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>rmse_lasso <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((y_test <span class="sc">-</span> pred_lasso)<span class="sc">^</span><span class="dv">2</span>))</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Lasso RMSE:"</span>, rmse_lasso, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Lasso RMSE: 2.463194 </code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+<section id="弹性网络-elastic-net-1" class="level2">
+<h2 class="anchored" data-anchor-id="弹性网络-elastic-net-1">弹性网络 (Elastic Net)</h2>
+<p>如果希望结合两者的优点（既能筛选变量，又处理共线性群组效应），可以使用 Elastic Net。通常我们可以通过遍历 <code>alpha</code> (0 到 1 之间) 来寻找最优组合，或者直接指定一个中间值（如 0.5）。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 训练 Elastic Net (alpha = 0.5)</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>cv_elnet <span class="ot">&lt;-</span> <span class="fu">cv.glmnet</span>(x_train, y_train, <span class="at">alpha =</span> <span class="fl">0.5</span>)</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>best_lambda_elnet <span class="ot">&lt;-</span> cv_elnet<span class="sc">$</span>lambda.min</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>pred_elnet <span class="ot">&lt;-</span> <span class="fu">predict</span>(cv_elnet, <span class="at">s =</span> best_lambda_elnet, <span class="at">newx =</span> x_test)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>rmse_elnet <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((y_test <span class="sc">-</span> pred_elnet)<span class="sc">^</span><span class="dv">2</span>))</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Elastic Net (alpha=0.5) RMSE:"</span>, rmse_elnet, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Elastic Net (alpha=0.5) RMSE: 2.429518 </code></pre>
+</div>
+</div>
+<hr>
+</section>
+<section id="总结与对比" class="level2">
+<h2 class="anchored" data-anchor-id="总结与对比">总结与对比</h2>
+<p>最后，我们将三种模型在测试集上的表现进行对比。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>results <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">Model =</span> <span class="fu">c</span>(<span class="st">"Ridge"</span>, <span class="st">"Lasso"</span>, <span class="st">"Elastic Net"</span>),</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">RMSE =</span> <span class="fu">c</span>(rmse_ridge, rmse_lasso, rmse_elnet)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>results <span class="sc">%&gt;%</span> </span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(RMSE) <span class="sc">%&gt;%</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">"模型性能对比 (RMSE)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>模型性能对比 (RMSE)</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Model</th>
+<th style="text-align: right;">RMSE</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Ridge</td>
+<td style="text-align: right;">2.121</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Elastic Net</td>
+<td style="text-align: right;">2.430</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Lasso</td>
+<td style="text-align: right;">2.463</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<section id="方法选择指南" class="level3">
+<h3 class="anchored" data-anchor-id="方法选择指南">方法选择指南</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">特性</th>
+<th style="text-align: left;">Ridge (岭回归)</th>
+<th style="text-align: left;">Lasso (套索回归)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>惩罚项</strong></td>
+<td style="text-align: left;">L2 (平方)</td>
+<td style="text-align: left;">L1 (绝对值)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>特征选择</strong></td>
+<td style="text-align: left;">否 (系数接近 0 但不为 0)</td>
+<td style="text-align: left;"><strong>是</strong> (系数可以为 0)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>多重共线性</strong></td>
+<td style="text-align: left;">很好地处理，保留相关变量</td>
+<td style="text-align: left;">倾向于从相关变量中选一个，忽略其他的</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>适用场景</strong></td>
+<td style="text-align: left;">变量都有用，主要为了防止过拟合</td>
+<td style="text-align: left;">认为只有部分变量有用，需要稀疏模型</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>解释性</strong></td>
+<td style="text-align: left;">较低 (所有变量都在模型中)</td>
+<td style="text-align: left;"><strong>较高</strong> (模型更简单)</td>
+</tr>
+</tbody>
+</table>
+<p>在实际应用中，如果你的特征数量远大于样本量 (<span class="math inline">\(p &gt; n\)</span>），或者你怀疑只有少数特征起作用，Lasso 是更好的选择；如果你希望保留所有特征的影响，Ridge 可能表现更稳健。</p>
+</section>
+</section>
+<section id="参考文献" class="level2">
+<h2 class="anchored" data-anchor-id="参考文献">参考文献</h2>
+<ol type="1">
+<li>Friedman, J., Hastie, T., &amp; Tibshirani, R. (2010). Regularization Paths for Generalized Linear Models via Coordinate Descent. <em>Journal of Statistical Software</em>, 33(1), 1-22.</li>
+<li>Zou, H., &amp; Hastie, T. (2005). Regularization and variable selection via the elastic net. <em>Journal of the Royal Statistical Society: Series B</em>, 67(2), 301-320.</li>
+</ol>
 
-section.level2, section.level3 {
-  counter-reset: none !important;
-}
 
-#title-block-header {
-  margin-bottom: 1rem !important;
-}
-
-.hero-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  color: white !important;
-  padding: 2rem !important;
-  border-radius: 16px !important;
-  margin-bottom: 1.5rem !important;
-  margin-top: 0 !important;
-  text-align: center !important;
-}
-
-.hero-section * {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-
-.hero-section h2 {
-  color: white !important;
-  border-bottom: none !important;
-  margin-top: 0 !important;
-  margin-bottom: 0.5rem !important;
-  font-size: 1.6rem !important;
-}
-
-.hero-section p {
-  color: rgba(255,255,255,0.9) !important;
-  font-size: 1rem !important;
-  max-width: 700px !important;
-  margin: 0 auto !important;
-}
-
-.method-categories {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.category-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  border: 1px solid #e5e7eb;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.category-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
-}
-
-.category-card h3 {
-  font-size: 1.1rem;
-  color: #1f2937;
-  margin-top: 0;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid #e0e7ff;
-}
-
-.category-card p {
-  font-size: 0.85rem;
-  color: #6b7280;
-  margin-bottom: 0.75rem;
-}
-
-.category-card ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.category-card li {
-  padding: 0.4rem 0;
-  font-size: 0.9rem;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.category-card li:last-child {
-  border-bottom: none;
-}
-
-.category-card a {
-  color: #4f46e5;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.category-card a:hover {
-  color: #3730a3;
-}
-
-@media (max-width: 768px) {
-  .method-categories {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-section {
-    padding: 1.5rem;
-  }
-
-  .hero-section h2 {
-    font-size: 1.4rem;
-  }
-}
-</style>
-
-
+</section>
+</section>
 
 </main> <!-- /main -->
 <!-- Hypothesis 文字划线评论功能 -->
@@ -4407,5 +4626,5 @@ section.level2, section.level3 {
 
 
 
-<script src="../site_libs/quarto-html/zenscroll-min.js"></script>
+<script src="site_libs/quarto-html/zenscroll-min.js"></script>
 </body></html>

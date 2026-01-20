@@ -127,6 +127,7 @@
 | :--- | :--- | :--- | :--- |
 | **ANOVA** | ⭐ | [教程链接](1036-anova.html) | 多组均值比较 |
 | **线性回归** | ⭐ | [教程链接](1021-linear-regression.html) | 连续因变量预测 |
+| **岭回归与 Lasso** | ⭐⭐ | [教程链接](1104-ridge-lasso.html) | 解决共线性与变量筛选 |
 | **Logistic 回归** | ⭐ | [教程链接](1019-logistic.html) | 二分类结局预测 |
 | **Poisson/负二项回归** | ⭐ | [教程链接](1026-poisson.html) | 计数数据建模 |
 | **有序回归** | ⭐ | [教程链接](1093-ordinal-regression.html) | 有序分类结局建模 |
