@@ -44,7 +44,11 @@ metadata:
 
 - 自动更新 `doc/_quarto.yml` 的侧边栏入口，确保页面能被索引。
 - 若渲染报依赖缺失，先在终端安装所需 R 包后再渲染；除非依赖体积过大或环境不合适，否则应安装依赖，确保 `quarto render` 能产出图片。
-- 预览新教程后执行：`quarto preview doc/index.qmd`，确认无报错。
+- 必须完成 3 项 render 验证且全部成功：
+  - `quarto render doc/<当前文章>`
+  - `quarto render doc/index.qmd`
+  - `quarto render doc/sections/<对应分类>.qmd`
+- 三项 render 全部通过后再执行：`quarto preview doc/index.qmd`，确认无报错。
 - **更新 `doc/0001-guide.rmd`**：在对应分类表格中添加新教程条目，保持与现有格式一致。
 - 渲染完成后询问是否提交；用户确认后执行 commit，并按需 push。
 

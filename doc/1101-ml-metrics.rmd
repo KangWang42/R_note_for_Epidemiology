@@ -1,0 +1,243 @@
+---
+title: 机器学习预测指标与使用场景
+subtitle: "分类、回归与概率预测的指标选择与大小理解"
+date: "2026-01-20"
+image: images/1101-ml-metrics-cover.svg
+categories:
+- 机器学习与AI
+- 机器学习框架
+- 模型评估
+- 评估指标
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1101-ml-metrics-"
+)
+```
+
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(rsample)
+library(yardstick)
+library(tibble)
+```
+
+## 教程目标与适用场景
+
+预测指标决定了模型是否“好用”。同一个模型在不同指标下可能表现完全相反。
+本教程系统整理机器学习常见预测指标、适用场景与数值大小的解读方式，覆盖分类、回归与概率预测。
+
+**适用场景**
+
+- 二分类/多分类任务的指标选择
+- 不平衡数据中的评估陷阱
+- 回归误差指标的大小理解
+- 概率输出的校准与风险评估
+
+## 核心概念与指标体系
+
+预测指标主要分为三类：
+
+1. **分类指标**：Accuracy、Precision、Recall、F1、ROC AUC、PR AUC
+2. **回归指标**：MAE、RMSE、R2、MAPE
+3. **概率指标**：Log Loss、Brier Score、校准曲线
+
+指标的“大小理解”通常遵循以下原则：
+
+- **越大越好**：Accuracy、Precision、Recall、F1、AUC、AUPRC、R2
+- **越小越好**：MAE、RMSE、MAPE、Log Loss、Brier
+
+但这些数值必须结合**基线**（例如随机预测或均值预测）和**数据分布**（例如正类比例）一起解释。
+
+## 指标选择的场景映射
+
+| 场景 | 首选指标 | 典型原因 |
+|---|---|---|
+| 类别平衡、关注整体正确率 | Accuracy | 直观、易沟通 |
+| 正类稀少、误报成本高 | Precision / PR AUC | 控制误报 |
+| 正类稀少、漏报成本高 | Recall / PR AUC | 降低漏报 |
+| 需要阈值无关比较 | ROC AUC | 区分度稳定 |
+| 回归任务、偏差惩罚小 | MAE | 抗离群 |
+| 回归任务、强调大误差 | RMSE | 放大大误差 |
+| 需要概率质量评估 | Log Loss / Brier | 衡量概率校准 |
+
+## 数据准备与示例设计
+
+下面构建两个可复现示例：
+
+1. **不平衡二分类**：用于展示 Accuracy 的误导与 PR AUC 的价值。
+2. **连续回归**：对比 MAE、RMSE 与 R2 的差异。
+
+## 代码实现：不平衡分类指标
+
+### 1. 生成不平衡二分类数据
+
+```{r data-imbalance}
+set.seed(42)
+
+n <- 2500
+
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+lin_pred <- -3.0 + 1.1 * x1 + 0.6 * x2
+prob <- plogis(lin_pred)
+
+outcome <- rbinom(n, 1, prob)
+data_cls <- tibble(
+  outcome = factor(outcome, levels = c(0, 1), labels = c("neg", "pos")),
+  x1, x2
+)
+
+cat("实际正类比例:", round(mean(outcome), 3), "\n")
+```
+
+### 2. 切分数据并训练模型
+
+```{r fit-imbalance}
+set.seed(42)
+split_cls <- initial_split(data_cls, prop = 0.7, strata = outcome)
+train_cls <- training(split_cls)
+test_cls <- testing(split_cls)
+
+model_cls <- glm(outcome ~ x1 + x2, data = train_cls, family = binomial)
+test_cls <- test_cls %>%
+  mutate(score = predict(model_cls, newdata = test_cls, type = "response"))
+```
+
+### 3. 常见指标计算
+
+```{r classification-metrics}
+pred_cls <- test_cls %>%
+  mutate(pred_class = ifelse(score >= 0.5, "pos", "neg")) %>%
+  mutate(pred_class = factor(pred_class, levels = c("neg", "pos")))
+
+metrics_cls <- metric_set(accuracy, bal_accuracy, precision, recall, f_meas)
+metrics_cls(pred_cls, truth = outcome, estimate = pred_class, event_level = "second")
+```
+
+```{r classification-prob-metrics}
+roc_value <- roc_auc(test_cls, truth = outcome, score, event_level = "second")
+pr_value <- pr_auc(test_cls, truth = outcome, score, event_level = "second")
+
+roc_value
+pr_value
+```
+
+### 4. ROC 与 PR 曲线
+
+```{r classification-curves}
+roc_curve_df <- roc_curve(test_cls, truth = outcome, score, event_level = "second")
+pr_curve_df <- pr_curve(test_cls, truth = outcome, score, event_level = "second")
+
+ggplot(roc_curve_df, aes(x = 1 - specificity, y = sensitivity)) +
+  geom_line(color = "#2563eb", linewidth = 1.1) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray60") +
+  labs(title = "ROC 曲线", x = "1 - 特异度", y = "灵敏度")
+```
+
+```{r classification-pr-curve}
+ggplot(pr_curve_df, aes(x = recall, y = precision)) +
+  geom_line(color = "#f97316", linewidth = 1.1) +
+  geom_hline(yintercept = mean(test_cls$outcome == "pos"),
+    linetype = "dashed", color = "gray60"
+  ) +
+  labs(title = "PR 曲线", x = "召回率", y = "精确率")
+```
+
+## 分类指标的大小理解
+
+### Accuracy 与 Balanced Accuracy
+
+- **Accuracy** 会被类别不平衡放大，应与正类比例一起解读。
+- **Balanced Accuracy** 相当于 (Sensitivity + Specificity) / 2，更适合不平衡数据。
+
+### Precision、Recall 与 F1
+
+- **Precision 高**表示误报少，适合高成本误报场景。
+- **Recall 高**表示漏报少，适合高风险漏报场景。
+- **F1** 平衡 Precision 与 Recall，但可能掩盖业务偏好。
+
+### ROC AUC 与 PR AUC
+
+- **ROC AUC = 0.5** 接近随机，**> 0.8** 通常可视为可用区分度。
+- **PR AUC** 需要对比正类比例基线，正类比例越低，基线越低。
+
+## 代码实现：回归指标
+
+### 1. 生成回归数据
+
+```{r regression-data}
+set.seed(42)
+
+n_reg <- 1200
+x1 <- runif(n_reg, -2, 2)
+x2 <- rnorm(n_reg)
+y <- 2 + 1.5 * x1 - 0.8 * x2 + rnorm(n_reg, sd = 0.6)
+
+data_reg <- tibble(y, x1, x2)
+```
+
+### 2. 训练模型并计算指标
+
+```{r regression-metrics}
+set.seed(42)
+split_reg <- initial_split(data_reg, prop = 0.7)
+train_reg <- training(split_reg)
+test_reg <- testing(split_reg)
+
+model_reg <- lm(y ~ x1 + x2, data = train_reg)
+test_reg <- test_reg %>%
+  mutate(pred = predict(model_reg, newdata = test_reg))
+
+metrics_reg <- metric_set(mae, rmse, rsq)
+metrics_reg(test_reg, truth = y, estimate = pred)
+```
+
+## 回归指标的大小理解
+
+- **MAE** 与 **RMSE** 与目标变量同量纲，越接近 0 越好。
+- **RMSE > MAE** 是常见现象，说明存在较大误差点。
+- **R2** 表示解释度，可能出现负值，意味着模型不如均值预测。
+
+## 多分类与平均方式
+
+多分类任务需选择 **macro/micro/weighted** 平均方式：
+
+- **macro**：各类别等权，适合关注小类表现。
+- **micro**：按样本加权，更接近总体准确率。
+- **weighted**：按类别频率加权，介于 macro 与 micro 之间。
+
+## 概率指标与校准
+
+分类模型若输出概率，应关注 **Log Loss** 与 **Brier Score**：
+
+- Log Loss 对自信且错误的预测惩罚很大
+- Brier Score 同时衡量区分度与校准性
+
+这类指标的“大小理解”必须结合基线模型，如“始终预测正类比例”的简单模型。
+
+## 常见错误与纠偏
+
+1. **只看 Accuracy**：不平衡数据下容易高估模型性能。
+2. **忽略正类比例**：PR AUC 与 Precision 必须报告 prevalence。
+3. **混用阈值与概率指标**：ROC/PR 使用连续评分，Accuracy/F1 使用分类阈值。
+4. **R2 盲目追求高值**：需同时报告 MAE/RMSE 解释实际误差。
+
+## 进阶扩展
+
+1. **阈值优化**：使用成本矩阵或决策曲线选择阈值。
+2. **时间序列评估**：滚动验证与时间窗口指标。
+3. **不确定性评估**：预测区间与分位数损失。
+
+## 小结
+
+预测指标的选择应与业务目标一致。分类任务中，AUC 适合对比区分度，PR AUC 适合不平衡场景；回归任务需同时报告 MAE 与 RMSE；概率输出需要 Log Loss 或 Brier 校准。指标的“大小”只有在基线与场景明确时才有意义。
