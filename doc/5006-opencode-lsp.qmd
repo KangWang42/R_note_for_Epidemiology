@@ -1,0 +1,231 @@
+---
+title: 'OpenCode LSP: 语言服务器协议实用指南'
+date: '2026-01-20'
+categories:
+- 机器学习与AI
+- AI 工具
+image: images/5006-opencode-lsp-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## 工具简介与定位
+
+**LSP（Language Server Protocol，语言服务器协议）** 是一种标准化的编辑器与语言工具通信协议。OpenCode 将 LSP 诊断集成到对话流程中，使模型能基于真实语义诊断来理解代码问题，而不是只靠文本推测。
+
+### 官方文档
+
+- OpenCode 官方 LSP 文档：https://opencode.ai/docs/lsp
+- OpenCode 中文文档（社区翻译）：https://www.opencodecn.com/docs/lsp
+
+### 与同类工具的核心差异
+
+OpenCode 的 LSP 集成不是为了 IDE 式的“手动操作”，而是**把诊断结果作为上下文反馈给模型**。这意味着：
+
+- LLM 的推理能引用真实诊断结果
+- 修改后能更快验证是否修复
+- 大型代码库中的隐性错误更容易被定位
+
+---
+
+## 适用场景分析
+
+### 1. 复杂项目中的快速定位
+
+当项目包含多语言或大型依赖时，OpenCode 通过 LSP 诊断帮助模型捕捉真正的语义错误，避免“看似合理”的错误修改。
+
+### 2. 代码修改后的即时回归检查
+
+在变更完成后立即触发诊断反馈，判断修改是否引入新问题，减少来回试错。
+
+### 3. 与团队规范对齐
+
+LSP 诊断能够反映类型错误、未使用变量、语法问题等，保证 AI 修改更贴近团队既有质量门槛。
+
+### 4. 多语言项目的统一体验
+
+OpenCode 内置多个语言服务器，可在同一工作流中统一获得诊断反馈，适合混合语言项目。
+
+### 不适用的场景
+
+- 仅需简单文本改动、无代码运行风险的内容
+- 完全没有语言服务器可用的极小型脚本环境
+
+---
+
+## 工具对比
+
+| 方案 | 诊断来源 | 对 LLM 的作用 | 适用场景 |
+|:---|:---|:---|:---|
+| **OpenCode LSP 集成** | 项目语言服务器 | 直接反馈给模型 | 代码修改与调试 |
+| IDE 内置 LSP | IDE 面板 | 需人工观察 | 人工编写代码 |
+| 不启用 LSP | 无诊断 | 仅靠文本推理 | 简单脚本或快速改动 |
+
+结论：当需要可靠的自动化修改时，OpenCode LSP 是最佳选择；纯手写场景更适合 IDE 内置 LSP。
+
+---
+
+## 安装与配置
+
+OpenCode 会在检测到文件扩展名并满足条件时自动启用对应 LSP 服务器。部分语言会自动下载服务器，部分语言则要求本地已安装对应运行时或工具链。
+
+### 常见依赖要求
+
+- C/C++：`clangd` 或系统工具链
+- Python：需要 `pyright`
+- TypeScript：项目内需要 `typescript` 依赖
+- Java：需要 Java SDK 21+
+- .NET：C# / F# 需要 .NET SDK
+
+### 全局禁用 LSP
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": false
+}
+```
+
+### 禁用特定语言服务器
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "typescript": {
+      "disabled": true
+    }
+  }
+}
+```
+
+### 自定义 LSP 服务器
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "custom-lsp": {
+      "command": ["custom-lsp-server", "--stdio"],
+      "extensions": [".custom"],
+      "env": {
+        "CUSTOM_LSP_MODE": "strict"
+      }
+    }
+  }
+}
+```
+
+### 禁止自动下载
+
+```text
+OPENCODE_DISABLE_LSP_DOWNLOAD=true
+```
+
+---
+
+## 功能详解与操作指南
+
+### 自动启用与检测
+
+当 OpenCode 打开文件时，会根据扩展名匹配已启用的 LSP 服务器，并在必要时启动对应进程。只要满足前置要求，诊断将自动注入到模型上下文。
+
+### 诊断反馈
+
+诊断信息会在模型回复过程中体现，帮助模型识别：
+
+- 语法错误
+- 类型错误
+- 未定义符号
+- 不符合语言规则的写法
+
+### 自定义扩展名
+
+如果项目使用自定义后缀或 DSL，可通过 `extensions` 将文件绑定到指定 LSP，从而获得诊断支持。
+
+---
+
+## 场景实战
+
+### 场景 1：大型 TypeScript 项目重构
+
+**问题**：修改后出现类型错误但位置不明确。  
+**操作步骤**：
+
+1. 确认项目安装 `typescript` 依赖
+2. 让 OpenCode 打开目标文件并执行修改
+3. 观察 LSP 诊断反馈，定位错误来源
+4. 根据诊断提示调整类型定义或导入
+
+**效果**：模型能基于诊断信息快速修复类型错误，减少多次尝试。
+
+### 场景 2：Python 脚本优化
+
+**问题**：代码改动后出现未定义变量和导入错误。  
+**操作步骤**：
+
+1. 安装 `pyright`
+2. 在 OpenCode 中打开脚本并修改
+3. 读取诊断反馈，补充缺失的导入或变量
+
+**效果**：语言级问题被即时捕获，避免运行时错误。
+
+### 场景 3：自定义 DSL 项目
+
+**问题**：自定义文件扩展名缺少诊断支持。  
+**操作步骤**：
+
+1. 配置自定义 LSP 服务器
+2. 绑定项目自定义扩展名
+3. 重启 OpenCode 并重新打开文件
+
+**效果**：即使是非主流语言，也能在 OpenCode 中获得诊断支持。
+
+---
+
+## 效果优化与最佳实践
+
+- 优先在项目根目录启动 OpenCode，保证 LSP 能识别项目结构
+- 对多语言项目，确保各语言的工具链都可用
+- 对于性能敏感项目，可针对不需要的语言禁用 LSP
+- 使用 `initialization` 参数注入语言服务器配置，以匹配团队规则
+
+---
+
+## 常见问题与解答
+
+### Q1：为什么没有任何诊断反馈？
+
+可能原因包括：
+
+- 语言服务器未安装或不可用
+- 项目中缺少关键依赖（如 TypeScript 的 `typescript`）
+- 已在配置中禁用该 LSP
+
+### Q2：自动下载失败怎么办？
+
+检查网络环境，或设置 `OPENCODE_DISABLE_LSP_DOWNLOAD=true` 并手动安装语言服务器。
+
+### Q3：自定义 LSP 不生效？
+
+请确认：
+
+- `command` 可在终端中直接执行
+- `extensions` 与文件后缀一致
+- 没有和其他 LSP 冲突
+
+---
+
+## 扩展资源
+
+- OpenCode 官方 LSP 文档：https://opencode.ai/docs/lsp
+- OpenCode 中文文档：https://www.opencodecn.com/docs/lsp
+- Language Server Protocol 官方规范：https://microsoft.github.io/language-server-protocol/
+
+---
+
+## 总结
+
+OpenCode 的 LSP 集成让 AI 的修改过程更接近真实开发体验：诊断信息直接驱动模型推理，减少无效试错，提高代码修复与重构质量。对于大型或多语言项目，启用 LSP 是提升可靠性的关键一步。
