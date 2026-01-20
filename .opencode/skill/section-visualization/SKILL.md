@@ -1,10 +1,6 @@
 ---
 name: section-visualization
-description: 生成数据可视化类页面的超详细教程内容，强调图形设计与复现步骤
-compatibility: opencode
-metadata:
-  audience: intermediate
-  section: visualization
+description: 生成数据可视化类页面的超详细教程内容，强调图形设计与复现步骤；当需要撰写可视化教程、图形说明或美化指南时使用
 ---
 
 ## 我做什么
@@ -52,7 +48,4 @@ metadata:
 - **同步更新 `README.md`**：在对应分类的折叠块中添加新教程条目，保持与 guide 内容一致。README 中的教程链接使用 `.html` 后缀。
 - 渲染完成后询问是否提交；用户确认后执行 commit，并push。
 
-## 何时使用我
-
-当需要撰写可视化教程、图形说明或美化指南c时使用。
 若未指定图表类型或数据结构，请先提出澄清问题。

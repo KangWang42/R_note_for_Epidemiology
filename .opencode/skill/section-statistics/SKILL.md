@@ -1,10 +1,6 @@
 ---
 name: section-statistics
-description: 生成统计分析方法类页面的超详细教程内容，强调理论背景与实操流程
-compatibility: opencode
-metadata:
-  audience: intermediate
-  section: statistics
+description: 生成统计分析方法类页面的超详细教程内容，强调理论背景与实操流程；当需要撰写回归、生存、因果、贝叶斯等统计方法教程时使用
 ---
 
 ## 我做什么
@@ -54,7 +50,4 @@ metadata:
 - **同步更新 `README.md`**：在对应分类的折叠块中添加新教程条目，保持与 guide 内容一致。README 中的教程链接使用 `.html` 后缀。
 - 渲染完成后询问是否提交；用户确认后执行 commit，并push。
 
-## 何时使用我
-
-当需要撰写回归、生存、因果、贝叶斯等统计方法教程时使用。
 如果未说明研究问题或数据类型，请先提出澄清问题。

@@ -1,10 +1,6 @@
 ---
 name: section-r-packages
-description: 生成实用R包分类页面的超详细教程内容，强调包的场景、功能与实践
-compatibility: opencode
-metadata:
-  audience: intermediate
-  section: r-packages
+description: 生成实用 R 包分类页面的超详细教程内容，强调包的场景、功能与实践；当需要编写 R 包教程/功能总览/实践指南类页面时使用
 ---
 
 ## 我做什么
@@ -54,7 +50,4 @@ metadata:
 - **同步更新 `README.md`**：在对应分类的折叠块中添加新教程条目，保持与 guide 内容一致。README 中的教程链接使用 `.html` 后缀。
 - 渲染完成后询问是否提交；用户确认后执行 commit，并push。
 
-## 何时使用我
-
-当需要编写“R包教程/功能总览/实践指南”类页面时使用。
 如果未指定具体包名或场景，请先提出澄清问题。

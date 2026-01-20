@@ -1,10 +1,6 @@
 ---
 name: section-ml-ai
-description: 生成机器学习与AI类页面的超详细教程内容，强调框架选择与实践流程
-compatibility: opencode
-metadata:
-  audience: intermediate
-  section: ml-ai
+description: 生成机器学习与 AI 类页面的超详细教程内容，强调框架选择与实践流程；当需要撰写机器学习框架、算法或深度学习教程时使用
 ---
 
 ## 我做什么
@@ -54,7 +50,4 @@ metadata:
 - **同步更新 `README.md`**：在对应分类的折叠块中添加新教程条目，保持与 guide 内容一致。README 中的教程链接使用 `.html` 后缀。
 - 渲染完成后询问是否提交；用户确认后执行 commit并push。
 
-## 何时使用我
-
-当需要撰写机器学习框架、算法或深度学习教程时使用。
 若未指定任务类型或指标，请先提出澄清问题。
