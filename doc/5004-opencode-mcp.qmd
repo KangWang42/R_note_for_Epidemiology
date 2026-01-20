@@ -1,0 +1,611 @@
+---
+title: 'OpenCode MCP: 模型上下文协议详解'
+date: '2026-01-20'
+categories:
+- 机器学习与AI
+- AI 工具
+image: figure/default-cover1.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## 什么是 MCP
+
+**MCP（Model Context Protocol，模型上下文协议）** 是一种标准化协议，允许 AI 应用安全地访问外部数据源和工具。通过 MCP，OpenCode 可以与外部服务、数据库、API 等进行交互，大大扩展了 AI 代理的能力边界。
+
+### 核心概念
+
+| 概念 | 说明 |
+|:-----|:-----|
+| **MCP 服务器** | 提供工具和资源的外部服务 |
+| **工具（Tools）** | MCP 服务器暴露的可调用功能 |
+| **资源（Resources）** | MCP 服务器提供的数据访问 |
+| **协议** | 标准化的通信方式（本地 stdio / 远程 HTTP） |
+
+### 为什么需要 MCP
+
+1. **能力扩展**：让 AI 代理访问实时数据、执行外部操作
+2. **标准化**：统一的协议，任何符合规范的服务器都能接入
+3. **安全性**：可控的权限和认证机制
+4. **生态系统**：丰富的社区 MCP 服务器
+
+::: {.callout-tip}
+## 类比理解
+
+如果把 OpenCode 比作一个工人，MCP 就像是各种专业工具——需要什么能力就接入什么 MCP 服务器。
+:::
+
+---
+
+## MCP 类型
+
+OpenCode 支持两种类型的 MCP 服务器：
+
+### 本地 MCP 服务器
+
+通过本地进程启动，使用 stdio 通信。
+
+**适用场景**：
+
+- 需要访问本地文件系统
+- 需要运行本地命令
+- 对延迟敏感的操作
+
+**配置示例**：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "my-local-mcp": {
+      "type": "local",
+      "command": ["npx", "-y", "my-mcp-command"],
+      "enabled": true,
+      "environment": {
+        "MY_ENV_VAR": "my_env_var_value"
+      }
+    }
+  }
+}
+```
+
+### 远程 MCP 服务器
+
+通过 HTTP/HTTPS 连接，支持 OAuth 认证。
+
+**适用场景**：
+
+- 云服务集成（Sentry、GitHub 等）
+- 需要持久连接的服务
+- 多用户共享的 MCP
+
+**配置示例**：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "my-remote-mcp": {
+      "type": "remote",
+      "url": "https://mcp.example.com/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer MY_API_KEY"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 配置详解
+
+### 本地 MCP 配置选项
+
+| 选项 | 类型 | 必需 | 说明 |
+|:-----|:-----|:-----|:-----|
+| `type` | String | ✅ | 必须是 `"local"` |
+| `command` | Array | ✅ | 运行 MCP 服务器的命令和参数 |
+| `environment` | Object | ❌ | 环境变量 |
+| `enabled` | Boolean | ❌ | 启用或禁用（默认启用） |
+| `timeout` | Number | ❌ | 超时时间（毫秒，默认 5000） |
+
+### 远程 MCP 配置选项
+
+| 选项 | 类型 | 必需 | 说明 |
+|:-----|:-----|:-----|:-----|
+| `type` | String | ✅ | 必须是 `"remote"` |
+| `url` | String | ✅ | 远程 MCP 服务器 URL |
+| `enabled` | Boolean | ❌ | 启用或禁用 |
+| `headers` | Object | ❌ | 请求头 |
+| `oauth` | Object | ❌ | OAuth 认证配置 |
+| `timeout` | Number | ❌ | 超时时间（毫秒，默认 5000） |
+
+---
+
+## OAuth 认证
+
+OpenCode 自动处理远程 MCP 服务器的 OAuth 认证。
+
+### 自动认证
+
+对于支持 OAuth 的 MCP 服务器，无需特殊配置：
+
+```json
+{
+  "mcp": {
+    "my-oauth-server": {
+      "type": "remote",
+      "url": "https://mcp.example.com/mcp"
+    }
+  }
+}
+```
+
+首次使用时，OpenCode 会自动检测并启动 OAuth 流程。
+
+### 预注册认证
+
+如果有来自 MCP 服务器提供商的客户端凭据：
+
+```json
+{
+  "mcp": {
+    "my-oauth-server": {
+      "type": "remote",
+      "url": "https://mcp.example.com/mcp",
+      "oauth": {
+        "clientId": "{env:MY_MCP_CLIENT_ID}",
+        "clientSecret": "{env:MY_MCP_CLIENT_SECRET}",
+        "scope": "tools:read tools:execute"
+      }
+    }
+  }
+}
+```
+
+### 手动认证管理
+
+```bash
+# 与特定 MCP 服务器进行认证
+opencode mcp auth my-oauth-server
+
+# 列出所有 MCP 服务器及其认证状态
+opencode mcp list
+
+# 删除存储的凭据
+opencode mcp logout my-oauth-server
+```
+
+凭据存储在 `~/.local/share/opencode/mcp-auth.json`。
+
+---
+
+## 常用 MCP 服务器示例
+
+### Context7（文档获取）
+
+获取最新的库文档：
+
+```json
+{
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  }
+}
+```
+
+**使用**：
+
+```
+Configure a Cloudflare Worker script to cache JSON API responses for five minutes. use context7
+```
+
+### grep.app（代码搜索）
+
+搜索 GitHub 上的代码片段：
+
+```json
+{
+  "mcp": {
+    "gh_grep": {
+      "type": "remote",
+      "url": "https://mcp.grep.app"
+    }
+  }
+}
+```
+
+**使用**：
+
+```
+What's the right way to set a custom domain in an SST Astro component? use the gh_grep tool
+```
+
+### Sentry（错误监控）
+
+与 Sentry 项目和问题交互：
+
+```json
+{
+  "mcp": {
+    "sentry": {
+      "type": "remote",
+      "url": "https://mcp.sentry.dev/mcp",
+      "oauth": {}
+    }
+  }
+}
+```
+
+首次使用前需要认证：
+
+```bash
+opencode mcp auth sentry
+```
+
+**使用**：
+
+```
+Show me the latest unresolved issues in my project. use sentry
+```
+
+### GitHub MCP
+
+与 GitHub 仓库交互：
+
+```json
+{
+  "mcp": {
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+### 文件系统 MCP
+
+访问本地文件系统：
+
+```json
+{
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/dir"]
+    }
+  }
+}
+```
+
+### PostgreSQL MCP
+
+连接 PostgreSQL 数据库：
+
+```json
+{
+  "mcp": {
+    "postgres": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres"],
+      "environment": {
+        "DATABASE_URL": "{env:DATABASE_URL}"
+      }
+    }
+  }
+}
+```
+
+---
+
+## MCP 管理
+
+### 全局启用/禁用
+
+在 `tools` 配置中控制 MCP 工具：
+
+```json
+{
+  "mcp": {
+    "my-mcp-foo": {
+      "type": "local",
+      "command": ["bun", "x", "my-mcp-command-foo"]
+    },
+    "my-mcp-bar": {
+      "type": "local",
+      "command": ["bun", "x", "my-mcp-command-bar"]
+    }
+  },
+  "tools": {
+    "my-mcp-foo": false
+  }
+}
+```
+
+使用通配符禁用多个 MCP：
+
+```json
+{
+  "tools": {
+    "my-mcp*": false
+  }
+}
+```
+
+### 按代理启用
+
+只为特定代理启用 MCP：
+
+```json
+{
+  "mcp": {
+    "my-mcp": {
+      "type": "local",
+      "command": ["bun", "x", "my-mcp-command"],
+      "enabled": true
+    }
+  },
+  "tools": {
+    "my-mcp*": false
+  },
+  "agent": {
+    "my-agent": {
+      "tools": {
+        "my-mcp*": true
+      }
+    }
+  }
+}
+```
+
+这样 MCP 只在 `my-agent` 代理中可用。
+
+---
+
+## 注意事项
+
+::: {.callout-warning}
+## 上下文消耗
+
+MCP 服务器会增加上下文。如果有很多工具，上下文会快速累积。某些 MCP（如 GitHub MCP）可能添加大量 token，容易超出上下文限制。
+
+**建议**：谨慎选择启用哪些 MCP 服务器。
+:::
+
+### 性能考虑
+
+| 因素 | 建议 |
+|:-----|:-----|
+| MCP 数量 | 只启用必要的 MCP |
+| 超时设置 | 根据网络情况调整 timeout |
+| 工具过滤 | 使用 tools 配置禁用不需要的工具 |
+
+### 安全考虑
+
+| 因素 | 建议 |
+|:-----|:-----|
+| API 密钥 | 使用 `{env:VAR_NAME}` 引用环境变量 |
+| 权限范围 | OAuth scope 最小化原则 |
+| 网络访问 | 远程 MCP 确保 HTTPS |
+
+---
+
+## R 语言相关 MCP 示例
+
+### 自定义 R 文档 MCP
+
+如果你想创建一个 R 包文档查询的 MCP（概念示例）：
+
+```json
+{
+  "mcp": {
+    "r-docs": {
+      "type": "local",
+      "command": ["node", "path/to/r-docs-mcp.js"],
+      "environment": {
+        "R_HOME": "{env:R_HOME}"
+      }
+    }
+  }
+}
+```
+
+### 使用 Context7 查询 R 包文档
+
+```
+How to use the dplyr::across function with tidyselect helpers? use context7
+```
+
+### 使用 grep.app 搜索 R 代码示例
+
+```
+Find examples of ggplot2 geom_smooth with method='gam' in R projects. use gh_grep tool
+```
+
+---
+
+## 自定义 MCP 开发
+
+如果需要开发自定义 MCP 服务器，参考：
+
+### MCP 规范
+
+- [Model Context Protocol 官网](https://modelcontextprotocol.io)
+- [MCP SDK](https://github.com/modelcontextprotocol/sdk)
+
+### 基本结构
+
+MCP 服务器需要实现：
+
+1. **工具列表**：返回可用工具及其描述
+2. **工具调用**：执行工具并返回结果
+3. **资源访问**（可选）：提供数据资源
+
+### 示例框架（Node.js）
+
+```javascript
+// 使用 @modelcontextprotocol/sdk
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+
+const server = new Server({
+  name: 'my-mcp-server',
+  version: '1.0.0',
+});
+
+// 注册工具
+server.setRequestHandler('tools/list', async () => ({
+  tools: [
+    {
+      name: 'my_tool',
+      description: 'My custom tool',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          input: { type: 'string' }
+        }
+      }
+    }
+  ]
+}));
+
+// 实现工具调用
+server.setRequestHandler('tools/call', async (request) => {
+  if (request.params.name === 'my_tool') {
+    // 执行工具逻辑
+    return { content: [{ type: 'text', text: 'Result' }] };
+  }
+});
+
+server.connect(process.stdin, process.stdout);
+```
+
+---
+
+## 完整配置示例
+
+### R 数据科学项目配置
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "gh_grep": {
+      "type": "remote",
+      "url": "https://mcp.grep.app"
+    },
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "./data"]
+    }
+  },
+  "tools": {
+    "filesystem_*": true,
+    "context7_*": true,
+    "gh_grep_*": true
+  }
+}
+```
+
+### 精简配置（减少上下文消耗）
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  },
+  "tools": {
+    "context7_*": true
+  },
+  "agent": {
+    "plan": {
+      "tools": {
+        "context7_*": false
+      }
+    }
+  }
+}
+```
+
+---
+
+## 故障排除
+
+### MCP 服务器启动失败
+
+1. 检查命令是否正确
+2. 确认依赖已安装（npx 包、环境等）
+3. 查看 OpenCode 日志
+
+### 认证问题
+
+1. 检查 OAuth 配置
+2. 运行 `opencode mcp auth <server-name>` 重新认证
+3. 检查凭据文件权限
+
+### 工具不可用
+
+1. 确认 MCP 服务器已启用
+2. 检查 `tools` 配置是否禁用了工具
+3. 验证代理是否有权限访问该工具
+
+### 超时问题
+
+增加 timeout 值：
+
+```json
+{
+  "mcp": {
+    "my-mcp": {
+      "type": "remote",
+      "url": "https://slow-server.com",
+      "timeout": 30000
+    }
+  }
+}
+```
+
+---
+
+## 资源链接
+
+| 资源 | 链接 |
+|:-----|:-----|
+| MCP 官方文档 | [modelcontextprotocol.io](https://modelcontextprotocol.io) |
+| OpenCode MCP 文档 | [opencodecn.com/docs/mcp-servers](https://www.opencodecn.com/docs/mcp-servers) |
+| MCP SDK | [github.com/modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/sdk) |
+| Context7 | [context7.com](https://context7.com) |
+| grep.app | [grep.app](https://grep.app) |
+
+---
+
+## 总结
+
+MCP 是 OpenCode 扩展能力的关键机制：
+
+| 优势 | 说明 |
+|:-----|:-----|
+| **能力扩展** | 接入文档、搜索、数据库等外部服务 |
+| **标准化** | 统一协议，丰富的社区 MCP |
+| **灵活配置** | 按需启用，按代理分配 |
+| **安全可控** | OAuth 认证，权限管理 |
+
+从 Context7（文档）和 grep.app（代码搜索）这两个基础 MCP 开始，根据需求逐步扩展你的 MCP 工具箱！

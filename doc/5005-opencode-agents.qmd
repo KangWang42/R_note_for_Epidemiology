@@ -1,0 +1,760 @@
+---
+title: 'OpenCode Agents: 主代理与子代理详解'
+date: '2026-01-20'
+categories:
+- 机器学习与AI
+- AI 工具
+image: figure/default-cover1.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## 什么是 Agents
+
+**代理（Agents）** 是 OpenCode 中可配置的专门 AI 助手。它们允许你创建具有自定义提示、模型和工具访问权限的专用工具，针对特定任务和工作流程进行优化。
+
+### 核心概念
+
+| 概念 | 说明 |
+|:-----|:-----|
+| **主代理（Primary）** | 你直接交互的主要助手，处理主对话 |
+| **子代理（Subagent）** | 被主代理调用的专门助手，处理特定任务 |
+| **模式切换** | 使用 Tab 键在主代理间切换 |
+| **@ 提及** | 使用 `@agent-name` 手动调用子代理 |
+
+### 代理类型对比
+
+| 类型 | 调用方式 | 工具访问 | 主要用途 |
+|:-----|:---------|:---------|:---------|
+| **主代理** | Tab 切换 | 完整 | 主要开发工作 |
+| **子代理** | @ 提及 / 自动调用 | 可限制 | 专门任务 |
+
+---
+
+## 内置代理
+
+OpenCode 内置四个代理：两个主代理和两个子代理。
+
+### Build（主代理）
+
+**默认**的主代理，启用了所有工具。
+
+| 属性 | 值 |
+|:-----|:---|
+| 模式 | primary |
+| 工具 | 全部启用 |
+| 用途 | 需要完全访问文件操作和系统命令的开发工作 |
+
+这是大多数开发任务的标准代理。
+
+### Plan（主代理）
+
+为**规划和分析**设计的受限代理。
+
+| 属性 | 值 |
+|:-----|:---|
+| 模式 | primary |
+| 工具 | 受限（文件编辑、bash 默认设为 `ask`） |
+| 用途 | 分析代码、建议更改、创建计划（不实际修改代码） |
+
+**默认权限设置**：
+
+- `file edits`：所有写入、补丁和编辑 → `ask`
+- `bash`：所有 bash 命令 → `ask`
+
+::: {.callout-tip}
+## 使用 Plan 代理
+
+当你希望 AI 分析代码、审查建议或创建计划，而不对代码库进行任何实际修改时，切换到 Plan 代理。
+:::
+
+### General（子代理）
+
+通用子代理，用于研究复杂问题、搜索代码和执行多步骤任务。
+
+| 属性 | 值 |
+|:-----|:---|
+| 模式 | subagent |
+| 用途 | 搜索关键字或文件，不确定能否快速找到匹配时 |
+
+### Explore（子代理）
+
+专门用于**快速探索代码库**的代理。
+
+| 属性 | 值 |
+|:-----|:---|
+| 模式 | subagent |
+| 用途 | 快速通过模式查找文件、搜索代码中的关键字、回答关于代码库的问题 |
+
+---
+
+## 使用方法
+
+### 切换主代理
+
+使用 **Tab** 键在主代理之间循环切换：
+
+```
+[Tab] 切换到 Plan 模式
+
+我想为这个项目添加数据导出功能，请帮我设计一个方案。
+
+[Tab] 切换回 Build 模式
+
+听起来不错，开始实现吧。
+```
+
+也可以使用配置的 `switch_agent` 快捷键。
+
+### 调用子代理
+
+**手动调用**：使用 `@` 提及子代理：
+
+```
+@general 帮我搜索这个函数的实现
+
+@explore 找到所有处理缺失值的函数
+```
+
+**自动调用**：主代理会根据任务描述自动调用合适的子代理。
+
+### 会话导航
+
+当子代理创建子会话时，可以在会话间导航：
+
+| 快捷键 | 作用 |
+|:-------|:-----|
+| `<Leader>+Right` | 向前循环：父 → 子1 → 子2 → … → 父 |
+| `<Leader>+Left` | 向后循环：父 ← 子1 ← 子2 ← … ← 父 |
+
+---
+
+## 配置代理
+
+代理可以通过两种方式配置：JSON 或 Markdown 文件。
+
+### JSON 配置
+
+在 `opencode.json` 中配置：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "{file:./prompts/build.txt}",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "model": "anthropic/claude-haiku-4-20250514",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    },
+    "code-reviewer": {
+      "description": "审查代码的最佳实践和潜在问题",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "你是一个代码审查员。专注于安全性、性能和可维护性。",
+      "tools": {
+        "write": false,
+        "edit": false
+      }
+    }
+  }
+}
+```
+
+### Markdown 配置
+
+在以下位置创建 Markdown 文件：
+
+- **全局**：`~/.config/opencode/agent/`
+- **项目级**：`.opencode/agent/`
+
+文件名成为代理名称（如 `review.md` 创建 `review` 代理）。
+
+**示例**：`~/.config/opencode/agent/review.md`
+
+```markdown
+---
+description: 审查代码质量和最佳实践
+mode: subagent
+model: anthropic/claude-sonnet-4-20250514
+temperature: 0.1
+tools:
+  write: false
+  edit: false
+  bash: false
+---
+
+你处于代码审查模式。专注于：
+
+- 代码质量和最佳实践
+- 潜在的错误和边缘情况
+- 性能影响
+- 安全考虑
+
+提供建设性反馈，但不直接进行更改。
+```
+
+---
+
+## 配置选项详解
+
+### description（必需）
+
+代理功能和使用时机的简要描述：
+
+```json
+{
+  "agent": {
+    "review": {
+      "description": "审查代码的最佳实践和潜在问题"
+    }
+  }
+}
+```
+
+### mode
+
+控制代理的模式：
+
+| 值 | 说明 |
+|:---|:-----|
+| `primary` | 主代理，可通过 Tab 切换 |
+| `subagent` | 子代理，通过 @ 提及或自动调用 |
+| `all` | 两种模式都可用（默认） |
+
+```json
+{
+  "agent": {
+    "review": {
+      "mode": "subagent"
+    }
+  }
+}
+```
+
+### model
+
+覆盖此代理使用的模型：
+
+```json
+{
+  "agent": {
+    "plan": {
+      "model": "anthropic/claude-haiku-4-20250514"
+    }
+  }
+}
+```
+
+模型 ID 格式：`provider/model-id`
+
+::: {.callout-note}
+## 模型默认值
+
+- 主代理：使用全局配置的模型
+- 子代理：使用调用它的主代理的模型
+:::
+
+### temperature
+
+控制响应的随机性和创造性：
+
+```json
+{
+  "agent": {
+    "plan": {
+      "temperature": 0.1
+    },
+    "creative": {
+      "temperature": 0.8
+    }
+  }
+}
+```
+
+| 范围 | 特点 | 适用场景 |
+|:-----|:-----|:---------|
+| 0.0-0.2 | 集中、确定性 | 代码分析、规划 |
+| 0.3-0.5 | 平衡 | 一般开发任务 |
+| 0.6-1.0 | 创造性、变化性 | 头脑风暴、探索 |
+
+### maxSteps
+
+限制代理迭代次数：
+
+```json
+{
+  "agent": {
+    "quick-thinker": {
+      "description": "有限迭代的快速推理",
+      "prompt": "你是一个快速思考者。用最少的步骤解决问题。",
+      "maxSteps": 5
+    }
+  }
+}
+```
+
+达到限制时，代理会以工作总结和推荐任务进行响应。
+
+### prompt
+
+指定自定义系统提示：
+
+```json
+{
+  "agent": {
+    "review": {
+      "prompt": "{file:./prompts/code-review.txt}"
+    }
+  }
+}
+```
+
+路径相对于配置文件所在位置。
+
+### tools
+
+控制可用工具：
+
+```json
+{
+  "agent": {
+    "plan": {
+      "tools": {
+        "write": false,
+        "bash": false,
+        "mymcp_*": false
+      }
+    }
+  }
+}
+```
+
+支持通配符禁用多个工具。
+
+### permissions
+
+配置操作权限：
+
+| 值 | 说明 |
+|:---|:-----|
+| `"ask"` | 运行工具前提示批准 |
+| `"allow"` | 允许操作无需批准 |
+| `"deny"` | 禁用工具 |
+
+```json
+{
+  "agent": {
+    "build": {
+      "permission": {
+        "edit": "ask",
+        "bash": "allow"
+      }
+    }
+  }
+}
+```
+
+### hidden
+
+从 `@` 自动完成菜单中隐藏子代理：
+
+```json
+{
+  "agent": {
+    "internal-helper": {
+      "mode": "subagent",
+      "hidden": true
+    }
+  }
+}
+```
+
+隐藏的代理仍可被主代理通过 Task 工具调用。
+
+### disable
+
+禁用代理：
+
+```json
+{
+  "agent": {
+    "review": {
+      "disable": true
+    }
+  }
+}
+```
+
+---
+
+## 创建自定义代理
+
+### 使用命令创建
+
+```bash
+opencode agent create
+```
+
+交互式命令会：
+
+1. 询问保存位置（全局或项目）
+2. 描述代理功能
+3. 生成系统提示和标识符
+4. 选择可用工具
+5. 创建 Markdown 配置文件
+
+### 手动创建
+
+**步骤 1**：创建目录
+
+```bash
+# 项目级代理
+mkdir -p .opencode/agent
+
+# 全局代理
+mkdir -p ~/.config/opencode/agent
+```
+
+**步骤 2**：创建配置文件
+
+```bash
+touch .opencode/agent/r-helper.md
+```
+
+**步骤 3**：编写配置
+
+```markdown
+---
+description: R 语言编程专家
+mode: subagent
+model: anthropic/claude-sonnet-4-20250514
+tools:
+  bash: true
+  write: false
+---
+
+你是一个 R 语言编程专家。
+
+擅长领域：
+- tidyverse 数据处理
+- ggplot2 可视化
+- 统计建模
+- 性能优化
+
+回答问题时：
+- 优先给出可运行的代码示例
+- 解释代码的关键步骤
+- 提供替代方案
+```
+
+**步骤 4**：使用代理
+
+```
+@r-helper 如何用 dplyr 实现分组汇总？
+```
+
+---
+
+## 实用代理示例
+
+### 文档代理
+
+```markdown
+<!-- ~/.config/opencode/agent/docs-writer.md -->
+---
+description: 编写和维护项目文档
+mode: subagent
+tools:
+  bash: false
+---
+
+你是一名技术作家。创建清晰、全面的文档。
+
+专注于：
+
+- 清晰的解释
+- 适当的结构
+- 代码示例
+- 用户友好的语言
+```
+
+### 安全审计员
+
+```markdown
+<!-- ~/.config/opencode/agent/security-auditor.md -->
+---
+description: 执行安全审计并识别漏洞
+mode: subagent
+tools:
+  write: false
+  edit: false
+---
+
+你是安全专家。专注于识别潜在的安全问题。
+
+寻找：
+
+- 输入验证漏洞
+- 身份验证和授权缺陷
+- 数据暴露风险
+- 依赖项漏洞
+- 配置安全问题
+```
+
+### R 代码审查员
+
+```markdown
+<!-- .opencode/agent/r-reviewer.md -->
+---
+description: 审查 R 代码质量和最佳实践
+mode: subagent
+temperature: 0.1
+tools:
+  write: false
+  edit: false
+  bash: false
+---
+
+你是 R 语言代码审查专家。专注于：
+
+## 代码质量
+- tidyverse 风格一致性
+- 函数命名规范（snake_case）
+- 代码可读性和注释
+
+## 性能
+- 向量化操作 vs 循环
+- 内存效率
+- data.table vs dplyr 选择
+
+## 最佳实践
+- 避免使用 attach()
+- 使用 here::here() 处理路径
+- 适当的错误处理
+- 可重复性（set.seed）
+
+## 安全
+- 不要硬编码凭据
+- 输入验证
+- SQL 注入防护
+
+提供建设性反馈，指出问题并建议改进。
+```
+
+### 数据分析助手
+
+```markdown
+<!-- .opencode/agent/data-analyst.md -->
+---
+description: 数据分析和统计建模助手
+mode: subagent
+tools:
+  bash: true
+  write: true
+  edit: true
+---
+
+你是数据分析专家，擅长使用 R 进行：
+
+## 探索性数据分析
+- 数据摘要和可视化
+- 缺失值分析
+- 异常值检测
+
+## 统计建模
+- 线性回归
+- Logistic 回归
+- 生存分析
+- 因果推断
+
+## 最佳实践
+- 使用 tidyverse 生态系统
+- 生成可重复的分析报告
+- 遵循项目的代码风格
+
+分析时：
+1. 先理解数据结构
+2. 检查数据质量
+3. 选择合适的方法
+4. 解释结果含义
+```
+
+### 可视化专家
+
+```markdown
+<!-- .opencode/agent/viz-expert.md -->
+---
+description: 数据可视化专家
+mode: subagent
+tools:
+  bash: true
+  write: true
+---
+
+你是数据可视化专家，擅长使用 ggplot2 创建：
+
+## 图表类型
+- 分布图：箱线图、直方图、密度图
+- 关系图：散点图、热图、相关矩阵
+- 时间序列：折线图、面积图
+- 比较图：柱状图、森林图
+
+## 美化技巧
+- 科学期刊配色方案
+- 中英文字体混排
+- 专业图例和标签
+- 多图组合排版
+
+## 输出标准
+- 300 DPI PNG/PDF
+- 适合论文发表
+- 色盲友好配色
+
+创建图表时：
+1. 理解数据和目的
+2. 选择合适的图表类型
+3. 应用美化设置
+4. 提供 ggsave 导出代码
+```
+
+---
+
+## 代理协作模式
+
+### 规划-执行模式
+
+```
+[Tab 切换到 Plan]
+
+我需要为这个项目添加数据验证功能。请帮我分析现有代码并制定计划。
+
+[Plan 代理分析后]
+
+[Tab 切换到 Build]
+
+请按照计划实现数据验证功能。
+```
+
+### 子代理协作
+
+```
+帮我分析这个数据集。
+
+@explore 先找到所有数据处理相关的函数
+
+@data-analyst 分析数据质量并建议清洗步骤
+
+@viz-expert 创建数据分布的可视化
+```
+
+### 代码审查工作流
+
+```
+我完成了新功能的开发。
+
+@r-reviewer 请审查 R/analysis.R 的代码质量
+
+@security-auditor 检查是否有安全问题
+```
+
+---
+
+## 最佳实践
+
+### 代理设计原则
+
+| 原则 | 说明 |
+|:-----|:-----|
+| **单一职责** | 每个代理专注一个领域 |
+| **最小权限** | 只启用必要的工具 |
+| **清晰描述** | description 要准确描述用途 |
+| **合适温度** | 分析任务低温度，创意任务高温度 |
+
+### 何时创建自定义代理
+
+- 有重复的专门任务
+- 需要特定的提示或约束
+- 想要限制工具访问
+- 需要不同的模型或温度设置
+
+### 代理命名建议
+
+| 场景 | 命名示例 |
+|:-----|:---------|
+| 代码审查 | `code-reviewer`, `r-reviewer` |
+| 文档写作 | `docs-writer`, `api-documenter` |
+| 安全审计 | `security-auditor` |
+| 数据分析 | `data-analyst`, `stats-helper` |
+| 可视化 | `viz-expert`, `plot-maker` |
+
+---
+
+## 故障排除
+
+### 代理不显示
+
+1. 检查配置文件位置是否正确
+2. 验证 YAML frontmatter 语法
+3. 确认 `description` 字段存在
+
+### 工具不可用
+
+1. 检查 `tools` 配置
+2. 确认全局 tools 没有禁用该工具
+3. 验证 MCP 服务器正常运行
+
+### 子代理无法调用
+
+1. 确认 `mode` 设置正确
+2. 检查 `hidden` 是否为 true
+3. 验证代理名称拼写
+
+---
+
+## 资源链接
+
+| 资源 | 链接 |
+|:-----|:-----|
+| 官方 Agents 文档 | [opencodecn.com/docs/agents](https://www.opencodecn.com/docs/agents) |
+| 工具配置文档 | [opencodecn.com/docs/tools](https://www.opencodecn.com/docs/tools) |
+| 权限配置文档 | [opencodecn.com/docs/permissions](https://www.opencodecn.com/docs/permissions) |
+| Oh My OpenCode 代理 | [ohmyopencode.com/agents](https://ohmyopencode.com/agents/) |
+
+---
+
+## 总结
+
+OpenCode 的代理系统提供了强大的定制能力：
+
+| 特性 | 说明 |
+|:-----|:-----|
+| **主代理** | Tab 切换，Build（开发）和 Plan（规划）|
+| **子代理** | @ 提及调用，专门任务 |
+| **灵活配置** | JSON 或 Markdown 配置 |
+| **权限控制** | 工具和权限精细管理 |
+| **模型选择** | 按代理指定不同模型 |
+
+对于 R 语言用户，建议创建以下自定义代理：
+
+1. **r-reviewer**：代码审查
+2. **data-analyst**：数据分析
+3. **viz-expert**：可视化专家
+4. **stats-helper**：统计建模
+
+从内置代理开始使用，根据需求逐步创建自定义代理，打造你的专属 AI 团队！
