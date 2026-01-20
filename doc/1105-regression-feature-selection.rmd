@@ -1,0 +1,262 @@
+---
+title: '回归模型中的特征筛选'
+date: '2025-01-20'
+categories:
+- 统计分析方法
+- 基础回归
+- 统计建模
+- 变量筛选
+image: figure/feature-selection-cover.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(leaps)    # 最佳子集筛选
+library(MASS)     # 逐步回归
+library(caret)    # 机器学习工具
+set.seed(42)
+```
+
+# 回归模型中的特征筛选
+
+在构建回归模型时，我们经常面临一个问题：**在众多的候选预测变量中，哪些是真正重要的？**
+
+特征筛选（Feature Selection），或称为变量选择，旨在从原始特征集合中筛选出最具预测力且冗余度最低的子集。它不仅能提高模型的泛化能力，防止过拟合，还能简化模型，增强其可解释性。
+
+本教程将介绍经典统计学中的三种主要特征筛选方法：
+1.  **逐步回归 (Stepwise Regression)**：基于 AIC/BIC 的自动化筛选。
+2.  **最佳子集选择 (Best Subset Selection)**：遍历所有可能的组合，寻找全局最优。
+3.  **相对重要性分析 (Relative Importance)**：量化每个变量对 R² 的贡献。
+
+---
+
+## 核心概念
+
+### 1. 评价标准：AIC 与 BIC
+
+在比较不同模型时，我们不能仅看 $R^2$，因为随着变量增加，$R^2$ 必然增加。我们需要引入惩罚项来权衡模型的拟合优度和复杂度。
+
+*   **AIC (赤池信息准则)**：$AIC = 2k - 2\ln(L)$。倾向于选择较复杂的模型，适合预测。
+*   **BIC (贝叶斯信息准则)**：$BIC = \ln(n)k - 2\ln(L)$。对变量数量惩罚更重，倾向于选择更简单的模型，适合解释。
+*   **调整 $R^2$ (Adjusted $R^2$)**：考虑了变量数量的 $R^2$，只有当新变量真正有用时才会增加。
+*   **Mallows' $C_p$**：评估模型偏差的指标，理想模型的 $C_p \approx p$（$p$ 为参数个数）。
+
+### 2. 筛选策略
+
+*   **前向选择 (Forward Selection)**：从空模型开始，每次加入一个提升最大的变量，直到不再显著提升。
+*   **后向消除 (Backward Elimination)**：从全模型开始，每次剔除一个最不显著的变量，直到剩下的都显著。
+*   **双向逐步 (Stepwise Both)**：结合上述两者，每步既可以加也可以减。
+
+---
+
+## 数据准备
+
+我们将继续使用 `mtcars` 数据集，并添加一些噪声变量来模拟真实场景中的筛选过程。
+
+```{r}
+# 加载数据
+data(mtcars)
+
+# 添加一些随机噪声变量
+mtcars_noise <- mtcars %>%
+  mutate(
+    noise1 = rnorm(n()),
+    noise2 = runif(n()),
+    noise3 = rnorm(n(), mean = 10, sd = 5)
+  )
+
+# 查看数据概览
+glimpse(mtcars_noise)
+```
+
+---
+
+## 逐步回归 (Stepwise Regression)
+
+逐步回归是最常用的自动化筛选方法。R 语言中的 `step()` 函数基于 AIC 进行筛选。
+
+### 1. 后向消除 (Backward Elimination)
+
+通常推荐从全模型开始进行后向消除，因为它能考虑到变量间的联合效应。
+
+```{r}
+# 建立全模型（包含所有变量）
+full_model <- lm(mpg ~ ., data = mtcars_noise)
+
+# 进行后向逐步回归
+# trace = 0 不显示过程，trace = 1 显示详细过程
+step_backward <- step(full_model, direction = "backward", trace = 0)
+
+# 查看最终模型
+summary(step_backward)
+```
+
+### 2. 前向选择 (Forward Selection)
+
+前向选择需要指定一个“最小模型”（通常是空模型或只含核心变量的模型）和一个“最大模型”（全模型）。
+
+```{r}
+# 建立空模型
+null_model <- lm(mpg ~ 1, data = mtcars_noise)
+
+# 进行前向逐步回归
+step_forward <- step(null_model, 
+                     scope = list(lower = null_model, upper = full_model),
+                     direction = "forward", 
+                     trace = 0)
+
+summary(step_forward)
+```
+
+### 3. 双向逐步回归 (Both Direction)
+
+结合了前向和后向的优点，通常能得到更稳健的结果。
+
+```{r}
+step_both <- step(null_model, 
+                  scope = list(lower = null_model, upper = full_model),
+                  direction = "both", 
+                  trace = 0)
+
+summary(step_both)
+```
+
+**结果解读**：比较这三个模型，我们可能会发现它们选择了略有不同的变量组合。通常双向逐步回归的结果是首选。注意观察我们的噪声变量 (`noise1`, `noise2`, `noise3`) 是否被正确剔除了。
+
+---
+
+## 最佳子集选择 (Best Subset Selection)
+
+逐步回归是一种“贪心算法”，它每一步只看当前最优，不一定能找到全局最优解。**最佳子集选择**则会尝试所有可能的变量组合。
+
+我们将使用 `leaps` 包中的 `regsubsets()` 函数。
+
+```{r}
+# 执行最佳子集选择
+# nvmax: 最大允许的变量数
+regfit_full <- regsubsets(mpg ~ ., data = mtcars_noise, nvmax = 13)
+reg_summary <- summary(regfit_full)
+
+# 查看摘要结构
+names(reg_summary)
+```
+
+### 结果可视化与模型选择
+
+我们需要根据 RSS, Adjusted $R^2$, $C_p$, BIC 等指标来选择最优的模型大小。
+
+```{r fig.height=8, fig.width=10}
+par(mfrow = c(2, 2))
+
+# 1. RSS
+plot(reg_summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+# 2. Adjusted R2
+plot(reg_summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+# 标记最大点
+max_adjr2 <- which.max(reg_summary$adjr2)
+points(max_adjr2, reg_summary$adjr2[max_adjr2], col = "red", cex = 2, pch = 20)
+
+# 3. Cp
+plot(reg_summary$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+min_cp <- which.min(reg_summary$cp)
+points(min_cp, reg_summary$cp[min_cp], col = "red", cex = 2, pch = 20)
+abline(0, 1, lty = 2, col = "gray") # 理想线 Cp = p
+
+# 4. BIC
+plot(reg_summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+min_bic <- which.min(reg_summary$bic)
+points(min_bic, reg_summary$bic[min_bic], col = "red", cex = 2, pch = 20)
+```
+
+**解读**：
+*   随着变量数量增加，RSS 会一直下降。
+*   Adjusted $R^2$ 会先升后降，峰值点对应的变量数通常是一个不错的选择。
+*   BIC 惩罚最重，通常会选择更小的模型（比如只选 3-4 个变量）。
+
+### 查看被选中的变量
+
+假设我们根据 BIC选择了最优的变量个数（例如 `min_bic`），我们可以查看具体是哪几个变量。
+
+```{r}
+# 查看 BIC 最小时的模型系数
+coef(regfit_full, min_bic)
+```
+
+也可以使用 `plot()` 函数直接可视化所有模型的排名：
+
+```{r}
+par(mfrow = c(1, 1))
+plot(regfit_full, scale = "bic", main = "Best Subset Selection (BIC)")
+```
+
+图中的每一行代表一个模型，黑块表示该变量被包含在模型中。y 轴显示 BIC 值，越靠上的模型 BIC 越小（越好）。
+
+---
+
+## 变量重要性评估
+
+有时我们不仅想知道“选哪些变量”，还想知道“哪些变量最重要”。虽然自动化筛选方法给出了“入选名单”，但没有直接给出“重要性排名”。
+
+我们可以通过**标准化回归系数**来评估变量的相对重要性。
+
+```{r}
+# 1. 对数据进行标准化 (Z-score)
+mtcars_scaled <- mtcars_noise %>%
+  mutate(across(everything(), scale))
+
+# 2. 拟合模型
+# 假设我们要评估 wt, cyl, hp, disp 的相对重要性
+model_scaled <- lm(mpg ~ wt + cyl + hp + disp + noise1, data = mtcars_scaled)
+
+# 3. 提取系数并排序
+library(broom)
+tidy(model_scaled) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(importance = abs(estimate)) %>%
+  arrange(desc(importance)) %>%
+  dplyr::select(term, estimate, importance)
+```
+
+**解读**：
+*   **标准化系数的绝对值**越大，说明该变量对结局的影响越大（在控制其他变量后）。
+*   注意：这只是线性关系下的重要性。如果存在非线性关系或交互作用，这种方法可能不准确。
+*   我们的噪声变量 `noise1` 的重要性应该非常接近于 0，排在最后。
+
+---
+
+## 警告与最佳实践
+
+虽然自动化筛选方法很方便，但它们也存在争议和陷阱：
+
+1.  **多重共线性**：如果变量间高度相关（如 `disp` 和 `cyl`），逐步回归可能会随机选择其中一个，导致模型不稳定。此时建议结合 **VIF** 检验或使用 **Lasso/Ridge**。
+2.  **P 值失效**：经过筛选后的模型，其 P 值和标准误通常是偏低的（因为我们已经筛选出了“最好”的变量），不能直接用于假设检验。这被称为 "Post-selection inference" 问题。
+3.  **过拟合**：自动化方法容易挖掘出数据中的偶然噪声。务必在独立测试集上验证模型性能。
+
+### 推荐流程
+
+1.  **领域知识优先**：首先根据专业知识确定必须要保留的变量。
+2.  **共线性检查**：计算 VIF，剔除严重共线性的变量。
+3.  **变量筛选**：
+    *   如果只关注预测精度：可以使用 Lasso 或 Ridge（见相关教程）。
+    *   如果关注解释性：可以使用最佳子集或逐步回归（BIC准则）。
+4.  **稳健性验证**：使用 Bootstrap 或交叉验证来评估被选变量的稳定性。
+
+---
+
+## 总结
+
+| 方法 | 优点 | 缺点 | R 函数 |
+| :--- | :--- | :--- | :--- |
+| **逐步回归** | 计算快，适合变量较多时 | 贪心算法，可能陷入局部最优 | `step()`, `MASS::stepAIC()` |
+| **最佳子集** | 寻找全局最优解 | 计算量大，变量 > 20 时极慢 | `leaps::regsubsets()` |
+| **Lasso** | 能处理共线性，自动归零系数 | 估计有偏（收缩效应） | `glmnet::glmnet()` |
+| **相对重要性** | 量化贡献度，直观 | 线性假设限制 | 标准化系数 / `caret::varImp` |
+
+选择哪种方法取决于你的目标是**预测**（倾向于 AIC/Lasso）还是**解释**（倾向于 BIC/最佳子集/相对重要性）。
+
+## 参考文献
+
+1.  Hocking, R. R. (1976). The Analysis and Selection of Variables in Linear Regression. *Biometrics*, 32(1), 1-49.
+2.  Grömping, U. (2006). Relative Importance for Linear Regression in R: The Package relaimpo. *Journal of Statistical Software*, 17(1), 1-27.
