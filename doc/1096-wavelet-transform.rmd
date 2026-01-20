@@ -1,0 +1,1010 @@
+---
+title: '小波变换：时频分析完全指南'
+date: '2026-01-20'
+categories:
+- 特殊应用
+- 信号处理
+- R包
+- 统计方法
+image: images/1096-wavelet-transform-cover.svg
+description: 从傅里叶变换到小波变换，掌握时频分析的强大工具。涵盖连续/离散小波变换原理、R 语言实现、信号去噪、ECG 分析等实际应用。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 7,
+    dpi = 300
+)
+```
+
+## 前言
+
+在信号分析中，**时域**和**频域**各有局限。小波变换（Wavelet Transform）提供了一种同时分析时间和频率的强大工具，特别适合处理非平稳信号。
+
+### 为什么需要小波变换？
+
+| 方法 | 时域信息 | 频域信息 | 适用场景 |
+|------|----------|----------|----------|
+| **时域分析** | ✓ | ✗ | 周期检测、异常识别 |
+| **傅里叶变换 (FFT)** | ✗ | ✓ | 频谱分析、滤波器设计 |
+| **短时傅里叶 (STFT)** | ✓ | ✓ | 固定时频分辨率 |
+| **小波变换** | ✓ | ✓ | 多分辨率分析 |
+
+小波变换的核心优势在于**多分辨率**：
+- 低频部分使用宽窗口（时间分辨率低，频率分辨率高）
+- 高频部分使用窄窗口（时间分辨率高，频率分辨率低）
+
+---
+
+## 小波变换基础
+
+### 傅里叶变换的局限
+
+傅里叶变换将信号分解为不同频率的正弦波，但它有两个关键问题：
+
+1. **时间信息丢失**：FFT 告诉我们有哪些频率成分，但不告诉我们这些成分何时出现
+2. **窗口困境**：STFT 的窗口大小固定，难以同时兼顾时频分辨率
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(wavelets)
+
+# 设置基本参数
+fs <- 1000  # 采样频率 (Hz)
+t <- seq(0, 2, 1 / fs)  # 2秒时长
+
+# 生成测试信号：非平稳信号
+set.seed(123)
+sig <- c(
+    sin(2 * pi * 10 * t[t <= 1]),              # 前半段: 10Hz
+    sin(2 * pi * 50 * t[t > 1])               # 后半段: 50Hz
+) + rnorm(length(t), 0, 0.2)  # 添加噪声
+
+# 绘制时域信号
+ggplot(data.frame(time = t, signal = sig), aes(x = time, y = signal)) +
+    geom_line(color = "#4e79a7", linewidth = 0.6) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "#e15759") +
+    geom_text(aes(x = 0.5, y = 1.5, label = "10 Hz"), color = "#e15759", size = 4) +
+    geom_text(aes(x = 1.5, y = 1.5, label = "50 Hz"), color = "#e15759", size = 4) +
+    labs(
+        title = "非平稳信号示例",
+        subtitle = "频率在 t=1s 处突然变化",
+        x = "Time (s)",
+        y = "Amplitude"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+### 小波变换的定义
+
+#### 连续小波变换 (CWT)
+
+对于连续信号 $x(t)$，连续小波变换定义为：
+
+$$W(a, b) = \frac{1}{\sqrt{a}} \int_{-\infty}^{\infty} x(t) \psi^*\left(\frac{t - b}{a}\right) dt$$
+
+其中：
+- $a$：尺度（scale），与频率成反比
+- $b$：平移（translation），表示时间位置
+- $\psi(t)$：母小波（mother wavelet）
+- $\psi^*(t)$：母小波的共轭
+
+#### 离散小波变换 (DWT)
+
+离散小波变换对尺度和平移进行离散化：
+
+$$a = 2^j, \quad b = k \cdot 2^j$$
+
+$$W(j, k) = 2^{-j/2} \int_{-\infty}^{\infty} x(t) \psi^*\left(2^{-j}t - k\right) dt$$
+
+### 常用小波基
+
+| 小波类型 | 特点 | 适用场景 |
+|----------|------|----------|
+| **Haar** | 不连续，计算简单 | 快速去噪、压缩 |
+| **Daubechies (dbN)** | 紧支撑，正交 | 信号分解、特征提取 |
+| **Symlets** | 近似对称 | 信号重构 |
+| **Coiflets** | 高阶消失矩 | 信号平滑 |
+| **Morlet** | 复数，频域局域性好 | 时频分析 |
+| **Mexican Hat** | 对称，二阶导数 | 边缘检测 |
+
+---
+
+## R 语言小波变换实现
+
+### 安装必要的包
+
+```{r eval=FALSE}
+# 小波变换相关包
+install.packages("wavelets")      # 离散小波变换
+install.packages("WaveletComp")   # 时间序列小波分析
+install.packages("wmtsa")         # 气象/生态时间序列
+install.packages("biwavelet")     # 交叉小波分析
+```
+
+---
+
+## 连续小波变换 (CWT)
+
+### 使用 wavelets 包
+
+```{r}
+# 连续小波变换（简化实现）
+# 由于 wavelets 包主要支持 DWT，这里我们实现一个基础的 CWT
+
+library(wavelets)
+
+# CWT 基础实现
+cwt_basic <- function(signal, scales, wavelet_func) {
+    n <- length(signal)
+    cwt_matrix <- matrix(0, nrow = length(scales), ncol = n)
+
+    for (i in seq_along(scales)) {
+        scale <- scales[i]
+        for (j in 1:n) {
+            # 小波卷积（简化版）
+            for (k in 1:n) {
+                t <- (j - k) / scale
+                cwt_matrix[i, j] <- cwt_matrix[i, j] + signal[k] * wavelet_func(t)
+            }
+        }
+        cwt_matrix[i, ] <- cwt_matrix[i, ] / sqrt(scale)
+    }
+
+    return(cwt_matrix)
+}
+
+# Morlet 小波
+morlet <- function(t) {
+    exp(-t^2 / 2) * cos(5 * t)
+}
+
+# 定义尺度（对应频率）
+scales <- c(10, 20, 40, 80, 160)  # 尺度值
+frequencies <- fs / scales  # 对应频率
+
+# 计算 CWT
+cwt_result <- cwt_basic(sig, scales, morlet)
+```
+
+### CWT 可视化
+
+```{r}
+# 将 CWT 矩阵转换为长格式数据框
+cwt_df <- expand.grid(
+    Time = t,
+    Scale = scales,
+    Frequency = frequencies
+)
+cwt_df$Power <- as.vector(cwt_result^2)
+
+# 过滤显示范围
+cwt_df_filtered <- cwt_df %>%
+    filter(Frequency >= 5 & Frequency <= 100)
+
+# 绘制时频图
+ggplot(cwt_df_filtered, aes(x = Time, y = Frequency, fill = Power)) +
+    geom_tile() +
+    scale_fill_viridis_c(option = "plasma") +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "white", linewidth = 0.8) +
+    labs(
+        title = "连续小波变换时频图",
+        subtitle = "可以看到 t=1s 处频率成分发生变化",
+        x = "Time (s)",
+        y = "Frequency (Hz)",
+        fill = "Power"
+    ) +
+    theme_minimal(base_size = 14) +
+    coord_cartesian(ylim = c(5, 60))
+```
+
+---
+
+## 离散小波变换 (DWT)
+
+### 使用 wavelets 包
+
+```{r}
+library(wavelets)
+
+# 执行离散小波变换
+dwt_result <- dwt(sig,
+    filter = "d4",  # Daubechies 4 小波
+    n.levels = 6,   # 分解层数
+    boundary = "reflection"  # 边界处理方式
+)
+
+# 查看分解结果
+print(dwt_result)
+```
+
+### 自定义 DWT 可视化
+
+```{r}
+# 提取各层分解结果
+W <- dwt_result@W  # 小波系数（细节）
+V <- dwt_result@V  # 尺度系数（近似）
+levels <- length(W)
+
+# 为每一层创建绘图数据
+dwt_plot_data <- data.frame()
+
+# 原始信号
+dwt_plot_data <- rbind(dwt_plot_data, data.frame(
+    level = "Original",
+    index = seq_along(sig),
+    value = sig
+))
+
+# 各层细节和近似
+for (i in 1:levels) {
+    # 细节系数
+    w_values <- rep(W[[i]], 2^i)
+    w_index <- seq_along(w_values)
+    dwt_plot_data <- rbind(dwt_plot_data, data.frame(
+        level = paste0("Detail D", i),
+        index = w_index,
+        value = w_values
+    ))
+
+    # 近似系数
+    v_values <- rep(V[[i]], 2^i)
+    v_index <- seq_along(v_values)
+    dwt_plot_data <- rbind(dwt_plot_data, data.frame(
+        level = paste0("Approx A", i),
+        index = v_index,
+        value = v_values
+    ))
+}
+
+# 因子化并排序
+dwt_plot_data$level <- factor(dwt_plot_data$level,
+    levels = c("Original",
+                paste0("Detail D", levels:1),
+                paste0("Approx A", levels:1))
+)
+
+# 转换时间为秒
+dwt_plot_data$time <- dwt_plot_data$index / fs
+
+# 绘图
+ggplot(dwt_plot_data, aes(x = time, y = value)) +
+    geom_line(linewidth = 0.4) +
+    facet_wrap(~ level, scales = "free", ncol = 1,
+               strip.position = "right") +
+    labs(
+        title = "离散小波变换分解结果",
+        subtitle = "D = 细节系数（高频），A = 近似系数（低频）",
+        x = "Time (s)",
+        y = ""
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(strip.text = element_text(face = "bold"),
+          strip.background = element_rect(fill = "grey80"))
+```
+
+### 小波重构与信号去噪
+
+```{r}
+# 小波阈值去噪 - 简化演示
+# 注意：完整的去噪需要更精细的重构，这里展示概念
+
+# 1. 提取小波系数
+W <- dwt_result@W  # 细节系数（高频）
+V <- dwt_result@V  # 尺度系数（低频）
+
+# 2. 计算各层能量占比
+n_levels <- length(W)
+energy_by_level <- sapply(1:n_levels, function(i) {
+    sum(W[[i]]^2) / sum(sig^2) * 100
+})
+
+cat("各层能量占比 (%):\n")
+print(round(energy_by_level, 2))
+
+# 3. 简单的去噪演示：只保留主要频率成分
+# 提取近似系数（低频趋势）作为去噪信号
+approx_coeffs <- V[[length(V)]]
+# 重采样到原始长度
+sig_denoised <- approx(seq_along(approx_coeffs), approx_coeffs,
+                     seq_along(sig), method = "constant")$y
+
+cat("原始信号标准差:", round(sd(sig), 4), "\n")
+cat("近似信号标准差:", round(sd(sig_denoised, na.rm = TRUE), 4), "\n")
+
+# 5. 比较原始信号和去噪信号
+comparison_df <- data.frame(
+    time = t,
+    original = sig,
+    denoised = sig_denoised
+)
+
+# 绘制对比图
+comparison_long <- pivot_longer(comparison_df,
+    cols = c(original, denoised),
+    names_to = "Signal", values_to = "Value"
+)
+
+ggplot(comparison_long, aes(x = time, y = Value, color = Signal)) +
+    geom_line(linewidth = 0.6) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
+    scale_color_manual(values = c(original = "#4e79a7", denoised = "#e15759")) +
+    labs(
+        title = "小波去噪效果",
+        subtitle = "软阈值去噪后，信号更平滑但保留了主要特征",
+        x = "Time (s)",
+        y = "Amplitude"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+### 计算去噪信噪比 (SNR)
+
+```{r}
+# 计算信噪比
+calculate_snr <- function(original, denoised) {
+    signal_power <- sum(original^2)
+    noise_power <- sum((original - denoised)^2)
+    10 * log10(signal_power / noise_power)
+}
+
+# 计算原始信号的信噪比（假设噪声方差已知）
+original_snr <- calculate_snr(
+    sig - rnorm(length(sig), 0, 0.2),
+    sig - rnorm(length(sig), 0, 0.2)
+)
+
+# 计算去噪后的信噪比
+denoised_snr <- calculate_snr(
+    sig_denoised - sig,
+    rep(0, length(sig))
+)
+
+cat("原始信号 SNR:", round(original_snr, 2), "dB\n")
+cat("去噪后 SNR:", round(denoised_snr, 2), "dB\n")
+cat("SNR 提升:", round(denoised_snr - original_snr, 2), "dB\n")
+```
+
+---
+
+## 小波系数统计特性
+
+### 小波系数分布
+
+```{r}
+# 提取小波系数用于分析
+coeffs_df <- data.frame()
+
+for (i in 1:levels) {
+    coeffs_df <- rbind(coeffs_df, data.frame(
+        Level = paste0("D", i),
+        Coefficient = as.vector(W[[i]])
+    ))
+}
+
+# 绘制小波系数直方图
+ggplot(coeffs_df, aes(x = Coefficient)) +
+    geom_histogram(aes(fill = Level), bins = 50, alpha = 0.7) +
+    facet_wrap(~ Level, scales = "free", ncol = 3) +
+    labs(
+        title = "小波系数分布",
+        subtitle = "小波系数通常呈现稀疏分布（尖峰厚尾）",
+        x = "Coefficient Value",
+        y = "Frequency",
+        fill = "Level"
+    ) +
+    theme_minimal(base_size = 12) +
+    scale_fill_viridis_d()
+```
+
+### 各层能量分析
+
+```{r}
+# 计算各层能量
+energy_analysis <- data.frame(
+    Level = paste0("D", 1:levels),
+    Energy = sapply(W, function(w) sum(w^2)),
+    StdDev = sapply(W, sd)
+)
+
+energy_analysis <- energy_analysis %>%
+    mutate(Energy_Percent = Energy / sum(Energy) * 100)
+
+# 绘制能量分布
+ggplot(energy_analysis, aes(x = Level, y = Energy_Percent)) +
+    geom_col(aes(fill = Level), show.legend = FALSE) +
+    geom_text(aes(label = paste0(round(Energy_Percent, 1), "%")),
+              vjust = -0.5, size = 3.5) +
+    scale_fill_viridis_d() +
+    labs(
+        title = "各层小波系数能量占比",
+        subtitle = "高频层（D1, D2）通常包含噪声，低频层包含主要信号",
+        x = "Decomposition Level",
+        y = "Energy (%)"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+---
+
+## 实际应用案例
+
+### 案例 1：ECG 信号分析
+
+```{r}
+# 模拟 ECG 信号
+generate_ecg <- function(duration = 5, fs = 250) {
+    t <- seq(0, duration, 1 / fs)
+    hr <- 75  # 心率 (bpm)
+    p_ecg <- numeric(length(t))
+
+    for (i in 1:length(t)) {
+        # 计算当前相位
+        phase <- (t[i] * hr / 60) %% 1
+
+        # P 波 (0.0-0.2)
+        if (phase >= 0.0 && phase < 0.2) {
+            p_ecg[i] <- 0.25 * sin(pi * phase / 0.2)
+        }
+        # QRS 复合波 (0.3-0.4)
+        else if (phase >= 0.3 && phase < 0.35) {
+            p_ecg[i] <- -0.15 * sin(pi * (phase - 0.3) / 0.05)
+        }
+        else if (phase >= 0.35 && phase < 0.4) {
+            p_ecg[i] <- 1.0 * sin(pi * (phase - 0.35) / 0.05)
+        }
+        else if (phase >= 0.4 && phase < 0.45) {
+            p_ecg[i] <- -0.25 * sin(pi * (phase - 0.4) / 0.05)
+        }
+        # T 波 (0.6-0.8)
+        else if (phase >= 0.6 && phase < 0.8) {
+            p_ecg[i] <- 0.35 * sin(pi * (phase - 0.6) / 0.2)
+        }
+    }
+
+    # 添加基线漂移和噪声
+    baseline <- 0.2 * sin(2 * pi * 0.5 * t)  # 呼吸频率
+    noise <- rnorm(length(t), 0, 0.05)
+
+    return(list(
+        signal = p_ecg + baseline + noise,
+        time = t,
+        fs = fs
+    ))
+}
+
+# 生成 ECG 信号
+ecg_data <- generate_ecg(duration = 10, fs = 250)
+ecg_signal <- ecg_data$signal
+ecg_time <- ecg_data$time
+ecg_fs <- ecg_data$fs
+
+# 绘制 ECG 信号
+ecg_df <- data.frame(time = ecg_time, signal = ecg_signal)
+
+ggplot(ecg_df, aes(x = time, y = signal)) +
+    geom_line(color = "#e15759", linewidth = 0.5) +
+    labs(
+        title = "模拟 ECG 信号",
+        subtitle = "包含 P 波、QRS 复合波、T 波，以及基线漂移和噪声",
+        x = "Time (s)",
+        y = "Amplitude (mV)"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+### ECG 信号的小波分解
+
+```{r}
+# 对 ECG 进行 DWT 分解
+ecg_dwt <- dwt(ecg_signal,
+    filter = "d4",
+    n.levels = 5,
+    boundary = "reflection"
+)
+
+# 查看分解结果
+print(ecg_dwt)
+```
+
+### ECG 特征提取：检测 R 波
+
+```{r}
+# 使用小波系数检测 R 波（QRS 复合波）
+# R 波通常在 D3 或 D4 层最明显
+detail_level <- 3  # 选择 D3 层
+r_wave_coeffs <- ecg_dwt@W[[detail_level]]
+
+# 简单的峰值检测
+find_peaks <- function(signal, threshold = 0.5, min_distance = 20) {
+    peaks <- c()
+    threshold <- threshold * max(signal)
+
+    for (i in 2:(length(signal) - 1)) {
+        if (signal[i] > signal[i - 1] &&
+            signal[i] > signal[i + 1] &&
+            signal[i] > threshold) {
+            if (length(peaks) == 0 ||
+                i - peaks[length(peaks)] > min_distance) {
+                peaks <- c(peaks, i)
+            }
+        }
+    }
+
+    return(peaks)
+}
+
+# 检测 R 波
+r_peaks_idx <- find_peaks(abs(r_wave_coeffs), threshold = 0.3, min_distance = 50)
+r_peaks_time <- r_peaks_idx / ecg_fs * 2^detail_level
+
+# 计算心率间隔
+rr_intervals <- diff(r_peaks_time)
+heart_rate <- 60 / mean(rr_intervals)
+
+# 可视化检测结果
+ecg_detection_df <- data.frame(time = ecg_time, signal = ecg_signal)
+
+ggplot(ecg_detection_df, aes(x = time, y = signal)) +
+    geom_line(color = "grey50", linewidth = 0.4) +
+    geom_vline(xintercept = r_peaks_time, color = "#e15759",
+               linetype = "dashed", linewidth = 0.8) +
+    labs(
+        title = "基于小波变换的 R 波检测",
+        subtitle = paste0("检测到 ", length(r_peaks_time), " 个 R 波，心率 ≈ ",
+                         round(heart_rate, 1), " bpm"),
+        x = "Time (s)",
+        y = "Amplitude (mV)"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+---
+
+### 案例 2：时间序列去噪（金融数据）
+
+```{r}
+# 模拟金融时间序列
+generate_ts <- function(n = 1000) {
+    t <- 1:n
+    # 趋势
+    trend <- 0.5 + 0.001 * t
+
+    # 周期性
+    seasonality <- 0.3 * sin(2 * pi * t / 100) +
+                   0.2 * sin(2 * pi * t / 50)
+
+    # 随机游走
+    noise <- cumsum(rnorm(n, 0, 0.1))
+
+    # 组合
+    ts <- trend + seasonality + noise
+
+    return(list(
+        signal = ts,
+        time = t,
+        trend = trend,
+        seasonality = seasonality,
+        noise = noise
+    ))
+}
+
+# 生成时间序列
+ts_data <- generate_ts(500)
+ts_signal <- ts_data$signal
+ts_time <- ts_data$time
+
+# 绘制原始时间序列
+ts_df <- data.frame(time = ts_time, signal = ts_signal)
+
+ggplot(ts_df, aes(x = time, y = signal)) +
+    geom_line(color = "#4e79a7", linewidth = 0.6) +
+    labs(
+        title = "模拟金融时间序列",
+        subtitle = "包含趋势、周期性和随机噪声",
+        x = "Time",
+        y = "Value"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+### 小波去噪（保留趋势和周期性）
+
+```{r}
+# 软阈值函数
+threshold <- function(coeffs, thr) {
+    sapply(coeffs, function(c) {
+        sign(c) * pmax(abs(c) - thr, 0)
+    })
+}
+
+# 小波分解
+ts_dwt <- dwt(ts_signal,
+    filter = "d4",
+    n.levels = 6,
+    boundary = "reflection"
+)
+
+# 去噪策略：
+# 1. 保留近似系数 A6（包含主要趋势）
+# 2. 保留 D4, D5（包含周期性）
+# 3. 去除或减弱 D1, D2, D3（高频噪声）
+
+# 创建修改后的 DWT 对象
+ts_dwt_denoised <- ts_dwt
+
+# 对高频层应用更强的阈值
+for (i in 1:3) {
+    thr <- 0.5 * sd(ts_dwt@W[[i]])
+    ts_dwt_denoised@W[[i]] <- threshold(ts_dwt@W[[i]], thr)
+}
+
+# 对中频层应用较弱的阈值
+for (i in 4:6) {
+    thr <- 1.5 * sd(ts_dwt@W[[i]])
+    ts_dwt_denoised@W[[i]] <- threshold(ts_dwt@W[[i]], thr)
+}
+
+# 简化重构：使用最低频近似系数作为去噪信号
+ts_approx <- ts_dwt_denoised@V[[length(ts_dwt_denoised@V)]]
+ts_denoised <- approx(seq_along(ts_approx), ts_approx,
+    seq_along(ts_signal), method = "constant")$y
+
+# 绘制对比
+ts_compare_df <- data.frame(
+    time = ts_time,
+    original = ts_signal,
+    denoised = ts_denoised,
+    trend = ts_data$trend
+)
+
+ts_compare_long <- pivot_longer(ts_compare_df,
+    cols = c(original, denoised, trend),
+    names_to = "Signal", values_to = "Value"
+)
+
+ggplot(ts_compare_long, aes(x = time, y = Value, color = Signal)) +
+    geom_line(linewidth = 0.6) +
+    scale_color_manual(
+        values = c(original = "#4e79a7", denoised = "#e15759", trend = "#76b7b2"),
+        labels = c("Original", "Denoised", "Trend")
+    ) +
+    labs(
+        title = "时间序列小波去噪",
+        subtitle = "去噪后保留了趋势和周期性，减少了随机噪声",
+        x = "Time",
+        y = "Value",
+        color = "Signal"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+### 评估去噪效果
+
+```{r}
+# 计算原始信号中噪声的标准差
+true_noise_sd <- sd(ts_data$noise)
+
+# 计算去噪后残差的标准差
+residuals <- ts_denoised - ts_data$trend - ts_data$seasonality
+denoised_noise_sd <- sd(residuals)
+
+cat("原始噪声标准差:", round(true_noise_sd, 4), "\n")
+cat("去噪后噪声标准差:", round(denoised_noise_sd, 4), "\n")
+cat("噪声降低:", round((1 - denoised_noise_sd / true_noise_sd) * 100, 1), "%\n")
+
+# 绘制残差分布
+residual_df <- data.frame(residual = residuals)
+
+ggplot(residual_df, aes(x = residual)) +
+    geom_histogram(aes(y = after_stat(density)), bins = 30,
+                   fill = "#4e79a7", alpha = 0.7) +
+    geom_density(color = "#e15759", linewidth = 1) +
+    geom_vline(xintercept = c(-1, 1) * denoised_noise_sd,
+               linetype = "dashed", color = "grey50") +
+    labs(
+        title = "去噪残差分布",
+        subtitle = "理想情况下残差应服从正态分布 N(0, σ²)",
+        x = "Residual",
+        y = "Density"
+    ) +
+    theme_minimal(base_size = 14)
+```
+
+---
+
+## 小波包变换
+
+小波包变换（Wavelet Packet Transform）是小波变换的扩展，它对近似和细节系数都进行进一步分解，提供了更精细的频域分辨率。
+
+```{r}
+# 使用 wavelets 包进行小波包变换（概念演示）
+# 注意：wavelets 包的小波包功能有限，这里展示基本概念
+
+# 多分辨率分析的频率划分
+levels <- 4
+
+# 创建频率划分示意图
+freq_data <- data.frame()
+
+for (j in 0:levels) {
+    n_subbands <- 2^j
+    bandwidth <- 1 / n_subbands
+
+    for (i in 0:(n_subbands - 1)) {
+        freq_data <- rbind(freq_data, data.frame(
+            Level = j,
+            Subband = i,
+            FreqLow = i * bandwidth,
+            FreqHigh = (i + 1) * bandwidth,
+            FreqMid = (i + 0.5) * bandwidth
+        ))
+    }
+}
+
+# 绘制频率划分图
+freq_data$Level <- factor(freq_data$Level)
+
+ggplot(freq_data, aes(x = Level, y = FreqMid, height = bandwidth)) +
+    geom_rect(aes(ymin = FreqLow, ymax = FreqHigh, fill = Subband),
+              stat = "identity", alpha = 0.7, width = 0.8) +
+    scale_fill_viridis_c() +
+    labs(
+        title = "小波变换的频率划分（多分辨率分析）",
+        subtitle = "每层分解将频带一分为二，低频和高频交替",
+        x = "Decomposition Level",
+        y = "Normalized Frequency",
+        fill = "Subband"
+    ) +
+    theme_minimal(base_size = 14) +
+    coord_cartesian(ylim = c(0, 1))
+```
+
+---
+
+## 实用函数封装
+
+### 小波去噪函数
+
+```{r}
+# 综合小波去噪函数
+wavelet_denoise <- function(signal,
+                            filter = "d4",
+                            n.levels = 5,
+                            threshold_method = "universal") {
+    # 执行 DWT
+    dwt_result <- dwt(signal,
+        filter = filter,
+        n.levels = n.levels,
+        boundary = "reflection"
+    )
+
+    # 计算阈值
+    if (threshold_method == "universal") {
+        # 通用阈值（基于最细层）
+        thr <- sd(dwt_result@W[[1]]) * sqrt(2 * log(length(signal)))
+    } else if (threshold_method == "sure") {
+        # SURE 阈值
+        thr <- median(abs(dwt_result@W[[1]])) / 0.6745
+    }
+
+    # 软阈值函数
+    soft_threshold <- function(c, t) {
+        sign(c) * pmax(abs(c) - t, 0)
+    }
+
+    # 对细节系数应用阈值
+    W_denoised <- lapply(dwt_result@W, function(w) {
+        # 高频层使用更强阈值
+        level_thr <- thr * 2
+        soft_threshold(w, level_thr)
+    })
+
+    # 简化重建：使用最低频近似系数作为去噪信号
+    dwt_result@W <- W_denoised
+    approx_coeffs <- dwt_result@V[[length(dwt_result@V)]]
+    denoised <- approx(seq_along(approx_coeffs), approx_coeffs,
+        seq_along(signal), method = "constant")$y
+
+    return(list(
+        denoised = denoised,
+        threshold = thr,
+        dwt = dwt_result
+    ))
+}
+
+# 测试去噪函数
+test_noisy <- rnorm(1000) + 0.5 * sin(2 * pi * seq(0, 10, 0.01))
+denoised_test <- wavelet_denoise(test_noisy)
+
+cat("去噪结果:\n")
+cat("原始信号标准差:", round(sd(test_noisy), 4), "\n")
+cat("去噪后标准差:", round(sd(denoised_test$denoised), 4), "\n")
+cat("使用的阈值:", round(denoised_test$threshold, 4), "\n")
+```
+
+### 小波系数能量分析函数
+
+```{r}
+# 分析各层小波系数的能量分布
+analyze_wavelet_energy <- function(dwt_result) {
+    W <- dwt_result@W
+    V <- dwt_result@V
+    levels <- length(W)
+
+    # 计算各层能量
+    energy_detail <- sapply(W, function(w) sum(w^2))
+    energy_approx <- sapply(V, function(v) sum(v^2))
+
+    # 计算总能量
+    total_energy <- sum(energy_detail) + energy_approx[length(V)]
+
+    # 创建数据框
+    energy_df <- data.frame(
+        Level = 1:levels,
+        Type = "Detail",
+        Energy = energy_detail,
+        Percent = energy_detail / total_energy * 100
+    )
+
+    energy_df <- rbind(energy_df, data.frame(
+        Level = levels,
+        Type = "Approx",
+        Energy = energy_approx[length(V)],
+        Percent = energy_approx[length(V)] / total_energy * 100
+    ))
+
+    # 计算累积百分比
+    energy_df <- energy_df %>%
+        arrange(Level, desc(Type)) %>%
+        mutate(Cumulative = cumsum(Percent))
+
+    return(energy_df)
+}
+
+# 应用到之前的示例
+energy_result <- analyze_wavelet_energy(dwt_result)
+print(energy_result)
+```
+
+---
+
+## 小波变换与其他方法的对比
+
+### DWT vs CWT
+
+| 特性 | DWT | CWT |
+|------|-----|-----|
+| **计算效率** | 高 (O(N)) | 较低 (O(N²)) |
+| **频域分辨率** | 对数均匀 | 可自定义 |
+| **时域分辨率** | 变化 | 可自定义 |
+| **冗余度** | 无冗余 | 高冗余 |
+| **适用场景** | 信号压缩、去噪 | 时频分析、特征提取 |
+
+### 小波 vs EMD/EEMD/VMD
+
+| 方法 | 自适应性 | 计算复杂度 | 噪声鲁棒性 | 数学基础 |
+|------|----------|------------|------------|----------|
+| **小波变换** | 固定小波基 | 低 | 中等 | 严谨 |
+| **EMD** | 完全自适应 | 中等 | 低 | 启发式 |
+| **EEMD** | 自适应 | 高 | 高 | 启发式 |
+| **VMD** | 可调 | 中高 | 高 | 变分原理 |
+
+---
+
+## 最佳实践与注意事项
+
+### 参数选择指南
+
+#### 小波基选择
+
+| 应用场景 | 推荐小波基 | 原因 |
+|----------|-----------|------|
+| **信号去噪** | Daubechies (db4, db8) | 平滑性好 |
+| **边缘检测** | Haar, Mexican Hat | 定位准确 |
+| **时频分析** | Morlet, Gaussian | 频域局域性好 |
+| **信号压缩** | Symlet, Coiflet | 重构误差小 |
+| **生物信号** | Daubechies 4 | ECG/EEG 常用 |
+
+#### 分解层数选择
+
+- **经验法则**：层数 ≈ log₂(信号长度)
+- **最低频成分**：f_min = fs / 2^(n.levels+1)
+- **噪声去除**：一般 4-6 层足够
+
+#### 阈值选择
+
+| 方法 | 公式 | 特点 |
+|------|------|------|
+| **通用阈值** | σ·√(2·ln(N)) | 保守，可能过度去噪 |
+| **SURE 阈值** | median(|W₁|)/0.6745 | 自适应 |
+| **最小最大阈值** | 使最大误差最小化 | 对未知信号保守 |
+| **经验阈值** | 手动调整 | 灵活但主观 |
+
+### 常见问题
+
+**Q1: 如何判断去噪效果？**
+
+```{r eval=FALSE}
+# 1. 视觉检查
+plot(original, col = "grey")
+lines(denoised, col = "red")
+
+# 2. 计算信噪比
+snr <- 10 * log10(sum(signal^2) / sum((signal - denoised)^2))
+
+# 3. 保留信号特征
+correlation <- cor(signal, denoised)
+```
+
+**Q2: 边界效应如何处理？**
+
+```{r eval=FALSE}
+# 常见的边界处理方式
+dwt(signal,
+    boundary = "periodic")    # 周期延拓
+    boundary = "reflection")  # 对称延拓（推荐）
+    boundary = "zero")         # 零填充（不推荐）
+```
+
+**Q3: 如何选择合适的采样率？**
+
+```{r eval=FALSE}
+# 根据奈奎斯特定理
+fs >= 2 * f_max
+
+# 实际应用中建议
+fs >= 4-10 * f_max  # 保证足够分辨率
+```
+
+---
+
+## 总结
+
+小波变换通过**多分辨率分析**克服了傅里叶变换的局限，在时频分析、信号去噪、特征提取等方面展现出强大优势。
+
+### 核心要点
+
+| 方法 | 适用场景 |
+|------|----------|
+| **CWT** | 时频分析、瞬态信号检测 |
+| **DWT** | 信号去噪、压缩、特征提取 |
+| **小波包** | 精细频域分析、滤波器组 |
+| **阈值去噪** | 去除高斯噪声 |
+
+### 应用领域
+
+1. **生物医学**：ECG/EEG 分析、呼吸监测
+2. **工程**：机械故障诊断、振动分析
+3. **金融**：时间序列去噪、波动分析
+4. **图像**：图像压缩、边缘检测
+5. **气象**：气候数据分析、降水预测
+
+---
+
+## 参考文献
+
+1. Mallat, S. (2008). *A Wavelet Tour of Signal Processing*. Academic Press.
+
+2. Daubechies, I. (1992). *Ten Lectures on Wavelets*. SIAM.
+
+3. Torrence, C., & Compo, G. P. (1998). A Practical Guide to Wavelet Analysis. *Bulletin of the American Meteorological Society*, 79(1), 61-78.
+
+4. Percival, D. B., & Walden, A. T. (2000). *Wavelet Methods for Time Series Analysis*. Cambridge University Press.
+
+5. Donoho, D. L., & Johnstone, I. M. (1994). Ideal spatial adaptation by wavelet shrinkage. *Biometrika*, 81(3), 425-455.
+
+---
+
+## 相关教程
+
+- [FFT + VMD + GMM 信号分析](1035-fft-nvmd-gmm.html) - 组合信号分析方法
+- [变分模态分解 (VMD)](1034-nvmd.html) - 自适应信号分解
+- [时间序列分析](1017-timeseries.html) - 传统时序分析方法
+- [Prophet 时间序列预测](1073-prophet-forecasting.html) - 商业时序预测
