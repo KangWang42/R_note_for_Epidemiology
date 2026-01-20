@@ -1,0 +1,462 @@
+---
+title: 决策曲线分析 (DCA)
+date: '2026-01-20'
+categories:
+- 统计分析方法
+- 模型评估
+- 临床预测模型
+- DCA
+image: images/1102-dca-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+## 方法背景与适用场景
+
+决策曲线分析（Decision Curve Analysis, DCA）是评估临床预测模型或诊断策略实用价值的一种方法。与传统的区分度指标（如 AUC）或校准度指标不同，DCA 直接回答一个核心问题：**使用这个模型指导临床决策，能否为患者带来净收益？**
+
+传统的模型评价指标（如灵敏度、特异度、AUC）描述的是模型的统计性能，但并未直接回答"是否应该在临床中使用这个模型"这一问题。DCA 通过引入**阈值概率（threshold probability）**和**净收益（net benefit）**的概念，将模型的预测性能与临床决策的后果联系起来，从而评估模型在实际应用中的价值。
+
+DCA 特别适用于以下场景：
+
+1. **比较不同预测模型**：哪个模型在特定阈值范围内净收益更高？
+2. **比较模型与默认策略**：使用模型是否优于"全部治疗"或"全部不治疗"？
+3. **确定模型的适用范围**：模型在哪些阈值概率下具有临床价值？
+4. **评估新标志物的增量价值**：在已有模型基础上加入新变量，净收益是否提高？
+
+## 核心概念与理论基础
+
+### 阈值概率
+
+阈值概率（threshold probability, $p_t$）是指临床医生或患者认为"接受治疗的预期收益与不治疗的预期收益相等"时的疾病概率。换言之，当患者的预测概率超过阈值概率时，选择治疗；低于阈值概率时，选择不治疗。
+
+阈值概率反映了治疗的收益与风险之间的权衡。假设：
+
+- **收益（Benefit）**：正确治疗一个真正患病者带来的收益
+- **损害（Harm）**：错误治疗一个未患病者带来的损害
+
+阈值概率可表示为：
+
+$$p_t = \frac{\text{Harm}}{\text{Benefit} + \text{Harm}}$$
+
+或等价地：
+
+$$\frac{p_t}{1 - p_t} = \frac{\text{Harm}}{\text{Benefit}}$$
+
+不同的临床情境对应不同的阈值概率。例如，对于低风险筛查（如常规体检），可能接受较低的阈值（如 5%）；而对于高风险手术决策，可能需要较高的阈值（如 30%-50%）。
+
+### 净收益
+
+净收益（net benefit）是 DCA 的核心指标，定义为：
+
+$$\text{Net Benefit} = \frac{\text{TP}}{N} - \frac{\text{FP}}{N} \times \frac{p_t}{1 - p_t}$$
+
+其中：
+
+- $\text{TP}$：真阳性数（正确预测为阳性的患病者）
+- $\text{FP}$：假阳性数（错误预测为阳性的未患病者）
+- $N$：总样本量
+- $p_t$：阈值概率
+
+净收益的含义是：在给定阈值概率下，使用模型进行决策所带来的真阳性比例，减去假阳性带来的"加权损失"。权重因子 $\frac{p_t}{1-p_t}$ 体现了假阳性的相对危害程度。
+
+### 基准策略
+
+DCA 通常将预测模型与两种极端策略进行比较：
+
+1. **全部治疗（Treat All）**：假设所有人都患病，全部接受治疗
+   - 净收益 = 患病率 - (1 - 患病率) × $\frac{p_t}{1-p_t}$
+   - 随着阈值概率升高，净收益下降
+
+2. **全部不治疗（Treat None）**：假设所有人都不患病，全部不治疗
+   - 净收益 = 0（恒定）
+
+一个有临床价值的模型，其净收益曲线应在某个阈值范围内高于这两条基准线。
+
+### 决策曲线的解读
+
+决策曲线以阈值概率为横轴、净收益为纵轴。典型的决策曲线图包含：
+
+- **模型曲线**：预测模型在不同阈值下的净收益
+- **Treat All 线**：全部治疗策略的净收益（向右下方倾斜）
+- **Treat None 线**：全部不治疗策略的净收益（水平线，净收益=0）
+
+解读要点：
+
+1. **曲线越高，净收益越大**：在相同阈值下，净收益越高的模型越优
+2. **高于基准线的区间**：模型具有临床价值的阈值范围
+3. **曲线交叉点**：不同策略或模型净收益相等的阈值
+
+## 模型假设与前提
+
+1. **结局为二分类**：DCA 适用于二分类结局（如患病/未患病、发生/未发生）
+2. **模型输出为概率或风险评分**：需要连续的预测值以绘制完整曲线
+3. **阈值概率范围合理**：通常选择临床相关的阈值范围进行展示
+4. **独立验证数据**：建议在独立验证集上计算，避免过拟合导致的乐观估计
+5. **样本量足够**：样本量过小会导致净收益估计不稳定
+
+## 数据准备与变量定义
+
+进行 DCA 分析需要准备以下数据：
+
+- **结局变量**：二分类（0/1 或 FALSE/TRUE）
+- **预测概率**：模型输出的风险概率（0-1 之间）
+- **分组变量**（可选）：用于比较不同模型或亚组
+
+数据结构示例：
+
+| ID | outcome | model_a_prob | model_b_prob |
+|----|---------|--------------|--------------|
+| 1  | 1       | 0.72         | 0.68         |
+| 2  | 0       | 0.15         | 0.12         |
+| 3  | 1       | 0.45         | 0.52         |
+| ...| ...     | ...          | ...          |
+
+## 分析流程步骤
+
+1. **明确临床问题**：定义结局、治疗决策及其收益/风险
+2. **确定阈值范围**：根据临床情境选择合理的阈值概率区间
+3. **获取预测概率**：从已建立的预测模型获取风险估计
+4. **计算净收益**：在每个阈值点计算模型和基准策略的净收益
+5. **绑制决策曲线**：可视化比较不同策略的净收益
+6. **解读与报告**：确定模型的临床适用范围和增量价值
+
+### 方法选择决策表
+
+| 评估目标 | 推荐方法 | 说明 |
+|----------|----------|------|
+| 模型区分度 | AUC/C-statistic | 评估排序能力 |
+| 校准度 | 校准曲线/Hosmer-Lemeshow | 评估预测准确性 |
+| 临床实用价值 | DCA | 评估决策净收益 |
+| 稀有事件 | AUPRC | 关注阳性检出质量 |
+
+## 代码实现
+
+下面使用 R 中的 `dcurves` 包演示 DCA 的完整分析流程。
+
+### 1. 安装与加载包
+
+```{r}
+# 如未安装，先安装
+# install.packages("dcurves")
+
+library(dcurves)
+library(ggplot2)
+library(dplyr)
+```
+
+### 2. 构建模拟数据
+
+构建一个临床预测场景：预测患者是否会发生某种不良事件，并比较两个预测模型的净收益。
+
+```{r}
+set.seed(42)
+
+n <- 1000
+
+# 模拟协变量
+age <- rnorm(n, mean = 60, sd = 10)
+biomarker_a <- rnorm(n, mean = 0, sd = 1)
+biomarker_b <- rnorm(n, mean = 0, sd = 1)
+
+# 真实风险函数
+log_odds <- -3.5 + 0.04 * age + 0.8 * biomarker_a + 0.5 * biomarker_b
+prob_true <- plogis(log_odds)
+
+# 生成结局
+outcome <- rbinom(n, 1, prob_true)
+
+# 构建数据框
+data <- data.frame(
+  outcome = outcome,
+  age = age,
+  biomarker_a = biomarker_a,
+  biomarker_b = biomarker_b
+)
+
+cat("事件发生率:", round(mean(outcome), 3), "\n")
+```
+
+### 3. 建立预测模型
+
+构建两个预测模型进行比较：
+
+- **模型 A**：仅包含年龄和标志物 A
+- **模型 B**：包含年龄、标志物 A 和标志物 B
+
+```{r}
+# 模型 A：简单模型
+model_a <- glm(outcome ~ age + biomarker_a, 
+               data = data, family = binomial)
+
+# 模型 B：完整模型
+model_b <- glm(outcome ~ age + biomarker_a + biomarker_b, 
+               data = data, family = binomial)
+
+# 生成预测概率
+data$prob_a <- predict(model_a, type = "response")
+data$prob_b <- predict(model_b, type = "response")
+
+# 查看模型 AUC
+cat("模型 A AUC:", round(pROC::auc(data$outcome, data$prob_a), 3), "\n")
+cat("模型 B AUC:", round(pROC::auc(data$outcome, data$prob_b), 3), "\n")
+```
+
+### 4. 计算并绑制决策曲线
+
+使用 `dcurves` 包的 `dca()` 函数进行决策曲线分析：
+
+```{r}
+# 基本 DCA 分析
+dca_result <- dca(
+  outcome ~ prob_a + prob_b,
+  data = data,
+  thresholds = seq(0, 0.5, by = 0.01),
+  label = list(prob_a = "模型 A", prob_b = "模型 B")
+)
+
+# 查看结果摘要
+dca_result
+```
+
+```{r}
+# 绑制决策曲线
+plot(dca_result) +
+  labs(
+    title = "决策曲线分析",
+    x = "阈值概率",
+    y = "净收益"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+### 5. 提取净收益数据
+
+```{r}
+# 提取净收益数据用于自定义绑图
+nb_data <- as_tibble(dca_result)
+
+# 查看数据结构
+head(nb_data)
+```
+
+```{r}
+# 自定义绑图展示
+ggplot(nb_data, aes(x = threshold, y = net_benefit, color = label)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(
+    values = c("模型 A" = "#2563eb", "模型 B" = "#f97316", 
+               "Treat All" = "#6b7280", "Treat None" = "#9ca3af")
+  ) +
+  scale_x_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "决策曲线分析",
+    subtitle = "比较两个预测模型与默认策略的净收益",
+    x = "阈值概率",
+    y = "净收益",
+    color = "策略"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray50")
+  ) +
+  coord_cartesian(ylim = c(-0.05, 0.25))
+```
+
+### 6. 计算净减少干预量
+
+净减少干预量（Net Reduction in Interventions）表示在维持相同检出率的前提下，使用模型可以减少多少不必要的干预。
+
+```{r}
+# 计算净减少干预量
+net_intervention <- nb_data |>
+  filter(label %in% c("模型 A", "模型 B", "Treat All")) |>
+  select(threshold, label, net_benefit) |>
+  tidyr::pivot_wider(names_from = label, values_from = net_benefit) |>
+  mutate(
+    reduction_a = (`模型 A` - `Treat All`) / (threshold / (1 - threshold)) * 100,
+    reduction_b = (`模型 B` - `Treat All`) / (threshold / (1 - threshold)) * 100
+  ) |>
+  filter(threshold >= 0.05 & threshold <= 0.4)
+
+# 展示部分结果
+net_intervention |>
+  filter(threshold %in% c(0.1, 0.2, 0.3)) |>
+  select(threshold, reduction_a, reduction_b) |>
+  mutate(
+    threshold = scales::percent(threshold),
+    reduction_a = round(reduction_a, 1),
+    reduction_b = round(reduction_b, 1)
+  ) |>
+  knitr::kable(
+    col.names = c("阈值概率", "模型A减少干预(%)", "模型B减少干预(%)"),
+    caption = "使用模型相比全部治疗可减少的不必要干预比例"
+  )
+```
+
+### 7. 亚组分析
+
+按年龄分层进行 DCA 分析：
+
+```{r}
+# 按年龄分组
+data <- data |>
+  mutate(age_group = ifelse(age >= 60, ">=60岁", "<60岁"))
+
+# 分组 DCA
+dca_by_age <- dca(
+
+  outcome ~ prob_b,
+  data = data,
+  thresholds = seq(0, 0.5, by = 0.01),
+  label = list(prob_b = "模型 B")
+)
+
+# 绑图
+plot(dca_by_age) +
+  labs(
+    title = "决策曲线分析",
+    x = "阈值概率",
+    y = "净收益"
+  ) +
+  theme_minimal()
+```
+
+## 结果解读与报告
+
+### 决策曲线解读要点
+
+1. **模型曲线高于基准线的区间**：
+   - 当模型曲线高于 Treat All 和 Treat None 时，使用模型进行决策优于默认策略
+   - 本例中，模型 B 在约 5%-40% 的阈值范围内均高于基准线
+
+2. **模型之间的比较**：
+   - 在大部分阈值范围内，模型 B 的净收益略高于模型 A
+   - 这表明添加标志物 B 后，模型的临床决策价值有所提升
+
+3. **净收益的绝对值**：
+   - 净收益可解释为"每 100 人中正确识别的净真阳性数"
+   - 例如，阈值 20% 时净收益 0.10 表示每 100 人中净获益 10 人
+
+### 报告规范
+
+报告 DCA 结果时应包含：
+
+1. **分析设置**：结局定义、模型描述、阈值范围选择依据
+2. **决策曲线图**：展示所有比较策略的净收益曲线
+3. **关键阈值点的净收益**：报告临床相关阈值下的具体数值
+4. **模型适用范围**：明确模型优于基准策略的阈值区间
+5. **局限性说明**：样本量、验证方式、阈值选择的不确定性
+
+示例报告段落：
+
+> 决策曲线分析显示，在 5%-40% 的阈值概率范围内，预测模型的净收益均高于"全部治疗"和"全部不治疗"策略。在临床常用的 20% 阈值下，模型 B 的净收益为 0.12，相比全部治疗策略可减少约 35% 的不必要干预。模型 B 在整个分析范围内略优于模型 A，提示标志物 B 的加入具有一定的增量临床价值。
+
+## 常见错误与纠偏
+
+### 1. 阈值范围选择不当
+
+**问题**：展示 0-100% 的完整阈值范围，但大部分区间在临床上不相关。
+
+**纠正**：根据临床情境选择合理的阈值范围。例如，癌症筛查可能关注 1%-20%，而手术决策可能关注 10%-50%。
+
+### 2. 混淆净收益与 AUC
+
+**问题**：认为 AUC 高的模型一定净收益高。
+
+**纠正**：AUC 衡量的是整体区分度，而净收益关注特定阈值下的决策价值。两个模型可能 AUC 相近但净收益差异明显。
+
+### 3. 忽略校准度
+
+**问题**：在校准度很差的模型上进行 DCA。
+
+**纠正**：DCA 假设预测概率是校准的。如果模型严重过估或低估风险，应先进行校准再做 DCA。
+
+### 4. 样本量不足
+
+**问题**：在小样本中进行 DCA，导致净收益曲线波动剧烈。
+
+**纠正**：确保样本量足够，特别是事件数应充足。可考虑使用平滑方法或 Bootstrap 置信区间。
+
+### 5. 仅报告优势区间
+
+**问题**：选择性展示模型表现最好的阈值区间。
+
+**纠正**：应展示完整的临床相关阈值范围，包括模型可能不优于基准策略的区间。
+
+## 进阶扩展
+
+### 1. 生存结局的 DCA
+
+对于时间到事件数据，可使用 `stdca()` 函数进行生存分析版本的 DCA：
+
+```{r eval=FALSE}
+# 生存 DCA 示例（伪代码）
+library(dcurves)
+
+# 假设有生存数据
+dca_survival <- dca(
+  Surv(time, status) ~ risk_score,
+  data = surv_data,
+  time = 5,  # 5年时间点
+  thresholds = seq(0, 0.5, by = 0.01)
+)
+```
+
+### 2. 成本-效益分析整合
+
+DCA 可与成本-效益分析结合，通过调整权重因子反映实际的经济成本：
+
+```{r eval=FALSE}
+# 调整后的净收益计算
+# 当治疗成本与漏诊成本之比不等于 pt/(1-pt) 时
+adjusted_nb <- tp_rate - fp_rate * cost_ratio
+```
+
+### 3. Bootstrap 置信区间
+
+为净收益添加置信区间，增强结果的可靠性：
+
+```{r eval=FALSE}
+# Bootstrap DCA（伪代码）
+library(boot)
+
+dca_boot <- function(data, indices) {
+  d <- data[indices, ]
+  # 计算净收益...
+}
+
+boot_results <- boot(data, dca_boot, R = 1000)
+```
+
+### 4. 多类别结局
+
+对于多分类结局，可采用 one-vs-rest 策略分别进行 DCA，或使用专门的多类别 DCA 方法。
+
+## 推荐阅读
+
+1. **Vickers AJ, Elkin EB.** Decision curve analysis: a novel method for evaluating prediction models. *Medical Decision Making*. 2006;26(6):565-574.
+
+2. **Vickers AJ, et al.** Net benefit approaches to the evaluation of prediction models, molecular markers, and diagnostic tests. *BMJ*. 2016;352:i6.
+
+3. **Van Calster B, et al.** Reporting and interpreting decision curve analysis: a guide for investigators. *European Urology*. 2018;74(6):796-804.
+
+4. **dcurves R 包文档**：https://www.danieldsjoberg.com/dcurves/
+
+## 小结
+
+决策曲线分析（DCA）是评估临床预测模型实用价值的重要工具。与传统的区分度和校准度指标不同，DCA 直接量化了模型在不同决策阈值下的净收益，帮助研究者和临床医生判断模型是否值得在实践中应用。在报告 DCA 结果时，应明确阈值范围的选择依据，展示完整的决策曲线，并结合临床情境解读净收益的实际意义。
