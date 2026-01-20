@@ -51,6 +51,7 @@ metadata:
   - `quarto render doc/sections/<对应分类>.qmd`
 - 三项 render全部通过后再执行其它操作，确认无报错。
 - **更新 `doc/0001-guide.rmd`**：在对应分类表格中添加新教程条目，保持与现有格式一致。
+- **同步更新 `README.md`**：在对应分类的折叠块中添加新教程条目，保持与 guide 内容一致。README 中的教程链接使用 `.html` 后缀。
 - 渲染完成后询问是否提交；用户确认后执行 commit，并按需 push。
 
 ## 何时使用我
