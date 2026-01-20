@@ -1,0 +1,664 @@
+---
+title: 'OpenCode: 开源 AI 编程代理'
+date: '2026-01-20'
+categories:
+- 机器学习与AI
+- AI 工具
+image: figure/default-cover1.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## 什么是 OpenCode
+
+[OpenCode](https://opencode.ai) 是一个**开源的 AI 编程代理**，专为开发者设计。它提供终端界面（TUI）、桌面应用和 IDE 扩展等多种使用方式，让你可以在命令行中与大语言模型（LLM）协作完成编程任务。
+
+### 核心特点
+
+| 特性 | 说明 |
+|:-----|:-----|
+| 🎯 **代码感知** | 自动分析项目结构，理解代码上下文 |
+| 🔧 **工具丰富** | 内置文件读写、bash 执行、代码搜索等工具 |
+| 🤖 **多模型支持** | 支持 Anthropic、OpenAI、Gemini 等主流提供商 |
+| 📁 **项目级配置** | 通过 `AGENTS.md` 和 `opencode.json` 定制行为 |
+| 🔄 **撤销/重做** | 基于 Git 的文件更改管理 |
+| 🎨 **主题自定义** | 支持多种终端主题和快捷键配置 |
+
+### 适用场景
+
+- **代码生成与重构**：让 AI 帮你编写、修改代码
+- **代码理解**：快速了解陌生代码库的结构和逻辑
+- **调试辅助**：分析错误信息，定位问题原因
+- **文档生成**：自动生成代码注释和文档
+- **学习助手**：解释代码原理，回答编程问题
+
+::: {.callout-tip}
+## R 语言用户
+
+虽然 OpenCode 主要面向通用编程场景，但同样适用于 R 项目：
+- 分析 R 脚本和 RMarkdown 文件
+- 帮助编写数据处理和分析代码
+- 解释复杂的统计函数
+- 生成可视化代码
+:::
+
+---
+
+## 与其他 AI 工具对比
+
+| 工具 | 界面 | 开源 | 本地运行 | 代码感知 | 价格 |
+|:-----|:-----|:-----|:---------|:---------|:-----|
+| **OpenCode** | 终端/桌面/IDE | ✅ | ✅ | ✅ | 按 API 计费 |
+| Cursor | IDE | ❌ | ✅ | ✅ | $20/月起 |
+| GitHub Copilot | IDE 插件 | ❌ | ❌ | ✅ | $10/月起 |
+| Claude.ai | 网页 | ❌ | ❌ | ❌ | 按使用计费 |
+| ChatGPT | 网页/App | ❌ | ❌ | ❌ | $20/月起 |
+
+**OpenCode 的优势**：
+
+1. **完全开源**：代码透明，可审计、可定制
+2. **终端友好**：适合偏好命令行工作流的开发者
+3. **灵活计费**：按实际 API 使用量付费，无订阅费
+4. **本地优先**：数据不离开本地（除 API 调用外）
+5. **高度可配置**：从模型到工具到权限，全面可控
+
+---
+
+## 安装指南
+
+### 桌面应用（推荐新手）
+
+从 [OpenCode 下载页面](https://opencode.ai/download) 获取适用于你操作系统的安装包。
+
+macOS 用户也可以使用 Homebrew：
+
+```bash
+brew install --cask opencode-desktop
+```
+
+### 命令行安装
+
+#### 安装脚本（最简单）
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
+```
+
+#### Node.js（跨平台）
+
+```bash
+# npm
+npm install -g opencode-ai
+
+# pnpm
+pnpm install -g opencode-ai
+
+# bun
+bun install -g opencode-ai
+```
+
+#### Windows
+
+```bash
+# Chocolatey
+choco install opencode
+
+# Scoop
+scoop bucket add extras
+scoop install extras/opencode
+
+# 或使用 npm
+npm install -g opencode-ai
+```
+
+#### macOS/Linux
+
+```bash
+# Homebrew
+brew install opencode
+```
+
+### 终端要求
+
+命令行版本需要现代终端模拟器，推荐：
+
+- [WezTerm](https://wezterm.org) - 跨平台
+- [Alacritty](https://alacritty.org) - 跨平台
+- [Ghostty](https://ghostty.org) - Linux/macOS
+- [Windows Terminal](https://aka.ms/terminal) - Windows
+
+---
+
+## 配置 API 提供商
+
+OpenCode 支持多种 LLM 提供商。首次使用需要配置 API 密钥。
+
+### 快速配置（OpenCode Zen）
+
+OpenCode 提供了官方精选的模型列表 [Zen](https://opencode.ai/zen)，适合新手：
+
+1. 在 TUI 中运行 `/connect` 命令
+2. 选择 `opencode`
+3. 访问 [opencode.ai/auth](https://opencode.ai/auth) 获取 API 密钥
+4. 粘贴密钥完成配置
+
+### 配置其他提供商
+
+以 Anthropic Claude 为例：
+
+1. 获取 [Anthropic API 密钥](https://console.anthropic.com/)
+2. 设置环境变量：
+
+```bash
+# Linux/macOS - 添加到 ~/.bashrc 或 ~/.zshrc
+export ANTHROPIC_API_KEY="your-api-key"
+
+# Windows PowerShell
+$env:ANTHROPIC_API_KEY = "your-api-key"
+```
+
+或在配置文件中设置：
+
+```json
+// ~/.config/opencode/opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "{env:ANTHROPIC_API_KEY}"
+      }
+    }
+  },
+  "model": "anthropic/claude-sonnet-4-5"
+}
+```
+
+### 支持的提供商
+
+| 提供商 | 环境变量 | 推荐模型 |
+|:-------|:---------|:---------|
+| Anthropic | `ANTHROPIC_API_KEY` | claude-sonnet-4-5 |
+| OpenAI | `OPENAI_API_KEY` | gpt-4o |
+| Google | `GOOGLE_API_KEY` | gemini-2.0-flash |
+| OpenCode Zen | 通过 `/connect` | 多种精选模型 |
+
+---
+
+## 基本使用
+
+### 启动 OpenCode
+
+```bash
+# 在项目目录启动
+cd /path/to/your/project
+opencode
+
+# 或指定目录
+opencode /path/to/project
+```
+
+### 初始化项目
+
+首次在项目中使用，建议运行初始化命令：
+
+```
+/init
+```
+
+这会创建 `AGENTS.md` 文件，帮助 OpenCode 理解你的项目结构。
+
+::: {.callout-note}
+建议将 `AGENTS.md` 提交到 Git，方便团队共享项目上下文。
+:::
+
+### 发送消息
+
+直接在输入框中输入问题或指令：
+
+```
+给我解释一下这个项目的结构
+```
+
+### 引用文件
+
+使用 `@` 符号引用项目中的文件：
+
+```
+@src/main.R 这个脚本是做什么的？
+```
+
+### 运行 Shell 命令
+
+使用 `!` 前缀执行 shell 命令：
+
+```
+!ls -la
+!R --version
+```
+
+---
+
+## 常用斜杠命令
+
+| 命令 | 快捷键 | 说明 |
+|:-----|:-------|:-----|
+| `/help` | `Ctrl+x h` | 显示帮助 |
+| `/new` | `Ctrl+x n` | 开始新会话 |
+| `/undo` | `Ctrl+x u` | 撤销更改 |
+| `/redo` | `Ctrl+x r` | 重做更改 |
+| `/compact` | `Ctrl+x c` | 压缩会话（节省 token） |
+| `/sessions` | `Ctrl+x l` | 切换历史会话 |
+| `/share` | `Ctrl+x s` | 分享对话 |
+| `/models` | `Ctrl+x m` | 切换模型 |
+| `/themes` | `Ctrl+x t` | 切换主题 |
+| `/editor` | `Ctrl+x e` | 用外部编辑器写消息 |
+| `/export` | `Ctrl+x x` | 导出对话为 Markdown |
+| `/init` | `Ctrl+x i` | 初始化/更新 AGENTS.md |
+
+---
+
+## 代理模式
+
+OpenCode 提供两种主要代理模式，可用 **Tab** 键切换：
+
+### Build 模式（默认）
+
+- 启用所有工具（文件读写、bash 执行等）
+- 适合需要 AI 修改代码的开发工作
+- 右下角显示 `build` 标识
+
+### Plan 模式
+
+- 只读模式，禁用文件修改工具
+- 适合代码分析、方案设计
+- 右下角显示 `plan` 标识
+
+```
+<Tab> 切换到 Plan 模式
+
+我想为这个项目添加数据导出功能，请帮我设计一个方案。
+
+<Tab> 切换回 Build 模式
+
+听起来不错，开始实现吧。
+```
+
+### 子代理
+
+OpenCode 内置两个子代理，可通过 `@` 提及调用：
+
+- **@general**：研究复杂问题、多步骤任务
+- **@explore**：快速探索代码库
+
+```
+@explore 找到所有处理缺失值的函数
+```
+
+---
+
+## 配置文件详解
+
+### 配置文件位置
+
+| 位置 | 作用 |
+|:-----|:-----|
+| `~/.config/opencode/opencode.json` | 全局配置 |
+| `项目目录/opencode.json` | 项目配置（覆盖全局） |
+| `OPENCODE_CONFIG` 环境变量 | 自定义路径 |
+
+### 常用配置示例
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  
+  // 主题
+  "theme": "opencode",
+  
+  // 默认模型
+  "model": "anthropic/claude-sonnet-4-5",
+  
+  // 轻量任务使用的模型
+  "small_model": "anthropic/claude-haiku-4-5",
+  
+  // 自动更新
+  "autoupdate": true,
+  
+  // 工具配置
+  "tools": {
+    "bash": true,
+    "write": true,
+    "edit": true
+  },
+  
+  // 权限配置
+  "permission": {
+    "edit": "ask",    // 编辑文件前询问
+    "bash": "allow"   // 允许执行命令
+  },
+  
+  // TUI 配置
+  "tui": {
+    "scroll_speed": 3,
+    "scroll_acceleration": {
+      "enabled": true
+    }
+  }
+}
+```
+
+### 权限控制
+
+| 权限值 | 说明 |
+|:-------|:-----|
+| `"allow"` | 允许操作，无需确认 |
+| `"ask"` | 每次操作前询问 |
+| `"deny"` | 禁止操作 |
+
+---
+
+## AGENTS.md 项目规则
+
+`AGENTS.md` 是项目级的指令文件，类似于 Cursor 的 `.cursorrules`。
+
+### 创建方式
+
+```
+/init
+```
+
+### 示例内容
+
+```markdown
+# 项目说明
+
+这是一个 R 数据分析项目，使用 tidyverse 生态系统。
+
+## 项目结构
+
+- `R/` - R 脚本
+- `data/` - 原始数据
+- `output/` - 分析结果
+- `doc/` - 文档
+
+## 代码规范
+
+- 使用 tidyverse 风格的代码
+- 函数命名使用 snake_case
+- 注释使用中文
+
+## 依赖包
+
+- tidyverse
+- ggplot2
+- data.table
+```
+
+### 多位置支持
+
+| 位置 | 说明 |
+|:-----|:-----|
+| 项目根目录 `AGENTS.md` | 项目特定规则 |
+| `~/.config/opencode/AGENTS.md` | 全局规则 |
+| 子目录 `AGENTS.md` | 子模块规则 |
+
+---
+
+## Agent Skills（代理技能）
+
+Skills 是可复用的指令模块，按需加载。
+
+### 创建技能
+
+在 `.opencode/skill/<name>/SKILL.md` 创建：
+
+```markdown
+---
+name: r-analysis
+description: R 数据分析最佳实践
+---
+
+## 代码规范
+
+- 优先使用 tidyverse 函数
+- 避免使用 `attach()`
+- 使用 `here::here()` 处理路径
+
+## 可视化
+
+- 使用 ggplot2 绑图
+- 设置统一主题 `theme_minimal()`
+- 使用 `ggsave()` 保存图片
+```
+
+### 技能发现位置
+
+- `.opencode/skill/*/SKILL.md` - 项目级
+- `~/.config/opencode/skill/*/SKILL.md` - 全局
+
+---
+
+## 自定义代理
+
+除了内置的 Build/Plan 代理，可以创建自定义代理。
+
+### Markdown 方式
+
+在 `.opencode/agent/` 或 `~/.config/opencode/agent/` 创建 markdown 文件：
+
+```markdown
+<!-- ~/.config/opencode/agent/r-helper.md -->
+---
+description: R 语言编程助手
+mode: subagent
+model: anthropic/claude-sonnet-4-5
+tools:
+  bash: true
+  write: false
+---
+
+你是一个 R 语言编程专家。
+
+擅长领域：
+- tidyverse 数据处理
+- ggplot2 可视化
+- 统计建模
+- 性能优化
+
+回答问题时：
+- 优先给出可运行的代码示例
+- 解释代码的关键步骤
+- 提供替代方案
+```
+
+### JSON 方式
+
+在 `opencode.json` 中配置：
+
+```json
+{
+  "agent": {
+    "r-reviewer": {
+      "description": "审查 R 代码质量",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-5",
+      "tools": {
+        "write": false,
+        "edit": false
+      }
+    }
+  }
+}
+```
+
+### 调用自定义代理
+
+```
+@r-helper 如何用 dplyr 实现分组汇总？
+```
+
+---
+
+## 自定义命令
+
+创建可复用的命令模板。
+
+### 配置方式
+
+```json
+// opencode.json
+{
+  "command": {
+    "analyze": {
+      "template": "分析 $ARGUMENTS 文件中的数据，生成描述性统计和可视化建议。",
+      "description": "分析数据文件"
+    },
+    "review": {
+      "template": "审查 $ARGUMENTS 的代码质量，检查潜在问题并给出改进建议。",
+      "description": "代码审查",
+      "agent": "plan"
+    }
+  }
+}
+```
+
+### 使用命令
+
+```
+/analyze data/survey.csv
+/review R/analysis.R
+```
+
+---
+
+## MCP 服务器集成
+
+OpenCode 支持 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 服务器，扩展工具能力。
+
+### 配置示例
+
+```json
+{
+  "mcp": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/dir"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 实用技巧
+
+### 图片输入
+
+将图片拖放到终端窗口，OpenCode 会自动识别图片内容：
+
+```
+[拖入截图]
+这个图表显示了什么趋势？
+```
+
+### 会话压缩
+
+当会话过长时，使用 `/compact` 压缩历史，节省 token：
+
+```
+/compact
+```
+
+### 分享对话
+
+生成对话分享链接：
+
+```
+/share
+```
+
+### 外部编辑器
+
+使用你喜欢的编辑器编写长消息：
+
+```
+/editor
+```
+
+需要设置 `EDITOR` 环境变量：
+
+```bash
+export EDITOR="code --wait"  # VS Code
+export EDITOR="vim"          # Vim
+```
+
+---
+
+## 常见问题
+
+### Q: 如何切换模型？
+
+使用 `/models` 命令或快捷键 `Ctrl+x m`。
+
+### Q: 如何撤销 AI 的修改？
+
+使用 `/undo` 命令，OpenCode 会基于 Git 还原更改。
+
+### Q: 如何减少 API 费用？
+
+1. 使用更小的模型（如 claude-haiku）处理简单任务
+2. 定期使用 `/compact` 压缩会话
+3. 善用 Plan 模式进行规划，减少无效修改
+
+### Q: 支持哪些 IDE？
+
+OpenCode 提供 VS Code、Cursor 等 IDE 的扩展。详见 [IDE 文档](https://www.opencodecn.com/docs/ide)。
+
+### Q: 如何处理网络问题？
+
+可以配置代理：
+
+```json
+{
+  "network": {
+    "proxy": "http://127.0.0.1:7890"
+  }
+}
+```
+
+---
+
+## 资源链接
+
+| 资源 | 链接 |
+|:-----|:-----|
+| 官方网站 | [opencode.ai](https://opencode.ai) |
+| 中文文档 | [opencodecn.com](https://www.opencodecn.com/docs) |
+| GitHub | [github.com/anomalyco/opencode](https://github.com/anomalyco/opencode) |
+| 下载页面 | [opencode.ai/download](https://opencode.ai/download) |
+| 配置 Schema | [opencode.ai/config.json](https://opencode.ai/config.json) |
+
+---
+
+## 总结
+
+OpenCode 是一个强大的开源 AI 编程代理，特别适合：
+
+- 偏好命令行工作流的开发者
+- 需要灵活配置和高度可控的用户
+- 希望按实际使用量付费的用户
+- 注重代码安全和隐私的团队
+
+虽然它主要面向通用编程场景，但对于 R 语言用户来说，OpenCode 同样是一个优秀的辅助工具，可以帮助你更高效地完成数据分析和可视化任务。
+
+开始尝试吧！
