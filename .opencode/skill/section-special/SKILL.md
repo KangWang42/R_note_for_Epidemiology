@@ -46,7 +46,7 @@ metadata:
   - `quarto render doc/<当前文章>`
   - `quarto render doc/index.qmd`
   - `quarto render doc/sections/<对应分类>.qmd`
-- 三项 render 全部通过后再执行：`quarto preview doc/index.qmd`，确认无报错。
+- 三项render 全部通过后再执行其它操作，确认无报错。
 - **更新 `doc/0001-guide.rmd`**：在对应分类表格中添加新教程条目，保持与现有格式一致。
 - 渲染完成后询问是否提交；用户确认后执行 commit，并按需 push。
 
