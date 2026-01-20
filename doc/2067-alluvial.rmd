@@ -1,0 +1,210 @@
+---
+title: R语言冲积图（Alluvial Plot）完全指南
+date: '2026-01-20'
+categories:
+- 数据可视化
+- 专题图
+- 流向图
+image: images/alluvial-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 9,
+  fig.height = 6,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 图表用途与场景
+
+冲积图（Alluvial Plot）用于展示**多阶段类别变化或路径流向**，常见于：
+
+- **疾病分期转归**：初诊 → 随访 → 结局
+- **用户旅程**：来源 → 行为 → 转化
+- **教育路径**：学历 → 专业 → 职业
+- **政策流向**：政策类型 → 受影响人群 → 结果
+
+它强调的是“流动与结构”，能同时呈现类别规模与转移路径。
+
+---
+
+## 图形入门：冲积图的结构
+
+冲积图包含两个核心元素：
+
+1. **Stratum（层）**：每个阶段的类别块
+2. **Alluvium/Flow（流）**：连接不同阶段类别的流带，宽度代表规模
+
+图形的关键是 **同一条流带对应同一组样本**，在不同阶段逐步分流或合流。
+
+---
+
+## 数据准备
+
+冲积图最常用的数据结构是**宽格式的多阶段类别 + 计数**：
+
+| 阶段1 | 阶段2 | 阶段3 | n |
+|---|---|---|---|
+| 低 | 差 | 恶化 | 32 |
+| 低 | 中 | 稳定 | 45 |
+
+每行代表一条路径及其样本数。
+
+---
+
+## 绘图基础
+
+`ggalluvial` 是 ggplot2 的扩展包，绘制冲积图的核心图层是：
+
+- `geom_alluvium()`：绘制流带
+- `geom_stratum()`：绘制每个阶段的类别块
+- `geom_text(stat = "stratum")`：在类别块上标注文字
+
+---
+
+## 完整代码示例：基础版
+
+### 1) 构造示例数据
+
+```{r}
+set.seed(42)
+
+survey <- tibble::tibble(
+  id = 1:400,
+  intake = sample(c("低", "中", "高"), 400, replace = TRUE, prob = c(0.35, 0.45, 0.2)),
+  adherence = sample(c("差", "中", "好"), 400, replace = TRUE, prob = c(0.3, 0.45, 0.25)),
+  outcome = sample(c("恶化", "稳定", "改善"), 400, replace = TRUE, prob = c(0.25, 0.5, 0.25))
+)
+
+flow_counts <- survey |>
+  dplyr::count(intake, adherence, outcome, name = "n")
+
+flow_counts
+```
+
+### 2) 绘制冲积图
+
+```{r}
+library(ggplot2)
+library(ggalluvial)
+
+ggplot(flow_counts,
+  aes(
+    axis1 = intake,
+    axis2 = adherence,
+    axis3 = outcome,
+    y = n
+  )
+) +
+  geom_alluvium(aes(fill = intake), width = 1 / 12, alpha = 0.8) +
+  geom_stratum(width = 1 / 8, fill = "grey95", color = "grey40") +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3.5) +
+  scale_x_discrete(
+    limits = c("饮食摄入", "依从性", "结局"),
+    expand = c(0.05, 0.05)
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "饮食-依从性-结局的路径流向",
+    subtitle = "冲积图展示多阶段类别流向",
+    x = NULL,
+    y = "人数"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
+```
+
+---
+
+## 逐段解释
+
+- `axis1/axis2/axis3` 指定阶段顺序。
+- `y = n` 表示每条流带的宽度。
+- `geom_alluvium()` 绘制流带；`geom_stratum()` 绘制每个阶段的类别块。
+- `after_stat(stratum)` 自动提取类别名称。
+
+---
+
+## 进阶版本：突出关键流向
+
+当路径较多时，可以突出重点流向，其他部分降低透明度。
+
+```{r}
+flow_highlight <- flow_counts |>
+  dplyr::mutate(highlight = intake == "高" & outcome == "改善")
+
+ggplot(flow_highlight,
+  aes(axis1 = intake, axis2 = adherence, axis3 = outcome, y = n)
+) +
+  geom_alluvium(
+    data = flow_highlight |> dplyr::filter(!highlight),
+    fill = "#94a3b8",
+    alpha = 0.4,
+    width = 1 / 12
+  ) +
+  geom_alluvium(
+    data = flow_highlight |> dplyr::filter(highlight),
+    aes(fill = intake),
+    alpha = 0.9,
+    width = 1 / 12
+  ) +
+  geom_stratum(width = 1 / 8, fill = "grey95", color = "grey40") +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3.3) +
+  scale_x_discrete(
+    limits = c("饮食摄入", "依从性", "结局"),
+    expand = c(0.05, 0.05)
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "高摄入人群改善路径强调",
+    subtitle = "突出“高 → 改善”的流向",
+    x = NULL,
+    y = "人数"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "none",
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
+```
+
+---
+
+## 输出与保存
+
+```{r eval=FALSE}
+ggsave("figure/2067-alluvial-basic.png", width = 9, height = 6, dpi = 150)
+```
+
+---
+
+## 常见错误
+
+1. **数据不是 alluvial 结构**：使用 `ggalluvial::is_alluvia_form()` 检查。
+2. **忘记提供 `y`**：流带宽度必须来自 `y` 或计数。
+3. **类别过多**：过多层级会让流带拥挤，先合并低频类别。
+4. **顺序混乱**：建议用 `factor()` 固定类别顺序。
+
+---
+
+## 进阶扩展
+
+- **lodes 结构**：将个体级数据转换为长格式后绘图，便于分层分析。
+- **与分面结合**：用 `facet_wrap()` 比较不同人群的流向差异。
+- **交互式流向图**：结合 `plotly` 或 `networkD3` 做交互探索。
+
+---
+
+## 总结
+
+冲积图适合展示多阶段分类流向，关键是保证数据结构正确、阶段顺序清晰、流向数量适中。只要掌握 `geom_alluvium()` 与 `geom_stratum()` 的组合，就能快速画出可解释的路径流向图。

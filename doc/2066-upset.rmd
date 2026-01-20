@@ -1,0 +1,191 @@
+---
+title: R语言 UpSet 图：多集合交集可视化完全指南
+date: '2026-01-20'
+categories:
+- 数据可视化
+- 专题图
+- 集合关系
+image: images/upset-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 9,
+  fig.height = 6,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 图表用途与场景
+
+UpSet 图用于展示**多个集合的交集规模**，是 Venn 图在多集合场景下的更清晰替代方案。
+当集合数量超过 3-4 个时，Venn 图的区域重叠会迅速变得难以阅读，而 UpSet 图把交集拆成可比较的条形图，让读者更容易看出**交集大小、组合结构和主导模式**。
+
+典型使用场景包括：
+
+- **共病组合**：多种疾病同时出现的交集规模
+- **用户画像**：用户同时具备多个行为或标签的比例
+- **基因集合**：多个基因集之间的交集分布
+- **实验条件**：多条件同时满足时的样本数量
+
+UpSet 图核心解决的问题是：当集合多、交集复杂时，仍能稳定展示可读的交集结构。
+
+---
+
+## 图形入门：UpSet 的编码规则
+
+UpSet 图由两部分构成：
+
+1. **交集条形图**：每个条形代表一种交集组合，条高表示交集大小。
+2. **集合矩阵**：每列对应一个交集组合，每行对应一个集合，黑点/连线标记该交集包含哪些集合。
+
+这种编码方式把“交集”当作分类变量进行排序和比较，因此更适合**集合数量多、交集数量多**的情况。
+
+---
+
+## 数据准备
+
+UpSet 图的数据可以有两种结构：
+
+1. **列表列（list-column）**：每行是一个样本，列中存放该样本所属的集合列表。
+2. **长格式（long format）**：每行是一个样本-集合的组合，后续可转换为 list-column。
+
+在本教程中，我们直接构造 list-column 结构，最方便用于 `ggupset`。
+
+---
+
+## 绘图基础
+
+`ggupset` 基于 ggplot2，只需把“集合列表列”映射到 x 轴，再使用 `scale_x_upset()`，即可得到 UpSet 图。
+
+关键要点：
+
+- `aes(x = sets)` 其中 `sets` 是 list-column
+- `scale_x_upset(order_by = "freq")` 用交集大小排序
+- `n_intersections` 控制显示前 N 个交集组合
+
+---
+
+## 完整代码示例：基础版
+
+### 1) 构造示例数据
+
+```{r}
+set.seed(42)
+
+condition_pool <- c("高血压", "糖尿病", "高脂血症", "吸烟", "肥胖")
+
+patient_sets <- tibble::tibble(
+  id = 1:300,
+  conditions = replicate(
+    300,
+    sample(condition_pool, size = sample(1:3, 1), replace = FALSE),
+    simplify = FALSE
+  )
+)
+
+head(patient_sets, 5)
+```
+
+### 2) 绘制 UpSet 图
+
+```{r}
+library(ggplot2)
+library(ggupset)
+
+ggplot(patient_sets, aes(x = conditions)) +
+  geom_bar(fill = "#4f46e5", alpha = 0.9) +
+  scale_x_upset(order_by = "freq", n_intersections = 12) +
+  labs(
+    title = "慢病共病组合的 UpSet 图",
+    subtitle = "展示主要交集组合及其规模",
+    x = "疾病组合",
+    y = "人数"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
+```
+
+---
+
+## 逐段解释
+
+- `conditions` 是 list-column，每个元素是该样本所属的集合列表。
+- `geom_bar()` 统计交集组合出现的次数。
+- `scale_x_upset()` 把 list-column 转换为 UpSet 结构，并按交集规模排序。
+- `n_intersections = 12` 限制显示前 12 个组合，避免过度拥挤。
+
+---
+
+## 进阶版本：分组比例与重点交集
+
+在真实研究中，常需要比较不同人群的交集差异。下面加入性别分组，并用比例展示交集结构。
+
+```{r}
+patient_sets <- patient_sets |>
+  dplyr::mutate(group = sample(c("男性", "女性"), nrow(patient_sets), replace = TRUE))
+
+ggplot(patient_sets, aes(x = conditions, fill = group)) +
+  geom_bar(position = "fill") +
+  scale_x_upset(order_by = "freq", n_intersections = 10) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("男性" = "#2563eb", "女性" = "#f97316")) +
+  labs(
+    title = "不同性别人群的共病交集结构",
+    subtitle = "使用比例比较交集构成",
+    x = "疾病组合",
+    y = "比例",
+    fill = "人群"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
+```
+
+### 进阶要点
+
+- `position = "fill"` 将交集规模转换为比例，更利于群体对比。
+- `scale_fill_manual()` 强化组间对比色。
+
+---
+
+## 输出与保存
+
+建议把图像输出到 `doc/figure/` 或 `doc/images/` 目录，便于 Quarto 引用：
+
+```{r eval=FALSE}
+ggsave("figure/2066-upset-basic.png", width = 9, height = 6, dpi = 150)
+```
+
+---
+
+## 常见错误
+
+1. **集合列不是 list-column**：必须是 list，而不是用逗号拼接的字符。
+2. **交集太多导致拥挤**：使用 `n_intersections` 控制显示数量。
+3. **集合数量过多**：先筛选高频集合，再绘图。
+4. **忽略排序**：建议按 `freq` 或 `degree` 排序，让读者快速捕捉主模式。
+
+---
+
+## 进阶扩展
+
+- **ComplexUpset**：可绘制更完整的 UpSet 矩阵视图，适合学术出版。
+- **UpSetR**：提供经典 UpSet 版式，适合快速探索。
+- **交互式 UpSet**：结合 `plotly` 或 `ggiraph`，实现交互筛选。
+
+---
+
+## 总结
+
+UpSet 图在多集合交集展示上比 Venn 图更稳定、更可读。掌握关键的数据结构与 `scale_x_upset()` 的参数，就能快速构建一张清晰的交集图。后续只需根据数据规模调整交集数量与排序策略，即可适配科研或业务场景。
