@@ -1,0 +1,367 @@
+---
+title: 回归模型稳健性分析完全指南
+date: '2026-01-20'
+categories:
+- 统计分析方法
+- 模型评估
+- 回归诊断
+- 稳健性分析
+image: images/1103-robustness-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7.5,
+  fig.height = 5,
+  dpi = 150,
+  out.width = "100%",
+  fig.path = "figure/1103-robustness-"
+)
+```
+
+```{r packages}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(broom)
+library(gtsummary)
+library(performance)
+library(lmtest)
+```
+
+## 方法背景与适用场景
+
+**稳健性分析（Robustness Analysis）** 旨在检验回归结论是否对模型设定、
+样本选择和统计假设敏感。它不是“再拟合一次”，而是系统地评估：
+
+- 关键效应是否在多种合理设定下保持方向与量级一致。
+- 结果是否由少数极端样本、变量定义或函数形式驱动。
+- 推断是否受异方差、共线性或非线性影响。
+
+稳健性分析适用于：
+
+- 需要报告回归结论可信度的研究（论文、评估报告）。
+- 变量选择与模型设定存在多种合理路径的情形。
+- 担心结果被异常值或样本构成影响的分析。
+
+## 模型入门与核心概念
+
+回归稳健性分析关注三个核心问题：
+
+1. **规格稳健性**：不同控制变量、不同函数形式下，核心效应是否稳定。
+2. **样本稳健性**：样本限制或异常点处理后，结论是否一致。
+3. **推断稳健性**：异方差、相关性存在时，标准误与显著性是否可靠。
+
+稳健性分析的目标不是寻找“显著性更强”的模型，而是检验结论的
+**可重复性与抗扰动能力**。
+
+## 模型假设与前提
+
+以线性回归为例，稳健性分析需要关注以下假设：
+
+| 假设 | 影响 | 常用检验 |
+|------|------|----------|
+| 线性关系 | 系数可解释性 | 残差-拟合值图、非线性项 |
+| 方差齐性 | 标准误与显著性 | Breusch-Pagan 检验 |
+| 正态性 | 小样本推断 | Q-Q 图、Shapiro 检验 |
+| 独立性 | 标准误 | Durbin-Watson 检验 |
+| 共线性 | 系数不稳定 | VIF 检验 |
+
+对广义线性模型（Logistic、Poisson）而言，稳健性分析同样需要关注
+模型设定与样本限制，但诊断指标有所不同。
+
+## 数据准备与变量定义
+
+我们构造一个连续结局的回归场景，用于演示完整的稳健性流程。
+
+```{r data-sim}
+set.seed(2026)
+n <- 600
+
+analysis_data <- tibble(
+  age = round(runif(n, 25, 75)),
+  sex = factor(sample(c("女", "男"), n, replace = TRUE, prob = c(0.52, 0.48))),
+  bmi = round(rnorm(n, 24.5, 3.5), 1),
+  smoking = factor(sample(c("从不", "曾经", "现在"), n, replace = TRUE,
+    prob = c(0.5, 0.3, 0.2)
+  )),
+  exercise = round(pmax(0, rnorm(n, 150, 60))),
+  income = round(rlnorm(n, log(12), 0.4), 1),
+  diet_score = round(rnorm(n, 60, 10), 1),
+  pm25 = round(rnorm(n, 28, 7), 1)
+) |>
+  mutate(
+    pm25_10 = pm25 / 10,
+    sbp = 95 +
+      0.5 * age +
+      2 * (sex == "男") +
+      1.1 * bmi +
+      1.2 * (smoking == "曾经") +
+      3.0 * (smoking == "现在") -
+      0.03 * exercise +
+      0.35 * pm25 +
+      0.02 * income -
+      0.08 * diet_score +
+      rnorm(n, 0, 8 + 0.15 * pm25)
+  ) |>
+  mutate(sbp = round(sbp, 1))
+
+glimpse(analysis_data)
+```
+
+### 变量说明
+
+- `sbp`：连续结局（收缩压）
+- `pm25_10`：关键暴露变量（每 10 单位 PM2.5）
+- `age`、`sex`、`bmi`、`smoking`、`exercise`：核心混杂变量
+- `income`、`diet_score`：备选控制变量，用于稳健性扩展
+
+## 分析流程步骤
+
+**稳健性分析流程图式描述**：
+
+1. 拟合基准模型，明确主要效应方向与量级。
+2. 检查模型假设（残差、共线性、异方差）。
+3. 逐步调整模型设定：函数形式、控制变量集合。
+4. 进行样本敏感性：样本限制、影响点处理。
+5. 使用稳健标准误或再抽样提升推断可靠性。
+6. 汇总对比核心效应，形成稳健性结论。
+
+**方法选择决策表**：
+
+| 观察到的问题 | 推荐稳健性策略 | 说明 |
+|--------------|----------------|------|
+| 拟合关系可能非线性 | 加入二次项或样条 | 检查系数方向与显著性 |
+| 模型受极端值影响 | Cook's 距离筛查 | 报告剔除规则 |
+| 异方差明显 | HC3 稳健标准误 | 保持系数一致，调整 SE |
+| 结果对协变量敏感 | 扩展/缩减控制集合 | 比较核心效应 |
+| 样本分布偏斜 | 样本范围限制 | 检查稳健性 |
+
+## 代码实现
+
+### 基准模型
+
+```{r model-base}
+model_base <- lm(
+  sbp ~ pm25_10 + age + sex + bmi + smoking + exercise,
+  data = analysis_data
+)
+
+summary(model_base)
+```
+
+```{r base-table}
+model_base |>
+  tbl_regression(
+    label = list(
+      pm25_10 ~ "PM2.5 (每10单位)",
+      age ~ "年龄",
+      sex ~ "性别",
+      bmi ~ "BMI",
+      smoking ~ "吸烟状态",
+      exercise ~ "运动时间"
+    )
+  ) |>
+  add_glance_table(include = c(r.squared, adj.r.squared, AIC, nobs)) |>
+  bold_p() |>
+  modify_caption("**表 1. 基准模型回归结果**")
+```
+
+### 假设检验与诊断
+
+```{r model-diagnostics, fig.height=6.5}
+check_model(model_base)
+```
+
+```{r heteroskedasticity}
+lmtest::bptest(model_base)
+```
+
+```{r vif-check}
+car::vif(model_base)
+```
+
+### 稳健性策略 1：函数形式调整
+
+```{r model-nonlinear}
+model_nonlinear <- lm(
+  sbp ~ pm25_10 + age + I(age^2) + sex + bmi + smoking + exercise,
+  data = analysis_data
+)
+
+summary(model_nonlinear)
+```
+
+### 稳健性策略 2：扩展控制变量集合
+
+```{r model-add-covariates}
+model_addcov <- lm(
+  sbp ~ pm25_10 + age + sex + bmi + smoking + exercise + income + diet_score,
+  data = analysis_data
+)
+
+summary(model_addcov)
+```
+
+### 稳健性策略 3：样本限制
+
+```{r model-trim-sample}
+pm25_range <- quantile(analysis_data$pm25, probs = c(0.05, 0.95))
+
+analysis_trim <- analysis_data |>
+  filter(pm25 >= pm25_range[1], pm25 <= pm25_range[2])
+
+model_trim <- lm(
+  sbp ~ pm25_10 + age + sex + bmi + smoking + exercise,
+  data = analysis_trim
+)
+
+summary(model_trim)
+```
+
+### 稳健性策略 4：影响点处理
+
+```{r model-influence}
+cooks_d <- cooks.distance(model_base)
+influence_flag <- cooks_d > 4 / nrow(analysis_data)
+
+analysis_no_influence <- analysis_data |> filter(!influence_flag)
+
+model_influence <- lm(
+  sbp ~ pm25_10 + age + sex + bmi + smoking + exercise,
+  data = analysis_no_influence
+)
+
+summary(model_influence)
+```
+
+### 稳健性策略 5：稳健标准误
+
+```{r robust-se}
+robust_test <- lmtest::coeftest(
+  model_base,
+  vcov = sandwich::vcovHC(model_base, type = "HC3")
+)
+
+robust_ci <- lmtest::coefci(
+  model_base,
+  vcov = sandwich::vcovHC(model_base, type = "HC3")
+)
+
+robust_pm25 <- data.frame(
+  estimate = robust_test["pm25_10", "Estimate"],
+  std.error = robust_test["pm25_10", "Std. Error"],
+  conf.low = robust_ci["pm25_10", 1],
+  conf.high = robust_ci["pm25_10", 2],
+  p.value = robust_test["pm25_10", "Pr(>|t|)"]
+)
+
+knitr::kable(round(robust_pm25, 3), caption = "稳健标准误下 PM2.5 效应")
+```
+
+### 稳健性策略 6：Bootstrap 敏感性
+
+```{r bootstrap}
+boot_fn <- function(data, indices) {
+  model <- lm(
+    sbp ~ pm25_10 + age + sex + bmi + smoking + exercise,
+    data = data[indices, ]
+  )
+  coef(model)["pm25_10"]
+}
+
+set.seed(2026)
+boot_result <- boot::boot(
+  data = analysis_data,
+  statistic = boot_fn,
+  R = 300
+)
+
+boot::boot.ci(boot_result, type = c("perc", "bca"))
+```
+
+### 敏感性结果汇总
+
+```{r sensitivity-table}
+extract_effect <- function(model, label) {
+  broom::tidy(model, conf.int = TRUE) |>
+    filter(term == "pm25_10") |>
+    mutate(model = label) |>
+    select(model, estimate, conf.low, conf.high, p.value)
+}
+
+sensitivity_table <- bind_rows(
+  extract_effect(model_base, "基准模型"),
+  extract_effect(model_nonlinear, "加入年龄二次项"),
+  extract_effect(model_addcov, "加入社会经济与饮食"),
+  extract_effect(model_trim, "限制 PM2.5 5-95%"),
+  extract_effect(model_influence, "剔除高影响点")
+) |>
+  mutate(
+    estimate = round(estimate, 3),
+    conf.low = round(conf.low, 3),
+    conf.high = round(conf.high, 3),
+    p.value = round(p.value, 3)
+  )
+
+knitr::kable(sensitivity_table, caption = "表 2. 稳健性模型对比（PM2.5 效应）")
+```
+
+```{r sensitivity-plot, fig.height=5.5}
+sensitivity_table |>
+  mutate(model = factor(model, levels = rev(model))) |>
+  ggplot(aes(x = estimate, y = model)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
+  geom_point(size = 2.6, color = "#4f46e5") +
+  labs(
+    title = "PM2.5 效应在不同稳健性模型中的变化",
+    x = "回归系数 (每10单位 PM2.5)",
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## 结果解读与报告
+
+稳健性分析的核心是比较不同设定下的效应方向与幅度：
+
+- 若估计值在不同模型间方向一致、范围稳定，说明结论稳健。
+- 若效应对某一设定特别敏感，应明确解释原因。
+- 稳健标准误影响显著性，但通常不改变点估计。
+
+报告中建议包含以下要点：
+
+1. 基准模型与敏感性模型的变量设定。
+2. 关键效应的估计值、置信区间与变化范围。
+3. 样本限制与影响点处理的规则。
+4. 稳健标准误或再抽样推断的结果。
+
+**示例表述**：
+
+> 在不同控制变量集合、样本限制及稳健标准误条件下，PM2.5 与收缩压
+> 的关联方向一致，系数范围为 0.31–0.38（每10单位），结果具有稳健性。
+
+## 常见错误与纠偏
+
+1. **只报告显著性变化，不报告效应范围**：稳健性关注量级与方向。
+2. **剔除异常值未说明规则**：必须报告剔除比例与依据。
+3. **将稳健性分析当作模型选择**：应避免“挑选显著结果”。
+4. **同时改变变量定义与样本范围**：一次只改变一个维度，便于归因。
+5. **忽略诊断信息**：共线性和异方差会放大不稳定性。
+
+## 进阶扩展
+
+- **稳健回归**：如 `MASS::rlm()`，降低异常值影响。
+- **分位数回归**：检验效应是否在不同分位一致。
+- **多模型比较**：使用模型平均或多重模型集。
+- **多重检验调整**：在多路径分析中控制假阳性率。
+
+## 总结
+
+回归稳健性分析通过规格调整、样本敏感性和推断修正，
+帮助判断结论是否稳定可靠。规范的稳健性流程应明确
+基准模型、扰动路径与结果对比，避免“选择性报告”。
