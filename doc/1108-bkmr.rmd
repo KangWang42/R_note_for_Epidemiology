@@ -1,0 +1,264 @@
+---
+title: 贝叶斯核机器回归 (BKMR) 完全指南
+date: '2026-01-20'
+categories:
+- 特殊应用
+- 环境流行病学
+- R包
+- 混合暴露
+- 机器学习
+image: images/1108_cover.svg
+description: 探索混合暴露非线性效应和复杂交互作用的终极工具：从变量选择到暴露-反应曲面的可视化分析。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 9,
+    fig.height = 7,
+    dpi = 300
+)
+```
+
+## 为什么需要 BKMR？
+
+在混合暴露研究中，真实世界的情况往往极其复杂：
+1. **非线性**：暴露与健康的关系可能不是直线的（例如 U 型曲线）。
+2. **交互作用**：一种暴露物的效应可能取决于另一种暴露物的水平（例如协同效应）。
+3. **高维相关**：暴露物之间高度相关，且并非所有暴露物都有害。
+
+传统的回归模型（如线性回归、WQS、qgcomp）通常假设线性或加性关系，难以捕捉这些复杂的依赖结构。
+
+**贝叶斯核机器回归 (Bayesian Kernel Machine Regression, BKMR)** 是一种基于核方法（Kernel Methods）的非参数统计方法。它通过构建一个灵活的暴露-反应函数 $h(\mathbf{z})$，能够：
+- 自动捕捉**非线性**关系
+- 自动检测暴露物间的**交互作用**
+- 进行**变量选择**（识别哪些暴露物是关键驱动因素）
+
+## BKMR 方法原理
+
+BKMR 的核心模型形式如下：
+
+$$Y_i = h(z_{i1}, ..., z_{ik}) + \mathbf{x}_i^T \boldsymbol{\beta} + \epsilon_i$$
+
+其中：
+- $Y_i$：结局变量
+- $z_{i1}, ..., z_{ik}$：$k$ 个混合暴露物
+- $h(\cdot)$：一个未知的、灵活的函数（由核函数近似）
+- $\mathbf{x}_i$：协变量向量（如年龄、性别）
+- $\boldsymbol{\beta}$：协变量系数
+- $\epsilon_i$：残差
+
+### 核心特性
+
+1. **核函数 (Kernel Function)**：BKMR 使用高斯核函数来度量个体间暴露模式的相似性。如果两个人的暴露特征相似，他们的健康结局也应该相似。
+2. **分层变量选择 (Hierarchical Variable Selection)**：BKMR 能够估计每个暴露物进入模型的后验概率 (PIP)，从而判断变量的重要性。
+
+## 安装与加载
+
+注意：`bkmr` 是一个计算密集型包，安装可能需要编译环境（Rtools/Xcode）。
+
+```{r eval=FALSE}
+install.packages("bkmr")
+```
+
+```{r}
+library(bkmr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+## 数据准备
+
+我们将使用 `bkmr` 包自带的 `SimData` 模拟数据集。
+
+```{r}
+# 生成模拟数据
+set.seed(42)
+# SimData 是 bkmr 包中的一个函数，用于生成模拟数据
+# n: 样本量, M: 暴露物数量
+sim_data <- SimData(n = 50, M = 4, family = "gaussian")
+
+# 提取数据
+y <- sim_data$y            # 结局
+Z <- sim_data$Z            # 暴露矩阵 (50 个观测，4 个暴露物)
+X <- sim_data$X            # 协变量矩阵
+
+# 查看数据维度
+dim(Z)
+head(Z)
+
+# 给暴露物命名
+colnames(Z) <- paste0("Exp", 1:4)
+```
+
+在这个模拟数据中：
+- 样本量 n = 50（为了演示运行速度，实际研究通常需要更多）
+- 暴露物：Exp1, Exp2, Exp3, Exp4
+- 真实关系可能包含非线性和交互作用
+
+## 拟合 BKMR 模型
+
+BKMR 使用马尔可夫链蒙特卡洛 (MCMC) 方法进行估计。由于计算量大，本教程演示使用较少的迭代次数。
+
+**注意**：在实际分析中，`iter` 通常需要设置为 10,000 或更多。
+
+```{r}
+set.seed(42)
+
+# 拟合 BKMR 模型
+# 变量选择方法：hierarchical（分层选择，适用于高相关数据）或 component-wise
+fit_bkmr <- kmbayes(
+    y = y,
+    Z = Z,
+    X = X,
+    iter = 5000,           # 迭代次数 (实际项目建议 >10000)
+    verbose = FALSE,       # 不打印进度
+    varsel = TRUE,         # 开启变量选择
+    est.h = TRUE           # 估计 h 函数用于后续绘图
+)
+
+# 查看模型对象
+print(fit_bkmr)
+```
+
+## 模型诊断：收敛性检查
+
+MCMC 方法需要检查链是否收敛。`TracePlot` 可以展示参数的迭代轨迹。
+
+```{r}
+# 检查误差方差 (sigma^2) 的收敛情况
+# TracePlot(fit_bkmr, par = "sigsq", main = "Sigma^2 Trace Plot")
+
+# 检查变量选择参数 (r) 的收敛情况
+# r 对应于暴露物是否被选入模型
+# TracePlot(fit_bkmr, par = "r", comp = 1, main = "Exp1 Trace Plot")
+# 注意：由于渲染时间限制，此处不展示 TracePlot，实际分析中必须检查收敛性。
+```
+
+理想的 Trace Plot 应该像“毛毛虫”一样围绕某个均值上下波动，没有明显的趋势。
+
+## 结果分析
+
+### 1. 变量重要性 (PIP)
+
+后验包含概率 (Posterior Inclusion Probability, PIP) 反映了暴露物对结局的重要性。PIP 值介于 0 到 1 之间，越接近 1 越重要（通常 PIP > 0.5 视为重要）。
+
+```{r}
+# 提取 PIP
+pip_res <- ExtractPIPs(fit_bkmr)
+print(pip_res)
+
+# 可视化 PIP
+ggplot(pip_res, aes(x = reorder(variable, PIP), y = PIP)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+    coord_flip() +
+    labs(title = "变量重要性 (PIP)", x = "暴露物", y = "后验包含概率") +
+    theme_minimal()
+```
+
+### 2. 单变量暴露-反应关系
+
+查看每个暴露物与结局的关系（固定其他暴露物在中位数水平）。这可以展示是否存在非线性效应。
+
+```{r}
+# 预测单变量关系
+# pred.response: 预测特定 Z 值的 h(z)
+# q.fixed: 其他变量固定在哪个分位数（默认 0.5 即中位数）
+pred_uni <- PredictorResponseUnivar(fit = fit_bkmr, q.fixed = 0.5)
+
+# 绘图
+ggplot(pred_uni, aes(z, est, ymin = est - 1.96*se, ymax = est + 1.96*se)) +
+    geom_ribbon(alpha = 0.2, fill = "blue") +
+    geom_line(color = "blue") +
+    facet_wrap(~ variable, scales = "free_x") +
+    labs(
+        title = "单变量暴露-反应关系",
+        subtitle = "其他暴露物固定在中位数",
+        x = "暴露水平 (Z score)",
+        y = "结局变化 (h(z))"
+    ) +
+    theme_minimal()
+```
+
+### 3. 双变量交互作用
+
+查看两个暴露物之间是否存在交互作用。通常通过绘制一个暴露物在不同水平（如 25th, 50th, 75th 分位数）下，另一个暴露物的反应曲线来观察。
+
+```{r}
+# 预测双变量关系
+# 仅展示 Exp1 和 Exp2 的交互
+pred_bi <- PredictorResponseBivar(fit = fit_bkmr, min.plot.dist = 1)
+
+# 绘图：展示 Exp1 的效应随 Exp2 水平的变化
+# 我们选取 Exp1 和 Exp2 进行展示
+subset_bi <- pred_bi %>% 
+    filter(variable1 == "Exp1", variable2 == "Exp2")
+
+ggplot(subset_bi, aes(z1, est, color = as.factor(z2))) +
+    geom_line() +
+    labs(
+        title = "交互作用分析: Exp1 vs Exp2",
+        subtitle = "不同颜色代表 Exp2 的不同水平 (分位数)",
+        x = "Exp1",
+        y = "h(z)",
+        color = "Exp2 (Z-score)"
+    ) +
+    theme_minimal()
+```
+
+如果不同颜色的线**不平行**（即斜率不同），则提示存在交互作用。
+
+### 4. 混合暴露总体效应
+
+评估所有暴露物同时增加对结局的影响（累积效应）。通常比较所有暴露物都在某一分位数（如 25th 到 75th）时的结局差异。
+
+```{r}
+# 计算总体风险概况
+# 比较将所有暴露物从 25% 分位数逐步提升到 75% 分位数时的效应
+risks_overall <- OverallRiskSummaries(
+    fit = fit_bkmr, 
+    qs = seq(0.25, 0.75, by = 0.05), # 比较的分位数范围
+    q.fixed = 0.5                    # 参照基线（中位数）
+)
+
+# 绘图
+ggplot(risks_overall, aes(quantile, est, ymin = est - 1.96*sd, ymax = est + 1.96*sd)) +
+    geom_pointrange(color = "darkgreen") +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    labs(
+        title = "混合暴露总体效应",
+        subtitle = "所有暴露物同时增加时的累积效应",
+        x = "分位数",
+        y = "效应估计 (相对于中位数)"
+    ) +
+    theme_minimal()
+```
+
+如果曲线呈现单调上升或下降，且置信区间不包含 0，说明混合暴露整体对健康有显著影响。
+
+## 组间比较：BKMR vs WQS vs qgcomp
+
+| 特性 | BKMR | WQS | qgcomp |
+|------|------|-----|--------|
+| **非线性** | ✅ 极其灵活（U型/J型） | ❌ 假设线性 | ❌ 默认线性（可扩展） |
+| **交互作用** | ✅ 自动捕捉 | ❌ 需手动添加 | ❌ 需手动添加 |
+| **方向性** | ✅ 双向效应 | ❌ 单向假设 | ✅ 双向效应 |
+| **变量选择** | ✅ 分层 PIP | ✅ 权重 | ❌ 全部保留 |
+| **计算速度** | 🐢 极慢（MCMC） | 🐇 中等（Bootstrap） | 🚀 极快 |
+| **结果解释** | 🤯 复杂（图形为主） | 😊 简单（单一指数） | 😊 简单（总体效应） |
+
+## 最佳实践建议
+
+1. **预处理**：BKMR 对尺度敏感，建议对连续暴露变量进行 **Z-score 标准化**。
+2. **样本量**：由于是非参数方法，BKMR 需要较大的样本量（通常 n > 200）才能获得稳定的估计，特别是在高维情况下。
+3. **计算资源**：对于大数据集（n > 1000），标准 BKMR 可能跑不动。可以考虑 `FastBKMR` 或基于高斯过程近似的方法。
+4. **报告规范**：报告 PIP、单变量图、双变量图和总体效应图，不仅仅是数字。
+
+## 参考文献
+
+- Bobb, J. F., et al. (2015). Bayesian kernel machine regression for estimating the health effects of multi-pollutant mixtures. *Biostatistics*, 16(3).
+- Valeri, L., et al. (2017). Joint estimation of bivariate marginal dose-response functions in Bayesian kernel machine regression. *Biostatistics*.
