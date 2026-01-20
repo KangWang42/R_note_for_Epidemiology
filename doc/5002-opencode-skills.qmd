@@ -1,0 +1,714 @@
+---
+title: 'OpenCode Skills: 技能系统详解'
+date: '2026-01-20'
+categories:
+- 机器学习与AI
+- AI 工具
+image: figure/default-cover1.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## 什么是 Skills
+
+**Skills（技能）** 是 OpenCode 中可复用的指令模块，用于为 AI 代理提供专业化的行为指导。与项目级的 `AGENTS.md` 不同，Skills 采用**按需加载**机制，只有在需要时才会被激活。
+
+### 核心概念对比
+
+| 配置方式 | 加载时机 | 作用范围 | 主要用途 |
+|:---------|:---------|:---------|:---------|
+| **AGENTS.md** | 每次对话自动加载 | 项目全局 | 项目结构、代码规范、通用指令 |
+| **Skills** | 按需加载（手动/自动） | 特定任务 | 专业技能、工作流模板 |
+| **Commands** | 用户触发 | 单次操作 | 快捷命令、模板填充 |
+
+::: {.callout-tip}
+## 类比理解
+
+如果把 `AGENTS.md` 比作员工的**岗位说明书**（始终遵守），那么 Skills 就是**专业培训手册**（按需取用）——你不会让所有员工同时学会所有技能，而是在需要时派出相应的专家。
+:::
+
+### 为什么需要 Skills
+
+1. **避免上下文膨胀**：将所有指令塞进 `AGENTS.md` 会导致每次对话都消耗大量 token
+2. **模块化复用**：一个技能可以在多个项目中使用
+3. **专业化深度**：每个技能可以包含非常详细的专业知识
+4. **灵活组合**：多个技能可以组合使用
+
+---
+
+## SKILL.md 文件格式
+
+Skills 通过 `SKILL.md` 文件定义，采用 YAML frontmatter + Markdown 正文的格式。
+
+### 基本结构
+
+```markdown
+---
+name: skill-name
+description: 技能的简短描述（会显示在技能列表中）
+version: 1.0.0
+globs:
+  - "*.R"
+  - "*.rmd"
+---
+
+# 技能标题
+
+这里是技能的详细说明和指令...
+
+## 工作规范
+
+- 规范 1
+- 规范 2
+
+## 代码模板
+
+\```r
+# 示例代码
+\```
+```
+
+### Frontmatter 字段说明
+
+| 字段 | 必填 | 说明 |
+|:-----|:-----|:-----|
+| `name` | ✅ | 技能唯一标识符，用于 `/skill-name` 调用 |
+| `description` | ✅ | 技能简短描述，显示在列表和帮助中 |
+| `version` | ❌ | 版本号（语义化版本） |
+| `globs` | ❌ | 自动激活的文件模式（见下文） |
+| `alwaysApply` | ❌ | 设为 `true` 时始终加载（类似 AGENTS.md） |
+
+### 自动激活（Globs）
+
+通过 `globs` 字段，可以让技能在编辑特定文件时自动激活：
+
+```yaml
+---
+name: r-style
+description: R 代码风格规范
+globs:
+  - "*.R"
+  - "*.r"
+  - "R/*.R"
+---
+```
+
+当用户编辑匹配的文件时，该技能会自动加载到上下文中。
+
+::: {.callout-warning}
+## 谨慎使用 globs
+
+过多的自动激活会导致上下文膨胀。建议只对最核心的规范使用 globs，其他技能保持手动激活。
+:::
+
+---
+
+## 技能存放位置
+
+OpenCode 从多个位置发现技能，按优先级从高到低：
+
+### 项目级技能
+
+```
+your-project/
+├── .opencode/
+│   └── skill/
+│       ├── r-analysis/
+│       │   └── SKILL.md
+│       └── data-cleaning/
+│           └── SKILL.md
+└── ...
+```
+
+### 全局技能
+
+```
+~/.config/opencode/
+└── skill/
+    ├── r-style/
+    │   └── SKILL.md
+    └── git-commit/
+        └── SKILL.md
+```
+
+### 发现优先级
+
+1. 项目 `.opencode/skill/*/SKILL.md`
+2. 全局 `~/.config/opencode/skill/*/SKILL.md`
+3. 内置技能
+
+同名技能优先使用项目级版本。
+
+---
+
+## 使用技能
+
+### 手动调用
+
+在对话中使用斜杠命令加载技能：
+
+```
+/r-analysis
+
+帮我分析这个数据集的缺失值分布
+```
+
+### 查看可用技能
+
+```
+/skills
+```
+
+显示所有可用技能及其描述。
+
+### 在提示中引用
+
+直接在消息中提及技能名：
+
+```
+使用 r-analysis 技能，帮我写一个完整的探索性数据分析脚本
+```
+
+### 组合使用
+
+可以同时加载多个技能：
+
+```
+/r-analysis
+/visualization
+
+基于上述两个技能的规范，帮我完成数据分析报告
+```
+
+---
+
+## R 用户实用技能示例
+
+### 1. R 代码风格规范
+
+```markdown
+---
+name: r-style
+description: R 代码风格规范 (tidyverse style)
+globs:
+  - "*.R"
+  - "*.r"
+---
+
+# R 代码风格规范
+
+遵循 [tidyverse style guide](https://style.tidyverse.org/)。
+
+## 命名规范
+
+- 变量和函数：`snake_case`
+- 常量：`UPPER_SNAKE_CASE`
+- S3 方法：`generic.class`
+
+## 格式规范
+
+- 缩进：2 个空格
+- 行宽：80 字符
+- 运算符周围加空格：`x + y`，不是 `x+y`
+- 逗号后加空格：`c(1, 2, 3)`
+
+## 管道操作
+
+- 优先使用原生管道 `|>`
+- 每个管道步骤换行
+- 管道链超过 3 步时添加注释
+
+\```r
+# Good
+result <- data |>
+  filter(age > 18) |>
+  group_by(gender) |>
+  summarise(mean_score = mean(score, na.rm = TRUE))
+
+# Bad
+result <- data |> filter(age > 18) |> group_by(gender) |> summarise(mean_score = mean(score, na.rm = TRUE))
+\```
+
+## 函数定义
+
+- 参数默认值使用 `=` 而非 `<-`
+- 参数之间换行对齐
+- 函数体始终使用大括号
+
+\```r
+calculate_summary <- function(data,
+                              group_var = NULL,
+                              summary_fn = mean,
+                              na_rm = TRUE) {
+  # 函数体
+}
+\```
+```
+
+### 2. 数据分析工作流
+
+```markdown
+---
+name: r-analysis
+description: R 数据分析工作流模板
+---
+
+# R 数据分析工作流
+
+## 标准流程
+
+1. **环境准备**
+   - 清理环境：`rm(list = ls())`
+   - 设置随机种子：`set.seed(42)`
+   - 加载必要包
+
+2. **数据导入**
+   - 使用 `here::here()` 构建路径
+   - 验证数据维度和类型
+
+3. **探索性分析 (EDA)**
+   - 数据概览：`glimpse()`, `summary()`
+   - 缺失值检查：`naniar::miss_var_summary()`
+   - 分布检查：直方图、箱线图
+
+4. **数据清洗**
+   - 处理缺失值
+   - 处理异常值
+   - 变量转换
+
+5. **分析建模**
+   - 描述性统计
+   - 推断统计
+   - 模型诊断
+
+6. **结果呈现**
+   - 表格：`gtsummary`
+   - 图形：`ggplot2`
+   - 导出：`ggsave()`, `write_csv()`
+
+## 代码模板
+
+\```r
+# ============================================
+# 项目名称：
+# 作者：
+# 日期：
+# ============================================
+
+# 0. 环境准备 --------------------------------
+rm(list = ls())
+set.seed(42)
+
+library(tidyverse)
+library(here)
+
+# 1. 数据导入 --------------------------------
+data_raw <- read_csv(here("data", "raw_data.csv"))
+
+# 2. 数据探索 --------------------------------
+glimpse(data_raw)
+summary(data_raw)
+
+# 3. 数据清洗 --------------------------------
+data_clean <- data_raw |>
+  # 清洗步骤
+  drop_na(key_variable)
+
+# 4. 分析建模 --------------------------------
+# ...
+
+# 5. 结果导出 --------------------------------
+write_csv(results, here("output", "results.csv"))
+\```
+```
+
+### 3. ggplot2 可视化规范
+
+```markdown
+---
+name: r-viz
+description: ggplot2 可视化规范与模板
+---
+
+# ggplot2 可视化规范
+
+## 主题设置
+
+优先使用简洁主题：
+
+\```r
+theme_set(theme_minimal(base_size = 12, base_family = "sans"))
+\```
+
+## 配色规范
+
+- 分类变量：使用 `scale_color_brewer(palette = "Set2")`
+- 连续变量：使用 `scale_fill_viridis_c()`
+- 学术论文：考虑色盲友好配色
+
+## 图形元素
+
+- 标题简洁明了
+- 坐标轴标签包含单位
+- 图例位置根据图形调整
+- 避免 3D 效果
+
+## 保存设置
+
+\```r
+ggsave(
+  filename = here("figures", "plot_name.png"),
+  plot = p,
+  width = 8,
+  height = 6,
+  dpi = 300,
+  bg = "white"
+)
+\```
+
+## 常用模板
+
+### 分组箱线图
+
+\```r
+ggplot(data, aes(x = group, y = value, fill = group)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "标题",
+    x = "分组变量",
+    y = "数值变量 (单位)"
+  ) +
+  theme(legend.position = "none")
+\```
+
+### 散点图 + 回归线
+
+\```r
+ggplot(data, aes(x = x_var, y = y_var)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "steelblue") +
+  labs(
+    title = "X 与 Y 的关系",
+    x = "X 变量 (单位)",
+    y = "Y 变量 (单位)"
+  )
+\```
+```
+
+### 4. 统计报告模板
+
+```markdown
+---
+name: r-report
+description: 统计分析报告模板 (RMarkdown/Quarto)
+---
+
+# 统计报告模板
+
+## 报告结构
+
+1. **摘要**：研究目的、方法、主要结果
+2. **背景**：研究问题、假设
+3. **方法**：数据来源、分析方法
+4. **结果**：描述性统计、推断统计
+5. **讨论**：结果解释、局限性
+6. **附录**：补充材料、代码
+
+## YAML 模板
+
+\```yaml
+---
+title: "分析报告标题"
+author: "作者"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "显示代码"
+execute:
+  warning: false
+  message: false
+---
+\```
+
+## 表格输出
+
+使用 `gtsummary` 生成发表级表格：
+
+\```r
+library(gtsummary)
+
+data |>
+  tbl_summary(
+    by = group,
+    include = c(age, gender, score),
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    )
+  ) |>
+  add_p() |>
+  add_overall() |>
+  modify_header(label = "**变量**")
+\```
+
+## 结果描述模板
+
+> 本研究共纳入 {n} 名参与者，其中男性 {n_male} 人 ({p_male}%)。
+> 年龄范围为 {age_min}-{age_max} 岁，平均年龄 {age_mean} ± {age_sd} 岁。
+> 两组间 {variable} 差异具有统计学意义 (t = {t_value}, p {p_symbol} {p_value})。
+```
+
+---
+
+## 热门技能组合
+
+以下是 OpenCode 社区分享的热门技能组合：
+
+### 📝 文档架构师 (docs-architect)
+
+专注于生成高质量技术文档：
+
+- 自动识别代码结构
+- 生成 API 文档
+- 编写用户指南
+- 维护 README
+
+### 🌐 全能网页助手 (e2e-tester)
+
+结合 Playwright MCP 进行端到端测试：
+
+- 自动化浏览器测试
+- 截图对比
+- 性能监控
+- 可访问性检查
+
+### 🦸 Superpowers (TDD 工作流)
+
+测试驱动开发最佳实践：
+
+- 先写测试，后写代码
+- 红-绿-重构循环
+- 覆盖率检查
+- 边界条件测试
+
+### 📧 智能办公秘书 (office-assistant)
+
+日常办公任务自动化：
+
+- 邮件模板生成
+- 会议纪要整理
+- 日程安排
+- 文档格式化
+
+### ✨ 爆款内容创作者 (content-creator)
+
+内容营销与创作：
+
+- 标题优化
+- SEO 建议
+- 多平台适配
+- 数据分析视角
+
+### 📊 研报分析专家 (market-analyst)
+
+金融研报分析与生成：
+
+- 数据提取
+- 图表解读
+- 趋势分析
+- 投资建议
+
+---
+
+## 权限配置
+
+Skills 可以声明所需的工具权限：
+
+```markdown
+---
+name: advanced-skill
+description: 需要特殊权限的技能
+permissions:
+  bash: true
+  write: true
+  mcp:
+    - playwright
+    - github
+---
+```
+
+### 权限字段说明
+
+| 权限 | 说明 |
+|:-----|:-----|
+| `bash` | 允许执行 shell 命令 |
+| `write` | 允许写入文件 |
+| `edit` | 允许编辑文件 |
+| `mcp` | 允许使用的 MCP 服务器列表 |
+
+### 安全考虑
+
+- 来自不信任来源的技能应审查权限声明
+- 敏感操作建议在 `opencode.json` 中设置 `"permission": "ask"`
+- 可以通过配置禁用特定技能的权限
+
+---
+
+## 创建自定义技能
+
+### 步骤 1：确定技能范围
+
+思考以下问题：
+
+- 这个技能解决什么具体问题？
+- 是否需要自动激活（globs）？
+- 需要哪些工具权限？
+
+### 步骤 2：创建目录结构
+
+```bash
+# 项目级技能
+mkdir -p .opencode/skill/my-skill
+touch .opencode/skill/my-skill/SKILL.md
+
+# 全局技能
+mkdir -p ~/.config/opencode/skill/my-skill
+touch ~/.config/opencode/skill/my-skill/SKILL.md
+```
+
+### 步骤 3：编写 SKILL.md
+
+```markdown
+---
+name: my-skill
+description: 我的自定义技能
+version: 1.0.0
+---
+
+# 技能名称
+
+## 背景说明
+
+说明这个技能的用途和背景。
+
+## 工作规范
+
+- 规范 1
+- 规范 2
+
+## 示例
+
+提供使用示例...
+```
+
+### 步骤 4：测试技能
+
+```
+/skills          # 确认技能出现在列表中
+/my-skill        # 加载技能
+帮我做一个示例任务  # 验证技能效果
+```
+
+---
+
+## 最佳实践
+
+### 1. 技能粒度
+
+- **太大**：难以复用，上下文过长
+- **太小**：需要频繁组合，管理复杂
+- **合适**：一个技能解决一类问题
+
+### 2. 文档质量
+
+- 提供清晰的使用场景
+- 包含可直接使用的代码模板
+- 列出相关技能和前置要求
+
+### 3. 版本管理
+
+- 使用语义化版本号
+- 重大更改时更新版本
+- 记录变更日志
+
+### 4. 测试验证
+
+- 新技能先在小任务上测试
+- 验证与其他技能的兼容性
+- 收集用户反馈持续改进
+
+---
+
+## 故障排除
+
+### 技能未显示在列表中
+
+1. 检查文件路径是否正确
+2. 确认 `SKILL.md` 文件名大小写正确
+3. 验证 YAML frontmatter 格式
+
+```bash
+# 检查项目级技能
+ls -la .opencode/skill/
+
+# 检查全局技能
+ls -la ~/.config/opencode/skill/
+```
+
+### 技能加载失败
+
+1. 检查 frontmatter 语法错误
+2. 确认 `name` 字段存在
+3. 查看 OpenCode 日志
+
+### Globs 不生效
+
+1. 确认文件模式语法正确
+2. 检查是否被更高优先级技能覆盖
+3. 验证文件扩展名匹配
+
+### 权限被拒绝
+
+1. 检查 `opencode.json` 中的权限设置
+2. 确认技能声明的权限正确
+3. 在敏感操作时选择"允许"
+
+---
+
+## 资源链接
+
+| 资源 | 链接 |
+|:-----|:-----|
+| Skills 官方文档 | [opencodecn.com/docs/skills](https://www.opencodecn.com/docs/skills) |
+| 热门技能展示 | [opencodecn.com/skills](https://www.opencodecn.com/skills) |
+| Commands 文档 | [opencodecn.com/docs/commands](https://www.opencodecn.com/docs/commands) |
+| OpenCode 基础教程 | [本站 OpenCode 教程](5001-opencode.qmd) |
+
+---
+
+## 总结
+
+Skills 是 OpenCode 中实现**专业化、模块化、可复用**的关键机制：
+
+| 特点 | 说明 |
+|:-----|:-----|
+| **按需加载** | 避免上下文膨胀，节省 token |
+| **模块化** | 一个技能解决一类问题 |
+| **可复用** | 项目间、团队间共享 |
+| **可组合** | 多个技能协同工作 |
+
+对于 R 语言用户，建议创建以下核心技能：
+
+1. **r-style**：代码风格规范（建议使用 globs 自动激活）
+2. **r-analysis**：数据分析工作流模板
+3. **r-viz**：ggplot2 可视化规范
+4. **r-report**：统计报告模板
+
+从这些基础技能开始，根据实际需求逐步扩展你的技能库！
