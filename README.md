@@ -48,7 +48,8 @@
 
 ## 🧭 内容导航
 
-### 📦 实用 R 包
+<details>
+<summary>📦 实用 R 包（点击展开）</summary>
 
 | 包名 | 核心功能 | 难度 | 教程链接 |
 | :--- | :--- | :---: | :--- |
@@ -69,7 +70,10 @@
 | **gtsummary** | 论文表格生成 | ⭐⭐ | [教程链接](1053-gtsummary.html) |
 | **ggguides** | 图例简化 | ⭐ | [教程链接](2034-ggguides.html) |
 
-### 📈 数据可视化
+</details>
+
+<details>
+<summary>📈 数据可视化（点击展开）</summary>
 
 #### 🏗️ 基础图表
 
@@ -112,7 +116,10 @@
 | **复杂组合** | ⭐⭐⭐ | [教程链接](2031-bindcomplex.html) | 论文发表级别图表 |
 | **Base R 绘图** | ⭐⭐ | [教程链接](2061-base-r-graphics.html) | 基础绘图系统、快速探索 |
 
-### 📐 统计分析方法
+</details>
+
+<details>
+<summary>📐 统计分析方法（点击展开）</summary>
 
 #### 📊 基础回归
 
@@ -210,7 +217,10 @@
 | **变分模态分解 (VMD)** | ⭐⭐⭐ | [教程链接](1034-nvmd.html) | 信号处理分析 |
 | **FFT + VMD + GMM** | ⭐⭐⭐ | [教程链接](1035-fft-nvmd-gmm.html) | 组合信号分析 |
 
-### 🚀 机器学习与 AI
+</details>
+
+<details>
+<summary>🚀 机器学习与 AI（点击展开）</summary>
 
 | 类别 | 难度 | 教程链接 | 说明 |
 | :--- | :--- | :--- | :--- |
@@ -223,7 +233,10 @@
 | **深度学习** | ⭐⭐ | [LSTM 时间序列预测](1044-lstm.html), [torch 深度学习](1069-torch-deep-learning.html) | 神经网络、LSTM、PyTorch |
 | **模型整理** | ⭐ | [broom 模型整理](1043-broom.html) | 统一模型输出 |
 
-### 🛠️ 特殊应用
+</details>
+
+<details>
+<summary>🛠️ 特殊应用（点击展开）</summary>
 
 | 类别 | 难度 | 教程链接 | 说明 |
 | :--- | :--- | :--- | :--- |
@@ -231,7 +244,10 @@
 | **质性研究** | ⭐⭐ | [质性研究与文本挖掘](1030-qualitative-research.html) | 文本分析、质性方法 |
 | **信号处理** | ⭐⭐⭐ | [分布滞后模型](1033-dlnm.html), [变分模态分解](1034-nvmd.html), [FFT+VMD+GMM](1035-fft-nvmd-gmm.html) | 时频分析、信号分解 |
 
-### 🛠️ 实用操作
+</details>
+
+<details>
+<summary>🛠️ 实用操作（点击展开）</summary>
 
 | 主题 | 难度 | 教程链接 | 说明 |
 | :--- | :--- | :--- | :--- |
@@ -247,15 +263,20 @@
 | **可重复研究工作流** | ⭐⭐ | [可重复研究工作流](3006-reproducible-research.html) | 研究闭环最佳实践 |
 | **Shiny Web 应用** | ⭐⭐⭐ | [Shiny Web 应用](4001-shiny.html) | 构建交互式数据应用 |
 
+</details>
+
 ---
 
-## 🏗️ 开发环境
+<details>
+<summary>🏗️ 开发环境（点击展开）</summary>
 
 | 工具 | 难度 | 教程链接 | 说明 |
 | :--- | :--- | :--- | :--- |
 | **Positron IDE** | ⭐ | [Positron IDE 教程](0013-positron.html) | 现代化的 R 开发环境 |
 | **RMarkdown 入门** | ⭐ | [RMarkdown 入门](0011-rmarkdown.html) | 创建可重复的研究报告 |
 | **Quarto vs RMarkdown** | ⭐⭐ | [Quarto vs RMarkdown](0012-quarto-vs-rmd.md) | 选择合适的文档格式 |
+
+</details>
 
 ---
 
@@ -284,6 +305,22 @@
 ├── .github/workflows/   # GitHub Actions 自动部署
 └── README.md            # 项目说明
 ```
+
+---
+
+## 🤖 生成文章技能
+
+以下为项目内置的文章生成技能（Opencode Skills），用于快速生成不同类别的教程内容：
+
+- `section-intro-guide`: 入门指南/学习路线/基础知识
+- `section-r-packages`: 实用 R 包教程/评测/实践
+- `section-statistics`: 统计分析方法
+- `section-ml-ai`: 机器学习/深度学习/AI
+- `section-operations`: 数据导入/清洗/转换/开发环境
+- `section-visualization`: 数据可视化/图形设计/绘图美化
+- `section-special`: 卫生经济学/质性研究/信号处理
+
+新增或更新文章后，请先完成渲染验证（`quarto render doc/<file>`），再同步更新本 README 的导航与统计信息。
 
 ---
 
