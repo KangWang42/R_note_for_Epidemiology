@@ -1,0 +1,269 @@
+---
+title: '列线图 (Nomogram) 与校准曲线'
+date: '2026-01-24'
+categories:
+- 统计分析方法
+- 临床预测模型
+- 可视化
+image: images/nomogram-cover.svg
+description: 基于 rms 包构建 Logistic 和 Cox 回归的列线图及校准曲线，实现临床预测模型的可视化展示。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+                      fig.width = 8, fig.height = 5, fig.retina = 2, 
+                      out.width = "100%", dpi = 150)
+library(tidyverse)
+library(rms)
+library(survival)
+```
+
+**列线图 (Nomogram)**，又称诺莫图，是临床预测模型中最常见的可视化工具之一。它将复杂的回归方程（Logistic 或 Cox）转化为简单的图形工具，允许医生或患者通过简单的连线和加法，快速计算出特定结局发生的概率。
+
+配套的 **校准曲线 (Calibration Curve)** 则是评估模型预测概率与实际发生率一致性的核心指标。
+
+## 核心概念
+
+### 1. 列线图的原理
+列线图根据回归模型中各变量的系数大小，给每个变量的不同取值赋分（Points）。
+1.  **单项得分**：每个预测变量对应的分数。
+2.  **总分 (Total Points)**：所有变量得分之和。
+3.  **预测概率**：总分对应的结局发生概率（如 3年生存率、患病概率）。
+
+### 2. 校准曲线的含义
+校准曲线展示了**预测概率**（X轴）与**实际观测概率**（Y轴）之间的关系。
+- **理想曲线**：一条对角线（Slope = 1），表示预测值完全等于观测值。
+- **模型偏差**：曲线偏离对角线越远，说明模型的校准度越差（高估或低估风险）。
+
+---
+
+## 准备工作：rms 包的基础
+
+在 R 中绘制列线图，最权威的工具是 Frank Harrell 开发的 `rms` 包。使用该包有一个特殊的前置步骤：**设定数据分布 (datadist)**。
+
+`rms` 需要知道每个变量的分布特征（如中位数、极值），以便在绘图时确定坐标轴的范围和刻度。
+
+```{r}
+# 加载必要的包
+library(rms)
+library(survival)
+
+# 设置 ggplot2 主题（用于后续美化）
+theme_set(theme_minimal())
+```
+
+---
+
+## 实战一：Logistic 回归列线图
+
+我们使用 `titantic3` 数据集（泰坦尼克号生存数据）来构建一个二分类预测模型：预测乘客是否存活。
+
+### 1. 数据准备与打包
+
+```{r}
+# 获取数据 (rms包自带或者是从网络获取，这里为了演示稳定，我们生成模拟数据或使用常用内置数据)
+# 我们使用 base R 自带的 mtcars 数据集演示 Logistic 回归
+# 预测目标：am (0=自动挡, 1=手动挡)，虽不是临床数据，但原理一致
+data(mtcars)
+
+# 转换分类变量
+mtcars$vs <- factor(mtcars$vs, labels = c("V-shaped", "Straight"))
+mtcars$cyl <- factor(mtcars$cyl)
+
+# 关键步骤：设定数据分布
+dd <- datadist(mtcars)
+options(datadist = "dd") # 将分布信息告知 rms
+```
+
+### 2. 构建模型 (lrm)
+
+`rms` 包中使用 `lrm()` 函数代替基础的 `glm()` 来拟合 Logistic 回归模型。
+
+```{r}
+# 构建 Logistic 回归模型
+# formula: 结局 ~ 变量1 + 变量2 ...
+f_logit <- lrm(am ~ mpg + cyl + hp + wt, data = mtcars)
+
+# 查看模型结果
+print(f_logit)
+```
+
+### 3. 绘制列线图
+
+```{r}
+# 构建 Nomogram 对象
+# fun: 转换函数，plogis 将 log-odds 转换为概率
+nom_logit <- nomogram(f_logit, 
+                      fun = plogis, 
+                      fun.at = c(0.1, 0.3, 0.5, 0.7, 0.9), # 概率刻度
+                      lp = FALSE,  # 不显示线性预测值 (Linear Predictor)
+                      funlabel = "手动挡概率") # 概率轴标签
+
+# 绘图
+plot(nom_logit)
+```
+
+**解读**：
+1.  **Points**：每个变量（如 `mpg`, `wt`）向上投射到第一行，得到单项得分。
+2.  **Total Points**：将所有单项得分相加。
+3.  **Probability**：将总分向下投射到最后一行，得到预测概率。
+
+### 4. 绘制校准曲线
+
+对于 Logistic 回归，我们通常使用 Bootstrap 重抽样来评估校准度。
+
+```{r}
+# 1. 更新模型，加入 x=TRUE, y=TRUE 以便进行验证
+f_logit <- update(f_logit, x = TRUE, y = TRUE)
+
+# 2. 计算校准曲线数据 (Bootstrap B=200次)
+# u: 并不用于 logistic，仅用于生存分析。这里 method='boot'
+cal_logit <- calibrate(f_logit, method = "boot", B = 200)
+
+# 3. 绘图
+plot(cal_logit, 
+     xlim = c(0, 1), ylim = c(0, 1),
+     xlab = "Predicted Probability", 
+     ylab = "Observed Probability",
+     legend = FALSE,
+     subtitles = FALSE) # 去掉默认的副标题
+abline(a = 0, b = 1, lty = 2, col = "gray") # 添加对角线
+```
+
+---
+
+## 实战二：Cox 回归生存列线图
+
+生存分析的列线图更为常见，通常用于预测 1年、3年、5年生存率。我们使用 `survival` 包自带的 `lung` 数据集。
+
+### 1. 数据清洗与打包
+
+```{r}
+data(lung)
+
+# 数据清洗
+lung <- lung %>%
+  mutate(
+    sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female")),
+    # ph.ecog 合并稀疏水平: 0-1 vs 2-3
+    ph.ecog = case_when(
+      ph.ecog %in% c(0, 1) ~ "Good (0-1)",
+      ph.ecog %in% c(2, 3) ~ "Poor (2-3)",
+      TRUE ~ NA_character_
+    ) %>% factor(),
+    status = status - 1 # 转换为 0=删失, 1=死亡
+  ) %>%
+  filter(!is.na(ph.ecog)) # 去除缺失值
+
+# 关键步骤：重新设定数据分布
+dd_surv <- datadist(lung)
+options(datadist = "dd_surv")
+```
+
+### 2. 构建模型 (cph)
+
+使用 `rms::cph()` 替代 `survival::coxph()`。注意要设置 `surv=TRUE` 和 `x=TRUE, y=TRUE` 以便后续绘图。
+
+```{r}
+# 构建 Cox 回归模型
+f_cox <- cph(Surv(time, status) ~ age + sex + ph.ecog + meal.cal, 
+             data = lung,
+             x = TRUE, y = TRUE, surv = TRUE)
+```
+
+### 3. 绘制生存列线图
+
+我们需要定义一个辅助函数来计算特定时间的生存率（例如 1年=365天）。
+
+```{r}
+# 定义生存率转换函数
+surv <- Survival(f_cox)
+surv_1yr <- function(x) surv(365, lp = x)
+surv_2yr <- function(x) surv(730, lp = x)
+
+# 构建 Nomogram
+nom_cox <- nomogram(f_cox,
+                    fun = list(surv_1yr, surv_2yr), # 预测 1年和 2年
+                    funlabel = c("1-Year Survival", "2-Year Survival"),
+                    lp = FALSE)
+
+# 绘图
+plot(nom_cox)
+```
+
+### 4. 绘制生存校准曲线
+
+生存分析的校准曲线需要指定时间点（`u`）和单位（`units`）。
+
+```{r}
+# 计算 1年生存率的校准曲线
+# u=365: 预测时间点
+# m=40: 每次分组的样本量 (通常 N/3 到 N/10 之间)
+cal_cox <- calibrate(f_cox, cmethod = "KM", method = "boot", u = 365, m = 40, B = 200)
+
+# 绘图
+plot(cal_cox,
+     xlim = c(0, 1), ylim = c(0, 1),
+     xlab = "Predicted 1-Year Survival",
+     ylab = "Observed 1-Year Survival (KM)",
+     legend = FALSE)
+abline(a = 0, b = 1, lty = 2, col = "gray")
+```
+
+---
+
+## 进阶：美化列线图
+
+`rms` 默认的图表基于 base plot，风格较古老。我们可以使用 `ggplot2` 风格的包如 `regplot` 或手动提取数据重绘，但 `rms` 原生图表在期刊中接受度依然很高。
+
+这里推荐一个简单的方法：调整 `plot` 参数或使用 `regplot`。
+
+### 使用 regplot 增强交互性与美观度
+
+```{r, fig.height=6}
+# 如果没有安装，请取消注释安装
+# install.packages("regplot")
+if(requireNamespace("regplot", quietly = TRUE)) {
+  library(regplot)
+  
+  # 绘制带密度分布的彩色 Nomogram
+  regplot(f_cox, 
+          plots = c("density", "boxes"), 
+          observation = lung[1, ], # 展示第1个病人的情况
+          points = TRUE, 
+          dencol = "#4f46e5", 
+          boxcol = "#ef4444")
+}
+```
+
+---
+
+## 常见问题 (FAQ)
+
+**Q1: `options(datadist = "dd")` 报错或不起作用？**
+A: 必须确保 `dd` 对象已经创建，且 `datadist(data)` 中的 `data` 没有任何缺失值（或已处理）。如果模型中用了数据集中不存在的变量变换，也会报错。建议在建模前先清洗好数据，不要在 formula 中做 `as.factor`。
+
+**Q2: 校准曲线很乱或报错？**
+A: `calibrate` 函数对参数 `m`（每组样本量）很敏感。如果样本量小，尝试减小 `m`。`method="boot"` 需要较多样本。如果报错，检查是否有因子水平稀疏（某些分类只有极少样本）。
+
+**Q3: C-index 在哪里看？**
+A: `rms` 模型对象的输出中包含 $D_{xy}$。
+$$ C\text{-index} = \frac{D_{xy}}{2} + 0.5 $$
+
+```{r}
+# 提取 C-index
+dxy <- f_cox$stats["Dxy"]
+c_index <- dxy/2 + 0.5
+cat("C-index:", round(c_index, 3))
+```
+
+## 总结
+
+1.  **rms 包**是绘制 Nomogram 的标准工具，核心是 `lrm/cph` 建模和 `datadist` 打包。
+2.  **Nomogram** 将模型可视化，便于临床应用。
+3.  **校准曲线** 验证了模型的准确性，是发表高质量预测模型论文的必选项。
+
+## 参考文献
+
+1.  Harrell, F. E. (2015). *Regression Modeling Strategies*. Springer.
+2.  Iasonos, A., et al. (2008). How to build and interpret a nomogram for cancer prognosis. *Journal of Clinical Oncology*.
