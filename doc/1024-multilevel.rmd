@@ -654,6 +654,297 @@ tab_model(m3)
 - [ ] 提供残差诊断
 - [ ] 说明如何处理缺失值
 
+---
+
+## 贝叶斯多水平模型
+
+使用 `brms` 包进行贝叶斯估计：
+
+```{r eval=FALSE}
+library(brms)
+
+# 贝叶斯多水平模型
+bayes_model <- brm(
+  score ~ study_hours + prior_score + (study_hours | class_id),
+  data = student_data,
+  family = gaussian(),
+  prior = c(
+    prior(normal(0, 10), class = b),          # 固定效应先验
+    prior(cauchy(0, 2.5), class = sd),        # 随机效应标准差先验
+    prior(lkj(2), class = cor)                # 相关性先验
+  ),
+  chains = 4,
+  iter = 2000,
+  warmup = 1000,
+  cores = 4
+)
+
+# 查看结果
+summary(bayes_model)
+
+# 后验分布可视化
+plot(bayes_model)
+
+# 预测区间
+posterior_predict(bayes_model, newdata = new_data)
+```
+
+### 优势
+
+- 小样本下更稳健
+- 自然处理不确定性
+- 灵活的先验设定
+- 提供完整的后验分布
+
+---
+
+## 交叉随机效应
+
+对于非嵌套的分组结构（如学生 × 测试题目）：
+
+```{r}
+# 模拟交叉随机效应数据
+set.seed(2025)
+
+n_students <- 50
+n_items <- 20
+
+crossed_data <- expand_grid(
+  student_id = factor(1:n_students),
+  item_id = factor(1:n_items)
+) |>
+  mutate(
+    # 学生能力
+    student_ability = rep(rnorm(n_students, 0, 1), each = n_items),
+    # 题目难度
+    item_difficulty = rep(rnorm(n_items, 0, 0.8), times = n_students),
+    # 作答正确性
+    correct = rbinom(n(), 1, plogis(student_ability - item_difficulty))
+  )
+
+# 交叉随机效应模型
+crossed_model <- glmer(
+  correct ~ 1 + (1 | student_id) + (1 | item_id),
+  data = crossed_data,
+  family = binomial
+)
+
+summary(crossed_model)
+```
+
+```{r}
+# 各层方差分解
+VarCorr(crossed_model)
+
+# 学生难度参数
+head(ranef(crossed_model)$student_id)
+
+# 题目难度参数
+head(ranef(crossed_model)$item_id)
+```
+
+---
+
+## 时间序列多水平模型
+
+处理时间相关性的自回归结构：
+
+```{r eval=FALSE}
+library(nlme)
+
+# 使用 nlme 包拟合自相关结构
+ar_model <- lme(
+  outcome ~ time * treatment,
+  random = ~ time | subject_id,
+  correlation = corAR1(form = ~ time | subject_id),  # AR(1) 自相关
+  data = longitudinal_data
+)
+
+summary(ar_model)
+
+# 查看自相关参数
+intervals(ar_model, which = "var-cov")
+```
+
+---
+
+## 样本量计算与统计效能
+
+```{r eval=FALSE}
+library(simr)
+
+# 基于现有模型进行效能分析
+powerSim(model3, test = fixed("study_hours"), nsim = 100)
+
+# 扩展样本量
+extended_model <- extend(model3, along = "class_id", n = 50)
+powerSim(extended_model, test = fixed("study_hours"), nsim = 100)
+
+# 计算达到 80% 效能所需样本量
+# powerCurve(model3, test = fixed("study_hours"), along = "class_id")
+```
+
+---
+
+## 模型预测与验证
+
+### 留一法交叉验证
+
+```{r eval=FALSE}
+# 留一组交叉验证（演示代码）
+predictions <- numeric(nrow(student_data))
+
+for (i in unique(student_data$class_id)) {
+  # 训练集
+  train_data <- student_data |> filter(class_id != i)
+  # 测试集
+  test_data <- student_data |> filter(class_id == i)
+  
+  # 拟合模型
+  temp_model <- lmer(
+    score ~ study_hours + prior_score + (1 | class_id),
+    data = train_data
+  )
+  
+  # 预测
+  predictions[student_data$class_id == i] <- predict(temp_model, newdata = test_data, allow.new.levels = TRUE)
+}
+
+# 计算预测性能
+library(yardstick)
+
+pred_results <- tibble(
+  truth = student_data$score,
+  predicted = predictions
+)
+
+metrics(pred_results, truth = truth, estimate = predicted)
+```
+
+### 边际效应计算
+
+```{r eval=FALSE}
+library(marginaleffects)
+
+# 平均边际效应
+avg_slopes(model3, variables = "study_hours")
+
+# 条件效应
+predictions(model3, 
+            newdata = datagrid(study_hours = seq(0, 20, by = 2),
+                              prior_score = mean(student_data$prior_score),
+                              gender = "男"))
+```
+
+---
+
+## 特殊数据结构
+
+### 不平衡数据
+
+```{r}
+# 多水平模型自动处理不平衡数据
+# 不同班级学生数不同没有问题
+
+# 查看各组样本量
+student_data |>
+  count(class_id) |>
+  summary()
+```
+
+### 多分类结局
+
+```{r eval=FALSE}
+library(ordinal)
+
+# 模拟有序分类结局
+student_data <- student_data |>
+  mutate(
+    grade = cut(score, 
+                breaks = c(0, 60, 75, 85, 100),
+                labels = c("不及格", "及格", "良好", "优秀"),
+                ordered = TRUE)
+  )
+
+# 有序多水平模型
+ordinal_model <- clmm(
+  grade ~ study_hours + prior_score + (1 | class_id),
+  data = student_data
+)
+
+summary(ordinal_model)
+```
+
+---
+
+## 报告模板
+
+### 方法部分
+
+> 我们使用多水平线性回归模型分析学生成绩（水平1）嵌套在班级内（水平2）的数据。模型包含随机截距和随机斜率，以考虑不同班级在基线水平和学习时长效应上的异质性。模型采用限制最大似然估计（REML）。组内相关系数（ICC）为 X.XX，表明约 XX% 的成绩变异归因于班级间差异。所有连续变量进行了中心化处理。使用 R 4.x 及 lme4 包（版本 x.x）进行分析。
+
+### 结果部分
+
+> 固定效应分析显示，控制其他变量后，学习时长每增加 1 小时，数学成绩平均提高 X.XX 分（95% CI: [X.XX, X.XX], p < .001）。随机效应方差分析表明，班级间在基线成绩上存在显著变异（SD = X.XX），学习时长的效应也因班级而异（SD = X.XX）。似然比检验表明，包含随机斜率的模型显著优于仅含随机截距的模型（χ²(2) = XX.XX, p < .001）。模型的边际 R² 为 0.XX（仅固定效应），条件 R² 为 0.XX（固定+随机效应）。
+
+---
+
+## 与其他模型的比较
+
+| 特征 | 普通回归 | GEE | 多水平模型 |
+|------|----------|-----|------------|
+| **处理聚类** | ❌ 忽略 | ✅ 稳健标准误 | ✅ 显式建模 |
+| **组间差异** | ❌ 不估计 | ❌ 不估计 | ✅ 随机效应 |
+| **预测个体** | ❌ | ❌ | ✅ BLUP |
+| **小样本表现** | ⚠️ | ⚠️ | ✅ |
+| **跨层交互** | ❌ | ❌ | ✅ |
+| **缺失数据** | ⚠️ | ⚠️ | ✅ MAR |
+| **解释性** | 边际效应 | 边际效应 | 条件效应 |
+
+**选择建议**：
+- 关注群体平均效应 → GEE
+- 关注个体预测与组间差异 → 多水平模型
+- 需要跨层交互作用 → 多水平模型
+
+---
+
+## 高级主题资源
+
+### R 包生态
+
+| 包名 | 功能 |
+|------|------|
+| `lme4` | 频率派多水平模型（核心） |
+| `nlme` | 传统混合模型，支持复杂方差结构 |
+| `brms` | 贝叶斯多水平模型 |
+| `glmmTMB` | 零膨胀、负二项等复杂分布 |
+| `MCMCglmm` | 贝叶斯 MCMC 估计 |
+| `lmerTest` | 为 lme4 提供 p 值 |
+| `performance` | 模型诊断与比较 |
+| `sjPlot` | 结果可视化 |
+| `broom.mixed` | 整洁输出 |
+| `marginaleffects` | 边际效应与预测 |
+| `simr` | 统计效能分析 |
+
+### 学习资源
+
+**书籍**：
+- Gelman & Hill (2007). *Data Analysis Using Regression and Multilevel/Hierarchical Models*
+- Raudenbush & Bryk (2002). *Hierarchical Linear Models*
+- Snijders & Bosker (2012). *Multilevel Analysis*
+- Singer & Willett (2003). *Applied Longitudinal Data Analysis*
+
+**在线教程**：
+- [GLMM FAQ](https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html)
+- [UCLA 多水平模型教程](https://stats.oarc.ucla.edu/r/dae/)
+- [Michael Clark's Guide](https://m-clark.github.io/mixed-models-with-R/)
+
+**论文**：
+- Barr et al. (2013). Random effects structure for confirmatory hypothesis testing
+- Bates et al. (2015). Fitting Linear Mixed-Effects Models Using lme4
+
+---
+
 ### 推荐阅读
 
 - Raudenbush SW, Bryk AS. Hierarchical Linear Models
