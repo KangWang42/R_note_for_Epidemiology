@@ -1,0 +1,359 @@
+---
+title: 'ABM 基于主体建模：流行病学传播仿真'
+date: '2026-01-24'
+categories:
+- 特殊应用
+- 建模方法
+- 传染病模型
+image: images/1030_cover.png
+description: 使用R语言进行基于主体的建模(ABM)，模拟传染病在网络中的传播过程。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 6,
+  dpi = 150
+)
+```
+
+## 什么是基于主体的建模 (ABM)
+
+**基于主体的建模 (Agent-Based Modeling, ABM)** 是一种模拟方法，通过定义个体（主体）的行为规则和互动模式，自下而上地观察群体层面的涌现现象。在流行病学中，ABM可以模拟每个人的感染、接触和康复过程，从而捕捉传统数学模型难以刻画的异质性和随机性。
+
+### ABM vs 常微分方程 (ODE) 模型
+
+| 特征 | ABM | ODE模型 (如SIR) |
+|------|-----|----------------|
+| **建模层次** | 个体层面（每个人独立建模） | 群体层面（人群作为整体） |
+| **确定性** | 随机性（每次运行结果不同） | 确定性（参数固定则结果固定） |
+| **异质性** | 可模拟个体差异（年龄、行为等） | 假设人群同质 |
+| **网络结构** | 显式建模接触网络 | 假设均匀混合 |
+| **计算成本** | 高（需模拟每个个体） | 低（求解微分方程） |
+| **适用场景** | 网络传播、干预措施评估 | 快速预测、理论分析 |
+
+### 流行病学中的ABM应用场景
+
+- **传染病传播**：模拟疾病在社交网络、地理空间中的传播动态
+- **干预措施评估**：测试疫苗接种策略、隔离政策的效果
+- **性传播疾病**：建模复杂的性接触网络（HIV、淋病等）
+- **疫情预测**：结合真实接触数据预测疫情走势
+
+---
+
+## R中的ABM工具对比
+
+### 主要工具概览
+
+| R包 | 核心功能 | 适用场景 | 难度 |
+|-----|---------|---------|------|
+| **EpiModel** | 网络流行病学建模（TERGM） | HIV/STI研究、网络传播 | ⭐⭐ |
+| **NetLogoR** | 空间显式ABM（R版NetLogo） | 地理传播、空间模型 | ⭐⭐⭐ |
+| **RNetLogo** | R与NetLogo软件接口 | 复用NetLogo模型 | ⭐⭐⭐ |
+| **simecol** | 通用生态/流行病模拟 | 简单个体模型 | ⭐ |
+
+### EpiModel：R中最成熟的网络流行病学工具
+
+**EpiModel** 是专为传染病网络传播设计的R包，基于指数随机图模型（ERGM）和时间ERGM（TERGM）构建动态接触网络，支持SIS、SIR、SEIR等多种疫情模型。
+
+**核心优势：**
+
+- **动态网络**：真实模拟伙伴关系的形成与解除
+- **随机性**：捕捉疫情传播的不确定性
+- **可扩展**：支持自定义疾病模块和干预措施
+- **学术认可**：在HIV、性传播疾病研究中广泛使用
+
+**官方资源：**
+
+- 官网：https://www.epimodel.org/
+- 教程：https://epimodel.github.io/sismid/
+- 论文：[Journal of Statistical Software, 2018](https://doi.org/10.18637/jss.v084.i08)
+
+### NetLogoR：空间显式ABM
+
+**NetLogoR** 将经典的NetLogo建模环境移植到R，适合需要地理空间维度的疫情模拟。个体可以在二维网格中移动，疾病通过空间接触传播。
+
+**特点：**
+
+- 支持网格世界（patches）和移动主体（turtles）
+- 可视化主体在空间中的移动轨迹
+- 适合空间传播模型（如流感在城市中的扩散）
+
+**使用场景：** 地理流行病学、城市疫情扩散、候鸟传播疾病
+
+---
+
+## 实战：SIR网络传播模型
+
+下面我们使用 **EpiModel** 构建一个经典的SIR（易感-感染-康复）网络传播模型，模拟疾病在社交网络中的传播过程。
+
+### 安装与加载
+
+```{r eval=FALSE}
+# 安装EpiModel及其依赖
+install.packages("EpiModel", dependencies = TRUE)
+install.packages("igraph")
+install.packages("ggplot2")
+```
+
+```{r}
+library(EpiModel)
+library(igraph)
+library(ggplot2)
+library(dplyr)
+```
+
+### 步骤1：初始化网络
+
+我们创建一个包含500人的社交网络。
+
+```{r}
+# 初始化无向网络，500个节点（代表500人）
+nw <- network_initialize(n = 500)
+nw
+```
+
+### 步骤2：定义网络形成模型
+
+使用ERGM定义网络的形成规则。我们希望网络具有以下特征：
+
+- 一定的连接密度（edges项）
+- 避免过多孤立节点（isolates项）
+
+```{r}
+# 网络形成公式
+formation <- ~ edges + isolates
+
+# 目标统计量：期望150条边，200个孤立节点
+target.stats <- c(150, 200)
+
+# 伙伴关系持续时间：平均50天
+coef.diss <- dissolution_coefs(dissolution = ~ offset(edges), duration = 50)
+```
+
+### 步骤3：估计网络模型
+
+```{r}
+# 拟合时间ERGM（TERGM）
+est <- netest(nw, formation, target.stats, coef.diss, verbose = FALSE)
+```
+
+### 步骤4：网络诊断（可选）
+
+检查网络模型是否符合目标统计量（实际应用中建议执行）。
+
+```{r eval=FALSE}
+# 网络诊断（需要较长时间，此处省略）
+dx <- netdx(est, nsims = 5, nsteps = 500, 
+            nwstats.formula = ~ edges + isolates + meandeg)
+plot(dx)
+```
+
+### 步骤5：设置疫情参数
+
+定义SIR模型的传播参数：
+
+```{r}
+# 疫情参数
+param <- param.net(
+  inf.prob = 0.3,    # 每次接触的感染概率
+  act.rate = 2,      # 每对伙伴每单位时间的接触次数
+  rec.rate = 0.02    # 康复率（1/康复率 = 平均感染期）
+)
+
+# 初始条件：10人初始感染,0人初始康复
+init <- init.net(i.num = 10, r.num = 0)
+
+# 控制参数
+control <- control.net(
+  type = "SIR",      # 模型类型：易感-感染-康复
+  nsims = 3,         # 运行3次模拟（捕捉随机性）
+  nsteps = 300       # 模拟300天
+)
+```
+
+### 步骤6：运行模拟
+
+```{r}
+# 执行网络疫情模拟
+set.seed(2026)
+sim <- netsim(est, param, init, control)
+
+# 查看模拟摘要
+summary(sim, at = 300)
+```
+
+### 步骤7：结果解读
+
+```{r}
+# 绘制疫情轨迹
+plot(sim, 
+     y = c("s.num", "i.num", "r.num"),
+     main = "SIR模型：疫情动态",
+     legend = TRUE,
+     col = c("steelblue", "firebrick", "seagreen"),
+     lwd = 2)
+```
+
+**结果解释：**
+
+- **蓝线（s.num）**：易感人数随时间下降
+- **红线（i.num）**：感染人数先上升后下降（疫情高峰）
+- **绿线（r.num）**：康复人数持续增加
+
+每次模拟略有差异，这是ABM的随机性特征。增加`nsims`可以得到更稳定的平均趋势。
+
+---
+
+## 可视化
+
+### 静态网络传播图
+
+我们提取模拟中的网络，并根据感染状态着色：
+
+```{r}
+# 提取第1次模拟在第50天的网络
+nw_t50 <- get_network(sim, sim = 1)
+
+# 提取感染状态
+status <- get_vertex_attribute(nw_t50, "status")
+
+# 直接使用network包绘制
+library(network)
+
+# 根据状态着色：s=蓝色, i=红色, r=绿色
+node_colors <- ifelse(status == "s", "steelblue",
+                     ifelse(status == "i", "firebrick", "seagreen"))
+
+# 绘制网络
+set.seed(123)
+plot(nw_t50, 
+     vertex.cex = 1.2,
+     vertex.col = node_colors,
+     vertex.border = "gray30",
+     edge.col = "gray70",
+     edge.lwd = 0.5,
+     main = "第50天的网络状态（蓝=易感，红=感染，绿=康复）")
+```
+
+### 动态时间序列图
+
+提取数据并使用ggplot2绘制更精细的图表：
+
+```{r}
+# 提取平均值数据
+df <- as.data.frame(sim, out = "mean")
+
+# 重塑数据为长格式
+df_long <- df |>
+  select(time, s.num, i.num, r.num) |>
+  tidyr::pivot_longer(cols = c(s.num, i.num, r.num),
+                      names_to = "compartment",
+                      values_to = "count")
+
+# 设置中文标签
+df_long$compartment <- factor(
+  df_long$compartment,
+  levels = c("s.num", "i.num", "r.num"),
+  labels = c("易感", "感染", "康复")
+)
+
+# ggplot2绘图
+ggplot(df_long, aes(x = time, y = count, color = compartment)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("易感" = "steelblue",
+                                 "感染" = "firebrick",
+                                 "康复" = "seagreen")) +
+  labs(title = "SIR网络传播模型：疫情动态",
+       x = "时间（天）",
+       y = "人数",
+       color = "状态") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top")
+```
+
+**进阶：动态动画**
+
+如果需要生成动态GIF（需要安装`gganimate`和`gifski`包），可以在上述ggplot基础上添加：
+
+```{r eval=FALSE}
+library(gganimate)
+
+# 添加动画过渡
+p <- ggplot(df_long, aes(x = time, y = count, color = compartment)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("易感" = "steelblue",
+                                 "感染" = "firebrick",
+                                 "康复" = "seagreen")) +
+  labs(title = "第 {frame_along} 天",
+       x = "时间（天）",
+       y = "人数") +
+  theme_minimal(base_size = 14) +
+  transition_reveal(time)
+
+# 渲染动画
+animate(p, nframes = 100, fps = 10, width = 800, height = 600)
+```
+
+---
+
+## 进阶拓展
+
+### 参数敏感性分析
+
+疫情结果对参数高度敏感。建议测试不同的传播概率（`inf.prob`）和康复率（`rec.rate`）：
+
+```{r eval=FALSE}
+# 定义参数组合
+param_low <- param.net(inf.prob = 0.1, act.rate = 2, rec.rate = 0.02)
+param_high <- param.net(inf.prob = 0.5, act.rate = 2, rec.rate = 0.02)
+
+# 运行对比模拟
+sim_low <- netsim(est, param_low, init, control)
+sim_high <- netsim(est, param_high, init, control)
+
+# 绘制对比图
+par(mfrow = c(1, 2))
+plot(sim_low, main = "低传播率 (0.1)")
+plot(sim_high, main = "高传播率 (0.5)")
+```
+
+### 干预措施模拟
+
+ABM的优势在于可以模拟干预措施（如疫苗接种、隔离）：
+
+- **疫苗接种**：在模拟开始前将部分节点标记为康复（免疫）
+- **接触追踪**：检测到感染后断开相关边
+- **行为改变**：在疫情高峰期降低`act.rate`
+
+这些操作需要自定义模块（参考EpiModel Gallery: https://github.com/EpiModel/EpiModel-Gallery）。
+
+### 学习资源
+
+- **官方教程**：[EpiModel SISMID课程](https://epimodel.github.io/sismid/) - 免费在线教材
+- **案例库**：[EpiModel Gallery](https://github.com/EpiModel/EpiModel-Gallery) - 扩展模型示例
+- **社区支持**：[EpiModel Google Group](https://groups.google.com/g/epimodel)
+
+---
+
+## 总结
+
+本文介绍了基于主体建模（ABM）在流行病学中的应用，重点讲解了R包**EpiModel**的使用。通过SIR网络传播模型的实战案例，我们展示了如何：
+
+1. 构建动态社交网络
+2. 设置疫情传播参数
+3. 模拟疾病在网络中的传播
+4. 可视化疫情动态
+
+与传统ODE模型相比，ABM能够更真实地刻画个体异质性和网络结构，是评估干预措施、预测疫情的重要工具。建议结合实际研究问题选择合适的建模方法。
+
+---
+
+**参考文献**
+
+1. Jenness SM, et al. (2018). *EpiModel: An R Package for Mathematical Modeling of Infectious Disease over Networks*. Journal of Statistical Software, 84(8). https://doi.org/10.18637/jss.v084.i08
+
+2. Grimm V, et al. (2020). *The ODD Protocol for Describing Agent-Based and Other Simulation Models: A Second Update to Improve Clarity, Replication, and Structural Realism*. Journal of Artificial Societies and Social Simulation, 23(2), 7.

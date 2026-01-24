@@ -51,7 +51,7 @@ rm -rf public && quarto render doc
 - Skim HTML output for layout issues, broken links, and warning messages.
 
 ### Installed R Dependencies (from past sessions)
-rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette, tidytable, DoubleML, clusterGeneration, readstata13, mlr3learners, paradox, DiceKriging, grf
+rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette, tidytable, DoubleML, clusterGeneration, readstata13, mlr3learners, paradox, DiceKriging, grf, EpiModel, igraph, network, sna, statnet.common, tergm, intergraph
 
 ## Tooling Prerequisites
 
