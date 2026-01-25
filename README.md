@@ -84,6 +84,7 @@
 | **直方图与密度图** | ⭐ | [教程链接](2027-bindhistogram.html) | 查看数据分布形态 |
 | **柱状图与饼图** | ⭐ | [教程链接](2028-bindbarchart.html) | 分类数据比较 |
 | **折线图与时间序列** | ⭐ | [教程链接](2029-bindlineplot.html) | 时间趋势、多组对比 |
+| **可访问性折线图** | ⭐⭐ | [教程链接](2069-accessible-linechart.html) | 色盲友好、WCAG合规、可访问性设计 ⭐新增 |
 | **面积图与堆叠图** | ⭐⭐ | [教程链接](2030-bindareaplot.html) | 堆叠比例、河流图 |
 
 #### 📊 专业图表
@@ -217,6 +218,7 @@
 | :--- | :--- | :--- | :--- |
 | **结构方程模型 (SEM)** | ⭐⭐ | [教程链接](1032-sem.html) | 复杂路径分析 |
 | **PLS-PM 路径模型** | ⭐⭐ | [教程链接](1037-plspm.html) | 小样本路径分析 |
+| **DEA-Tobit 两阶段模型** | ⭐⭐ | [教程链接](1116-dea-tobit.html) | 效率评价与影响因素分析 |
 | **因子分析 (EFA/CFA)** | ⭐⭐ | [教程链接](1038-efa-cfa.html) | 量表验证、结构分析 |
 | **主成分分析 (PCA)** | ⭐⭐ | [教程链接](1039-pca.html) | 降维、特征提取 |
 | **潜类别分析 (LCA)** | ⭐⭐ | [教程链接](1031-lca.html) | 人群亚型识别 |
@@ -263,6 +265,7 @@
 | :--- | :--- | :--- | :--- |
 | **数据导入导出** | ⭐ | [数据导入导出](3001-imports.html) | Excel、CSV、SPSS 等格式 |
 | **高效数据处理** | ⭐⭐ | [data.table 完全指南](3002-datatable.html) | 大数据处理最佳实践 |
+| **tidyverse vs pandas** | ⭐⭐ | [tidyverse vs pandas 对比](3016-tidyverse-pandas.html) | R与Python数据处理对比 ⭐新增 |
 | **字符串处理** | ⭐ | [stringr 字符串处理](3010-stringr.html) | tidyverse 字符串操作 |
 | **因子处理** | ⭐ | [forcats 因子处理](3011-forcats.html) | 分类变量与可视化 |
 | **日期时间处理** | ⭐ | [日期时间处理](3009-datetime.html) | lubridate 日期运算与格式转换 |

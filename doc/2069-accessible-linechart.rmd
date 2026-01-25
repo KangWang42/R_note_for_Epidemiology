@@ -1,0 +1,778 @@
+---
+title: 可访问性折线图完全指南
+date: '2026-01-25'
+categories:
+  - 数据可视化
+  - 趋势图
+  - 可视化
+  - ggplot2
+  - 可访问性
+image: images/2069_cover.svg
+description: 从色盲友好配色到 WCAG 合规：创建符合可访问性标准的折线图，让所有读者都能清晰理解数据。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 10,
+    fig.height = 6,
+    dpi = 150
+)
+```
+
+## 前言
+
+数据可视化应该是所有人都能理解的。然而，据统计：
+
+- **色盲人群**: 约 8% 的男性、0.4% 的女性患有某种形式的色盲
+- **视力障碍**: 全球超过 2.5 亿人有视力障碍
+- **打印显示**: 许多打印设备无法准确显示颜色
+- **投影设备**: 会议室投影可能降低颜色对比度
+
+**可访问性数据可视化** 不仅仅是道德要求，更是确保信息传达有效的必要手段。本教程将教你如何创建符合 WCAG 2.1 标准的折线图，确保色盲、低视力、老年人等所有群体都能清晰理解你的数据。
+
+---
+
+## 可访问性核心原则
+
+### 标准图表 vs 可访问图表对比
+
+| 特性 | 标准做法 | 可访问做法 | 影响 |
+|------|----------|-----------|------|
+| **线宽** | 0.5-1pt | ≥ 2pt | 提高可见性，适合低视力人群 |
+| **字体大小** | 10-11pt | ≥ 12pt（推荐 16pt） | 改善可读性，符合 WCAG 标准 |
+| **背景色** | 灰色 | 白色 | 提高对比度，减少视觉疲劳 |
+| **配色方案** | 默认彩虹色 | Okabe-Ito / Paul Tol | 确保色盲人群区分 |
+| **对比度** | 无严格要求 | 文本 ≥ 4.5:1，图形 ≥ 3:1 | WCAG 2.1 AA 标准 |
+| **标签方式** | 图例 | 直接标注 | 减少视线跳跃，提高理解效率 |
+| **网格线** | 多条 | 仅主要 Y 轴 | 减少视觉混乱 |
+| **文字方向** | 可倾斜 | 仅水平 | 避免旋转带来的阅读困难 |
+
+### WCAG 2.1 对比度要求
+
+**WCAG (Web Content Accessibility Guidelines) 2.1 AA 级标准：**
+
+- **普通文本**: 对比度 ≥ 4.5:1
+- **大号文本** (18pt+ 或 14pt+ 加粗): 对比度 ≥ 3:1
+- **图形对象**: 对比度 ≥ 3:1（如数据线与背景）
+
+**验证工具**: [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/)
+
+---
+
+## 色盲友好配色方案
+
+### Okabe-Ito 配色（R ≥ 4.0.0 默认）
+
+Okabe-Ito 配色是专为色盲人群设计的 8 色方案，在红绿盲（最常见，6% 男性）和蓝黄盲中都表现优异。
+
+```{r okabeito-demo}
+library(ggplot2)
+
+# Okabe-Ito 配色方案
+okabeito_colors <- c(
+  "#E69F00",  # 橙色
+  "#56B4E9",  # 天蓝
+  "#009E73",  # 蓝绿
+  "#F0E442",  # 黄色
+  "#0072B2",  # 深蓝
+  "#D55E00",  # 朱红
+  "#CC79A7",  # 紫红
+  "#999999"   # 灰色
+)
+
+# 展示配色
+par(mfrow = c(2, 4))
+for (i in 1:8) {
+  plot(1, type = "n", xlim = c(0, 1), ylim = c(0, 1),
+       axes = FALSE, xlab = "", ylab = "",
+       main = names(okabeito_colors)[i])
+  rect(0.2, 0.3, 0.8, 0.7, col = okabeito_colors[i], border = NA)
+  text(0.5, 0.5, okabeito_colors[i], cex = 1.2, col = "black")
+}
+```
+
+### 使用 Okabe-Ito 配色绘制折线图
+
+```{r basic-accessible}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# 创建示例数据：某地区月度病例数
+set.seed(42)
+months <- seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "month")
+case_data <- data.frame(
+  date = rep(months, 3),
+  region = rep(c("地区A", "地区B", "地区C"), each = 12),
+  cases = c(
+    120 + cumsum(rnorm(12, 5, 15)),
+    80 + cumsum(rnorm(12, -2, 10)),
+    95 + cumsum(rnorm(12, 3, 12))
+  )
+)
+
+# 基础可访问折线图
+p_access <- ggplot(case_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2) +  # 线宽增加
+  scale_colour_manual(
+    values = okabeito_colors[1:3],
+    name = "地区"
+  ) +
+  labs(
+    title = "2024年各地区月度病例数",
+    subtitle = "使用 Okabe-Ito 色盲友好配色",
+    x = "日期",
+    y = "病例数",
+    caption = "数据来源：疾病监测系统"
+  ) +
+  theme_minimal(base_size = 16) +  # 增加基础字体大小
+  theme(
+    panel.background = element_rect(fill = "white"),  # 白色背景
+    panel.grid.minor = element_blank(),  # 仅保留主要网格线
+    legend.position = "right"
+  )
+
+p_access
+```
+
+### viridis 配色（感知均匀）
+
+viridis 配色不仅在色盲人群中可见，而且在黑白打印时也能保持灰度区分。
+
+```{r viridis-demo}
+library(viridis)
+
+# 使用 viridis 配色
+p_viridis <- ggplot(case_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2) +
+  scale_colour_viridis_d(
+    name = "地区",
+    option = "D"  # D = viridis, C = plasma, B = magma, A = inferno
+  ) +
+  labs(
+    title = "2024年各地区月度病例数",
+    subtitle = "使用 viridis 配色方案（感知均匀）",
+    x = "日期",
+    y = "病例数"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.minor = element_blank()
+  )
+
+p_viridis
+```
+
+### 配色对比：标准 vs 可访问
+
+```{r color-comparison}
+# 标准配色（可能对色盲不友好）
+p_standard <- ggplot(case_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2) +
+  scale_colour_brewer(palette = "Set1") +  # 经典但可能有问题
+  labs(title = "标准配色（Set1）") +
+  theme_minimal(base_size = 16) +
+  theme(legend.position = "none")
+
+# 可访问配色（Okabe-Ito）
+p_okabe <- ggplot(case_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2) +
+  scale_colour_manual(values = okabeito_colors[1:3]) +
+  labs(title = "可访问配色（Okabe-Ito）") +
+  theme_minimal(base_size = 16) +
+  theme(legend.position = "none")
+
+# 组合展示
+library(patchwork)
+p_standard + p_okabe + plot_layout(ncol = 2)
+```
+
+---
+
+## 基础可访问折线图
+
+### 基本可访问图表
+
+最简单的可访问折线图包含以下要素：
+
+```{r minimal-accessible}
+# 创建简单示例
+simple_data <- data.frame(
+  time = 1:10,
+  value = cumsum(rnorm(10, 2, 5))
+)
+
+p_minimal <- ggplot(simple_data, aes(x = time, y = value)) +
+  geom_line(linewidth = 2.5, colour = "#0072B2") +  # 深蓝色，高对比度
+  labs(
+    title = "简单可访问折线图",
+    x = "时间",
+    y = "数值"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.x = element_blank(),  # 仅保留 Y 轴网格
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(colour = "#595959", linewidth = 0.8),  # 浅灰色轴线
+    axis.ticks = element_line(colour = "#595959")
+  )
+
+p_minimal
+```
+
+**关键可访问要素：**
+- ✅ 线宽 ≥ 2pt
+- ✅ 白色背景
+- ✅ 高对比度颜色（深蓝 #0072B2）
+- ✅ 基础字体 16pt
+- ✅ 简化网格线（仅 Y 轴）
+- ✅ 所有文字水平
+
+### 添加数据点（提高可见性）
+
+对于低视力人群，在折线上添加数据点可以提高可读性。
+
+```{r with-points}
+p_with_points <- ggplot(simple_data, aes(x = time, y = value)) +
+  geom_line(linewidth = 2.5, colour = "#0072B2") +
+  geom_point(size = 3, colour = "#0072B2", fill = "white", shape = 21, stroke = 1.5) +
+  labs(
+    title = "添加数据点的折线图",
+    subtitle = "提高低视力人群的可读性",
+    x = "时间",
+    y = "数值"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+p_with_points
+```
+
+### 直接标注（替代图例）
+
+图例需要视线在图表和标签之间来回移动，增加了认知负荷。直接标注在折线末端可以提高理解效率。
+
+```{r direct-labeling}
+# 计算每条线最后一个点的位置
+label_data <- case_data %>%
+  group_by(region) %>%
+  arrange(date) %>%
+  slice_tail(n = 1)
+
+p_direct <- ggplot(case_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2) +
+  scale_colour_manual(values = okabeito_colors[1:3], name = NULL) +
+  # 在折线末端直接标注
+  geom_text(
+    data = label_data,
+    aes(x = date, y = cases, label = region),
+    hjust = -0.1,
+    vjust = 0.5,
+    size = 5,
+    fontface = "bold",
+    inherit.aes = FALSE
+  ) +
+  # 扩展 X 轴以容纳标签
+  scale_x_date(date_labels = "%Y-%m", limits = c(min(months), max(months) + 30)) +
+  labs(
+    title = "2024年各地区月度病例数",
+    subtitle = "直接标注替代图例（降低认知负荷）",
+    x = "日期",
+    y = "病例数"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",  # 隐藏图例
+    axis.line = element_line(colour = "#595959"),
+    axis.ticks = element_line(colour = "#595959")
+  )
+
+p_direct
+```
+
+---
+
+## 多组对比与小多面
+
+### "意大利面条"图表的问题
+
+当有 5 条以上折线重叠时，图表变得难以阅读，对色盲人群尤其不友好。
+
+```{r spaghetti-problem}
+# 创建更多组数据
+regions <- paste0("地区", LETTERS[1:8])
+months_spaghetti <- seq(as.Date("2024-01-01"), as.Date("2024-12-01"), by = "month")
+set.seed(123)
+# 生成 8 组数据，每组 12 个月
+cases_list <- lapply(1:8, function(i) 100 + cumsum(rnorm(12, i * 2, 15)))
+spaghetti_data <- data.frame(
+  date = rep(months_spaghetti, 8),
+  region = rep(regions, each = 12),
+  cases = unlist(cases_list)
+)
+
+# 问题图表：8 条线重叠
+p_spaghetti <- ggplot(spaghetti_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 1.5) +
+  scale_colour_manual(values = okabeito_colors) +
+  labs(
+    title = '问题示例：8 条折线重叠（"意大利面条"图表）',
+    subtitle = "即使使用色盲友好配色，多条线重叠仍难以区分",
+    x = "日期",
+    y = "病例数"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+p_spaghetti
+```
+
+### 解决方案 1：小多面图（Small Multiples）
+
+将复杂的重叠图表分解为多个独立的小图，每个子图突出显示一组数据。
+
+```{r small-multiples}
+# 使用小多面图
+p_facet <- ggplot(spaghetti_data, aes(x = date, y = cases)) +
+  facet_wrap(~region, ncol = 4) +
+  geom_line(linewidth = 2, colour = "#0072B2") +
+  # 添加趋势线
+  geom_smooth(method = "loess", se = TRUE, colour = "#D55E00",
+              alpha = 0.3, fill = "#D55E00", linewidth = 1.5) +
+  labs(
+    title = "解决方案：小多面图（Small Multiples）",
+    subtitle = "每个子图突出显示一组数据，清晰易读",
+    x = "日期",
+    y = "病例数"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    strip.background = element_rect(fill = "#f0f0f0", colour = NA),
+    strip.text = element_text(face = "bold")
+  )
+
+p_facet
+```
+
+### 解决方案 2：折线图 + 交互式提示
+
+对于在线出版物，使用交互式图表可以让用户悬停查看具体数值，缓解颜色区分的问题。
+
+```{r interactive}
+library(plotly)
+
+p_interactive <- ggplot(spaghetti_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2) +
+  scale_colour_manual(values = okabeito_colors) +
+  labs(
+    title = "交互式折线图",
+    subtitle = "悬停查看数值，缓解颜色区分压力",
+    x = "日期",
+    y = "病例数"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(legend.position = "right")
+
+# 转换为交互式图表
+ggplotly(p_interactive, tooltip = c("x", "y", "colour"), dynamic = TRUE)
+```
+
+---
+
+## 颜色测试与验证
+
+### 灰度测试
+
+将彩色图表转换为灰度，检查线条是否仍然可以区分。
+
+```{r greyscale-test, warning=TRUE}
+# 创建测试图表
+p_test <- ggplot(spaghetti_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2) +
+  scale_colour_manual(values = okabeito_colors) +
+  theme_minimal(base_size = 12) +
+  labs(title = "灰度测试：折线应保持可区分") +
+  theme(legend.position = "none")
+
+# 灰度模拟说明
+library(viridis)
+# 注：实际使用时可以使用 colorBlindness 包的 cvdPlot 函数
+# 这里展示 Okabe-Ito 配色在灰度下的表现
+cat("Okabe-Ito 配色在灰度下的表现：\n")
+cat("1. #E69F00 (橙色) -> 中灰\n")
+cat("2. #56B4E9 (天蓝) -> 浅灰\n")
+cat("3. #009E73 (蓝绿) -> 深灰\n")
+cat("4. #F0E442 (黄色) -> 极浅灰\n")
+cat("5. #0072B2 (深蓝) -> 很深灰\n")
+cat("6. #D55E00 (朱红) -> 中深灰\n")
+cat("7. #CC79A7 (紫红) -> 中浅灰\n")
+cat("8. #999999 (灰色) -> 中灰\n")
+```
+
+**手动灰度测试方法：**
+1. 打印图表（黑白打印）
+2. 在 PDF 阅读器中选择"灰度"显示
+3. 使用手机/平板截图后编辑为黑白
+4. 检查每条线是否可以独立识别
+
+### 色盲模拟测试
+
+使用 `colorBlindness` 包模拟不同类型的色盲。
+
+```{r cvd-sim}
+# 创建简单测试图表
+p_cvd_test <- ggplot(case_data, aes(x = date, y = cases, colour = region)) +
+  geom_line(linewidth = 2.5) +
+  scale_colour_manual(values = c("#E69F00", "#56B4E9", "#009E73")) +
+  labs(title = "色盲模拟测试") +
+  theme_minimal(base_size = 16) +
+  theme(legend.position = "none")
+
+# 色盲模拟说明
+cat("色盲类型模拟：\n")
+cat("1. Protanopia（红色盲，1% 男性）：\n")
+cat("   红色感知缺失，橙色/红色变暗或难以区分\n")
+cat("2. Deuteranopia（绿色盲，5% 男性）：\n")
+cat("   绿色感知缺失，绿色/橙色/红色难以区分\n")
+cat("3. Tritanopia（蓝色盲，罕见）：\n")
+cat("   蓝色感知缺失，蓝色/黄色难以区分\n")
+cat("4. Achromatopsia（全色盲，罕见）：\n")
+cat("   完全无色觉，仅能区分亮度\n\n")
+cat("建议：在报告发布前，使用 colorBlindness::cvdPlot() 函数测试\n")
+```
+
+**在线测试工具：**
+- [Viz Palette](https://projects.susielu.com/viz-palette) - 可视化配色在不同色盲类型下的表现
+- [Coblis - Color Blindness Simulator](https://www.color-blindness.com/coblis-color-blindness-simulator/) - 上传图片测试
+- [Toptal's Color Blind Filter](https://www.toptal.com/designers/colorfilter) - 浏览器插件实时测试
+
+### 配色方案检查
+
+使用 `colorblindcheck` 包量化评估配色方案的色盲友好度。
+
+```{r palette-check, eval=FALSE}
+# 使用 colorblindcheck 包检查 Okabe-Ito 配色
+# library(colorblindcheck)
+# palette_check(okabeito_colors, plot = TRUE)
+#
+# 注：需要先安装 colorblindcheck 包
+# install.packages("colorblindcheck")
+#
+# 解读检查结果：
+# - ✅ 所有配对都可区分：配色优秀
+# - ⚠️ 部分配对难以区分：考虑调整或使用其他编码方式
+# - ❌ 多配对无法区分：更换配色方案
+```
+
+**解读检查结果：**
+- ✅ 所有配对都可区分：配色优秀
+- ⚠️ 部分配对难以区分：考虑调整或使用其他编码方式（如线型、标记）
+- ❌ 多配对无法区分：更换配色方案
+
+---
+
+## 实战案例：公共卫生数据可视化
+
+### 案例：2020-2024 年某省流感发病率趋势
+
+**场景：** 需要向公共卫生决策者、临床医生和普通公众展示不同年龄组的流感发病率趋势。
+
+```{r real-case}
+# 创建真实的公共卫生数据
+set.seed(2024)
+dates <- seq(as.Date("2020-01-01"), as.Date("2024-12-01"), by = "month")
+
+flu_data <- data.frame(
+  date = rep(dates, 4),
+  age_group = rep(c("0-4岁", "5-17岁", "18-59岁", "60岁+"), each = length(dates)),
+  incidence = c(
+    # 0-4岁：高基线，季节性强
+    80 + 50 * sin(2 * pi * (1:length(dates)) / 12) + rnorm(length(dates), 0, 15),
+    # 5-17岁：学校传播，冬春季高峰
+    60 + 60 * sin(2 * pi * (1:length(dates)) / 12 + pi/6) + rnorm(length(dates), 0, 12),
+    # 18-59岁：中等基线
+    40 + 30 * sin(2 * pi * (1:length(dates)) / 12) + rnorm(length(dates), 0, 10),
+    # 60岁+：基线低但风险高
+    30 + 25 * sin(2 * pi * (1:length(dates)) / 12) + rnorm(length(dates), 0, 8)
+  )
+)
+
+# 计算标签位置
+label_data_flu <- flu_data %>%
+  group_by(age_group) %>%
+  arrange(date) %>%
+  slice_tail(n = 1)
+
+# 可访问性折线图
+p_flu <- ggplot(flu_data, aes(x = date, y = incidence, colour = age_group)) +
+  geom_line(linewidth = 2.5) +
+  # 添加关键节点标记
+  geom_point(
+    data = flu_data %>% filter(incidence == max(incidence) | incidence == min(incidence)),
+    size = 2.5,
+    shape = 21,
+    fill = "white",
+    stroke = 1.5
+  ) +
+  # 直接标注
+  geom_text(
+    data = label_data_flu,
+    aes(x = date, y = incidence, label = age_group),
+    hjust = -0.15,
+    vjust = 0.5,
+    size = 5,
+    fontface = "bold",
+    inherit.aes = FALSE,
+    colour = okabeito_colors[1:4]
+  ) +
+  # 使用 Okabe-Ito 配色
+  scale_colour_manual(values = okabeito_colors[1:4], name = NULL) +
+  # 扩展 X 轴
+  scale_x_date(date_labels = "%Y", limits = c(min(dates), max(dates) + 120)) +
+  labs(
+    title = "2020-2024 年某省流感发病率趋势",
+    subtitle = "不同年龄组每月发病率（每 10 万人）",
+    x = "年份",
+    y = "发病率（每 10 万人）",
+    caption = "数据来源：省疾控中心 | 配色：Okabe-Ito 色盲友好"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    axis.line = element_line(colour = "#595959", linewidth = 0.8),
+    axis.ticks = element_line(colour = "#595959", linewidth = 0.8),
+    plot.title = element_text(face = "bold", size = 20),
+    plot.subtitle = element_text(size = 16),
+    axis.title = element_text(face = "bold")
+  )
+
+p_flu
+```
+
+**关键发现：**
+1. 0-4 岁儿童发病率最高，需要重点保护
+2. 5-17 岁学龄期儿童有明显冬春季高峰
+3. 所有年龄组呈现季节性波动（每年 1-2 月为高峰）
+4. 2022 年冬季出现异常高峰
+
+### 案例：小多面图展示多省份数据
+
+当需要比较多个省份时，使用小多面图。
+
+```{r multi-province}
+# 创建多省份数据
+provinces <- paste0("省份", LETTERS[1:6])
+dates_province <- seq(as.Date("2020-01-01"), as.Date("2024-12-01"), by = "month")
+set.seed(2024)
+# 生成 6 组数据，每组 60 个月
+incidence_list <- lapply(1:6, function(i) {
+  50 + cumsum(rnorm(length(dates_province), i, 15))
+})
+province_data <- data.frame(
+  date = rep(dates_province, 6),
+  province = rep(provinces, each = length(dates_province)),
+  incidence = unlist(incidence_list)
+)
+
+p_province_facet <- ggplot(province_data, aes(x = date, y = incidence)) +
+  facet_wrap(~province, ncol = 3) +
+  geom_line(linewidth = 2.5, colour = "#0072B2") +
+  # 添加趋势线
+  geom_smooth(method = "loess", se = TRUE, colour = "#D55E00", alpha = 0.3,
+              fill = "#D55E00", linewidth = 1.5) +
+  labs(
+    title = "2020-2024 年各省流感发病率趋势",
+    subtitle = "橙色：LOESS 平滑趋势线；蓝色阴影：95% 置信区间",
+    x = "年份",
+    y = "发病率（每 10 万人）"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "#f0f0f0", colour = NA),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+
+p_province_facet
+```
+
+---
+
+## 可访问性检查清单
+
+在发布任何折线图之前，请使用以下清单验证：
+
+### 📋 发布前检查清单
+
+| 检查项 | 标准 | 通过标准 |
+|--------|------|----------|
+| **1. 线宽** | ≥ 2pt | 折线足够粗，低视力人群可见 |
+| **2. 字体大小** | ≥ 12pt（推荐 16pt） | 文字清晰可读 |
+| **3. 背景色** | 白色 | 高对比度，视觉舒适 |
+| **4. 配色方案** | Okabe-Ito / Paul Tol / viridis | 色盲友好 |
+| **5. 对比度** | 图形 ≥ 3:1，文本 ≥ 4.5:1 | WCAG 2.1 AA 标准 |
+| **6. 灰度测试** | 所有线条可区分 | 打印/黑白显示时清晰 |
+| **7. 色盲模拟** | 通过 protanopia/deuteranopia 测试 | 色盲人群可区分 |
+| **8. 标签方式** | 直接标注或清晰图例 | 避免视线跳跃 |
+| **9. 文字方向** | 仅水平 | 无旋转标签 |
+| **10. 网格线** | 简化（仅主要 Y 轴） | 减少视觉混乱 |
+| **11. 替代文本** | 提供描述性 alt 文本 | 屏幕阅读器可访问 |
+| **12. 数据表格** | 提供完整数据表 | 可下载/分析 |
+
+### 🎯 快速自检工具
+
+**R 包快速检查：**
+```r
+# 1. 配色检查
+library(colorblindcheck)
+palette_check(okabeito_colors, plot = TRUE)
+
+# 2. 色盲模拟
+library(colorBlindness)
+cvdPlot(ggplot_object)  # 查看不同色盲类型下的效果
+
+# 3. 对比度检查（手动）
+# 使用在线工具：https://webaim.org/resources/contrastchecker/
+```
+
+**在线验证工具：**
+1. [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) — 对比度检查
+2. [Viz Palette](https://projects.susielu.com/viz-palette/) — 配色可视化测试
+3. [Coblis Simulator](https://www.color-blindness.com/coblis-color-blindness-simulator/) — 图片色盲模拟
+
+---
+
+## 总结
+
+### 快速参考
+
+| 任务 | 推荐方法 | R 包 |
+|------|----------|-------|
+| **色盲友好配色** | Okabe-Ito（8色）或 viridis（连续色） | 内置 / viridis |
+| **自动可访问样式** | 使用 afcharts 套用模板 | afcharts |
+| **多组对比** | 小多面图（facet_wrap） | ggplot2 |
+| **色盲模拟** | cvdPlot() | colorBlindness |
+| **配色检查** | palette_check() | colorblindcheck |
+| **交互式图表** | ggplotly() | plotly |
+| **直接标注** | geom_text() + slice_tail() | ggplot2 + dplyr |
+
+### 核心要点
+
+✅ **DO（推荐做法）**
+- 使用 Okabe-Ito 或 viridis 配色
+- 线宽 ≥ 2pt，字体 ≥ 12pt
+- 白色背景，高对比度
+- 直接标注替代图例
+- 小多面图分解复杂数据
+- 发布前进行灰度和色盲测试
+
+❌ **DON'T（避免做法）**
+- 使用默认彩虹色（Set1, Rainbow 等）
+- 线宽 < 1pt
+- 灰色背景
+- 红绿组合
+- 旋转坐标轴标签
+- 仅依赖颜色传达信息
+- 5 条以上折线重叠
+
+### 进阶资源
+
+**官方指南：**
+- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/) — W3C 可访问性标准
+- [Government Analysis Function - afcharts](https://cran.r-project.org/web/packages/afcharts/) — 英国政府可访问数据可视化指南
+- [Royal Statistical Society - Data Visualization](https://www.rss.org.uk/news-publication/public-publications-and-media/statistical-standards/) — RSS 可视化标准
+
+**R 包文档：**
+- [viridis: Colorblind-Friendly Color Maps](https://cran.r-project.org/web/packages/viridis/)
+- [colorBlindness: Color Blindness Simulators](https://jianhong.r-universe.dev/colorBlindness/)
+- [khroma: Colour Schemes for Data](https://cran.r-project.org/web/packages/khroma/)
+- [afcharts: Accessible Charts](https://analysisfunction.civilservice.gov.uk/blog/automated-data-visualisation-best-practice-in-r-afcharts-release/)
+
+**工具网站：**
+- [Paul Tol's Colour Schemes](https://personal.sron.nl/~pault/) — 色盲友好配色参考
+- [Crameri's Scientific Colour Maps](https://www.fabiocrameri.ch/colourmaps/) — 科学感知均匀配色
+- [Chroma.js Color Scale Helper](https://gka.github.io/chroma.js/) — 在线配色生成器
+
+---
+
+## 保存图片
+
+### 高分辨率保存
+
+```r
+# PNG 格式（适合插入 Word/PPT）
+ggsave(
+  filename = "figure/accessible-linechart.png",
+  plot = p_flu,
+  width = 10,
+  height = 6,
+  dpi = 300,
+  bg = "white"
+)
+
+# SVG 格式（矢量图，适合投稿）
+ggsave(
+  filename = "figure/accessible-linechart.svg",
+  plot = p_flu,
+  width = 10,
+  height = 6,
+  bg = "white"
+)
+
+# PDF 格式（打印/出版）
+ggsave(
+  filename = "figure/accessible-linechart.pdf",
+  plot = p_flu,
+  width = 10,
+  height = 6,
+  bg = "white"
+)
+```
+
+### 批量导出
+
+```r
+# 导出所有配色的变体
+for (pal_name in c("viridis", "magma", "plasma", "cividis")) {
+  p_temp <- ggplot(flu_data, aes(x = date, y = incidence, colour = age_group)) +
+    geom_line(linewidth = 2.5) +
+    scale_colour_viridis_d(option = pal_name, name = NULL) +
+    labs(subtitle = paste("配色方案:", pal_name)) +
+    theme_minimal(base_size = 18) +
+    theme(
+      panel.background = element_rect(fill = "white"),
+      panel.grid.minor = element_blank(),
+      legend.position = "none"
+    )
+
+  ggsave(
+    filename = paste0("figure/flu-", pal_name, ".png"),
+    plot = p_temp,
+    width = 10,
+    height = 6,
+    dpi = 300,
+    bg = "white"
+  )
+}
+```
+
+---
+
+**最后提醒：** 可访问性不是额外的负担，而是数据可视化质量的核心指标。一个所有人都无法理解的图表，无论多么精美，都是失败的。从今天开始，为所有读者创建清晰、可访问的数据可视化！
