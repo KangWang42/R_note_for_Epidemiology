@@ -1,0 +1,100 @@
+---
+name: section-ml-ai
+description: Generate comprehensive R machine learning and AI tutorials (mlr3, tidymodels, xgboost, torch, etc.) with theory + practice workflow. Use when: (1) User requests ML/AI tutorials, (2) File names match 10xx-*.rmd pattern, (3) Keywords: classification, regression, clustering, feature engineering, hyperparameter tuning, random forest, SVM, neural networks.
+---
+## 核心任务
+
+生成机器学习与 AI 类教程 (.rmd/.qmd)，涵盖算法原理、工程实践、模型评估、可解释性，强调 "问题定义 → 数据准备 → 模型训练 → 评估优化 → 可解释性"。
+
+## 快速启动 (Quick Start)
+
+1. **确定算法**: 如 "随机森林分类 (Random Forest)"。
+2. **加载模板**: 阅读 [content-structure.md](references/content-structure.md) 获取 YAML 和标题结构。
+3. **生成内容**: 遵循 "原理 -> 工作流 -> 训练 -> 评估 -> 调参 -> 可解释性" 流程。
+4. **视觉设计**: 参考 [visual-templates.md](references/visual-templates.md) 生成封面图和算法流程图。
+5. **质量检查**: 验证交叉验证与导航更新。
+
+## 完整工作流程
+
+### 步骤1: 生成教程内容与封面
+
+按 [content-structure.md](references/content-structure.md) 结构生成文件。
+
+- **必须包含**: 完整的建模流程（数据划分、特征工程、训练、评估、调参）。
+- **可复现性**: 所有随机操作必须设置种子 `set.seed(2026)`。
+- **封面图 (MANDATORY)**: 必须生成 `doc/images/[number]-[topic]-cover.svg`。
+- **示意图**: 算法原理、工作流或模型架构必须生成 `doc/images/diagrams/ml-*.svg（或者png），由AI直接生成`。
+
+### 步骤2: 验证渲染 (CRITICAL)
+
+在提交前必须进行本地渲染验证，确保代码可运行且格式正确。
+
+```bash
+# 渲染单文件验证内容
+quarto render doc/[number]-[topic].rmd
+
+# 确保无报错、包缺失或格式问题
+```
+
+### 步骤3: 更新导航系统 (CRITICAL)
+
+必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
+
+1. **更新 `doc/_quarto.yml`**:
+
+   - 找到 `sidebar` -> `contents` -> `机器学习与 AI` 部分。
+   - 添加新条目，**注意缩进**:
+     ```yaml
+               - text: "文章标题"
+                 href: "[number]-[topic].rmd"
+     ```
+2. **更新 `doc/0001-guide.rmd`**:
+
+   - 在对应分类的表格中添加一行：
+     ```markdown
+     | [算法名] | [文章标题]([number]-[topic].html) | [简短说明] |
+     ```
+3. **运行自动生成脚本 (MANDATORY)**:
+
+   - 此脚本会根据 `_quarto.yml` 更新 `sections/machine-learning.qmd` 等分类索引页。
+
+   ```bash
+   # 在项目根目录下运行
+   workdir="doc" Rscript doc/generate_sections.R
+   ```
+4. **更新 `README.md`**:
+
+   - 在 `🧭 内容导航` -> `🚀 机器学习与 AI` 的对应折叠块中添加链接。
+
+### 步骤4: 最终渲染与提交
+
+1. **重新渲染受影响页面**:
+
+   ```bash
+   quarto render doc/sections/machine-learning.qmd
+   quarto render doc/index.qmd
+   ```
+2. **提交代码**:
+
+   ```bash
+   git add doc/[number]-[topic].rmd doc/images/[number]-[topic]-cover.svg
+   git add doc/_quarto.yml doc/0001-guide.rmd README.md doc/sections/machine-learning.qmd
+   git commit -m "feat(ml): 新增[算法名称]机器学习教程"
+   ```
+
+## 写作规范
+
+- **内容标准**:
+  - **详细度**: 内容必须详尽，起到深入教程的作用。
+  - **篇幅**: 不少于 300 行 (Not less than 300 lines)。
+  - **比例**: 文字说明约占 70%，代码约占 30% (70% text, 30% code)。
+  - **结构**: 必须提前构建全面的内容框架，然后根据框架填充详细内容。
+- **框架**: 推荐使用 `mlr3` 或 `tidymodels` 现代框架。
+- **指标**: 必须展示多个评估指标（如 ACC, AUC, F1 等）。
+- **调参**: 必须包含超参数优化步骤（网格搜索或随机搜索）。
+
+## 参考资源
+
+- [content-structure.md](references/content-structure.md): 详细内容模板与标题规范。
+- [visual-templates.md](references/visual-templates.md): SVG 封面与示意图模板库。
+- [hyperparameter-guides.md](references/hyperparameter-guides.md): 常用算法调参指南。
