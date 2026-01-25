@@ -28,7 +28,7 @@ description: Generate comprehensive R statistical method tutorials (regression, 
 2. **选择下一个可用编号**:
 
    - 找到当前最大编号 (如 1099)
-   - 新文件使用下一个编号 (如 1100)
+   - 新文件使用下一个编号 (如 1100，上一个编号＋1)
    - **绝对禁止**: 使用已存在的编号!
 3. **编号冲突检测**:
 

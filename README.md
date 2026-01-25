@@ -225,6 +225,7 @@
 | **DEA-Tobit 两阶段模型**   | ⭐⭐   | [教程链接](1125-dea-tobit.html)    | 效率评价与影响因素分析 |
 | **因子分析 (EFA/CFA)**     | ⭐⭐   | [教程链接](1038-efa-cfa.html)      | 量表验证、结构分析     |
 | **主成分分析 (PCA)**       | ⭐⭐   | [教程链接](1039-pca.html)          | 降维、特征提取         |
+| **多重对应分析 (MCA)**      | ⭐⭐   | [教程链接](1100-mca.html)          | 分类变量降维与可视化 ⭐新增 |
 | **潜类别分析 (LCA)**       | ⭐⭐   | [教程链接](1031-lca.html)          | 人群亚型识别           |
 | **分布滞后模型 (DLNM)**    | ⭐⭐⭐ | [教程链接](1033-dlnm.html)         | 暴露-滞后效应          |
 | **加权分位数和回归 (WQS)** | ⭐⭐⭐ | [教程链接](1106-wqs.html)          | 混合暴露分析           |
@@ -291,7 +292,7 @@
 | :---------------------------- | :--- | :---------------------------------------- | :------------------- |
 | **Positron IDE**        | ⭐   | [Positron IDE 教程](0013-positron.html)      | 现代化的 R 开发环境  |
 | **RMarkdown 入门**      | ⭐   | [RMarkdown 入门](0011-rmarkdown.html)        | 创建可重复的研究报告 |
-| **Quarto vs RMarkdown** | ⭐⭐ | [Quarto vs RMarkdown](0012-quarto-vs-rmd.md) | 选择合适的文档格式   |
+| **Quarto vs RMarkdown** | ⭐⭐ | [Quarto vs RMarkdown](0012-quarto-vs-rmd.qmd) | 选择合适的文档格式   |
 
 </details>
 
