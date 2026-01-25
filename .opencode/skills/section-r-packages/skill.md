@@ -23,7 +23,7 @@ description: Generate comprehensive R package tutorials (tidyverse, data.table, 
 - **必须包含**: 包简介、核心功能清单、快速开始、完整实战示例。
 - **示例优先**: 每个功能都要有简洁但完整的可运行代码示例。
 - **封面图 (MANDATORY)**: 必须生成 `doc/images/[number]-[topic]-cover.svg`。
-- **示意图**: 包架构、函数调用链或性能对比必须生成 `doc/images/diagrams/pkg-*.svg（或者png），由AI直接生成`。
+- **原理图**: 复杂逻辑，结构图，代码不好展现的，必须AI生图生成 `doc/images/diagrams/stat-*.svg（或者png），由AI直接生成`，比如一些思维导图，可视化内容。使用md语法在文章内引用
 
 ### 步骤2: 验证渲染 (CRITICAL)
 

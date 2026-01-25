@@ -22,7 +22,7 @@ description: Generate comprehensive R data visualization tutorials (ggplot2, cha
 
 - **必须包含**: 至少 3 个图表示例 (基础 → 中级 → 高级)。
 - **封面图 (MANDATORY)**: 必须生成 `doc/images/[topic]-cover.svg`。
-- **示意图**: 复杂概念或流程必须生成 `doc/images/diagrams/viz-*.svg`。
+- **原理图**: 复杂逻辑，结构图，代码不好展现的，必须AI生图生成 `doc/images/diagrams/stat-*.svg（或者png），由AI直接生成`，比如一些思维导图，可视化内容。使用md语法在文章内引用
 
 ### 步骤2: 验证渲染 (CRITICAL)
 

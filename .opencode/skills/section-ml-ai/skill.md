@@ -23,7 +23,7 @@ description: Generate comprehensive R machine learning and AI tutorials (mlr3, t
 - **必须包含**: 完整的建模流程（数据划分、特征工程、训练、评估、调参）。
 - **可复现性**: 所有随机操作必须设置种子 `set.seed(2026)`。
 - **封面图 (MANDATORY)**: 必须生成 `doc/images/[number]-[topic]-cover.svg`。
-- **示意图**: 算法原理、工作流或模型架构必须生成 `doc/images/diagrams/ml-*.svg（或者png），由AI直接生成`。
+- **原理图**: 复杂逻辑，结构图，代码不好展现的，必须AI生图生成 `doc/images/diagrams/stat-*.svg（或者png），由AI直接生成`，比如一些思维导图，可视化内容。使用md语法在文章内引用
 
 ### 步骤2: 验证渲染 (CRITICAL)
 

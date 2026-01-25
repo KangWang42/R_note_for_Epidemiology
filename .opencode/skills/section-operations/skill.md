@@ -23,7 +23,7 @@ description: Generate comprehensive R practical operation tutorials (data import
 - **必须包含**: 任务目标、准备工作、分步骤操作流程、至少一个实战案例。
 - **操作导向**: 每步都应可直接操作，并提供预期输出说明。
 - **封面图 (MANDATORY)**: 必须生成 `doc/images/[number]-[topic]-cover.svg`。
-- **示意图**: 数据流程、操作步骤或项目结构必须生成 `doc/images/diagrams/ops-*.svg（或者png），由AI直接生成`。
+- **原理图**: 复杂逻辑，结构图，代码不好展现的，必须AI生图生成 `doc/images/diagrams/stat-*.svg（或者png），由AI直接生成`，比如一些思维导图，可视化内容。使用md语法在文章内引用
 
 ### 步骤2: 验证渲染 (CRITICAL)
 

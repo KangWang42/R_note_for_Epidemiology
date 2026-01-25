@@ -23,7 +23,7 @@ description: Generate comprehensive R introductory guides (learning paths, basic
 - **必须包含**: `## 教程目标与适用场景` 到 `## 进阶扩展` 的标准结构。
 - **文字比例**: 必须确保文字解释占 70% 以上，假设读者是零基础。
 - **封面图 (MANDATORY)**: 必须生成 `doc/images/00[number]-[topic]-cover.svg`。
-- **示意图**: 学习路线、概念关系或配置流程必须生成 `doc/images/diagrams/guide-*.svg（或者png），由AI直接生成`。
+- **原理图**: 复杂逻辑，结构图，代码不好展现的，必须AI生图生成 `doc/images/diagrams/stat-*.svg（或者png），由AI直接生成`，比如一些思维导图，可视化内容，使用md语法在文章内引用
 
 ### 步骤2: 验证渲染 (CRITICAL)
 
