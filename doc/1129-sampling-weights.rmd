@@ -1,0 +1,288 @@
+---
+title: '抽样方法与权重详解：从原理到 R 语言实现'
+date: '2026-01-25'
+categories:
+  - 统计基础
+  - 抽样技术
+  - 回归分析
+  - 实用 R 包
+image: images/sampling-weights-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## 1. 核心概念通俗解释
+
+在医学和社会科学研究中，我们往往无法调查总体（例如全国所有高血压患者）。因此，我们从总体中抽取一部分人（样本）进行调查，并试图通过样本推断总体。
+
+**为什么要抽样？**
+省钱、省时。
+
+**为什么要加权？**
+因为抽样往往不是“绝对随机”的，或者为了保证某些稀有群体能被研究到，我们故意多抽了一些人（过抽样）。如果不加权，直接算平均值，结果就会**偏倚**。
+
+### 生活化类比：水果拼盘
+
+假设你要评价一个果园的水果甜度。果园里有 900 个苹果和 100 个榴莲。
+如果你**简单随机抽样**（SRS），抽 10 个水果，大概率抽到 9 个苹果 1 个榴莲。这时候你算平均甜度，能代表果园。
+
+但是，如果你想专门研究榴莲，SRS 可能抽不到榴莲。所以你决定**分层抽样**：强制抽 5 个苹果和 5 个榴莲。
+这时候样本里榴莲占比 50%，而果园里只有 10%。
+如果你直接算平均甜度，榴莲的权重就被大大高估了（榴莲通常更甜或更有特色）。
+**加权**就是把这 5 个苹果代表 900 个苹果（每个苹果代表 180 个），5 个榴莲代表 100 个榴莲（每个榴莲代表 20 个）。让数据“还原”回真实的比例。
+
+---
+
+## 2. 常见抽样方法
+
+### 2.1 简单随机抽样 (Simple Random Sampling, SRS)
+每个人被抽中的概率相同。最理想，但实施最难（需要完整的名单）。
+
+### 2.2 分层抽样 (Stratified Sampling)
+将总体分成若干层（如：男/女，城市/农村），在每一层里独立抽样。
+- **优点**：保证每一层都有足够样本；提高估计精度（如果层间差异大）。
+- **权重**：不同层的抽样概率可能不同，需要加权。
+
+### 2.3 整群抽样 (Cluster Sampling)
+以“群”为单位抽样（如：抽学校，而不是抽学生）。
+- **优点**：实施方便（不需要所有学生名单，只要学校名单）。
+- **缺点**：同群的人往往相似（设计效应 Deff > 1），样本量相同时精度不如 SRS。
+
+### 2.4 多阶段抽样 (Multi-stage Sampling)
+现实中最常用。比如：先抽城市 -> 再抽街道 -> 再抽居委会 -> 最后抽户。
+
+---
+
+## 3. 权重的种类与计算
+
+### 3.1 抽样权重 (Sampling Weights / Design Weights)
+$$ W_i = \frac{1}{P_i} $$
+其中 $P_i$ 是第 $i$ 个人被抽中的概率。
+- 概率越小，权重越大（代表的人越多）。
+
+### 3.2 无应答调整 (Non-response Adjustment)
+抽中了但不配合调查。通常假设无应答是随机的（在某些变量控制下），将无应答者的权重分配给相似的应答者。
+
+### 3.3 事后分层权重 (Post-stratification / Raking)
+调查完发现样本的某些特征（如年龄、性别分布）与已知的人口普查数据不符。通过调整权重，强制样本分布与总体分布一致。
+
+---
+
+## 4. R 语言实战：使用 survey 包
+
+`survey` 包是 R 语言中处理复杂抽样数据的金标准。`srvyr` 包则提供了 `dplyr` 风格的语法。
+
+### 4.1 安装与加载
+
+```{r}
+#| message: false
+library(survey)
+library(srvyr) # tidyverse style for survey
+library(dplyr)
+library(ggplot2)
+```
+
+### 4.2 模拟数据
+
+为了演示，我们先构建一个虚拟的总体（Population），然后从中抽样。
+
+```{r}
+set.seed(123)
+# 1. 创建总体 (N = 10,000)
+# 假设分为两个层：城市 (City) 和 农村 (Rural)
+# 城市人口多，收入高；农村人口少，收入低
+pop_size <- 10000
+population <- data.frame(
+  id = 1:pop_size,
+  stratum = c(rep("City", 8000), rep("Rural", 2000)),
+  # 模拟收入：城市均值 5000，农村均值 3000
+  income = c(rnorm(8000, 5000, 1000), rnorm(2000, 3000, 800)),
+  # 模拟高血压：城市患病率 20%，农村 30%
+  hypertension = c(rbinom(8000, 1, 0.2), rbinom(2000, 1, 0.3))
+)
+
+# 总体真实均值
+true_mean_income <- mean(population$income)
+true_prev_htn <- mean(population$hypertension)
+
+cat("总体真实平均收入:", round(true_mean_income, 2), "\n")
+cat("总体真实高血压患病率:", round(true_prev_htn, 4), "\n")
+```
+
+### 4.3 实施不平衡的分层抽样
+
+假设我们想重点研究农村人口，所以决定在城市和农村各抽 500 人（过抽样农村）。
+
+```{r}
+# 分层抽样
+sample_data <- population |>
+  group_by(stratum) |>
+  sample_n(500) |>
+  ungroup()
+
+# 计算抽样权重
+# 城市抽样概率 = 500 / 8000
+# 农村抽样概率 = 500 / 2000
+sample_data <- sample_data |>
+  mutate(
+    prob = case_when(
+      stratum == "City" ~ 500/8000,
+      stratum == "Rural" ~ 500/2000
+    ),
+    weight = 1 / prob
+  )
+
+# 查看样本结构
+table(sample_data$stratum)
+```
+
+### 4.4 不加权 vs 加权分析
+
+如果我们直接分析样本数据：
+
+```{r}
+# 不加权直接计算
+naive_mean <- mean(sample_data$income)
+naive_prev <- mean(sample_data$hypertension)
+
+cat("【不加权】样本平均收入:", round(naive_mean, 2), "(偏差大)\n")
+cat("【不加权】样本高血压率:", round(naive_prev, 4), "(偏差大)\n")
+```
+
+可以看到，不加权的平均收入远低于真实值（因为低收入的农村人口被过度代表了），高血压率则偏高。
+
+**使用 survey 包进行加权分析：**
+
+1.  **定义调查设计对象 (Survey Design Object)**
+    这是使用 `survey` 包的第一步，也是最关键的一步。你需要告诉 R 你的抽样设计是什么（分层变量、聚类变量、权重变量）。
+
+```{r}
+# ids = ~1 表示没有聚类（个体是抽样单位）
+# strata = ~stratum 表示分层变量
+# weights = ~weight 表示权重变量
+# fpc (Finite Population Correction) 这里忽略，因为抽样比例较小
+svy_design <- svydesign(
+  ids = ~1,
+  strata = ~stratum,
+  weights = ~weight,
+  data = sample_data
+)
+
+summary(svy_design)
+```
+
+2.  **计算加权均值和比例**
+
+```{r}
+# 加权平均收入
+weighted_mean <- svymean(~income, svy_design)
+weighted_mean
+
+# 加权高血压患病率
+weighted_prev <- svymean(~hypertension, svy_design)
+weighted_prev
+
+# 对比真实值
+comparison <- data.frame(
+  Type = c("True Population", "Unweighted Sample", "Weighted Sample"),
+  Income = c(true_mean_income, naive_mean, coef(weighted_mean)),
+  Hypertension = c(true_prev_htn, naive_prev, coef(weighted_prev))
+)
+print(comparison)
+```
+
+**解读**：可以看到，加权后的结果（Weighted Sample）非常接近总体真实值（True Population），成功纠正了抽样偏差。
+
+### 4.5 使用 srvyr (Tidyverse 风格)
+
+`srvyr` 是 `survey` 的 wrapper，让你可以使用 `group_by`, `summarize` 等语法。
+
+```{r}
+# 创建 srvyr 对象
+srvyr_design <- sample_data |>
+  as_survey_design(ids = 1, strata = stratum, weights = weight)
+
+# 分组统计
+result_by_group <- srvyr_design |>
+  group_by(stratum) |>
+  summarize(
+    mean_income = survey_mean(income),
+    prev_htn = survey_mean(hypertension)
+  )
+
+print(result_by_group)
+```
+
+---
+
+## 5. 加权回归模型
+
+在回归模型中是否使用权重一直有争议。
+- **描述性目标**（推断总体回归系数）：**必须加权**。
+- **因果推断/预测目标**：如果模型设定正确，不加权可能更有效率；但在复杂调查中，通常建议加权以防模型设定偏差。
+
+我们来模拟一个场景：假设收入（X）影响生活满意度（Y），但这种影响在城市和农村是一样的（系数相同）。
+
+```{r}
+# 模拟生活满意度 (Score) = 0.001 * Income + Error
+# 假设关系在两层中一致
+sample_data$score <- 0.001 * sample_data$income + rnorm(1000, mean=50, sd=10)
+
+# 更新设计对象
+svy_design <- svydesign(ids = ~1, strata = ~stratum, weights = ~weight, data = sample_data)
+```
+
+### 5.1 拟合模型
+
+使用 `svyglm` (Survey Generalized Linear Models)。
+
+```{r}
+# 1. 普通线性回归 (忽略权重)
+lm_mod <- lm(score ~ income, data = sample_data)
+
+# 2. 加权线性回归
+svy_mod <- svyglm(score ~ income, design = svy_design)
+
+summary(lm_mod)$coefficients
+summary(svy_mod)$coefficients
+```
+
+**注意**：在这个简单的模拟中，因为 $Y \sim X$ 的关系在层间是同质的，所以加权和不加权的系数差异不大。但标准误（SE）的计算方式完全不同。`svyglm` 使用基于设计（Design-based）的鲁棒标准误，通常比普通 OLS 的标准误要大，这反映了抽样的不确定性。
+
+---
+
+## 6. 常见误区与注意事项
+
+1.  **不要直接把权重当成频率**：
+    有些初学者会把权重传给 `lm(..., weights = weight)`。
+    在 R 的 `lm` 中，`weights` 参数通常指 **Precision Weights** (用于异方差处理)，而不是抽样权重。
+    虽然系数估计可能也是对的（对于点估计），但**标准误（Standard Errors）通常是错的**，导致 P 值极小。
+    **必须使用 `survey::svyglm`**。
+
+2.  **权重标准化 (Scaling Weights)**：
+    有些软件要求权重之和等于样本量（Scaling to sample size）。R 的 `survey` 包默认处理原始权重（和等于总体规模）。结果通常一致，但在某些特定检验中需注意。
+
+3.  **设计效应 (Design Effect, Deff)**：
+    复杂抽样通常会降低估计精度（相比同样本量的 SRS）。
+    $Deff = \frac{\text{复杂抽样的方差}}{\text{SRS的方差}}$。
+    如果是整群抽样，Deff 通常 > 1，意味着你需要更大的样本量才能达到同样的精度。
+
+---
+
+## 7. 总结
+
+| 步骤 | 关键函数/操作 | 说明 |
+|------|--------------|------|
+| **1. 明确设计** | 查阅文档 | 搞清抽样方法（分层？整群？）和权重变量 |
+| **2. 创建对象** | `svydesign()` | 将数据框转换为调查对象，绑定权重和设计信息 |
+| **3. 描述统计** | `svymean()`, `svyquantile()` | 绝不能用普通的 `mean()`，必须用 svy 系列函数 |
+| **4. 回归分析** | `svyglm()`, `svycoxph()` | 使用专门的加权回归函数，获得正确的标准误 |
+
+复杂抽样数据分析是统计学的一个专门领域，处理不好会导致严重的推断错误。掌握 `survey` 包是 R 语言用户的必备技能。
+
+## 参考文献
+
+1. Lumley, T. (2010). Complex Surveys: A Guide to Analysis Using R. John Wiley & Sons.
+2. Heeringa, S. G., West, B. T., & Berglund, P. A. (2017). Applied Survey Data Analysis. CRC Press.
