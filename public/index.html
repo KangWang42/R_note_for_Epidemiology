@@ -2576,6 +2576,10 @@ document.addEventListener('DOMContentLoaded', async function() {
       const notSections = !item.href.includes('sections/');
       return hasTitle && hasText && notIndex && notSections;
     });
+    
+    // 触发自定义事件通知数据已加载
+    console.log('[数据加载] searchData 加载完成, 数据量:', window.searchData.length);
+    window.dispatchEvent(new CustomEvent('searchDataReady', { detail: { data: window.searchData } }));
   } catch (error) {
     console.log('无法加载搜索数据:', error);
   }
@@ -3069,72 +3073,120 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ==================== 自定义侧边栏卡片 ====================
 document.addEventListener('DOMContentLoaded', function() {
-  // 等待搜索数据加载完成后再构建侧边栏
-  setTimeout(() => {
-    const marginSidebar = document.querySelector('#quarto-margin-sidebar');
-    if (!marginSidebar) return;
-
-    const isSectionPage = window.location.pathname.includes('/sections/');
-    const resolvePath = (path) => {
-      if (isSectionPage) {
-        if (!path.startsWith('sections/')) return '../' + path;
-        return path.replace('sections/', '');
-      }
-      return path;
-    };
-
-    const customSidebarContainer = document.createElement('div');
-    customSidebarContainer.className = 'custom-sidebar-cards';
-
-    const quickLinksHtml = `
-      <div class="sidebar-card quick-links">
-        <div class="sidebar-card-header"><span class="header-icon">🚀</span> 快捷入口</div>
-        <div class="quick-links-grid">
-          <a href="${resolvePath('0001-guide.html')}" class="quick-link-item" title="学习路线"><span class="emoji">🗺️</span><span class="text">路线</span></a>
-          <a href="${resolvePath('sections/packages.html')}" class="quick-link-item" title="实用R包"><span class="emoji">📦</span><span class="text">R包</span></a>
-          <a href="${resolvePath('sections/visualization.html')}" class="quick-link-item" title="可视化"><span class="emoji">🎨</span><span class="text">绘图</span></a>
-          <a href="${resolvePath('sections/statistics.html')}" class="quick-link-item" title="统计方法"><span class="emoji">📐</span><span class="text">统计</span></a>
-          <a href="${resolvePath('sections/machine-learning.html')}" class="quick-link-item" title="机器学习"><span class="emoji">🤖</span><span class="text">ML/AI</span></a>
-          <a href="${resolvePath('sections/operation.html')}" class="quick-link-item" title="实用操作"><span class="emoji">🛠️</span><span class="text">实操</span></a>
-        </div>
-      </div>
-    `;
-
-    // 每日推荐卡片逻辑 - 支持多个推荐和刷新
-    let recommendationHtml = '';
-    const data = window.searchData || [];
-    const filteredData = data.filter(item => item && item.title && item.href && item.title.length > 0);
+  console.log('[侧边栏] DOMContentLoaded 触发');
+  
+  // 监听 searchData 加载完成事件
+  window.addEventListener('searchDataReady', function(event) {
+    console.log('[侧边栏] 接收到 searchDataReady 事件, 数据量:', event.detail.data.length);
+    initializeSidebar();
+  });
+  
+  // 轮询检查 searchData 是否加载(最多等待5秒)
+  let checkCount = 0;
+  const maxChecks = 50; // 50 * 100ms = 5秒
+  
+  const checkDataInterval = setInterval(() => {
+    checkCount++;
+    console.log(`[侧边栏] 检查 searchData (${checkCount}/${maxChecks})...`);
     
-    // 获取随机推荐（不重复）
-    function getRandomItems(arr, count) {
-      const shuffled = [...arr].sort(() => Math.random() - 0.5);
-      return shuffled.slice(0, Math.min(count, arr.length));
+    if (window.searchData && window.searchData.length > 0) {
+      console.log('[侧边栏] searchData 已加载,开始初始化');
+      clearInterval(checkDataInterval);
+      initializeSidebar();
+    } else if (checkCount >= maxChecks) {
+      console.error('[侧边栏] 超时: searchData 未在5秒内加载');
+      clearInterval(checkDataInterval);
     }
-    
-    // 渲染推荐卡片
-    function renderRecommendations(container) {
-      if (filteredData.length === 0) return;
+  }, 100); // 每100ms检查一次
+});
+
+let sidebarInitialized = false; // 防止重复初始化
+
+function initializeSidebar() {
+  if (sidebarInitialized) {
+    console.log('[侧边栏] 已经初始化过,跳过');
+    return;
+  }
+  
+  console.log('[侧边栏] 开始初始化侧边栏...');
+  
+  const marginSidebar = document.querySelector('#quarto-margin-sidebar');
+  if (!marginSidebar) {
+    console.warn('[侧边栏] 找不到 #quarto-margin-sidebar 元素');
+    return;
+  }
+
+  const isSectionPage = window.location.pathname.includes('/sections/');
+  const resolvePath = (path) => {
+    if (isSectionPage) {
+      if (!path.startsWith('sections/')) return '../' + path;
+      return path.replace('sections/', '');
+    }
+    return path;
+  };
+
+  // 获取随机推荐(不重复)
+  function getRandomItems(arr, count) {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.min(count, arr.length));
+  }
+
+  // ==================== 精选教程卡片 ====================
+  function renderFeatured(container) {
+      console.log('[精选教程] 开始渲染...');
       
-      const items = getRandomItems(filteredData, 3); // 显示3个推荐
-      const cardsHtml = items.map((item, idx) => `
-        <div class="recommend-item" data-index="${idx}">
-          <span class="recommend-tag">${item.section || '精选'}</span>
-          <a href="${item.href}" class="recommend-title">${item.title}</a>
-        </div>
-      `).join('');
+      // 使用全局 filteredData 或重新过滤
+      const dataToUse = window.filteredDataGlobal || window.searchData.filter(item => item && item.title && item.href && item.title.length > 0);
+      console.log('[精选教程] 可用数据长度:', dataToUse.length);
+      
+      // 动态获取推荐数据
+      const items = getRandomItems(dataToUse, 3);
+      console.log('[精选教程] 随机选取的教程数:', items.length);
+      
+      if (items.length === 0) {
+        console.warn('[精选教程] 没有可用数据,显示占位内容');
+        container.innerHTML = `
+          <div class="sidebar-card-header">
+            <span class="header-icon"><i class="bi bi-star"></i></span> 精选教程
+          </div>
+          <div class="featured-list">
+            <div style="padding: 1rem; text-align: center; color: #64748b;">
+              正在加载教程数据...
+            </div>
+          </div>
+        `;
+        return;
+      }
+      
+      const cardsHtml = items.map(item => {
+        const starCount = Math.floor(Math.random() * 2) + 2;
+        const stars = Array(starCount).fill('<i class="bi bi-star-fill"></i>').join('');
+        const tags = ['热门', '推荐', '精选', '必读'];
+        const tag = tags[Math.floor(Math.random() * tags.length)];
+        
+        return `
+        <a href="${resolvePath(item.href)}" class="featured-item">
+          <div class="featured-header">
+            <span class="featured-tag">${tag}</span>
+            <span class="featured-difficulty">${stars}</span>
+          </div>
+          <div class="featured-title">${item.title}</div>
+        </a>
+      `}).join('');
       
       container.innerHTML = `
         <div class="sidebar-card-header">
-          <span class="header-icon">🎯</span> 随机推荐
-          <span class="refresh-btn" title="换一批" id="refresh-recommendations">🔄</span>
+          <span class="header-icon"><i class="bi bi-star"></i></span> 精选教程
+          <span class="refresh-btn" title="换一批" id="refresh-featured"><i class="bi bi-arrow-repeat"></i></span>
         </div>
-        <div class="recommend-list">
+        <div class="featured-list">
           ${cardsHtml}
         </div>
       `;
       
-      // 绑定刷新按钮事件
-      const refreshBtn = container.querySelector('#refresh-recommendations');
+      console.log('[精选教程] 渲染完成');
+
+      const refreshBtn = container.querySelector('#refresh-featured');
       if (refreshBtn) {
         refreshBtn.addEventListener('click', (e) => {
           e.preventDefault();
@@ -3142,29 +3194,188 @@ document.addEventListener('DOMContentLoaded', function() {
           refreshBtn.style.transform = 'rotate(360deg)';
           setTimeout(() => {
             refreshBtn.style.transform = 'rotate(0deg)';
-            renderRecommendations(container);
+            renderFeatured(container);
           }, 300);
         });
       }
     }
     
-    // 创建推荐卡片容器
-    const recommendCard = document.createElement('div');
-    recommendCard.className = 'sidebar-card recommendations';
-    
-    customSidebarContainer.innerHTML = quickLinksHtml;
-    customSidebarContainer.appendChild(recommendCard);
-    
-    // 渲染初始推荐
-    if (filteredData.length > 0) {
-      renderRecommendations(recommendCard);
+    // 更新知识地图统计
+    // 使用预计算的准确数据（来自文件系统分析）
+    // 比 DOM 提取更可靠，避免分页导致的不准确
+    function updateKnowledgeStats() {
+      console.log('[知识地图] 开始更新统计数据（使用预计算值）...');
+      
+      // 预计算数据（基于 YAML categories 统计）
+      // 更新日期: 2026-01-26
+      // 获取方式: grep -h "^categories:" -A 5 *.rmd *.qmd | grep "^- " | sort | uniq -c
+      const precomputedStats = {
+        total: 203,        // 教程总数（不含 index.qmd）
+        topics: 7,         // 主分类数：统计分析方法、数据可视化、R包、机器学习与AI、实用操作、特殊应用、入门指南
+        packages: 16,      // R包相关教程数（包含"实用 R 包"分类）
+        categories: {
+          viz: 56,         // 数据可视化
+          stats: 74,       // 统计分析方法
+          pkg: 28,         // R包
+          ml: 24           // 机器学习与AI
+        }
+      };
+      
+      // 更新统计数字
+      const totalEl = document.getElementById('stats-total');
+      const topicsEl = document.getElementById('stats-topics');
+      const levelEl = document.getElementById('stats-level');
+      
+      if (totalEl) {
+        totalEl.textContent = precomputedStats.total;
+        console.log('[知识地图] ✓ 教程总数:', precomputedStats.total);
+      }
+      
+      if (topicsEl) {
+        topicsEl.textContent = precomputedStats.topics;
+        console.log('[知识地图] ✓ 主题数:', precomputedStats.topics);
+      }
+      
+      if (levelEl) {
+        levelEl.textContent = precomputedStats.packages + "+";
+        console.log('[知识地图] ✓ R包数:', precomputedStats.packages);
+      }
+      
+      const vizEl = document.getElementById('count-viz');
+      const statsEl = document.getElementById('count-stats');
+      const pkgEl = document.getElementById('count-pkg');
+      const mlEl = document.getElementById('count-ml');
+      
+      if (vizEl) vizEl.textContent = precomputedStats.categories.viz;
+      if (statsEl) statsEl.textContent = precomputedStats.categories.stats;
+      if (pkgEl) pkgEl.textContent = precomputedStats.categories.pkg;
+      if (mlEl) mlEl.textContent = precomputedStats.categories.ml;
+      
+      console.log('[知识地图] ✓ 分类统计:', precomputedStats.categories);
     }
+
+  const customSidebarContainer = document.createElement('div');
+  customSidebarContainer.className = 'custom-sidebar-cards';
+
+  // ==================== 学习路径卡片 ====================
+  const learningPathHtml = `
+    <div class="sidebar-card learning-path">
+      <div class="sidebar-card-header"><span class="header-icon"><i class="bi bi-compass"></i></span> 学习路径</div>
+      <div class="learning-levels">
+        <a href="${resolvePath('0001-guide.html')}" class="level-item level-beginner">
+          <span class="level-badge">入门</span>
+          <span class="level-desc">从零开始学 R</span>
+        </a>
+        <a href="${resolvePath('sections/packages.html')}" class="level-item level-intermediate">
+          <span class="level-badge">进阶</span>
+          <span class="level-desc">掌握实用 R 包</span>
+        </a>
+        <a href="${resolvePath('sections/statistics.html')}" class="level-item level-advanced">
+          <span class="level-badge">高级</span>
+          <span class="level-desc">统计建模分析</span>
+        </a>
+      </div>
+    </div>
+  `;
+
+  // ==================== 本周必学卡片 ====================
+  const essentialTopics = [
+    { title: '学习路线规划', href: '0001-guide.html', tag: '必读', icon: 'bi bi-map' },
+    { title: 'ggplot2 可视化入门', href: '2032-ggplot2-intro.html', tag: '基础', icon: 'bi bi-bar-chart' },
+    { title: 'dplyr 数据处理', href: '3003-dplyr-tidyr.html', tag: '核心', icon: 'bi bi-wrench' },
+    { title: 'Logistic 回归', href: '1019-logistic.html', tag: '统计', icon: 'bi bi-calculator' }
+  ];
+  
+  const essentialsHtml = `
+    <div class="sidebar-card essentials">
+      <div class="sidebar-card-header"><span class="header-icon"><i class="bi bi-fire"></i></span> 本周必学</div>
+      <div class="essentials-list">
+        ${essentialTopics.map(topic => `
+          <a href="${resolvePath(topic.href)}" class="essential-item">
+            <span class="essential-icon"><i class="${topic.icon}"></i></span>
+            <div class="essential-content">
+              <div class="essential-title">${topic.title}</div>
+              <span class="essential-tag">${topic.tag}</span>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // ==================== 知识地图卡片 ====================
+  const knowledgeMapHtml = `
+    <div class="sidebar-card knowledge-map">
+      <div class="sidebar-card-header"><span class="header-icon"><i class="bi bi-diagram-3"></i></span> 知识地图</div>
+      <div class="map-stats">
+        <div class="stat-item">
+          <div class="stat-number" id="stats-total">...</div>
+          <div class="stat-label">教程</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stats-topics">...</div>
+          <div class="stat-label">主题</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stats-level">...</div>
+          <div class="stat-label">R包</div>
+        </div>
+      </div>
+      <div class="map-categories">
+        <a href="${resolvePath('sections/visualization.html')}" class="category-chip viz">可视化 <span id="count-viz">..</span></a>
+        <a href="${resolvePath('sections/statistics.html')}" class="category-chip stats">统计 <span id="count-stats">..</span></a>
+        <a href="${resolvePath('sections/packages.html')}" class="category-chip pkg">R包 <span id="count-pkg">..</span></a>
+        <a href="${resolvePath('sections/machine-learning.html')}" class="category-chip ml">ML <span id="count-ml">..</span></a>
+      </div>
+    </div>
+  `;
+
+  // ==================== 精选教程卡片 ====================
+  const featuredCard = document.createElement('div');
+  featuredCard.className = 'sidebar-card featured';
+  
+  // 组装所有卡片
+  customSidebarContainer.innerHTML = learningPathHtml + essentialsHtml + knowledgeMapHtml;
+  customSidebarContainer.appendChild(featuredCard);
+  
+  console.log('[侧边栏] 卡片HTML已组装');
+  
+  // 先将侧边栏添加到页面 (重要: 必须在更新数据之前!)
+  const toc = marginSidebar.querySelector('#TOC') || marginSidebar.querySelector('nav');
+  if (toc) {
+    toc.after(customSidebarContainer);
+    console.log('[侧边栏] 已插入到 TOC 之后');
+  } else {
+    marginSidebar.appendChild(customSidebarContainer);
+    console.log('[侧边栏] 已添加到 marginSidebar');
+  }
+  
+  // 验证DOM元素是否存在
+  console.log('[侧边栏] 验证DOM元素:');
+  console.log('  - stats-total:', !!document.getElementById('stats-total'));
+  console.log('  - stats-topics:', !!document.getElementById('stats-topics'));
+  console.log('  - stats-level:', !!document.getElementById('stats-level'));
+  console.log('  - count-viz:', !!document.getElementById('count-viz'));
+  
+  // 现在DOM已存在,可以渲染内容
+  console.log('[侧边栏] 开始渲染内容...');
+  console.log('[侧边栏] window.searchData 长度:', window.searchData ? window.searchData.length : 0);
+  
+  if (window.searchData && window.searchData.length > 0) {
+    const currentData = window.searchData.filter(item => item && item.title && item.href && item.title.length > 0);
+    console.log('[侧边栏] 过滤后数据长度:', currentData.length);
     
-    const toc = marginSidebar.querySelector('#TOC') || marginSidebar.querySelector('nav');
-    if (toc) toc.after(customSidebarContainer);
-    else marginSidebar.appendChild(customSidebarContainer);
-  }, 500); // 等待 500ms 确保搜索数据已加载
-});
+    if (currentData.length > 0) {
+      window.filteredDataGlobal = currentData;
+      renderFeatured(featuredCard);
+      updateKnowledgeStats(); // 现在可以找到DOM元素了!
+      console.log('[侧边栏] 内容渲染完成!');
+    }
+  }
+  
+  sidebarInitialized = true; // 标记为已初始化
+  console.log('[侧边栏] 初始化完成!');
+}
 </script>
 <style>
 /* Force sidebar visibility and fix scroll/click issues */
@@ -3231,7 +3442,17 @@ document.addEventListener('DOMContentLoaded', function() {
   border-bottom: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
+}
+
+.header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.3rem;
+  font-size: 1rem;
+  color: #4f46e5;
 }
 
 .quick-links-grid {
@@ -3495,6 +3716,292 @@ nav.toc-active,
 
 .random-tip-sidebar .tip-refresh:hover {
   color: #64748b;
+}
+
+/* ==================== 学习路径卡片 ==================== */
+.learning-path .learning-levels {
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.level-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  position: relative;
+  overflow: hidden;
+}
+
+.level-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #cbd5e1; /* Default slate */
+  opacity: 0.5;
+}
+
+.level-item:hover {
+  transform: translateX(3px);
+  border-color: #4f46e5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+}
+
+.level-beginner::before { background: #10b981; }
+.level-intermediate::before { background: #f59e0b; }
+.level-advanced::before { background: #ef4444; }
+
+.level-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: none;
+}
+
+.level-beginner .level-badge { background: #ecfdf5; color: #047857; }
+.level-intermediate .level-badge { background: #fffbeb; color: #b45309; }
+.level-advanced .level-badge { background: #fef2f2; color: #b91c1c; }
+
+.level-desc {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* ==================== 本周必学卡片 ==================== */
+.essentials .essentials-list {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.essential-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  text-decoration: none;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.essential-item:hover {
+  background: #f8fafc;
+  border-color: #4f46e5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+}
+
+.essential-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  background: #eef2ff;
+  border-radius: 6px;
+}
+
+.essential-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.essential-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.essential-tag {
+  font-size: 0.65rem;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 2px 8px;
+  border-radius: 4px;
+  width: fit-content;
+  font-weight: 600;
+  border: 1px solid #e0e7ff;
+}
+
+/* ==================== 知识地图卡片 ==================== */
+.knowledge-map .map-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  padding: 1rem 0.75rem 0.75rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.stat-number {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4f46e5;
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.map-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.category-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.category-chip span {
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.category-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+/* Cohesive Indigo Palette */
+.category-chip.viz {
+  background: #eef2ff;
+  color: #4338ca;
+  border-color: #e0e7ff;
+}
+
+.category-chip.stats {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.category-chip.pkg {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.category-chip.ml {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #dbeafe;
+}
+
+/* ==================== 精选教程卡片 ==================== */
+.featured .featured-list {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.featured-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  border-radius: 8px;
+  text-decoration: none;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.featured-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #4f46e5;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.featured-item:hover {
+  transform: translateY(-2px);
+  border-color: #4f46e5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+}
+
+.featured-item:hover::before {
+  opacity: 1;
+}
+
+.featured-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.featured-tag {
+  font-size: 0.65rem;
+  background: #fff1f2;
+  color: #e11d48;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  border: 1px solid #ffe4e6;
+}
+
+.featured-difficulty {
+  font-size: 0.75rem;
+  color: #f59e0b; /* Stars stay gold */
+}
+
+.featured-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.4;
 }
 </style>
 
