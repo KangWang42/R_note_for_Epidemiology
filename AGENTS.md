@@ -201,6 +201,44 @@ Load these skills based on task type:
 | 数据可视化/图形设计/绘图美化 | `section-visualization` |
 | 卫生经济学/质性研究/信号处理 | `section-special` |
 
+## Automatic Skill Recognition (CRITICAL for New Sessions)
+
+**RULE**: When user requests to generate tutorial content, the assistant MUST:
+
+1. **Identify task type** from user request using keywords
+2. **Automatically load appropriate skill** by calling `skill(name="...")` before starting work
+3. **Follow skill guidelines** strictly for content structure and workflow
+
+### Keyword Mapping for Auto-Detection
+
+| Request Keywords | Skill to Load |
+|-----------------|---------------|
+| 回归、生存分析、因果推断、贝叶斯、Meta、德尔菲、PSM、Cox、SEM、PCA、LCA、10xx | `section-statistics` |
+| R包、tidyverse、dplyr、ggplot2、purrr、data.table、mlr3、实用包 | `section-r-packages` |
+| 可视化、绘图、图表、图形、ggplot2、箱线图、散点图、热图、20xx | `section-visualization` |
+| 入门、学习路线、基础、新手、指南、00xx | `section-intro-guide` |
+| 机器学习、深度学习、AI、预测、分类、聚类、xgboost、torch | `section-ml-ai` |
+| 数据导入、清洗、转换、正则、字符串、日期、rvest、readxl、30xx | `section-operations` |
+| 卫生经济学、质性研究、信号处理、环境流行病学、TreeAge、VMD | `section-special` |
+
+### Workflow for Tutorial Generation
+
+When user asks to generate content:
+1. Parse request for keywords
+2. Match to appropriate skill from table above
+3. Execute: `skill(name="[matched-skill-name]")`
+4. Follow skill's structure and guidelines
+5. Follow rendering sequence: article → section → index
+
+**EXAMPLE**:
+```
+User: "生成一个泊松回归教程"
+→ Keywords: "泊松回归", "教程"
+→ Skill: section-statistics
+→ Action: skill(name="section-statistics")
+→ Follow section-statistics guidelines to generate content
+```
+
 ## External Rules
 
 - No `.cursor/rules`, `.cursorrules`, or `.github/copilot-instructions.md` detected.
