@@ -1,0 +1,293 @@
+---
+title: 'DEA-Tobit 两阶段模型完整教程'
+subtitle: '基于 Benchmarking 和 AER 包的效率影响因素分析'
+date: '2026-01-25'
+categories:
+- 统计分析方法
+- 计量经济学
+- DEA
+image: images/1116-dea-tobit-cover.svg
+description: 详解如何使用数据包络分析(DEA)测算效率，并结合Tobit回归模型分析环境因素对效率的影响，包含Simar & Wilson双重Bootstrap方法的介绍。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 方法背景与适用场景
+
+DEA-Tobit 两阶段模型是效率分析领域的经典组合方法。
+
+*   **第一阶段 (DEA)**：使用数据包络分析 (Data Envelopment Analysis) 这种非参数方法，根据投入和产出计算每个决策单元 (DMU) 的相对效率值。
+*   **第二阶段 (Tobit)**：将计算出的效率值作为因变量，将不可控的环境变量作为自变量，使用 Tobit 回归模型分析这些因素如何影响效率。
+
+**适用场景**
+*   **投入产出效率评价**：如医院、银行、高校、政府部门的绩效评价。
+*   **影响因素分析**：当不仅想知道"谁效率高"，还想知道"为什么效率高"时。
+*   **截断数据回归**：当因变量（效率值）受限（如 0 到 1 之间）时，普通 OLS 回归有偏，Tobit 是标准解决方案。
+
+**与其他方法的对比**
+
+| 方法 | 适用场景 | 优点 | 缺点 |
+|------|---------|------|------|
+| **OLS 回归** | 因变量无界 | 简单直观 | 处理受限因变量时估计有偏 |
+| **Tobit 回归** | 因变量受限 (Censored) | 解决截断偏误，适合 DEA 分数 | 对异方差和非正态性敏感 |
+| **SFA (随机前沿)** | 参数化方法，特定函数形式 | 可分离噪音和无效率 | 需预设函数形式 (C-D, Translog) |
+| **Simar-Wilson** | DEA 二阶段回归 | 修正了序列相关和偏差，统计性质更优 | 计算复杂，需 Bootstrap |
+
+## 核心概念与模型入门
+
+### 1. DEA (数据包络分析)
+
+DEA 是通过构建一个生产前沿面 (Production Frontier) 来评价同类型 DMU 相对有效性的方法。
+
+*   **CCR 模型**：假设规模报酬不变 (CRS)。
+*   **BCC 模型**：假设规模报酬可变 (VRS)。
+*   **效率值 ($\theta$)**：通常介于 0 到 1 之间，1 表示相对有效 (Efficient)，<1 表示相对无效 (Inefficient)。
+
+### 2. Tobit 回归模型
+
+由于 DEA 效率值通常在 $[0, 1]$ 区间内，且有大量 DMU 的效率值为 1（即在 1 处截断），这符合 Tobit 模型的设定。
+
+标准 Tobit 模型定义为：
+
+$$
+y_i^* = \beta^T x_i + \varepsilon_i, \quad \varepsilon_i \sim N(0, \sigma^2)
+$$
+
+$$
+y_i = \begin{cases} 
+y_i^* & \text{if } y_i^* < 1 \\
+1 & \text{if } y_i^* \ge 1 
+\end{cases}
+$$
+
+其中：
+*   $y_i$ 是观测到的 DEA 效率值。
+*   $y_i^*$ 是潜在变量。
+*   $x_i$ 是环境影响因素。
+*   $\beta$ 是回归系数。
+
+## 数据准备
+
+我们需要三类变量：
+1.  **投入变量 (Inputs)**：资源消耗，如资金、人力、时间。
+2.  **产出变量 (Outputs)**：产出成果，如利润、产量、服务人数。
+3.  **环境变量 (Environmental Variables)**：影响效率但非投入产出的外部因素，如GDP、人口密度、政策虚拟变量。
+
+```{r data-sim}
+# 加载必要包
+if (!require("Benchmarking")) install.packages("Benchmarking")
+if (!require("AER")) install.packages("AER") # 包含 tobit 函数
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("ggplot2")) install.packages("ggplot2")
+
+library(Benchmarking)
+library(AER)
+library(dplyr)
+library(ggplot2)
+
+# 设置随机种子
+set.seed(2026)
+
+# 模拟 100 个 DMU 的数据
+n <- 100
+
+# 环境变量 (影响因素)
+env1 <- rnorm(n, mean = 10, sd = 2)     # 比如区域经济水平
+env2 <- rbinom(n, 1, 0.4)               # 比如是否为中心城市 (0/1)
+
+# 生成潜在效率 (受环境因素影响)
+# 假设 env1 正向影响效率, env2 负向影响
+true_eff_latent <- 0.5 + 0.04 * env1 - 0.1 * env2 + rnorm(n, 0, 0.05)
+# 截断在 1 (DEA 效率不能超过 1)
+true_eff <- pmin(true_eff_latent, 1)
+true_eff <- pmax(true_eff, 0.1) # 保证大于0
+
+# 模拟投入 (Input)
+x1 <- runif(n, 10, 100)
+x2 <- runif(n, 5, 50)
+
+# 模拟产出 (Output) based on Inputs and Efficiency
+# Cobb-Douglas 生产函数形式: Y = A * K^alpha * L^beta * Efficiency
+y1 <- (x1^0.4 * x2^0.5) * true_eff
+
+# 构建数据框
+data <- data.frame(
+  id = 1:n,
+  x1 = x1,
+  x2 = x2,
+  y1 = y1,
+  env1 = env1,
+  env2 = factor(env2) # 转为因子
+)
+
+head(data)
+```
+
+## 完整分析流程
+
+### 步骤 1: DEA 效率测算
+
+首先，我们使用 `Benchmarking` 包计算 DEA 效率值。这里我们选用 **投入导向 (Input-oriented)** 的 **BCC 模型 (规模报酬可变)**。
+
+*   **投入导向**：在产出不变的情况下，最小化投入。
+*   **VRS (BCC)**：允许规模报酬变化，比 CRS (CCR) 更符合大多数现实情况。
+
+```{r dea-calc}
+# 定义投入和产出矩阵
+X <- cbind(data$x1, data$x2)
+Y <- matrix(data$y1, ncol = 1)
+
+# 运行 DEA 模型 (VRS, Input-oriented)
+# RTS="vrs" 表示 Variable Returns to Scale (BCC模型)
+# ORIENTATION="in" 表示投入导向
+dea_model <- dea(X, Y, RTS = "vrs", ORIENTATION = "in")
+
+# 提取效率值
+data$theta <- eff(dea_model)
+
+# 查看效率值分布
+summary(data$theta)
+
+# 可视化效率分布
+ggplot(data, aes(x = theta)) +
+  geom_histogram(binwidth = 0.05, fill = "#667eea", color = "white") +
+  theme_minimal() +
+  labs(title = "DEA 效率值分布", x = "效率值 (Theta)", y = "频数")
+```
+
+**解读**:
+*   可以看到一部分 DMU 的效率值为 1，处于有效前沿面上。
+*   其他 DMU 效率值小于 1，存在无效率。
+
+### 步骤 2: Tobit 回归分析
+
+现在我们将计算出的 `theta` 作为因变量，环境变量 `env1` 和 `env2` 作为自变量进行回归。
+
+由于效率值在 1 处有截断（很多样本取值为1），我们使用 **Tobit 模型**。
+
+```{r tobit-model}
+# 使用 AER 包的 tobit 函数
+# left = 0 (下限), right = 1 (上限)
+tobit_fit <- tobit(theta ~ env1 + env2, left = 0, right = 1, data = data)
+
+# 查看结果摘要
+summary(tobit_fit)
+```
+
+**代码解释**:
+*   `theta ~ env1 + env2`: 公式，因变量 ~ 自变量。
+*   `right = 1`: 告知模型数据在 1 处右侧截断 (Censored)。
+*   `left = 0`: 理论下限为 0。
+
+### 步骤 3: 结果解释
+
+从 `summary(tobit_fit)` 的输出中，我们关注 Coefficients 部分：
+
+1.  **Sign (符号)**:
+    *   `env1`: 估计值为正 (接近 0.04)，且显著 (P < 0.05)，说明 `env1` (区域经济水平) 越高，效率值越高。
+    *   `env21`: (因子变量 env2=1 相对于 0) 估计值为负，说明该因素对效率有负面影响。
+
+2.  **Magnitude (大小)**:
+    *   Tobit 系数表示**潜在变量** (Latent Variable) 随自变量的变化，而不是观测变量的直接边际效应。
+    *   但方向性解释与 OLS 一致。
+
+### 步骤 4: 模型诊断与对比 (OLS vs Tobit)
+
+我们可以对比一下如果错误地使用 OLS 会得到什么结果。
+
+```{r ols-compare}
+# OLS 回归
+ols_fit <- lm(theta ~ env1 + env2, data = data)
+
+# 结果对比 (使用 stargazer 包或 texreg 包可以更美观，这里直接打印)
+cat("=== Tobit Model Coefficients ===\n")
+coef(tobit_fit)
+
+cat("\n=== OLS Model Coefficients ===\n")
+coef(ols_fit)
+```
+
+**解读**:
+*   通常 OLS 的系数绝对值会偏小（向零收缩），因为 OLS 忽略了数据在 1 处的堆积效应，试图拟合一条穿过所有点的直线，从而低估了变量的影响。
+*   Tobit 模型更能还原真实的结构参数。
+
+## 进阶扩展: Simar & Wilson (2007) 双重 Bootstrap
+
+### 为什么要用 Simar & Wilson 方法?
+
+传统的 DEA-Tobit 两阶段法存在两个统计上的缺陷：
+1.  **序列相关 (Serial Correlation)**: DEA 效率值是通过同一样本数据相互比较计算出来的，因此 $y_i$ 之间不独立。
+2.  **偏差 (Bias)**: 有限样本下，DEA 估计的效率值是有偏的（通常向上有偏）。
+
+Simar & Wilson (2007) 提出了一种双重 Bootstrap 方法来修正偏差并构建有效的置信区间。
+
+我们使用 `rDEA` 包来实现这一方法 (注：计算量较大)。
+
+```{r sw-bootstrap, eval=FALSE}
+if (!require("rDEA")) install.packages("rDEA")
+library(rDEA)
+
+# 步骤 1 & 2: 偏差修正 DEA 和截断回归
+# 注意: rDEA 的 dea.env.robust 函数实现了 Simar-Wilson 算法 #2
+
+# inputs 和 outputs 需要是矩阵
+X_mat <- as.matrix(data[, c("x1", "x2")])
+Y_mat <- as.matrix(data[, "y1"])
+Z_mat <- model.matrix(~ env1 + env2 - 1, data = data) # 环境变量矩阵
+
+# 运行 Simar-Wilson 模型 (算法 #2)
+# B = 1000 为了演示速度设为 50，实际应用建议 >= 1000
+sw_model <- dea.env.robust(
+  X = X_mat, 
+  Y = Y_mat, 
+  W = Z_mat, 
+  model = "input", 
+  RTS = "variable", 
+  L1 = 50, # 第一阶段 Bootstrap 次数
+  L2 = 50, # 第二阶段 Bootstrap 次数
+  alpha = 0.05
+)
+
+# 查看结果
+sw_model$beta
+sw_model$beta_hat # 偏差修正后的系数
+sw_model$ci_low   # 置信区间下限
+sw_model$ci_high  # 置信区间上限
+```
+
+*注意：`rDEA` 运行速度较慢，特别是样本量大时。初学者或大样本数据可先从标准 Tobit 入手，但发表高水平论文建议考虑 Simar-Wilson 方法。*
+
+## 常见错误与纠偏
+
+| 错误现象 | 可能原因 | 纠正方法 |
+|---------|---------|---------|
+| **DEA 结果全是 1** | 投入产出指标过多，样本量太少 | 增加样本量，或减少指标 (遵循 "拇指规则": n >= 3*(m+s)) |
+| **Tobit 报错 "infinite value"** | 数据中有缺失值或非数值型 | 检查并清洗数据，确保所有输入为数值 |
+| **回归系数不显著** | 环境变量确实无关，或样本量不足 | 尝试增加控制变量，或检查多重共线性 (VIF) |
+| **效率值 > 1** | 选用了超效率模型或输出导向定义不同 | 确认 DEA 模型类型，Tobit 设置需对应调整 (如左截断改为右截断) |
+
+## 总结
+
+DEA-Tobit 两阶段模型是评估效率及其驱动因素的强大工具：
+
+1.  **第一阶段**：利用 `Benchmarking` 包计算相对效率，客观评价绩效。
+2.  **第二阶段**：利用 `AER` 包的 `tobit` 函数分析环境影响，克服数据截断带来的偏误。
+
+通过规范的数据准备和模型选择，该方法广泛应用于公共管理、卫生经济和企业绩效研究中。
+
+## 参考文献
+
+1.  Charnes, A., Cooper, W. W., & Rhodes, E. (1978). Measuring the efficiency of decision making units. *European Journal of Operational Research*.
+2.  Tobin, J. (1958). Estimation of relationships for limited dependent variables. *Econometrica*.
+3.  Simar, L., & Wilson, P. W. (2007). Estimation and inference in two-stage, semi-parametric models of production processes. *Journal of Econometrics*.
