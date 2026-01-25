@@ -1,0 +1,990 @@
+---
+title: '非参数检验完全指南'
+date: '2026-01-25'
+categories:
+- 统计分析方法
+- 基础回归
+- 假设检验
+- 非参数方法
+image: images/nonparametric-cover.svg
+description: 从基础原理到实战应用，全面掌握Mann-Whitney、Wilcoxon、Kruskal-Wallis等非参数检验方法
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width = 8,
+    fig.height = 5,
+    fig.retina = 2,
+    out.width = "100%",
+    dpi = 150
+)
+```
+
+## 方法背景与适用场景
+
+**非参数检验 (Nonparametric Tests)** 是一类不依赖于总体分布假设的统计方法。与参数检验（如t检验、ANOVA）不同，非参数检验基于秩次或符号，对数据分布的要求更宽松。
+
+### 适用场景
+
+非参数检验特别适用于以下情况：
+
+1. **数据不满足正态性假设**：偏态分布、重尾分布
+2. **样本量较小**：无法依赖中心极限定理
+3. **存在异常值**：对离群点具有稳健性
+4. **顺序数据/等级数据**：Likert量表、疼痛评分等
+5. **分布未知**：探索性研究阶段
+
+### 不适用场景
+
+- 数据明确满足正态性且样本量充足（此时参数检验更有效率）
+- 需要精确估计总体参数（均值、标准差）
+- 多元复杂模型（如多因素交互作用）
+
+### 与参数检验的对比
+
+| 特性 | 参数检验 | 非参数检验 |
+|------|---------|-----------|
+| **分布假设** | 需要正态性 | 无需正态性 |
+| **检验对象** | 均值 | 中位数/分布 |
+| **统计效率** | 数据满足假设时更高 | 分布未知时更稳健 |
+| **样本量要求** | 通常需要较大样本 | 小样本也适用 |
+| **异常值敏感性** | 高 | 低（基于秩次） |
+| **适用数据类型** | 连续型 | 连续型、顺序型 |
+
+### 常见非参数检验方法对照表
+
+| 参数检验 | 非参数替代 | 适用场景 |
+|---------|-----------|---------|
+| **独立样本t检验** | Mann-Whitney U检验 | 两组独立样本比较 |
+| **配对t检验** | Wilcoxon符号秩检验 | 两组配对样本比较 |
+| **单因素方差分析** | Kruskal-Wallis H检验 | ≥3组独立样本比较 |
+| **重复测量方差分析** | Friedman检验 | ≥3组配对样本比较 |
+| **Pearson相关** | Spearman秩相关 | 单调关系检验 |
+| **Pearson相关** | Kendall τ相关 | 一致性检验 |
+
+## 核心概念与模型入门
+
+### 基本原理：从数值到秩次
+
+非参数检验的核心思想是将原始数据转换为**秩次 (Rank)**，然后基于秩次进行统计推断。
+
+#### 秩次转换示例
+
+```{r rank-example}
+library(tidyverse)
+
+# 原始数据
+data <- c(12, 15, 8, 23, 19, 11, 14)
+
+# 秩次转换
+ranks <- rank(data)
+
+tibble(
+    原始值 = data,
+    秩次 = ranks,
+    排序 = order(data)
+) %>%
+    arrange(秩次)
+```
+
+**关键概念**：
+- **秩次**：数据按大小排序后的位置
+- **秩和**：某组所有秩次的总和
+- **中位秩次**：对于相同值，赋予平均秩次
+
+### 检验统计量的构造
+
+大多数非参数检验基于以下思想：
+
+$$H_0: \text{两组来自同一分布} \Rightarrow \text{秩次在两组中随机分布}$$
+
+如果$H_0$为真，则两组的秩和应该大致相等（考虑样本量）。
+
+## 模型假设与前提条件
+
+### 共同假设
+
+所有非参数检验都需要满足：
+
+1. **独立性**：观测值之间相互独立（除配对设计外）
+2. **可排序性**：数据至少是顺序尺度
+
+### 特定假设
+
+#### Mann-Whitney U检验
+
+- **假设1**：两组独立
+- **假设2**：因变量至少为顺序尺度
+- **假设3（精确p值）**：两组分布形状相似（仅位置参数不同）
+
+**违背后果**：
+- 若分布形状差异大，检验结果解释为"分布差异"而非"中位数差异"
+
+#### Wilcoxon符号秩检验
+
+- **假设1**：配对数据（或单样本）
+- **假设2**：差值的分布对称（针对中位数）
+- **假设3**：差值至少为顺序尺度
+
+**违背后果**：
+- 若差值分布严重偏态，考虑使用符号检验（Sign Test）
+
+#### Kruskal-Wallis H检验
+
+- **假设1**：≥3组独立
+- **假设2**：因变量至少为顺序尺度
+- **假设3（精确解释）**：各组分布形状相似
+
+## 数据准备
+
+### R包安装
+
+```{r packages}
+# 核心统计包
+library(tidyverse)    # 数据处理与可视化
+library(rstatix)      # tidyverse风格的统计检验
+library(ggpubr)       # 统计可视化
+library(ggsci)        # 科研配色
+
+# 注意：coin包和rstatix包有函数名冲突，需要时用coin::函数名()调用
+```
+
+### 示例数据集
+
+```{r data-prep}
+# 数据集1：两组独立样本（临床研究示例）
+set.seed(2026)
+
+# 模拟治疗组与对照组的疼痛评分（偏态分布）
+pain_data <- tibble(
+    group = rep(c("对照组", "治疗组"), each = 20),
+    pain_score = c(
+        rgamma(20, shape = 2, rate = 0.3),  # 对照组：偏态分布
+        rgamma(20, shape = 1.5, rate = 0.5) # 治疗组：更低的疼痛
+    )
+) %>%
+    mutate(pain_score = round(pain_score, 1))
+
+# 数据集2：配对数据（前后对照研究）
+paired_data <- tibble(
+    patient_id = 1:15,
+    before = rnorm(15, mean = 8, sd = 2),
+    after = rnorm(15, mean = 6.5, sd = 1.8)
+) %>%
+    mutate(
+        before = round(before, 1),
+        after = round(after, 1),
+        difference = after - before
+    )
+
+# 数据集3：多组独立样本（多中心研究）
+multigroup_data <- tibble(
+    center = rep(c("中心A", "中心B", "中心C"), each = 12),
+    recovery_time = c(
+        rexp(12, rate = 0.2),  # 中心A
+        rexp(12, rate = 0.25), # 中心B
+        rexp(12, rate = 0.18)  # 中心C
+    )
+) %>%
+    mutate(recovery_time = round(recovery_time, 1))
+```
+
+## 完整分析流程
+
+### 步骤1：Mann-Whitney U检验（两组独立样本）
+
+#### 1.1 探索性数据分析
+
+```{r mann-whitney-eda}
+# 描述统计
+pain_data %>%
+    group_by(group) %>%
+    get_summary_stats(pain_score, type = "median_iqr")
+
+# 可视化：箱线图
+p1 <- ggplot(pain_data, aes(x = group, y = pain_score, fill = group)) +
+    geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+    geom_jitter(width = 0.2, alpha = 0.5, size = 2) +
+    scale_fill_jco() +
+    labs(
+        title = "两组疼痛评分分布",
+        subtitle = "箱线图展示中位数与四分位数",
+        x = NULL,
+        y = "疼痛评分"
+    ) +
+    theme_pubr() +
+    theme(legend.position = "none")
+
+p1
+```
+
+#### 1.2 正态性检验
+
+```{r normality-test}
+# Shapiro-Wilk正态性检验
+pain_data %>%
+    group_by(group) %>%
+    shapiro_test(pain_score)
+```
+
+**解读**：若p < 0.05，拒绝正态性假设，应使用非参数检验。
+
+#### 1.3 执行Mann-Whitney U检验
+
+```{r mann-whitney-test}
+# 方法1：rstatix包（推荐）
+mw_result <- pain_data %>%
+    rstatix::wilcox_test(pain_score ~ group, detailed = TRUE)
+
+mw_result
+
+# 方法2：coin包（精确p值）
+wilcox_exact <- coin::wilcox_test(
+    pain_score ~ factor(group),
+    data = pain_data,
+    distribution = "exact"
+)
+coin::pvalue(wilcox_exact)
+```
+
+**统计量解释**：
+- **U统计量**：较小组在排序中的"胜利"次数
+- **Z值**：标准化检验统计量（大样本近似）
+- **p值**：在$H_0$下观测到当前或更极端结果的概率
+
+#### 1.4 效应量计算
+
+```{r mann-whitney-effect}
+# 秩相关效应量（rank-biserial correlation）
+effect_size <- pain_data %>%
+    rstatix::wilcox_effsize(pain_score ~ group)
+
+effect_size
+
+# 解释标准
+# |r| < 0.3: 小效应
+# 0.3 ≤ |r| < 0.5: 中等效应
+# |r| ≥ 0.5: 大效应
+```
+
+#### 1.5 结果报告
+
+```{r mann-whitney-report}
+# 自动生成统计报告
+report_data <- pain_data %>%
+    rstatix::wilcox_test(pain_score ~ group) %>%
+    rstatix::add_significance()
+
+report_text <- paste0(
+    "Mann-Whitney U检验: U = ", report_data$statistic,
+    ", p ", report_data$p.signif,
+    ", 效应量 r = ", round(effect_size$effsize, 3)
+)
+
+report_text
+```
+
+**论文报告格式**：
+
+> 使用Mann-Whitney U检验比较两组疼痛评分的差异。结果显示，治疗组的疼痛评分（中位数 = X, IQR = Y-Z）显著低于对照组（中位数 = A, IQR = B-C），U = XXX, p < 0.05, r = 0.XX，表明中等效应量。
+
+### 步骤2：Wilcoxon符号秩检验（配对样本）
+
+#### 2.1 探索性分析
+
+```{r wilcoxon-eda}
+# 转换为长格式
+paired_long <- paired_data %>%
+    pivot_longer(
+        cols = c(before, after),
+        names_to = "time",
+        values_to = "score"
+    ) %>%
+    mutate(time = factor(time, levels = c("before", "after")))
+
+# 配对前后对比图
+p2 <- ggplot(paired_long, aes(x = time, y = score)) +
+    geom_boxplot(aes(fill = time), alpha = 0.7, width = 0.5) +
+    geom_line(aes(group = patient_id), alpha = 0.3, color = "gray50") +
+    geom_point(aes(color = time), size = 2, alpha = 0.6) +
+    scale_fill_jco() +
+    scale_color_jco() +
+    labs(
+        title = "治疗前后评分变化",
+        subtitle = "配对数据：灰线连接同一患者",
+        x = NULL,
+        y = "评分"
+    ) +
+    theme_pubr() +
+    theme(legend.position = "none")
+
+p2
+
+# 差值分布
+p3 <- ggplot(paired_data, aes(x = difference)) +
+    geom_histogram(
+        aes(y = after_stat(density)),
+        bins = 10, fill = "#4f46e5", alpha = 0.7
+    ) +
+    geom_density(color = "#dc2626", linewidth = 1) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+    labs(
+        title = "治疗效果差值分布",
+        x = "差值（治疗后 - 治疗前）",
+        y = "密度"
+    ) +
+    theme_pubr()
+
+p3
+```
+
+#### 2.2 对称性检验
+
+```{r symmetry-test}
+# 检查差值分布的对称性
+paired_data %>%
+    summarise(
+        median_diff = median(difference),
+        mean_diff = mean(difference),
+        skewness = moments::skewness(difference)
+    )
+
+# |偏度| < 0.5: 近似对称
+# |偏度| ≥ 1: 严重偏态，考虑符号检验
+```
+
+#### 2.3 执行Wilcoxon符号秩检验
+
+```{r wilcoxon-test}
+# 方法1：rstatix（tidyverse风格）
+wilcox_paired <- paired_long %>%
+    rstatix::wilcox_test(score ~ time, paired = TRUE, detailed = TRUE)
+
+wilcox_paired
+
+# 方法2：基础R（等价）
+wilcox.test(
+    paired_data$before,
+    paired_data$after,
+    paired = TRUE,
+    exact = FALSE
+)
+
+# 效应量
+wilcox_paired_effect <- paired_long %>%
+    rstatix::wilcox_effsize(score ~ time, paired = TRUE)
+
+wilcox_paired_effect
+```
+
+#### 2.4 可视化结果
+
+```{r wilcoxon-viz}
+# 在图上添加统计检验结果
+stat_test <- paired_long %>%
+    rstatix::wilcox_test(score ~ time, paired = TRUE) %>%
+    rstatix::add_xy_position(x = "time")
+
+p2 +
+    stat_pvalue_manual(stat_test, label = "p = {p}") +
+    labs(subtitle = paste0(
+        "配对Wilcoxon检验: p = ",
+        round(wilcox_paired$p, 3)
+    ))
+```
+
+### 步骤3：Kruskal-Wallis H检验（多组独立样本）
+
+#### 3.1 探索性分析
+
+```{r kruskal-eda}
+# 描述统计
+multigroup_data %>%
+    group_by(center) %>%
+    get_summary_stats(recovery_time, type = "median_iqr")
+
+# 可视化
+p4 <- ggplot(multigroup_data, aes(x = center, y = recovery_time, fill = center)) +
+    geom_violin(alpha = 0.7, trim = FALSE) +
+    geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+    geom_jitter(width = 0.1, alpha = 0.4) +
+    scale_fill_jco() +
+    labs(
+        title = "三个中心的康复时间对比",
+        x = NULL,
+        y = "康复时间（天）"
+    ) +
+    theme_pubr() +
+    theme(legend.position = "none")
+
+p4
+```
+
+#### 3.2 执行Kruskal-Wallis检验
+
+```{r kruskal-test}
+# 总体检验
+kw_result <- multigroup_data %>%
+    rstatix::kruskal_test(recovery_time ~ center)
+
+kw_result
+
+# 效应量（Epsilon squared，ε²）
+kw_effect <- multigroup_data %>%
+    rstatix::kruskal_effsize(recovery_time ~ center)
+
+kw_effect
+
+# 效应量解释：
+# ε² < 0.01: 可忽略
+# 0.01 ≤ ε² < 0.06: 小效应
+# 0.06 ≤ ε² < 0.14: 中等效应
+# ε² ≥ 0.14: 大效应
+```
+
+#### 3.3 事后两两比较（Post-hoc）
+
+```{r kruskal-posthoc}
+# Dunn's检验（推荐）
+posthoc <- multigroup_data %>%
+    rstatix::dunn_test(recovery_time ~ center, p.adjust.method = "bonferroni")
+
+posthoc
+
+# 可视化事后比较
+stat_posthoc <- posthoc %>%
+    rstatix::add_xy_position(x = "center")
+
+p4 +
+    stat_pvalue_manual(
+        stat_posthoc,
+        label = "p.adj = {p.adj}",
+        tip.length = 0.01,
+        hide.ns = TRUE
+    )
+```
+
+### 步骤4：Friedman检验（多组配对样本）
+
+#### 4.1 构造重复测量数据
+
+```{r friedman-data}
+# 模拟三个时间点的配对测量
+set.seed(2026)
+repeated_data <- tibble(
+    subject = rep(1:10, each = 3),
+    time = rep(c("T1", "T2", "T3"), 10),
+    value = c(
+        rnorm(10, mean = 5, sd = 1),   # T1
+        rnorm(10, mean = 4.5, sd = 1), # T2
+        rnorm(10, mean = 4, sd = 1)    # T3
+    ) %>% round(1)
+) %>%
+    mutate(time = factor(time, levels = c("T1", "T2", "T3")))
+
+# 可视化
+p5 <- ggplot(repeated_data, aes(x = time, y = value, group = subject)) +
+    geom_line(alpha = 0.3, color = "gray50") +
+    geom_point(aes(color = time), size = 2) +
+    stat_summary(
+        aes(group = 1),
+        fun = median,
+        geom = "line",
+        color = "red",
+        linewidth = 1.5
+    ) +
+    stat_summary(
+        fun = median,
+        geom = "point",
+        color = "red",
+        size = 4,
+        shape = 18
+    ) +
+    scale_color_jco() +
+    labs(
+        title = "重复测量数据的时间趋势",
+        subtitle = "红线表示中位数变化",
+        x = "时间点",
+        y = "测量值"
+    ) +
+    theme_pubr()
+
+p5
+```
+
+#### 4.2 执行Friedman检验
+
+```{r friedman-test}
+# Friedman检验
+friedman_result <- repeated_data %>%
+    rstatix::friedman_test(value ~ time | subject)
+
+friedman_result
+
+# 效应量（Kendall's W）
+friedman_effect <- repeated_data %>%
+    rstatix::friedman_effsize(value ~ time | subject)
+
+friedman_effect
+
+# Kendall's W解释：
+# W < 0.1: 弱一致性
+# 0.1 ≤ W < 0.3: 中等一致性
+# W ≥ 0.3: 强一致性
+```
+
+#### 4.3 事后两两比较
+
+```{r friedman-posthoc}
+# Nemenyi事后检验（配对样本专用）
+# 或使用配对Wilcoxon + Bonferroni校正
+posthoc_friedman <- repeated_data %>%
+    rstatix::pairwise_wilcox_test(
+        value ~ time,
+        paired = TRUE,
+        p.adjust.method = "bonferroni"
+    )
+
+posthoc_friedman
+```
+
+### 步骤5：Spearman秩相关
+
+#### 5.1 相关性分析数据
+
+```{r spearman-data}
+# 构造非线性单调关系数据
+set.seed(2026)
+correlation_data <- tibble(
+    x = runif(30, 0, 10),
+    y = exp(0.3 * x) + rnorm(30, 0, 2)
+)
+
+# 散点图
+p6 <- ggplot(correlation_data, aes(x = x, y = y)) +
+    geom_point(size = 3, alpha = 0.6, color = "#4f46e5") +
+    geom_smooth(method = "lm", se = TRUE, color = "red", linetype = "dashed") +
+    labs(
+        title = "非线性单调关系示例",
+        subtitle = "适合Spearman秩相关",
+        x = "变量 X",
+        y = "变量 Y"
+    ) +
+    theme_pubr()
+
+p6
+```
+
+#### 5.2 执行Spearman相关检验
+
+```{r spearman-test}
+# Spearman秩相关
+spearman_result <- cor.test(
+    correlation_data$x,
+    correlation_data$y,
+    method = "spearman",
+    exact = FALSE
+)
+
+spearman_result
+
+# 与Pearson相关对比
+pearson_result <- cor.test(
+    correlation_data$x,
+    correlation_data$y,
+    method = "pearson"
+)
+
+# 对比表
+tibble(
+    方法 = c("Pearson", "Spearman"),
+    相关系数 = c(
+        round(pearson_result$estimate, 3),
+        round(spearman_result$estimate, 3)
+    ),
+    P值 = c(
+        round(pearson_result$p.value, 4),
+        round(spearman_result$p.value, 4)
+    )
+)
+```
+
+**解释**：
+- Spearman相关系数更高，因为它捕捉单调关系（不限于线性）
+- 非线性数据中，Spearman比Pearson更合适
+
+#### 5.3 Kendall τ相关（备选）
+
+```{r kendall-test}
+# Kendall τ相关（对异常值更稳健）
+kendall_result <- cor.test(
+    correlation_data$x,
+    correlation_data$y,
+    method = "kendall"
+)
+
+kendall_result
+```
+
+**何时用Kendall τ**：
+- 小样本（n < 30）
+- 存在较多并列秩次
+- 需要更稳健的估计
+
+## 结果解读与报告
+
+### 统计显著性解读
+
+| p值 | 统计结论 | 实际意义 |
+|-----|---------|---------|
+| p ≥ 0.05 | 无统计学差异 | 数据不支持组间存在差异 |
+| p < 0.05 | 统计学显著 | 有证据表明组间存在差异 |
+| p < 0.01 | 高度显著 | 强证据支持组间差异 |
+| p < 0.001 | 极显著 | 极强证据支持组间差异 |
+
+### 效应量解读
+
+效应量比p值更重要，它反映了**差异的实际大小**。
+
+```{r effect-size-summary}
+# 效应量汇总表
+tibble(
+    检验方法 = c(
+        "Mann-Whitney U",
+        "Wilcoxon符号秩",
+        "Kruskal-Wallis",
+        "Friedman"
+    ),
+    效应量指标 = c(
+        "r (rank-biserial)",
+        "r (rank-biserial)",
+        "ε² (epsilon squared)",
+        "W (Kendall's W)"
+    ),
+    小效应 = c("< 0.3", "< 0.3", "< 0.06", "< 0.1"),
+    中效应 = c("0.3-0.5", "0.3-0.5", "0.06-0.14", "0.1-0.3"),
+    大效应 = c("≥ 0.5", "≥ 0.5", "≥ 0.14", "≥ 0.3")
+)
+```
+
+### 论文报告模板
+
+#### Mann-Whitney U检验
+
+> **方法**：由于数据不满足正态性假设（Shapiro-Wilk检验，p < 0.05），采用Mann-Whitney U检验比较两组的中位数差异。使用Bonferroni法校正多重比较。
+>
+> **结果**：治疗组的疼痛评分（中位数 = 4.2, IQR = 3.1-5.8）显著低于对照组（中位数 = 6.5, IQR = 5.2-8.3），Mann-Whitney U = 98, p = 0.003, rank-biserial r = 0.51，表明大效应量。
+
+#### Kruskal-Wallis检验
+
+> **方法**：采用Kruskal-Wallis H检验比较三个中心的康复时间，事后两两比较使用Dunn检验并进行Bonferroni校正。
+>
+> **结果**：三个中心的康复时间存在显著差异（H = 12.45, df = 2, p = 0.002, ε² = 0.32）。事后比较显示，中心B的康复时间显著短于中心A（p = 0.001）和中心C（p = 0.015）。
+
+## 常见错误与纠偏
+
+### 错误1：忽略配对设计
+
+**错误做法**：
+```r
+# 错误：配对数据用了独立样本检验
+rstatix::wilcox_test(score ~ time, data = paired_long)
+```
+
+**正确做法**：
+```r
+# 正确：指定paired = TRUE
+rstatix::wilcox_test(score ~ time, data = paired_long, paired = TRUE)
+```
+
+**后果**：低估检验效能，可能遗漏真实差异。
+
+### 错误2：违背独立性假设
+
+**场景**：同一患者的多次测量被当作独立样本。
+
+**应对**：
+- 使用配对检验（Wilcoxon）或重复测量检验（Friedman）
+- 考虑混合效应模型
+
+### 错误3：多重比较不校正
+
+**错误**：Kruskal-Wallis显著后，直接做多次Mann-Whitney检验但不校正p值。
+
+**正确**：使用Dunn检验或Bonferroni校正。
+
+```{r multiple-comparison}
+# 正确的多重比较
+multigroup_data %>%
+    rstatix::dunn_test(
+        recovery_time ~ center,
+        p.adjust.method = "bonferroni"  # 关键！
+    )
+```
+
+### 错误4：样本量过小
+
+**问题**：n < 10时，精确p值计算受限。
+
+**应对**：
+```r
+# 使用精确检验（需要coin包）
+coin::wilcox_test(
+    pain_score ~ factor(group),
+    data = pain_data,
+    distribution = "exact"  # 精确p值
+)
+```
+
+### 错误5：混淆"分布差异"与"中位数差异"
+
+**关键**：Mann-Whitney检验的零假设是"两组分布相同"，而非"中位数相等"。
+
+**正确解释**：
+- 若两组分布形状相似，可解释为中位数差异
+- 若分布形状差异大，应解释为"分布整体差异"
+
+### 错误6：忽略效应量
+
+**错误报告**："Mann-Whitney U检验显示p < 0.05，因此有显著差异。"
+
+**完整报告**："Mann-Whitney U检验显示p < 0.05，**效应量r = 0.15（小效应）**，提示虽有统计显著性，但实际差异较小。"
+
+### 错误7：数据转换后仍用非参数检验
+
+**场景**：对偏态数据进行对数转换后，数据已满足正态性。
+
+**建议**：转换后若满足正态性，应使用参数检验（更有统计效能）。
+
+```{r transformation-check}
+# 检查转换后的正态性
+pain_data %>%
+    mutate(log_pain = log(pain_score + 1)) %>%
+    group_by(group) %>%
+    rstatix::shapiro_test(log_pain)
+
+# 若p > 0.05，考虑t检验
+```
+
+## 进阶扩展
+
+### 1. 精确检验 vs 渐近检验
+
+**小样本（n < 30）**：使用精确检验
+
+```{r exact-test}
+# coin包提供精确p值
+# 精确Mann-Whitney检验
+coin::wilcox_test(
+    pain_score ~ factor(group),
+    data = pain_data,
+    distribution = "exact"
+)
+```
+
+**大样本（n ≥ 30）**：渐近检验（基于正态近似）已足够准确
+
+### 2. 稳健回归作为替代
+
+当数据存在异常值但需要回归分析时：
+
+```{r robust-regression}
+# 稳健回归（M-估计）
+library(MASS)
+
+# 模拟数据
+set.seed(2026)
+robust_data <- tibble(
+    x = 1:20,
+    y = 2 * x + rnorm(20, 0, 2)
+)
+
+# 添加异常值
+robust_data$y[20] <- 60
+
+# 普通最小二乘 vs 稳健回归
+lm_fit <- lm(y ~ x, data = robust_data)
+robust_fit <- rlm(y ~ x, data = robust_data)
+
+tibble(
+    方法 = c("OLS", "稳健回归"),
+    斜率 = c(coef(lm_fit)[2], coef(robust_fit)[2])
+)
+```
+
+### 3. 排列检验（Permutation Test）
+
+更灵活的非参数方法，适用于复杂统计量：
+
+```{r permutation-test}
+# 排列检验（适用于任意统计量）
+coin::independence_test(
+    pain_score ~ factor(group),
+    data = pain_data,
+    distribution = coin::approximate(nresample = 10000)
+)
+```
+
+### 4. 非参数置信区间
+
+```{r nonparametric-ci}
+# Hodges-Lehmann估计量（中位数差的稳健估计）
+# 获取位置参数的置信区间
+coin::wilcox_test(
+    pain_score ~ factor(group),
+    data = pain_data,
+    conf.int = TRUE,
+    conf.level = 0.95
+)
+```
+
+### 5. 软件包对比
+
+| 包名 | 优势 | 劣势 | 推荐场景 |
+|------|------|------|---------|
+| **rstatix** | tidyverse风格，易用 | 功能相对基础 | 日常数据分析 |
+| **coin** | 精确检验，理论严谨 | 语法相对复杂 | 小样本、理论研究 |
+| **DescTools** | 效应量计算全面 | 需配合其他包 | 效应量计算 |
+| **stats** | R基础包，无需安装 | 语法老旧 | 快速探索 |
+| **PMCMRplus** | 事后检验最全 | 学习曲线陡 | 多重比较 |
+
+### 6. 检验方法选择流程图
+
+```{r flowchart, echo=FALSE, eval=FALSE}
+# 使用DiagrammeR绘制流程图（代码示意）
+library(DiagrammeR)
+
+grViz("
+digraph decision_tree {
+    graph [rankdir = TB, fontname = 'Microsoft YaHei']
+    node [shape = box, fontname = 'Microsoft YaHei']
+    
+    start [label = '数据分析']
+    normal [label = '正态性检验', shape = diamond]
+    independent [label = '样本独立性', shape = diamond]
+    groups [label = '组数', shape = diamond]
+    
+    start -> normal
+    normal -> independent [label = '不满足']
+    normal -> param [label = '满足']
+    
+    independent -> groups [label = '独立']
+    independent -> paired [label = '配对']
+    
+    groups -> mw [label = '2组']
+    groups -> kw [label = '≥3组']
+    
+    paired -> wilcox [label = '2组']
+    paired -> friedman [label = '≥3组']
+    
+    param [label = 't检验/ANOVA', shape = ellipse]
+    mw [label = 'Mann-Whitney', shape = ellipse]
+    kw [label = 'Kruskal-Wallis', shape = ellipse]
+    wilcox [label = 'Wilcoxon符号秩', shape = ellipse]
+    friedman [label = 'Friedman检验', shape = ellipse]
+}
+")
+```
+
+## 总结
+
+### 核心要点
+
+1. **何时用非参数检验**：
+   - 数据不满足正态性
+   - 样本量小
+   - 存在异常值
+   - 顺序数据
+
+2. **方法选择决策树**：
+   - 两组独立 → Mann-Whitney U
+   - 两组配对 → Wilcoxon符号秩
+   - 多组独立 → Kruskal-Wallis + Dunn事后检验
+   - 多组配对 → Friedman + Nemenyi事后检验
+   - 相关性 → Spearman/Kendall秩相关
+
+3. **报告要素**：
+   - 检验统计量（U, W, H, χ²）
+   - p值（校正后）
+   - 效应量（r, ε², W）
+   - 描述性统计（中位数, IQR）
+
+4. **常见陷阱**：
+   - 忽略配对设计
+   - 多重比较不校正
+   - 混淆分布差异与中位数差异
+   - 不报告效应量
+
+### 推荐学习路径
+
+1. **入门**：掌握Mann-Whitney和Wilcoxon
+2. **进阶**：学习Kruskal-Wallis与事后检验
+3. **深入**：理解秩次转换原理
+4. **实战**：结合ggpubr进行可视化报告
+
+### 快速参考卡片
+
+```{r quick-reference, echo=FALSE}
+# 创建快速参考表
+tibble(
+    检验 = c(
+        "Mann-Whitney U",
+        "Wilcoxon符号秩",
+        "Kruskal-Wallis",
+        "Friedman",
+        "Spearman相关"
+    ),
+    R函数 = c(
+        "rstatix::wilcox_test(y ~ group)",
+        "rstatix::wilcox_test(y ~ time, paired=TRUE)",
+        "rstatix::kruskal_test(y ~ group)",
+        "rstatix::friedman_test(y ~ time | id)",
+        "cor.test(x, y, method='spearman')"
+    ),
+    效应量函数 = c(
+        "rstatix::wilcox_effsize()",
+        "rstatix::wilcox_effsize(paired=TRUE)",
+        "rstatix::kruskal_effsize()",
+        "rstatix::friedman_effsize()",
+        "ρ (rho)"
+    ),
+    事后检验 = c(
+        "—",
+        "—",
+        "rstatix::dunn_test()",
+        "rstatix::pairwise_wilcox_test()",
+        "—"
+    )
+) %>%
+    knitr::kable()
+```
+
+## 参考文献
+
+1. Hollander, M., Wolfe, D. A., & Chicken, E. (2013). *Nonparametric Statistical Methods* (3rd ed.). Wiley.
+
+2. Conover, W. J. (1999). *Practical Nonparametric Statistics* (3rd ed.). Wiley.
+
+3. Gibbons, J. D., & Chakraborti, S. (2011). *Nonparametric Statistical Inference* (5th ed.). CRC Press.
+
+4. Kassambara, A. (2020). *rstatix: Pipe-Friendly Framework for Basic Statistical Tests*. R package version 0.7.0.
+
+5. Hothorn, T., Hornik, K., van de Wiel, M. A., & Zeileis, A. (2008). Implementing a class of permutation tests: The coin package. *Journal of Statistical Software*, 28(8), 1-23.
+
+6. Wilcoxon, F. (1945). Individual comparisons by ranking methods. *Biometrics Bulletin*, 1(6), 80-83.
+
+7. Mann, H. B., & Whitney, D. R. (1947). On a test of whether one of two random variables is stochastically larger than the other. *Annals of Mathematical Statistics*, 18(1), 50-60.
+
+8. Kruskal, W. H., & Wallis, W. A. (1952). Use of ranks in one-criterion variance analysis. *Journal of the American Statistical Association*, 47(260), 583-621.
+
+---
+
+**相关教程**：
+
+- [Bootstrap与置换检验](1052-bootstrap.html) - 重抽样非参数方法
+- [方差分析 (ANOVA)](1036-anova.html) - 参数检验对照
+- [rstatix管道式统计](1045-rstatix.html) - 统计检验包详解
+- [倾向性得分匹配](1018-psm.html) - 包含Wilcoxon敏感性分析
