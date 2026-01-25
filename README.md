@@ -129,6 +129,7 @@
 
 | 方法 | 难度 | 教程链接 | 适用场景 |
 | :--- | :--- | :--- | :--- |
+| **常见数据分布** | ⭐ | [教程链接](1100-distributions.html) | 正态/对数正态/Weibull/Logistic等分布识别与拟合 |
 | **ANOVA** | ⭐ | [教程链接](1036-anova.html) | 多组均值比较 |
 | **线性回归** | ⭐ | [教程链接](1021-linear-regression.html) | 连续因变量预测 |
 | **稳健线性回归** | ⭐⭐ | [教程链接](1112-robust-linear-regression.html) | 抵抗异常值的回归分析 |

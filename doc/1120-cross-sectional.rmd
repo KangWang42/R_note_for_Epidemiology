@@ -1,0 +1,798 @@
+---
+title: 横截面研究设计与分析完全指南
+date: '2026-01-25'
+categories:
+- 统计分析方法
+- 研究设计
+- 流行病学
+image: images/cross-sectional-cover.svg
+description: 横截面研究的设计原理、患病率计算、标准化方法与统计分析完整教程
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.retina = 2,
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 方法背景与适用场景
+
+**横截面研究（Cross-sectional Study）** 是流行病学中最基础且应用最广泛的描述性研究设计之一。它在**同一时间点**对特定人群进行调查，同时收集暴露因素和疾病状态的信息。
+
+### 适用场景
+
+| 研究目的 | 典型应用 |
+|---------|---------|
+| 患病率调查 | 某地区糖尿病患病率估计 |
+| 危险因素探索 | 吸烟与高血压的关联性 |
+| 卫生服务需求评估 | 社区老年人医疗需求调查 |
+| 健康相关行为调查 | 青少年吸烟行为调查 |
+| 人群健康监测 | NHANES、CHARLS等大型调查 |
+
+### 不适用场景
+
+| 场景 | 原因 |
+|------|------|
+| 确定因果关系 | 暴露与结局同时测量，无法确定时序 |
+| 罕见疾病研究 | 需要极大样本量 |
+| 发病率估计 | 只能测量患病率，非发病率 |
+| 短暂疾病研究 | 可能遗漏已康复病例 |
+
+### 与其他研究设计的对比
+
+| 特征 | 横截面研究 | 队列研究 | 病例对照研究 |
+|------|-----------|---------|-------------|
+| 时间方向 | 同一时点 | 前瞻性/回顾性 | 回顾性 |
+| 主要指标 | 患病率(Prevalence) | 发病率(Incidence) | 比值比(OR) |
+| 因果推断 | 弱 | 强 | 中等 |
+| 成本 | 低 | 高 | 中等 |
+| 时间效率 | 高 | 低 | 中等 |
+
+---
+
+## 核心概念与模型入门
+
+### 通俗理解：用日常例子解释横截面研究
+
+> 💡 **想象你是一位班主任，想了解班上学生的近视情况**
+> 
+> 你在某一天让所有学生做视力检查，同时收集他们的用眼习惯（每天看手机时间、是否戴眼镜等）。这就是横截面研究！
+> 
+> 横截面研究就像**拍一张照片**：
+> - 📸 **瞬时性**：只捕捉某一时刻的状态，不追踪变化
+> - 🔄 **同时测量**：暴露（看手机时间）和结局（是否近视）同时收集
+> - ❓ **因果困惑**：你发现近视的同学看手机更多，但无法判断是"看手机导致近视"还是"近视后更依赖手机"
+>
+> **回到流行病学**：横截面研究告诉我们"现在有多少人生病"（患病率），但不能告诉我们"这个因素是否导致生病"。
+
+### 核心术语
+
+| 概念 | 英文 | 定义 | 公式 |
+|------|------|------|------|
+| 患病率 | Prevalence | 特定时点患病人数占总人数的比例 | $P = \frac{\text{患病人数}}{\text{总人数}}$ |
+| 发病率 | Incidence | 一定时期内新发病例占风险人群的比例 | $I = \frac{\text{新发病例}}{\text{人时}}$ |
+| 患病率比 | Prevalence Ratio (PR) | 暴露组与非暴露组患病率之比 | $PR = \frac{P_{暴露}}{P_{非暴露}}$ |
+| 患病率差 | Prevalence Difference | 暴露组与非暴露组患病率之差 | $PD = P_{暴露} - P_{非暴露}$ |
+| 比值比 | Odds Ratio (OR) | 暴露组患病比值与非暴露组患病比值之比 | $OR = \frac{P_1/(1-P_1)}{P_0/(1-P_0)}$ |
+
+### 患病率 vs 发病率
+
+**关键区别**：
+
+$$\text{患病率} \approx \text{发病率} \times \text{平均病程}$$
+
+当疾病病程稳定时，此公式成立。这意味着：
+- **慢性病**（如糖尿病）：患病率远高于发病率
+- **急性病**（如感冒）：患病率与发病率差异较小
+
+### 时间模糊性问题
+
+![时间模糊性示意图](images/diagrams/stat-cross-sectional-temporal.svg)
+
+横截面研究的**核心局限**是无法确定暴露与疾病的时间先后顺序。这被称为**时间模糊性（Temporal Ambiguity）**。
+
+---
+
+## 模型假设与前提条件
+
+### 假设1：代表性抽样
+
+**含义**: 研究样本能够代表目标人群。
+
+**检验方法**: 
+- 比较样本特征与已知人群特征（如人口普查数据）
+- 评估无应答偏倚（Non-response bias）
+
+**违背后果**: 患病率估计存在选择偏倚。
+
+**应对策略**: 使用加权分析、多阶段抽样设计。
+
+### 假设2：准确测量
+
+**含义**: 暴露和疾病的测量准确可靠。
+
+**检验方法**: 
+- 使用经过验证的测量工具
+- 评估Kappa一致性系数
+
+**违背后果**: 信息偏倚，可能导致关联被低估或高估。
+
+**应对策略**: 标准化数据收集流程、培训调查员。
+
+### 假设3：稳态人群（用于PR解释）
+
+**含义**: 疾病发病率和病程在人群中相对稳定。
+
+**检验方法**: 难以直接检验，需依赖背景知识。
+
+**违背后果**: PR不能作为RR的近似。
+
+**应对策略**: 明确报告研究局限性。
+
+---
+
+## 数据准备
+
+### 安装与加载R包
+
+```{r}
+# 核心包
+library(tidyverse)     # 数据处理
+library(gtsummary)     # 专业表格
+library(epiR)          # 流行病学分析
+library(epitools)      # 患病率计算
+library(ggplot2)       # 可视化
+
+# 辅助包
+library(survey)        # 复杂抽样设计
+library(broom)         # 模型整理
+library(scales)        # 格式化
+library(gt)            # 表格美化
+```
+
+### 模拟横截面研究数据
+
+我们模拟一项社区糖尿病患病率调查数据：
+
+```{r}
+# 设置随机种子确保可重复
+set.seed(2026)
+n <- 500
+
+# 生成人口学变量
+cross_data <- tibble(
+  id = 1:n,
+  
+  # 年龄（20-80岁）
+  age = round(runif(n, 20, 80)),
+  age_group = cut(age, breaks = c(20, 40, 60, 80), 
+                  labels = c("20-39岁", "40-59岁", "60-80岁"),
+                  include.lowest = TRUE),
+  
+  # 性别
+  sex = factor(sample(c("男", "女"), n, replace = TRUE, prob = c(0.48, 0.52))),
+  
+  # BMI
+  bmi = round(rnorm(n, mean = 24, sd = 4), 1),
+  bmi_cat = cut(bmi, breaks = c(0, 18.5, 24, 28, Inf),
+                labels = c("偏瘦", "正常", "超重", "肥胖")),
+  
+  # 吸烟状态
+  smoking = factor(sample(c("从不吸烟", "曾经吸烟", "现在吸烟"), n, 
+                          replace = TRUE, prob = c(0.55, 0.20, 0.25))),
+  
+  # 高血压史
+  hypertension = rbinom(n, 1, prob = 0.25 + 0.005 * (age - 50)),
+  
+  # 糖尿病家族史
+  family_dm = rbinom(n, 1, prob = 0.20),
+  
+  # 教育程度
+  education = factor(sample(c("小学及以下", "初中", "高中", "大专及以上"), n,
+                            replace = TRUE, prob = c(0.15, 0.25, 0.30, 0.30)),
+                     levels = c("小学及以下", "初中", "高中", "大专及以上")),
+  
+  # 地区
+  region = factor(sample(c("城市", "农村"), n, replace = TRUE, prob = c(0.6, 0.4)))
+)
+
+# 生成糖尿病患病状态（受多因素影响）
+cross_data <- cross_data |> 
+  mutate(
+    # 计算患病概率（logistic模型）
+    logit_p = -5 + 
+      0.05 * age +                                    # 年龄效应
+      0.3 * (sex == "男") +                           # 性别效应
+      0.08 * bmi +                                    # BMI效应
+      0.5 * (smoking == "现在吸烟") +                 # 吸烟效应
+      0.8 * hypertension +                            # 高血压效应
+      1.0 * family_dm +                               # 家族史效应
+      -0.2 * (education == "大专及以上"),             # 教育效应
+    
+    # 转换为概率
+    prob_dm = plogis(logit_p),
+    
+    # 生成糖尿病状态
+    diabetes = rbinom(n, 1, prob_dm)
+  ) |> 
+  select(-logit_p, -prob_dm)
+
+# 查看数据结构
+glimpse(cross_data)
+
+# 基本统计
+cat("样本量:", nrow(cross_data), "\n")
+cat("糖尿病患病率:", round(mean(cross_data$diabetes) * 100, 1), "%\n")
+```
+
+### 数据质量检查
+
+```{r}
+# 缺失值检查
+cross_data |> 
+  summarise(across(everything(), ~sum(is.na(.)))) |> 
+  pivot_longer(everything(), names_to = "变量", values_to = "缺失数") |> 
+  filter(缺失数 > 0)
+
+# 变量分布描述
+cross_data |> 
+  tbl_summary(
+    include = c(age, sex, bmi_cat, smoking, hypertension, family_dm, 
+                education, region, diabetes),
+    label = list(
+      age ~ "年龄",
+      sex ~ "性别",
+      bmi_cat ~ "BMI分类",
+      smoking ~ "吸烟状态",
+      hypertension ~ "高血压",
+      family_dm ~ "糖尿病家族史",
+      education ~ "教育程度",
+      region ~ "地区",
+      diabetes ~ "糖尿病"
+    ),
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p}%)"
+    )
+  ) |> 
+  modify_header(label = "**变量**") |> 
+  bold_labels()
+```
+
+---
+
+## 完整分析流程
+
+### 步骤1：患病率计算
+
+#### 1.1 总体患病率
+
+```{r}
+# 计算患病率及95%CI
+prev_overall <- cross_data |> 
+  summarise(
+    n_total = n(),
+    n_cases = sum(diabetes),
+    prevalence = mean(diabetes)
+  )
+
+# 使用二项分布精确置信区间
+prev_ci <- binom.test(prev_overall$n_cases, prev_overall$n_total)
+
+cat("总体患病率:", round(prev_overall$prevalence * 100, 2), "%\n")
+cat("95% CI:", round(prev_ci$conf.int[1] * 100, 2), "% -", 
+    round(prev_ci$conf.int[2] * 100, 2), "%\n")
+```
+
+#### 1.2 分层患病率
+
+```{r}
+# 按年龄组分层
+prev_by_age <- cross_data |> 
+  group_by(age_group) |> 
+  summarise(
+    n = n(),
+    cases = sum(diabetes),
+    prevalence = mean(diabetes) * 100,
+    .groups = "drop"
+  ) |> 
+  mutate(
+    # 计算95%CI
+    ci_lower = map2_dbl(cases, n, ~binom.test(.x, .y)$conf.int[1] * 100),
+    ci_upper = map2_dbl(cases, n, ~binom.test(.x, .y)$conf.int[2] * 100)
+  )
+
+prev_by_age |> 
+  gt() |> 
+  tab_header(
+    title = "糖尿病患病率（按年龄组分层）",
+    subtitle = "社区横截面调查数据"
+  ) |> 
+  cols_label(
+    age_group = "年龄组",
+    n = "人数",
+    cases = "患病数",
+    prevalence = "患病率(%)",
+    ci_lower = "95%CI下限",
+    ci_upper = "95%CI上限"
+  ) |> 
+  fmt_number(columns = c(prevalence, ci_lower, ci_upper), decimals = 1)
+```
+
+#### 1.3 患病率可视化
+
+```{r}
+#| fig-height: 6
+# 患病率森林图
+ggplot(prev_by_age, aes(y = age_group, x = prevalence)) +
+  geom_point(size = 3, color = "#2563eb") +
+  geom_errorbarh(aes(xmin = ci_lower, xmax = ci_upper), height = 0.2, color = "#2563eb") +
+  geom_vline(xintercept = mean(cross_data$diabetes) * 100, 
+             linetype = "dashed", color = "#ef4444") +
+  labs(
+    title = "糖尿病患病率（按年龄组）",
+    subtitle = "红色虚线表示总体患病率",
+    x = "患病率 (%)",
+    y = "年龄组"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+### 步骤2：患病率比(PR)计算
+
+患病率比（Prevalence Ratio, PR）比OR更直观，建议在横截面研究中优先使用。
+
+```{r}
+# 计算吸烟与糖尿病的关联（PR）
+# 创建2x2表
+tab_smoking <- table(
+  暴露 = cross_data$smoking == "现在吸烟",
+  疾病 = cross_data$diabetes
+)
+tab_smoking
+
+# 使用epiR计算PR
+pr_result <- epi.2by2(tab_smoking, method = "cross.sectional", 
+                       conf.level = 0.95, outcome = "as.columns")
+print(pr_result)
+```
+
+```{r}
+# 多因素PR计算 - 使用log-binomial或Poisson回归
+# Poisson回归（稳健标准误）更稳定
+library(sandwich)
+library(lmtest)
+
+# 拟合Poisson回归
+pr_model <- glm(diabetes ~ smoking + age + sex + bmi + hypertension + family_dm,
+                data = cross_data, family = poisson(link = "log"))
+
+# 使用稳健标准误
+pr_robust <- coeftest(pr_model, vcov = sandwich)
+
+# 提取PR及95%CI
+pr_estimates <- tibble(
+  变量 = names(coef(pr_model)),
+  PR = exp(coef(pr_model)),
+  SE = pr_robust[, 2],
+  CI_lower = exp(coef(pr_model) - 1.96 * SE),
+  CI_upper = exp(coef(pr_model) + 1.96 * SE),
+  p_value = pr_robust[, 4]
+) |> 
+  filter(变量 != "(Intercept)")
+
+pr_estimates |> 
+  gt() |> 
+  tab_header(title = "多因素患病率比(PR)") |> 
+  fmt_number(columns = c(PR, CI_lower, CI_upper), decimals = 2) |> 
+  fmt_number(columns = p_value, decimals = 3)
+```
+
+### 步骤3：标准化患病率
+
+当需要比较不同人群的患病率时，需要进行年龄标准化以消除年龄结构差异的影响。
+
+#### 3.1 直接标准化
+
+```{r}
+# 定义标准人口（中国2020年人口普查）
+standard_pop <- tibble(
+  age_group = c("20-39岁", "40-59岁", "60-80岁"),
+  weight = c(0.40, 0.38, 0.22)  # 标准人口比例
+)
+
+# 计算年龄别患病率
+age_specific <- cross_data |> 
+  group_by(age_group) |> 
+  summarise(
+    prevalence = mean(diabetes),
+    n = n(),
+    .groups = "drop"
+  )
+
+# 直接标准化
+direct_std <- age_specific |> 
+  left_join(standard_pop, by = "age_group") |> 
+  summarise(
+    crude_prev = sum(prevalence * n) / sum(n),
+    std_prev = sum(prevalence * weight)
+  )
+
+cat("粗患病率:", round(direct_std$crude_prev * 100, 2), "%\n")
+cat("年龄标准化患病率:", round(direct_std$std_prev * 100, 2), "%\n")
+```
+
+#### 3.2 按地区比较标准化率
+
+```{r}
+# 城市vs农村的年龄标准化患病率
+std_by_region <- cross_data |> 
+  group_by(region, age_group) |> 
+  summarise(
+    prevalence = mean(diabetes),
+    n = n(),
+    .groups = "drop"
+  ) |> 
+  left_join(standard_pop, by = "age_group") |> 
+  group_by(region) |> 
+  summarise(
+    crude_prev = sum(prevalence * n) / sum(n) * 100,
+    std_prev = sum(prevalence * weight) * 100,
+    .groups = "drop"
+  )
+
+std_by_region |> 
+  gt() |> 
+  tab_header(title = "城乡糖尿病患病率比较（年龄标准化）") |> 
+  cols_label(
+    region = "地区",
+    crude_prev = "粗患病率(%)",
+    std_prev = "标准化患病率(%)"
+  ) |> 
+  fmt_number(columns = c(crude_prev, std_prev), decimals = 2)
+```
+
+### 步骤4：卡方检验与Fisher精确检验
+
+```{r}
+# 性别与糖尿病的关联
+tab_sex <- table(cross_data$sex, cross_data$diabetes)
+colnames(tab_sex) <- c("无糖尿病", "有糖尿病")
+
+# 卡方检验
+chi_test <- chisq.test(tab_sex)
+print(chi_test)
+
+# Fisher精确检验（适用于小样本）
+fisher_test <- fisher.test(tab_sex)
+print(fisher_test)
+```
+
+```{r}
+# 可视化：马赛克图
+library(ggmosaic)
+
+ggplot(cross_data) +
+  geom_mosaic(aes(x = product(diabetes, sex), fill = factor(diabetes))) +
+  scale_fill_manual(
+    values = c("#93c5fd", "#ef4444"),
+    labels = c("无糖尿病", "有糖尿病")
+  ) +
+  labs(
+    title = "性别与糖尿病患病状态",
+    subtitle = paste("卡方检验 p =", format.pval(chi_test$p.value, digits = 3)),
+    x = "性别",
+    y = "",
+    fill = "糖尿病状态"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### 步骤5：Logistic回归分析
+
+虽然PR更直观，但Logistic回归在横截面研究中仍广泛使用，尤其当患病率较低时OR近似PR。
+
+```{r}
+# 单因素Logistic回归
+univar_models <- cross_data |> 
+  select(age, sex, bmi, smoking, hypertension, family_dm, education, region) |> 
+  names() |> 
+  map(~{
+    formula <- as.formula(paste("diabetes ~", .x))
+    glm(formula, data = cross_data, family = binomial)
+  }) |> 
+  set_names(c("age", "sex", "bmi", "smoking", "hypertension", 
+              "family_dm", "education", "region"))
+
+# 提取OR及95%CI
+univar_results <- univar_models |> 
+  map_dfr(~{
+    tidy(.x, exponentiate = TRUE, conf.int = TRUE) |> 
+      filter(term != "(Intercept)")
+  }, .id = "model")
+
+# 多因素Logistic回归
+multi_model <- glm(
+  diabetes ~ age + sex + bmi + smoking + hypertension + family_dm + education,
+  data = cross_data, family = binomial
+)
+
+# 使用gtsummary输出专业表格
+tbl_regression(multi_model, exponentiate = TRUE) |> 
+  add_global_p() |> 
+  modify_header(label = "**变量**") |> 
+  bold_p(t = 0.05) |> 
+  bold_labels()
+```
+
+### 步骤6：模型诊断
+
+```{r}
+# 模型拟合优度 - Hosmer-Lemeshow检验
+library(ResourceSelection)
+hl_test <- hoslem.test(cross_data$diabetes, fitted(multi_model), g = 10)
+print(hl_test)
+
+# ROC曲线
+library(pROC)
+roc_obj <- roc(cross_data$diabetes, fitted(multi_model))
+
+# 绘制ROC曲线
+ggroc(roc_obj, color = "#2563eb", size = 1.2) +
+  geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray50") +
+  annotate("text", x = 0.3, y = 0.3, 
+           label = paste("AUC =", round(auc(roc_obj), 3)),
+           size = 5, fontface = "bold") +
+  labs(
+    title = "Logistic回归模型ROC曲线",
+    x = "特异度",
+    y = "敏感度"
+  ) +
+  theme_minimal(base_size = 12)
+
+cat("AUC:", round(auc(roc_obj), 3), "\n")
+```
+
+### 步骤7：效应可视化
+
+```{r}
+#| fig-height: 7
+# 森林图展示多因素OR
+or_data <- tidy(multi_model, exponentiate = TRUE, conf.int = TRUE) |> 
+  filter(term != "(Intercept)") |> 
+  mutate(
+    term = case_when(
+      term == "age" ~ "年龄(每增加1岁)",
+      term == "sex女" ~ "女性 vs 男性",
+      term == "bmi" ~ "BMI(每增加1)",
+      term == "smoking曾经吸烟" ~ "曾经吸烟 vs 从不",
+      term == "smoking现在吸烟" ~ "现在吸烟 vs 从不",
+      term == "hypertension" ~ "高血压",
+      term == "family_dm" ~ "糖尿病家族史",
+      term == "education初中" ~ "初中 vs 小学",
+      term == "education高中" ~ "高中 vs 小学",
+      term == "education大专及以上" ~ "大专+ vs 小学",
+      TRUE ~ term
+    ),
+    significant = ifelse(p.value < 0.05, "显著", "不显著")
+  )
+
+ggplot(or_data, aes(x = estimate, y = reorder(term, estimate))) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_point(aes(color = significant), size = 3) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high, color = significant), 
+                 height = 0.2) +
+  scale_color_manual(values = c("显著" = "#ef4444", "不显著" = "#94a3b8")) +
+  scale_x_log10() +
+  labs(
+    title = "糖尿病危险因素森林图",
+    subtitle = "多因素Logistic回归结果",
+    x = "比值比 OR (95% CI)",
+    y = "",
+    color = "统计显著性"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold")
+  )
+```
+
+---
+
+## 结果解读与报告
+
+### STROBE报告规范
+
+横截面研究应遵循**STROBE声明**（Strengthening the Reporting of Observational Studies in Epidemiology）进行报告。
+
+| 条目 | 要点 |
+|------|------|
+| 标题与摘要 | 明确研究设计为横截面研究 |
+| 研究人群 | 描述目标人群、抽样方法、纳入排除标准 |
+| 变量定义 | 暴露和结局的操作性定义 |
+| 数据来源 | 描述数据收集方法 |
+| 偏倚控制 | 描述可能的偏倚及控制措施 |
+| 样本量 | 报告样本量计算依据 |
+| 统计方法 | 描述主要分析方法 |
+| 结果 | 报告患病率及95%CI，调整后关联指标 |
+| 讨论 | 讨论时间模糊性等局限 |
+
+### 结果报告模板
+
+> 本研究共纳入 `r nrow(cross_data)` 名社区居民，平均年龄 `r round(mean(cross_data$age), 1)` 岁，女性占 `r round(mean(cross_data$sex == "女") * 100, 1)`%。糖尿病患病率为 `r round(mean(cross_data$diabetes) * 100, 1)`% (95% CI: `r round(prev_ci$conf.int[1] * 100, 1)`% - `r round(prev_ci$conf.int[2] * 100, 1)`%)。
+>
+> 多因素Logistic回归分析显示，在控制年龄、性别、BMI等混杂因素后，现在吸烟者患糖尿病的风险显著高于从不吸烟者（OR = X.XX, 95% CI: X.XX-X.XX, P = X.XXX）。糖尿病家族史阳性者患病风险是阴性者的X.XX倍（95% CI: X.XX-X.XX）。
+
+---
+
+## 常见错误与纠偏
+
+### 错误1：混淆患病率与发病率
+
+**错误表现**: 将横截面研究计算的患病率称为"发病率"
+
+**正确做法**: 明确区分
+- 患病率 = 时点患病人数 / 总人数
+- 发病率 = 新发病例数 / 人时
+
+### 错误2：过度解读因果关系
+
+**错误表现**: "本研究证明吸烟导致糖尿病"
+
+**正确做法**: "本研究发现吸烟与糖尿病存在正相关（OR = X.XX），但由于横截面设计的时间模糊性，无法确定因果方向。"
+
+### 错误3：忽视患病率高时OR对RR的高估
+
+**错误表现**: 当患病率 > 10% 时，仍将OR解释为RR
+
+**正确做法**: 使用PR（通过Poisson回归或log-binomial回归），或明确说明OR与RR的差异
+
+```{r}
+# 当患病率较高时，OR与PR的差异
+# 示例：假设患病率30%
+p1 <- 0.40  # 暴露组患病率
+p0 <- 0.25  # 非暴露组患病率
+
+OR <- (p1/(1-p1)) / (p0/(1-p0))
+PR <- p1 / p0
+
+cat("OR =", round(OR, 2), "\n")
+cat("PR =", round(PR, 2), "\n")
+cat("差异 =", round((OR - PR) / PR * 100, 1), "%\n")
+```
+
+### 错误4：未考虑抽样设计
+
+**错误表现**: 对复杂抽样数据使用简单随机抽样方法分析
+
+**正确做法**: 使用survey包进行加权分析
+
+```{r eval=FALSE}
+# 复杂抽样设计分析示例
+library(survey)
+
+# 定义调查设计对象
+design <- svydesign(
+  ids = ~psu,           # 初级抽样单位
+  strata = ~strata,     # 分层变量
+  weights = ~weight,    # 抽样权重
+  data = survey_data,
+  nest = TRUE
+)
+
+# 加权患病率
+svymean(~diabetes, design)
+
+# 加权Logistic回归
+svyglm(diabetes ~ age + sex + smoking, design, family = binomial)
+```
+
+### 错误5：忽视无应答偏倚
+
+**错误表现**: 不报告应答率和无应答者特征
+
+**正确做法**: 
+- 报告应答率
+- 比较应答者与无应答者特征
+- 考虑使用多重插补或加权调整
+
+---
+
+## 进阶扩展
+
+### 患病率趋势分析
+
+当有多个时间点的横截面数据时，可分析患病率趋势：
+
+```{r}
+# 模拟多年数据
+trend_data <- tibble(
+  year = rep(2015:2024, each = 500),
+  diabetes = rbinom(5000, 1, prob = 0.08 + 0.005 * (rep(2015:2024, each = 500) - 2015))
+)
+
+# 计算年度患病率
+yearly_prev <- trend_data |> 
+  group_by(year) |> 
+  summarise(
+    prevalence = mean(diabetes) * 100,
+    n = n()
+  )
+
+# 趋势检验
+trend_model <- glm(diabetes ~ year, data = trend_data, family = binomial)
+trend_p <- summary(trend_model)$coefficients[2, 4]
+
+# 可视化
+ggplot(yearly_prev, aes(x = year, y = prevalence)) +
+  geom_line(color = "#2563eb", size = 1) +
+  geom_point(color = "#2563eb", size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "#ef4444", linetype = "dashed") +
+  scale_x_continuous(breaks = 2015:2024) +
+  labs(
+    title = "糖尿病患病率年度趋势",
+    subtitle = paste("趋势检验 p =", format.pval(trend_p, digits = 3)),
+    x = "年份",
+    y = "患病率 (%)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### 相关R包推荐
+
+| 包名 | 功能 |
+|------|------|
+| `epiR` | 流行病学2×2表分析 |
+| `epitools` | 患病率计算与可视化 |
+| `survey` | 复杂抽样设计分析 |
+| `PHEindicatormethods` | 标准化率计算 |
+| `prevalence` | 真患病率估计（考虑诊断敏感性/特异性） |
+
+---
+
+## 总结
+
+### 横截面研究要点回顾
+
+1. **设计特点**：同一时点收集暴露和结局信息
+2. **主要指标**：患病率（Prevalence）、患病率比（PR）
+3. **核心局限**：时间模糊性，无法确定因果关系
+4. **分析方法**：卡方检验、Logistic回归、Poisson回归（计算PR）
+5. **标准化**：比较不同人群时需年龄标准化
+6. **报告规范**：遵循STROBE声明
+
+### 方法选择决策树
+
+```
+是否需要因果推断？
+├── 是 → 考虑队列研究或RCT
+└── 否 → 横截面研究适用
+    ├── 患病率 < 10% → OR ≈ PR，可用Logistic回归
+    └── 患病率 ≥ 10% → 建议使用Poisson回归计算PR
+```
+
+---
+
+## 参考文献
+
+1. Rothman KJ, Greenland S, Lash TL. Modern Epidemiology. 3rd ed. Lippincott Williams & Wilkins; 2008.
+
+2. Vandenbroucke JP, et al. Strengthening the Reporting of Observational Studies in Epidemiology (STROBE): Explanation and Elaboration. PLoS Med. 2007;4(10):e297.
+
+3. Barros AJ, Hirakata VN. Alternatives for logistic regression in cross-sectional studies: an empirical comparison of models that directly estimate the prevalence ratio. BMC Med Res Methodol. 2003;3:21.
+
+4. Szklo M, Nieto FJ. Epidemiology: Beyond the Basics. 4th ed. Jones & Bartlett Learning; 2019.
+
+5. 詹思延. 流行病学（第8版）. 人民卫生出版社; 2017.
