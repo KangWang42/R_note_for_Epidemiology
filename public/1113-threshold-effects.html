@@ -7,8 +7,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="dcterms.date" content="2026-01-25">
+<meta name="description" content="从专家选择到共识达成的系统化调查方法，使用 R 语言进行数据处理、共识指标计算与可视化分析。">
 
-<title>统计分析方法 – R 语言学习笔记</title>
+<title>德尔菲法(Delphi Method)完全教程 – R 语言学习笔记</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -105,6 +106,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 }</script>
 <style>html{ scroll-behavior: smooth; }</style>
 
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -882,8 +912,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./1038-efa-cfa.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">因子分析 (EFA/CFA)</span></a>
+  <a href="./1114-factor-analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">因子分析完全指南</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1019,6 +1049,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./1040-scoping-review.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">范围综述</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./1115-delphi-method.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">德尔菲法</span></a>
   </div>
 </li>
       </ul>
@@ -1987,33 +2023,173 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </nav>
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-        
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#什么是阈值效应" id="toc-什么是阈值效应" class="nav-link active" data-scroll-target="#什么是阈值效应">什么是阈值效应?</a>
+  <ul class="collapse">
+  <li><a href="#与其他非线性方法的对比" id="toc-与其他非线性方法的对比" class="nav-link" data-scroll-target="#与其他非线性方法的对比">与其他非线性方法的对比</a></li>
+  <li><a href="#核心特点" id="toc-核心特点" class="nav-link" data-scroll-target="#核心特点">核心特点</a></li>
+  <li><a href="#适用场景" id="toc-适用场景" class="nav-link" data-scroll-target="#适用场景">适用场景</a></li>
+  </ul></li>
+  <li><a href="#r包安装与加载" id="toc-r包安装与加载" class="nav-link" data-scroll-target="#r包安装与加载">R包安装与加载</a></li>
+  <li><a href="#数据准备" id="toc-数据准备" class="nav-link" data-scroll-target="#数据准备">数据准备</a>
+  <ul class="collapse">
+  <li><a href="#数据可视化探索" id="toc-数据可视化探索" class="nav-link" data-scroll-target="#数据可视化探索">数据可视化探索</a></li>
+  </ul></li>
+  <li><a href="#方法一-自动阈值检测-segmented包" id="toc-方法一-自动阈值检测-segmented包" class="nav-link" data-scroll-target="#方法一-自动阈值检测-segmented包">方法一: 自动阈值检测 (segmented包)</a>
+  <ul class="collapse">
+  <li><a href="#基本步骤" id="toc-基本步骤" class="nav-link" data-scroll-target="#基本步骤">基本步骤</a></li>
+  <li><a href="#提取关键信息" id="toc-提取关键信息" class="nav-link" data-scroll-target="#提取关键信息">提取关键信息</a></li>
+  <li><a href="#结果可视化" id="toc-结果可视化" class="nav-link" data-scroll-target="#结果可视化">结果可视化</a></li>
+  </ul></li>
+  <li><a href="#方法二-手动分段回归" id="toc-方法二-手动分段回归" class="nav-link" data-scroll-target="#方法二-手动分段回归">方法二: 手动分段回归</a>
+  <ul class="collapse">
+  <li><a href="#创建分段变量" id="toc-创建分段变量" class="nav-link" data-scroll-target="#创建分段变量">创建分段变量</a></li>
+  <li><a href="#测试斜率差异" id="toc-测试斜率差异" class="nav-link" data-scroll-target="#测试斜率差异">测试斜率差异</a></li>
+  </ul></li>
+  <li><a href="#方法三-chow检验-结构变化检验" id="toc-方法三-chow检验-结构变化检验" class="nav-link" data-scroll-target="#方法三-chow检验-结构变化检验">方法三: Chow检验 (结构变化检验)</a>
+  <ul class="collapse">
+  <li><a href="#执行chow检验" id="toc-执行chow检验" class="nav-link" data-scroll-target="#执行chow检验">执行Chow检验</a></li>
+  </ul></li>
+  <li><a href="#方法四-网格搜索最优阈值" id="toc-方法四-网格搜索最优阈值" class="nav-link" data-scroll-target="#方法四-网格搜索最优阈值">方法四: 网格搜索最优阈值</a>
+  <ul class="collapse">
+  <li><a href="#rss最小化法" id="toc-rss最小化法" class="nav-link" data-scroll-target="#rss最小化法">RSS最小化法</a></li>
+  </ul></li>
+  <li><a href="#多阈值检测" id="toc-多阈值检测" class="nav-link" data-scroll-target="#多阈值检测">多阈值检测</a>
+  <ul class="collapse">
+  <li><a href="#双阈值模型" id="toc-双阈值模型" class="nav-link" data-scroll-target="#双阈值模型">双阈值模型</a></li>
+  </ul></li>
+  <li><a href="#生存分析中的阈值效应" id="toc-生存分析中的阈值效应" class="nav-link" data-scroll-target="#生存分析中的阈值效应">生存分析中的阈值效应</a>
+  <ul class="collapse">
+  <li><a href="#示例-年龄阈值与生存" id="toc-示例-年龄阈值与生存" class="nav-link" data-scroll-target="#示例-年龄阈值与生存">示例: 年龄阈值与生存</a></li>
+  </ul></li>
+  <li><a href="#结果解释与报告" id="toc-结果解释与报告" class="nav-link" data-scroll-target="#结果解释与报告">结果解释与报告</a>
+  <ul class="collapse">
+  <li><a href="#关键要素" id="toc-关键要素" class="nav-link" data-scroll-target="#关键要素">关键要素</a></li>
+  <li><a href="#报告模板" id="toc-报告模板" class="nav-link" data-scroll-target="#报告模板">报告模板</a></li>
+  </ul></li>
+  <li><a href="#方法比较与选择" id="toc-方法比较与选择" class="nav-link" data-scroll-target="#方法比较与选择">方法比较与选择</a>
+  <ul class="collapse">
+  <li><a href="#推荐流程" id="toc-推荐流程" class="nav-link" data-scroll-target="#推荐流程">推荐流程</a></li>
+  </ul></li>
+  <li><a href="#注意事项与陷阱" id="toc-注意事项与陷阱" class="nav-link" data-scroll-target="#注意事项与陷阱">注意事项与陷阱</a>
+  <ul class="collapse">
+  <li><a href="#常见错误" id="toc-常见错误" class="nav-link" data-scroll-target="#常见错误">常见错误</a></li>
+  <li><a href="#最佳实践" id="toc-最佳实践" class="nav-link" data-scroll-target="#最佳实践">最佳实践</a></li>
+  </ul></li>
+  <li><a href="#总结与推荐" id="toc-总结与推荐" class="nav-link" data-scroll-target="#总结与推荐">总结与推荐</a>
+  <ul class="collapse">
+  <li><a href="#核心要点" id="toc-核心要点" class="nav-link" data-scroll-target="#核心要点">核心要点</a></li>
+  <li><a href="#进一步学习" id="toc-进一步学习" class="nav-link" data-scroll-target="#进一步学习">进一步学习</a></li>
+  <li><a href="#参考资源" id="toc-参考资源" class="nav-link" data-scroll-target="#参考资源">参考资源</a></li>
+  </ul></li>
+  <li><a href="#完整代码示例" id="toc-完整代码示例" class="nav-link" data-scroll-target="#完整代码示例">完整代码示例</a></li>
+  <li><a href="#方法背景与适用场景" id="toc-方法背景与适用场景" class="nav-link" data-scroll-target="#方法背景与适用场景">方法背景与适用场景</a>
+  <ul class="collapse">
+  <li><a href="#方法起源" id="toc-方法起源" class="nav-link" data-scroll-target="#方法起源">方法起源</a></li>
+  <li><a href="#核心特点-1" id="toc-核心特点-1" class="nav-link" data-scroll-target="#核心特点-1">核心特点</a></li>
+  <li><a href="#适用场景-1" id="toc-适用场景-1" class="nav-link" data-scroll-target="#适用场景-1">适用场景</a></li>
+  <li><a href="#不适用场景" id="toc-不适用场景" class="nav-link" data-scroll-target="#不适用场景">不适用场景</a></li>
+  <li><a href="#与其他方法的对比" id="toc-与其他方法的对比" class="nav-link" data-scroll-target="#与其他方法的对比">与其他方法的对比</a></li>
+  </ul></li>
+  <li><a href="#核心概念与模型入门" id="toc-核心概念与模型入门" class="nav-link" data-scroll-target="#核心概念与模型入门">核心概念与模型入门</a>
+  <ul class="collapse">
+  <li><a href="#基本术语" id="toc-基本术语" class="nav-link" data-scroll-target="#基本术语">基本术语</a></li>
+  <li><a href="#德尔菲法的工作机制" id="toc-德尔菲法的工作机制" class="nav-link" data-scroll-target="#德尔菲法的工作机制">德尔菲法的工作机制</a></li>
+  <li><a href="#共识指标" id="toc-共识指标" class="nav-link" data-scroll-target="#共识指标">共识指标</a></li>
+  <li><a href="#共识判别标准" id="toc-共识判别标准" class="nav-link" data-scroll-target="#共识判别标准">共识判别标准</a></li>
+  </ul></li>
+  <li><a href="#模型假设与前提条件" id="toc-模型假设与前提条件" class="nav-link" data-scroll-target="#模型假设与前提条件">模型假设与前提条件</a>
+  <ul class="collapse">
+  <li><a href="#假设1-专家专业知识" id="toc-假设1-专家专业知识" class="nav-link" data-scroll-target="#假设1-专家专业知识">假设1: 专家专业知识</a></li>
+  <li><a href="#假设2-专家代表性" id="toc-假设2-专家代表性" class="nav-link" data-scroll-target="#假设2-专家代表性">假设2: 专家代表性</a></li>
+  <li><a href="#假设3-专家参与度" id="toc-假设3-专家参与度" class="nav-link" data-scroll-target="#假设3-专家参与度">假设3: 专家参与度</a></li>
+  <li><a href="#假设4-问卷设计合理性" id="toc-假设4-问卷设计合理性" class="nav-link" data-scroll-target="#假设4-问卷设计合理性">假设4: 问卷设计合理性</a></li>
+  </ul></li>
+  <li><a href="#数据准备-1" id="toc-数据准备-1" class="nav-link" data-scroll-target="#数据准备-1">数据准备</a>
+  <ul class="collapse">
+  <li><a href="#数据结构要求" id="toc-数据结构要求" class="nav-link" data-scroll-target="#数据结构要求">数据结构要求</a></li>
+  <li><a href="#模拟数据示例" id="toc-模拟数据示例" class="nav-link" data-scroll-target="#模拟数据示例">模拟数据示例</a></li>
+  <li><a href="#数据清洗与预处理" id="toc-数据清洗与预处理" class="nav-link" data-scroll-target="#数据清洗与预处理">数据清洗与预处理</a></li>
+  </ul></li>
+  <li><a href="#完整分析流程" id="toc-完整分析流程" class="nav-link" data-scroll-target="#完整分析流程">完整分析流程</a>
+  <ul class="collapse">
+  <li><a href="#步骤1-描述性统计与共识初步评估" id="toc-步骤1-描述性统计与共识初步评估" class="nav-link" data-scroll-target="#步骤1-描述性统计与共识初步评估">步骤1: 描述性统计与共识初步评估</a></li>
+  <li><a href="#步骤2-共识程度评估" id="toc-步骤2-共识程度评估" class="nav-link" data-scroll-target="#步骤2-共识程度评估">步骤2: 共识程度评估</a></li>
+  <li><a href="#步骤3-可视化分析" id="toc-步骤3-可视化分析" class="nav-link" data-scroll-target="#步骤3-可视化分析">步骤3: 可视化分析</a></li>
+  </ul></li>
+  <li><a href="#计算每个议题的最终平均分用于排序" id="toc-计算每个议题的最终平均分用于排序" class="nav-link" data-scroll-target="#计算每个议题的最终平均分用于排序">计算每个议题的最终平均分,用于排序</a></li>
+  <li><a href="#绘制箱线图" id="toc-绘制箱线图" class="nav-link" data-scroll-target="#绘制箱线图">绘制箱线图</a>
+  <ul class="collapse">
+  <li><a href="#步骤4-稳定性检验" id="toc-步骤4-稳定性检验" class="nav-link" data-scroll-target="#步骤4-稳定性检验">步骤4: 稳定性检验</a></li>
+  <li><a href="#步骤5-最终共识判定" id="toc-步骤5-最终共识判定" class="nav-link" data-scroll-target="#步骤5-最终共识判定">步骤5: 最终共识判定</a></li>
+  <li><a href="#结果解读与报告" id="toc-结果解读与报告" class="nav-link" data-scroll-target="#结果解读与报告">结果解读与报告</a>
+  <ul class="collapse">
+  <li><a href="#最终结果解读" id="toc-最终结果解读" class="nav-link" data-scroll-target="#最终结果解读">最终结果解读</a></li>
+  <li><a href="#论文报告格式" id="toc-论文报告格式" class="nav-link" data-scroll-target="#论文报告格式">论文报告格式</a></li>
+  <li><a href="#报告撰写要点" id="toc-报告撰写要点" class="nav-link" data-scroll-target="#报告撰写要点">报告撰写要点</a></li>
+  </ul></li>
+  <li><a href="#常见错误与纠偏" id="toc-常见错误与纠偏" class="nav-link" data-scroll-target="#常见错误与纠偏">常见错误与纠偏</a>
+  <ul class="collapse">
+  <li><a href="#错误1-专家选择不当" id="toc-错误1-专家选择不当" class="nav-link" data-scroll-target="#错误1-专家选择不当">错误1: 专家选择不当</a></li>
+  <li><a href="#错误2-问卷设计问题" id="toc-错误2-问卷设计问题" class="nav-link" data-scroll-target="#错误2-问卷设计问题">错误2: 问卷设计问题</a></li>
+  <li><a href="#错误3-调查轮次过多或过少" id="toc-错误3-调查轮次过多或过少" class="nav-link" data-scroll-target="#错误3-调查轮次过多或过少">错误3: 调查轮次过多或过少</a></li>
+  <li><a href="#错误4-共识指标选择不当" id="toc-错误4-共识指标选择不当" class="nav-link" data-scroll-target="#错误4-共识指标选择不当">错误4: 共识指标选择不当</a></li>
+  <li><a href="#错误5-忽视专家流失" id="toc-错误5-忽视专家流失" class="nav-link" data-scroll-target="#错误5-忽视专家流失">错误5: 忽视专家流失</a></li>
+  <li><a href="#错误6-过度依赖统计指标" id="toc-错误6-过度依赖统计指标" class="nav-link" data-scroll-target="#错误6-过度依赖统计指标">错误6: 过度依赖统计指标</a></li>
+  <li><a href="#错误7-报告不规范" id="toc-错误7-报告不规范" class="nav-link" data-scroll-target="#错误7-报告不规范">错误7: 报告不规范</a></li>
+  </ul></li>
+  <li><a href="#进阶扩展" id="toc-进阶扩展" class="nav-link" data-scroll-target="#进阶扩展">进阶扩展</a>
+  <ul class="collapse">
+  <li><a href="#模糊德尔菲法fuzzy-delphi-method" id="toc-模糊德尔菲法fuzzy-delphi-method" class="nav-link" data-scroll-target="#模糊德尔菲法fuzzy-delphi-method">1. 模糊德尔菲法(Fuzzy Delphi Method)</a></li>
+  <li><a href="#在线德尔菲平台" id="toc-在线德尔菲平台" class="nav-link" data-scroll-target="#在线德尔菲平台">2. 在线德尔菲平台</a></li>
+  <li><a href="#德尔菲法报告规范" id="toc-德尔菲法报告规范" class="nav-link" data-scroll-target="#德尔菲法报告规范">3. 德尔菲法报告规范</a></li>
+  <li><a href="#德尔菲法的变体" id="toc-德尔菲法的变体" class="nav-link" data-scroll-target="#德尔菲法的变体">4. 德尔菲法的变体</a></li>
+  <li><a href="#混合方法-德尔菲法-其他方法" id="toc-混合方法-德尔菲法-其他方法" class="nav-link" data-scroll-target="#混合方法-德尔菲法-其他方法">5. 混合方法: 德尔菲法 + 其他方法</a></li>
+  <li><a href="#r-包推荐" id="toc-r-包推荐" class="nav-link" data-scroll-target="#r-包推荐">6. R 包推荐</a></li>
+  </ul></li>
+  <li><a href="#总结" id="toc-总结" class="nav-link" data-scroll-target="#总结">总结</a>
+  <ul class="collapse">
+  <li><a href="#核心流程回顾" id="toc-核心流程回顾" class="nav-link" data-scroll-target="#核心流程回顾">核心流程回顾</a></li>
+  <li><a href="#关键要点" id="toc-关键要点" class="nav-link" data-scroll-target="#关键要点">关键要点</a></li>
+  <li><a href="#适用时机" id="toc-适用时机" class="nav-link" data-scroll-target="#适用时机">适用时机</a></li>
+  <li><a href="#推荐阅读" id="toc-推荐阅读" class="nav-link" data-scroll-target="#推荐阅读">推荐阅读</a></li>
+  </ul></li>
+  <li><a href="#参考文献" id="toc-参考文献" class="nav-link" data-scroll-target="#参考文献">参考文献</a></li>
+  </ul></li>
+  </ul>
+</nav>
     </div>
 <!-- main -->
-<main class="content column-page-right" id="quarto-document-content">
+<main class="content column-body" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">统计分析方法</li><li class="breadcrumb-item"><a href="./1019-logistic.html">📊 基础回归</a></li><li class="breadcrumb-item"><a href="./1113-threshold-effects.html">阈值效应分析</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">统计分析方法</h1>
-<p class="subtitle lead">从基础回归到因果推断，系统掌握核心统计方法</p>
+<h1 class="title">德尔菲法(Delphi Method)完全教程</h1>
   <div class="quarto-categories">
     <div class="quarto-category">统计分析方法</div>
-    <div class="quarto-category">基础回归</div>
-    <div class="quarto-category">统计建模</div>
-    <div class="quarto-category">阈值效应</div>
+    <div class="quarto-category">综述方法</div>
+    <div class="quarto-category">专家调查</div>
   </div>
   </div>
 
+<div>
+  <div class="description">
+    从专家选择到共识达成的系统化调查方法，使用 R 语言进行数据处理、共识指标计算与可视化分析。
+  </div>
+</div>
 
 
-<div class="quarto-title-meta column-page-right">
+<div class="quarto-title-meta column-body">
 
     
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">January 25, 2026</p>
+      <p class="date">2026-01-25</p>
     </div>
   </div>
   
@@ -3303,1214 +3479,1107 @@ slope3 0.272360 0.0348370  7.8182  0.203910  0.340810</code></pre>
 </blockquote>
 
 
-<div class="hero-section">
-<h1 class="hero-title">
-R 语言学习笔记
-</h1>
-<p class="hero-subtitle">
-覆盖统计分析、机器学习与实用 R 包的系统教程与实践指南。
-</p>
-<div class="search-wrapper">
-  <div class="search-box">
-    <input type="text" id="homepage-search" class="search-input" placeholder="搜索教程、R包、统计方法..." autocomplete="off">
-    <button class="search-btn" id="search-btn" aria-label="搜索">
-      <i class="bi bi-search"></i>
-    </button>
-  </div>
-  <div id="homepage-search-results" class="search-results-dropdown"></div>
-</div>
-<div class="content-tabs">
-  <button class="content-tab active" data-sort="recent" title="按更新时间排序">
-    <i class="bi bi-clock tab-icon"></i> 最近更新
-  </button>
-  <button class="content-tab" data-sort="hot" title="最受欢迎的教程">
-    <i class="bi bi-fire tab-icon"></i> 热门教程
-  </button>
-  <button class="content-tab" data-sort="random" title="随机浏览">
-    <i class="bi bi-shuffle tab-icon"></i> 随机推荐
-  </button>
-</div>
-</div>
-<script>
-// 全局变量，供侧边栏使用
-window.searchData = [];
+<p><code>{r setup, include=FALSE} knitr::opts_chunk$set(   echo = TRUE,   warning = FALSE,   message = FALSE,   fig.width = 10,   fig.height = 6,   fig.retina = 2,   out.width = "100%",   dpi = 150 )</code></p>
+</section>
+<section id="方法背景与适用场景" class="level2">
+<h2 class="anchored" data-anchor-id="方法背景与适用场景">方法背景与适用场景</h2>
+<p><strong>德尔菲法(Delphi Method)</strong> 是一种结构化的专家咨询方法,通过多轮匿名问卷调查,逐步收集、反馈和归纳专家意见,最终达成共识或识别分歧。</p>
+<section id="方法起源" class="level3">
+<h3 class="anchored" data-anchor-id="方法起源">方法起源</h3>
+<p>德尔菲法由美国兰德公司(RAND Corporation)在20世纪50年代初开发,最初用于预测未来技术趋势。其名称源自古希腊德尔斐神庙,寓意智慧与预见。</p>
+</section>
+<section id="核心特点-1" class="level3">
+<h3 class="anchored" data-anchor-id="核心特点-1">核心特点</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>特点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>匿名性</strong></td>
+<td>专家之间互不知晓,避免权威影响和群体压力</td>
+</tr>
+<tr class="even">
+<td><strong>反馈机制</strong></td>
+<td>每轮调查后提供统计汇总结果,专家可修正意见</td>
+</tr>
+<tr class="odd">
+<td><strong>迭代性</strong></td>
+<td>通过多轮调查逐步收敛意见</td>
+</tr>
+<tr class="even">
+<td><strong>统计性</strong></td>
+<td>使用定量方法汇总专家意见</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="适用场景-1" class="level3">
+<h3 class="anchored" data-anchor-id="适用场景-1">适用场景</h3>
+<p>德尔菲法特别适用于以下研究领域:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>领域</th>
+<th>应用示例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>公共卫生政策</strong></td>
+<td>疫苗接种优先级排序、健康指标重要性评估</td>
+</tr>
+<tr class="even">
+<td><strong>临床指南制定</strong></td>
+<td>推荐方案选择、证据质量评级、证据体系构建</td>
+</tr>
+<tr class="odd">
+<td><strong>技术预测</strong></td>
+<td>新兴技术发展趋势预测、关键技术识别</td>
+</tr>
+<tr class="even">
+<td><strong>指标体系构建</strong></td>
+<td>评价指标筛选、权重确定</td>
+</tr>
+<tr class="odd">
+<td><strong>研究优先级</strong></td>
+<td>科研资助方向确定、研究议题排序</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="不适用场景" class="level3">
+<h3 class="anchored" data-anchor-id="不适用场景">不适用场景</h3>
+<p>德尔菲法<strong>不适合</strong>用于: - 需要立即决策的紧急情况 - 有明确客观数据支撑的问题 - 目标是探索性讨论而非达成共识 - 专家群体知识储备严重不足的领域</p>
+</section>
+<section id="与其他方法的对比" class="level3">
+<h3 class="anchored" data-anchor-id="与其他方法的对比">与其他方法的对比</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 22%">
+<col style="width: 33%">
+<col style="width: 22%">
+<col style="width: 22%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>核心特点</th>
+<th>优势</th>
+<th>局限</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>德尔菲法</strong></td>
+<td>多轮匿名调查+反馈</td>
+<td>消除群体压力、控制专家影响</td>
+<td>周期长、成本高</td>
+</tr>
+<tr class="even">
+<td><strong>头脑风暴</strong></td>
+<td>面对面自由讨论</td>
+<td>快速生成创意、互动性强</td>
+<td>易受权威影响、群体思维</td>
+</tr>
+<tr class="odd">
+<td><strong>名义小组法</strong></td>
+<td>结构化讨论+匿名投票</td>
+<td>平衡讨论深度与匿名性</td>
+<td>仍存在群体压力</td>
+</tr>
+<tr class="even">
+<td><strong>焦点小组</strong></td>
+<td>小组互动讨论</td>
+<td>深入了解观点、发现新角度</td>
+<td>易受少数人主导</td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+</section>
+<section id="核心概念与模型入门" class="level2">
+<h2 class="anchored" data-anchor-id="核心概念与模型入门">核心概念与模型入门</h2>
+<section id="基本术语" class="level3">
+<h3 class="anchored" data-anchor-id="基本术语">基本术语</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>术语</th>
+<th>定义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>专家(Expert)</strong></td>
+<td>在特定领域具有丰富知识和实践经验的专业人士</td>
+</tr>
+<tr class="even">
+<td><strong>共识(Consensus)</strong></td>
+<td>专家群体对某议题达成的一致意见</td>
+</tr>
+<tr class="odd">
+<td><strong>分歧(Divergence)</strong></td>
+<td>专家意见存在显著差异</td>
+</tr>
+<tr class="even">
+<td><strong>稳定性(Stability)</strong></td>
+<td>意见在轮次间不再发生显著变化</td>
+</tr>
+<tr class="odd">
+<td><strong>收敛(Convergence)</strong></td>
+<td>意见差异随轮次递减</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="德尔菲法的工作机制" class="level3">
+<h3 class="anchored" data-anchor-id="德尔菲法的工作机制">德尔菲法的工作机制</h3>
+<p>德尔菲法的核心机制可以概括为以下四个步骤:</p>
+<p><strong>第一轮: 广泛征集</strong> - 发放开放性问卷 - 收集专家的自由意见 - 归纳整理形成第二轮问卷</p>
+<p><strong>第二轮: 定量评估</strong> - 将第一轮结果反馈给专家 - 要求专家对议题进行评分或排序 - 计算统计指标(均值、标准差等)</p>
+<p><strong>第三轮: 意见调整</strong> - 将上一轮统计结果反馈给专家 - 专家可以修改自己的评分 - 识别极端观点,要求解释</p>
+<p><strong>第四轮: 达成共识</strong> - 继续反馈与调整 - 直到意见趋于稳定 - 最终形成共识或识别分歧</p>
+</section>
+<section id="共识指标" class="level3">
+<h3 class="anchored" data-anchor-id="共识指标">共识指标</h3>
+<p>德尔菲法使用多种定量指标来衡量专家共识程度:</p>
+<section id="描述性统计量" class="level4">
+<h4 class="anchored" data-anchor-id="描述性统计量">1. 描述性统计量</h4>
+<p><strong>均值(Mean)</strong>: 反映专家意见的中心趋势 <span class="math display">\[ \bar{X} = \frac{1}{n} \sum_{i=1}^{n} X_i \]</span></p>
+<p>其中: - <span class="math inline">\(\bar{X}\)</span>: 评分均值 - <span class="math inline">\(n\)</span>: 专家数量 - <span class="math inline">\(X_i\)</span>: 第 <span class="math inline">\(i\)</span> 位专家的评分</p>
+<p><strong>标准差(Standard Deviation)</strong>: 反映意见的离散程度 <span class="math display">\[ SD = \sqrt{\frac{1}{n-1} \sum_{i=1}^{n} (X_i - \bar{X})^2} \]</span></p>
+<p>其中: - <span class="math inline">\(SD\)</span>: 标准差 - <span class="math inline">\(X_i - \bar{X}\)</span>: 第 <span class="math inline">\(i\)</span> 位专家评分与均值的偏差</p>
+<p><strong>变异系数(Coefficient of Variation)</strong>: 标准化离散程度,便于不同议题间的比较 <span class="math display">\[ CV = \frac{SD}{\bar{X}} \times 100\% \]</span></p>
+<p>其中: - <span class="math inline">\(CV\)</span>: 变异系数 - 标准化使得 <span class="math inline">\(CV\)</span> 无量纲</p>
+<p><strong>四分位距(Interquartile Range, IQR)</strong>: 反映中间50%专家意见的范围 <span class="math display">\[ IQR = Q_3 - Q_1 \]</span></p>
+<p>其中: - <span class="math inline">\(Q_3\)</span>: 第三四分位数(75%分位点) - <span class="math inline">\(Q_1\)</span>: 第一四分位数(25%分位点)</p>
+</section>
+<section id="共识率" class="level4">
+<h4 class="anchored" data-anchor-id="共识率">2. 共识率</h4>
+<p><strong>简单共识率</strong>: 同意某方案的专家比例 <span class="math display">\[ C_{simple} = \frac{n_{agree}}{n_{total}} \times 100\% \]</span></p>
+<p><strong>评分共识率</strong>: 评分落在某个范围内的专家比例 <span class="math display">\[ C_{score} = \frac{n_{range}}{n_{total}} \times 100\% \]</span></p>
+<p>其中: - <span class="math inline">\(n_{range}\)</span>: 评分落在 <span class="math inline">\(\bar{X} \pm 1 \cdot SD\)</span> 范围内的专家数</p>
+</section>
+<section id="稳定性指标" class="level4">
+<h4 class="anchored" data-anchor-id="稳定性指标">3. 稳定性指标</h4>
+<p><strong>评分变化率</strong>: 某位专家两轮间评分的变化程度 <span class="math display">\[ \Delta X_{ij} = |X_{ij}^{(t)} - X_{ij}^{(t-1)}| \]</span></p>
+<p>其中: - <span class="math inline">\(X_{ij}^{(t)}\)</span>: 第 <span class="math inline">\(i\)</span> 位专家在第 <span class="math inline">\(t\)</span> 轮对议题 <span class="math inline">\(j\)</span> 的评分 - <span class="math inline">\(\Delta X_{ij}\)</span>: 评分的绝对变化量</p>
+<p><strong>整体稳定性</strong>: 所有专家评分变化的平均值 <span class="math display">\[ S_{overall} = \frac{1}{n \cdot m} \sum_{i=1}^{n} \sum_{j=1}^{m} \Delta X_{ij} \]</span></p>
+<p>其中: - <span class="math inline">\(m\)</span>: 议题数量 - <span class="math inline">\(S_{overall}\)</span>: 整体稳定性指标</p>
+</section>
+</section>
+<section id="共识判别标准" class="level3">
+<h3 class="anchored" data-anchor-id="共识判别标准">共识判别标准</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>CV 值</th>
+<th>共识程度</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CV ≤ 10%</td>
+<td>强共识</td>
+</tr>
+<tr class="even">
+<td>10% &lt; CV ≤ 20%</td>
+<td>中等共识</td>
+</tr>
+<tr class="odd">
+<td>20% &lt; CV ≤ 30%</td>
+<td>弱共识</td>
+</tr>
+<tr class="even">
+<td>CV &gt; 30%</td>
+<td>未达成共识</td>
+</tr>
+</tbody>
+</table>
+<p><strong>稳定性判别</strong>: - 通常要求 <span class="math inline">\(S_{overall} &lt; 0.5\)</span> 分(以1-9分量表为例) - 或专家调整比例 &lt; 15%</p>
+<hr>
+</section>
+</section>
+<section id="模型假设与前提条件" class="level2">
+<h2 class="anchored" data-anchor-id="模型假设与前提条件">模型假设与前提条件</h2>
+<section id="假设1-专家专业知识" class="level3">
+<h3 class="anchored" data-anchor-id="假设1-专家专业知识">假设1: 专家专业知识</h3>
+<p><strong>含义</strong>: 参与调查的专家必须在相关领域具有足够的专业知识和实践经验。</p>
+<p><strong>检验方法</strong>: - 查看专家的学术背景(学位、职称) - 统计专家的工作年限 - 检查专家在相关领域的研究成果</p>
+<p><strong>违背后果</strong>: - 评分质量低下 - 无法形成有效共识 - 结论缺乏可信度</p>
+<p><strong>应对策略</strong>: - 设定明确的专家入选标准 - 收集专家的详细信息 - 必要时进行专家资格审核</p>
+</section>
+<section id="假设2-专家代表性" class="level3">
+<h3 class="anchored" data-anchor-id="假设2-专家代表性">假设2: 专家代表性</h3>
+<p><strong>含义</strong>: 专家样本应能代表目标领域的多元观点,包括不同地区、机构、专业背景等。</p>
+<p><strong>检验方法</strong>: - 分析专家的来源分布 - 检查专家的专业背景多样性 - 评估专家的地域分布</p>
+<p><strong>违背后果</strong>: - 结果存在系统性偏差 - 某些观点未被充分代表 - 结论的泛化性受限</p>
+<p><strong>应对策略</strong>: - 采用分层抽样选择专家 - 确保不同群体都有代表 - 必要时采用分层分析</p>
+</section>
+<section id="假设3-专家参与度" class="level3">
+<h3 class="anchored" data-anchor-id="假设3-专家参与度">假设3: 专家参与度</h3>
+<p><strong>含义</strong>: 专家应全程参与调查,每轮的回复率不应过低(通常 &gt; 70%)。</p>
+<p><strong>检验方法</strong>: - 统计每轮的专家回复率 - 分析专家流失原因 - 检查专家的完成质量</p>
+<p><strong>违背后果</strong>: - 样本量减少,统计效力下降 - 早期流失的专家可能持有特定观点 - 结果产生偏差</p>
+<p><strong>应对策略</strong>: - 设计简洁高效的问卷 - 提供适当的激励 - 及时跟进未回复的专家</p>
+</section>
+<section id="假设4-问卷设计合理性" class="level3">
+<h3 class="anchored" data-anchor-id="假设4-问卷设计合理性">假设4: 问卷设计合理性</h3>
+<p><strong>含义</strong>: 问卷应清晰、无歧义,避免引导性问题,确保专家能准确理解题目。</p>
+<p><strong>检验方法</strong>: - 进行预测试(Pre-test) - 收集专家对问卷设计的反馈 - 分析专家的回答模式</p>
+<p><strong>违背后果</strong>: - 专家理解偏差 - 评分缺乏一致性 - 共识被人为创造或隐藏</p>
+<p><strong>应对策略</strong>: - 进行多轮预测试和修订 - 清晰定义评分标准 - 在问卷中提供详细的说明</p>
+<hr>
+</section>
+</section>
+<section id="数据准备-1" class="level2">
+<h2 class="anchored" data-anchor-id="数据准备-1">数据准备</h2>
+<section id="数据结构要求" class="level3">
+<h3 class="anchored" data-anchor-id="数据结构要求">数据结构要求</h3>
+<p>德尔菲法的数据通常采用<strong>宽格式(Wide Format)</strong>存储,每行代表一位专家,每列代表一个议题或统计指标。</p>
+<p><strong>典型数据结构示例</strong>:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>列名</th>
+<th>含义</th>
+<th>数据类型</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>expert_id</code></td>
+<td>专家ID</td>
+<td>字符/数值</td>
+</tr>
+<tr class="even">
+<td><code>expert_name</code></td>
+<td>专家姓名</td>
+<td>字符</td>
+</tr>
+<tr class="odd">
+<td><code>round</code></td>
+<td>调查轮次</td>
+<td>数值(1, 2, 3, …)</td>
+</tr>
+<tr class="even">
+<td><code>item_1</code></td>
+<td>议题1的评分</td>
+<td>数值(1-9)</td>
+</tr>
+<tr class="odd">
+<td><code>item_2</code></td>
+<td>议题2的评分</td>
+<td>数值(1-9)</td>
+</tr>
+<tr class="even">
+<td><code>...</code></td>
+<td>…</td>
+<td>…</td>
+</tr>
+<tr class="odd">
+<td><code>comments</code></td>
+<td>专家意见/备注</td>
+<td>字符</td>
+</tr>
+</tbody>
+</table>
+<p><strong>评分量表类型</strong>:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>量表类型</th>
+<th>范围</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>李克特量表</strong></td>
+<td>1-5 或 1-7</td>
+<td>态度、观点测量</td>
+</tr>
+<tr class="even">
+<td><strong>0-10分量表</strong></td>
+<td>0-10</td>
+<td>重要性、优先级评分</td>
+</tr>
+<tr class="odd">
+<td><strong>百分比量表</strong></td>
+<td>0-100</td>
+<td>比例分配、权重确定</td>
+</tr>
+<tr class="even">
+<td><strong>排序量表</strong></td>
+<td>1-n</td>
+<td>选项排序</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="模拟数据示例" class="level3">
+<h3 class="anchored" data-anchor-id="模拟数据示例">模拟数据示例</h3>
+<p>下面我们模拟一个关于”公共卫生研究优先级评估”的德尔菲调查数据。</p>
+<pre class="{r}"><code># 加载必要的包
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(patchwork)
 
-document.addEventListener('DOMContentLoaded', async function() {
-  // ==================== 搜索功能 ====================
-  const searchInput = document.getElementById('homepage-search');
-  const searchResults = document.getElementById('homepage-search-results');
-  const searchBtn = document.getElementById('search-btn');
-  
-  let searchData = [];
-  
-  // 加载搜索数据
-  try {
-    const response = await fetch('search.json');
-    searchData = await response.json();
-    // 同步到全局变量
-    window.searchData = searchData;
-    searchData = searchData.filter(item => {
-      const hasTitle = item.title && item.title.length > 0;
-      const hasText = item.text && item.text.length > 20;
-      const notIndex = !item.href.includes('index.html');
-      const notSections = !item.href.includes('sections/');
-      return hasTitle && hasText && notIndex && notSections;
-    });
-  } catch (error) {
-    console.log('无法加载搜索数据:', error);
-  }
-  
-  // 搜索按钮点击事件
-  if (searchBtn) {
-    searchBtn.addEventListener('click', (e) => {
-      console.log('搜索按钮被点击了！', e.target);
-      const query = searchInput.value.trim();
-      if (query.length >= 2) {
-        performSearch(query);
-      } else {
-        // 如果输入为空，聚焦到输入框
-        searchInput.focus();
-      }
-    });
-  }
-  
-  // 搜索输入
-  let currentSearchFilter = 'all';
-  
-  if (searchInput) {
-    // 回车触发搜索
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const query = searchInput.value.trim();
-        if (query.length >= 2) {
-          performSearch(query);
-        }
-      }
-    });
-    
-    // 点击外部关闭搜索结果
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.search-box') && !e.target.closest('.search-results-dropdown')) {
-        searchResults.classList.remove('visible');
-      }
-    });
-  }
-  
-  // 高亮关键词
-  function highlightKeywords(text, keywords) {
-    if (!text) return '';
-    let result = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    keywords.forEach(kw => {
-      if (kw.length < 2) return;
-      const regex = new RegExp(`(${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-      result = result.replace(regex, '<span class="search-highlight">$1</span>');
-    });
-    return result;
-  }
-  
-  // 执行搜索
-  function performSearch(query) {
-    const lowerQuery = query.toLowerCase();
-    const keywords = lowerQuery.split(/\s+/).filter(k => k.length >= 2);
-    let results = [];
-    
-    searchData.forEach(item => {
-      const title = (item.title || '').toLowerCase();
-      const text = (item.text || '').toLowerCase();
-      const section = (item.section || '').toLowerCase();
-      const desc = (item.description || '').toLowerCase();
-      
-      let match = false;
-      if (currentSearchFilter === 'all') {
-        match = keywords.some(kw => title.includes(kw) || text.includes(kw) || section.includes(kw));
-      } else if (currentSearchFilter === 'title') {
-        match = keywords.some(kw => title.includes(kw));
-      } else if (currentSearchFilter === 'content') {
-        match = keywords.some(kw => text.includes(kw));
-      } else if (currentSearchFilter === 'abstract') {
-        match = keywords.some(kw => desc.includes(kw) || section.includes(kw));
-      }
-      
-      if (match) {
-        let snippet = '';
-        const searchText = currentSearchFilter === 'abstract' ? (item.description || item.text || '') : (item.text || '');
-        const lowerSearchText = searchText.toLowerCase();
-        const idx = lowerSearchText.indexOf(keywords[0]);
-        if (idx >= 0) {
-          const start = Math.max(0, idx - 20);
-          const end = Math.min(searchText.length, idx + 80);
-          snippet = (start > 0 ? '...' : '') + searchText.substring(start, end) + (end < searchText.length ? '...' : '');
-        } else {
-          snippet = searchText.substring(0, 80) + '...';
-        }
-        results.push({
-          title: item.title,
-          section: item.section || '',
-          href: item.href,
-          snippet: snippet
-        });
-      }
-    });
-    
-    results = results.slice(0, 8);
-    
-    // 渲染过滤栏和结果
-    const filterBar = `
-      <div class="search-filter-bar">
-        <button class="search-filter-btn ${currentSearchFilter === 'all' ? 'active' : ''}" data-filter="all">全部</button>
-        <button class="search-filter-btn ${currentSearchFilter === 'title' ? 'active' : ''}" data-filter="title">标题</button>
-        <button class="search-filter-btn ${currentSearchFilter === 'content' ? 'active' : ''}" data-filter="content">内容</button>
-        <button class="search-filter-btn ${currentSearchFilter === 'abstract' ? 'active' : ''}" data-filter="abstract">摘要</button>
-      </div>
-    `;
-    
-    if (results.length > 0) {
-      const resultItems = results.map(r => `
-        <a href="${r.href}" class="search-result-item">
-          <div class="result-header">
-            ${r.section ? `<span class="result-section">${highlightKeywords(r.section, keywords)}</span>` : ''}
-            <span class="result-title">${highlightKeywords(r.title, keywords)}</span>
-          </div>
-          <div class="result-snippet">${highlightKeywords(r.snippet, keywords)}</div>
-        </a>
-      `).join('');
-      searchResults.innerHTML = filterBar + resultItems;
+# 设置随机种子,确保结果可复现
+set.seed(2026)
+
+# 定义模拟参数
+n_experts &lt;- 15  # 专家数量
+n_items &lt;- 8     # 议题数量
+n_rounds &lt;- 3    # 调查轮次
+
+# 议题名称(公共卫生研究优先级)
+item_names &lt;- c(
+  "慢性病预防",
+  "传染病防控",
+  "心理健康",
+  "健康公平",
+  "数字健康",
+  "健康老龄化",
+  "环境健康",
+  "母婴健康"
+)
+
+# 专家背景信息
+experts &lt;- tibble(
+  expert_id = 1:n_experts,
+  expert_name = paste("专家", 1:n_experts),
+  institution = sample(c("大学", "医院", "疾控中心", "研究机构"), n_experts, replace = TRUE),
+  years_experience = round(runif(n_experts, 10, 30)),
+  degree = sample(c("博士", "硕士"), n_experts, replace = TRUE, prob = c(0.8, 0.2))
+)
+
+# 真实共识评分(模拟)
+true_scores &lt;- c(8.5, 8.2, 7.8, 7.5, 7.2, 7.0, 6.8, 6.5)  # 各议题的真实优先级
+
+# 模拟德尔菲调查数据
+delphi_data &lt;- tibble()
+
+for (round_num in 1:n_rounds) {
+  round_data &lt;- tibble(
+    expert_id = 1:n_experts,
+    round = round_num
+  )
+
+  # 每一轮的收敛程度:第一轮最分散,第三轮最收敛
+  convergence_factor &lt;- round_num / n_rounds
+
+  # 生成评分
+  for (i in 1:n_items) {
+    # 基础评分(真实值)
+    base_score &lt;- true_scores[i]
+
+    # 随机变异(随轮次递减)
+    random_variation &lt;- runif(n_experts, 0, 3 * (1 - convergence_factor))
+
+    # 专家初始偏差(随轮次调整,逐步收敛)
+    if (round_num == 1) {
+      expert_bias &lt;- rnorm(n_experts, 0, 1.5)
+    } else if (round_num == 2) {
+      # 保留50%的偏差
+      prev_round_data &lt;- delphi_data |&gt; filter(round == round_num - 1)
+      prev_scores &lt;- prev_round_data[[paste0("item_", i)]]
+      expert_bias &lt;- (prev_scores - base_score) * 0.5
     } else {
-      searchResults.innerHTML = filterBar + '<div class="search-result-item"><div class="result-snippet">没有找到匹配的结果</div></div>';
-    }
-    searchResults.classList.add('visible');
-    
-    // 绑定过滤按钮事件
-    searchResults.querySelectorAll('.search-filter-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        currentSearchFilter = btn.dataset.filter;
-        performSearch(searchInput.value.trim());
-      });
-    });
-  }
-  
-  // ==================== 内容标签切换 ====================
-  const contentTabs = document.querySelectorAll('.content-tab');
-  const listingContainer = document.querySelector('.quarto-listing-container-grid .list');
-  let originalHTML = ''; // 保存原始 HTML
-  
-  // 保存原始卡片 HTML
-  if (listingContainer) {
-    originalHTML = listingContainer.innerHTML;
-  }
-  
-  // Fisher-Yates 洗牌算法
-  function shuffleArray(array) {
-    const arr = [...array];
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-  
-  // 从文件名推断封面图片路径
-  const imageMap = {
-    "0001-guide": "images/guide_cover.svg",
-    "0011-rmarkdown": "images/guide_cover.svg",
-    "0013-positron": "figure/positron-cover.svg",
-    "1011-rpac_brucer": "figure/bruceR-cover.png",
-    "1012-comparegroups": "figure/comparegroups-cover.png",
-    "1013-scitb": "images/gt-cover.svg",
-    "1014-future": "images/1014_cover.svg",
-    "1014-purrr": "figure/default-cover1.png",
-    "1015-health-economics": "figure/health-economics-cover.png",
-    "1016-mlr3": "figure/mlr3-cover.png",
-    "1017-timeseries": "figure/timeseries-cover.png",
-    "1018-psm": "figure/psm-cover.svg",
-    "1019-logistic": "figure/logistic-cover.png",
-    "1020-survival": "figure/survival-cover.png",
-    "1021-linear-regression": "figure/linear-regression-cover.png",
-    "1022-meta-analysis": "figure/meta-analysis-cover.png",
-    "1023-mediation": "figure/mediation-cover.png",
-    "1024-multilevel": "figure/multilevel-cover.png",
-    "1025-gam": "figure/gam-cover.png",
-    "1026-poisson": "figure/poisson-cover.png",
-    "1027-rcs": "figure/rcs-cover.png",
-    "1028-did": "figure/did-cover.png",
-    "1029-umbrella-review": "images/1029_cover.svg",
-    "1030-qualitative-research": "images/1030_cover.png",
-    "1031-lca": "images/1031_cover.svg",
-    "1032-sem": "images/1032_cover.svg",
-    "1033-dlnm": "images/1033_cover.svg",
-    "1034-nvmd": "images/1034_cover.svg",
-    "1035-fft-nvmd-gmm": "images/1035_cover.svg",
-    "1036-anova": "images/1036_cover.svg",
-    "1037-plspm": "images/1037_cover.svg",
-    "1038-efa-cfa": "images/1038_cover.svg",
-    "1039-pca": "images/1039_cover.svg",
-    "1040-scoping-review": "images/1040_cover.svg",
-    "1041-network-meta": "images/1041_cover.svg",
-    "1042-tidymodels": "images/tidymodels-cover.svg",
-    "1043-broom": "images/broom-cover.svg",
-    "1044-lstm": "images/lstm-cover.svg",
-    "1045-rstatix": "images/rstatix-cover.svg",
-    "1046-missing-data": "images/missing-data-cover.svg",
-    "1047-roc-analysis": "images/roc-analysis-cover.svg",
-    "1048-power-analysis": "images/power-analysis-cover.svg",
-    "1049-eda": "images/eda-cover.svg",
-    "1050-competing-risks": "images/competing-risks-cover.svg",
-    "1051-bayesian": "images/bayesian-cover.svg",
-    "1052-bootstrap": "images/bootstrap-cover.svg",
-    "1053-gtsummary": "images/gtsummary-cover.svg",
-    "1054-subgroup": "images/subgroup-cover.svg",
-    "1055-tx-effects-survival": "images/tx_effects_cover.svg",
-    "1056-dag": "images/dag_cover.svg",
-    "1057-target-trial": "images/target_trial_cover.svg",
-    "1058-mendelian-randomization": "images/mendelian_randomization_cover.svg",
-    "1059-evalue": "images/evalue_cover.svg",
-    "1060-instrumental-variables": "images/instrumental-variables-cover.svg",
-    "1061-random-survival-forest": "images/random-survival-forest-cover.svg",
-    "1062-treeage-pro": "images/treeage_cover.svg",
-    "1063-outlier-detection": "images/outlier-detection-cover.svg",
-    "1064-marginaleffects": "images/marginaleffects-cover.svg",
-    "1065-tmle-doubly-robust": "images/tmle-cover.svg",
-    "1066-causalimpact": "images/causalimpact-cover.svg",
-    "1067-gt-tables": "images/gt-cover.svg",
-    "1068-xgboost": "images/xgboost-cover.svg",
-    "1069-torch-deep-learning": "images/torch-cover.svg",
-    "1070-fairmetrics": "images/fairmetrics-cover.svg",
-    "1071-targets-workflow": "images/targets-cover.svg",
-    "1072-arrow-bigdata": "images/arrow-cover.svg",
-    "1073-prophet-forecasting": "images/prophet-cover.svg",
-    "1074-quantile-regression": "images/quantile-regression-cover.svg",
-    "1075-zero-inflated": "images/zero-inflated-cover.svg",
-    "1076-ipw-weighting": "images/ipw-cover.svg",
-    "1077-composite-endpoints": "images/composite-endpoints-cover.svg",
-    "1078-rstanarm-bayesian": "images/rstanarm-cover.svg",
-    "1079-kmeans": "images/1079-kmeans-cover.svg",
-    "1080-random-forest": "images/1080-random-forest-cover.svg",
-    "1081-svm": "images/1081-svm-cover.svg",
-    "1082-ensemble-learning": "images/1082-ensemble-learning-cover.svg",
-    "1083-dimensionality-reduction": "images/1083-dimensionality-reduction-cover.svg",
-    "1084-anomaly-detection": "images/1084-anomaly-detection-cover.svg",
-    "1085-gee": "images/1085-gee-cover.svg",
-    "1086-multiple-imputation": "images/1086-multiple-imputation-cover.svg",
-    "1087-msm-iptw": "images/1087-msm-iptw-cover.svg",
-    "1088-fine-gray": "images/1088-fine-gray-cover.svg",
-    "1089-time-varying-cox": "images/1089-time-varying-cox-cover.svg",
-    "1090-ps-weight-diagnostics": "images/1090-ps-weight-diagnostics-cover.svg",
-    "1091-advanced-target-trial": "images/1091-advanced-target-trial-cover.svg",
-    "1092-double-machine-learning": "images/1092-double-machine-learning.svg",
-    "1093-ordinal-regression": "images/1093-ordinal-regression.svg",
-    "1094-knn": "images/1094-knn-cover.svg",
-    "1095-naive-bayes": "images/1095-naive-bayes-cover.svg",
-    "1096-gbdt": "images/1096-gbdt-cover.svg",
-    "2011-viscolor": "figure/viscolor-cover.png",
-    "2012-patchwork": "figure/patchwork-cover.png",
-    "2013-legend": "figure/legend-cover.png",
-    "2014-sankey": "figure/sankey-cover.png",
-    "2015-map": "figure/map-cover.png",
-    "2016-forestplot": "figure/forestplot-cover.png",
-    "2017-ggtext": "figure/ggtext-cover.png",
-    "2018-tidyplots": "figure/tidyplots-cover.png",
-    "2019-dualaxis": "figure/dualaxis-cover.png",
-    "2020-heatmap": "figure/heatmap-cover.png",
-    "2021-cowplot": "figure/cowplot-cover.png",
-    "2022-ggally": "figure/ggally-cover.svg",
-    "2023-radar": "images/2023_cover.svg",
-    "2024-venn": "images/2024_cover.svg",
-    "2025-bindboxplot": "images/2025_cover.svg",
-    "2026-bindscatterplot": "images/2026_cover.svg",
-    "2027-bindhistogram": "images/2027_cover.svg",
-    "2028-bindbarchart": "images/2028_cover.svg",
-    "2029-bindlineplot": "images/2029_cover.svg",
-    "2030-bindareaplot": "images/2030_cover.svg",
-    "2031-bindcomplex": "images/2031_cover.svg",
-    "2032-ggplot2-intro": "images/ggplot2-intro-cover.svg",
-    "2033-ggplot2-styling": "images/ggplot2-styling-cover.png",
-    "2034-ggguides": "images/ggguides_cover.svg",
-    "2035-bindlollipop": "images/bindlollipop_cover.svg",
-    "2036-binddivergent": "images/binddivergent_cover.svg",
-    "2037-bindwaffle": "images/bindwaffle_cover.svg",
-    "2038-bindpyramid": "images/bindpyramid_cover.svg",
-    "2039-binddumbbell": "images/binddumbbell_cover.svg",
-    "2040-bindbubblechart": "images/bindbubblechart_cover.svg",
-    "2041-bindjitter": "images/bindjitter_cover.svg",
-    "2042-bindmarginal": "images/bindmarginal_cover.svg",
-    "2043-bindjoyplot": "images/bindjoyplot_cover.svg",
-    "2044-bindcalendar": "images/bindcalendar_cover.svg",
-    "2045-binddonut": "images/binddonut_cover.svg",
-    "2046-bindwaterfall": "images/bindwaterfall_cover.svg",
-    "2047-bindbullet": "images/bindbullet_cover.svg",
-    "2048-bindpeakvalley": "images/bindpeakvalley_cover.svg",
-    "2049-bindcorrplot": "images/bindcorrplot_cover.svg",
-    "2050-bindcountplot": "images/bindcountplot_cover.svg",
-    "2051-bindpairplot": "images/bindpairplot_cover.svg",
-    "2052-bindacf": "images/bindacf_cover.svg",
-    "2053-bindwordcloud": "images/bindwordcloud_cover.svg",
-    "2054-bindnetwork": "images/bindnetwork_cover.svg",
-    "2055-bindgantt": "images/bindgantt_cover.svg",
-    "2056-bindfunnel": "images/bindfunnel_cover.svg",
-    "2057-bindparallel": "images/bindparallel_cover.svg",
-    "2058-bindmosaic": "images/bindmosaic_cover.svg",
-    "2059-bindribbon": "images/bindribbon_cover.svg",
-    "2060-ml-visualization": "images/ml-visualization-cover.svg",
-    "2061-base-r-graphics": "images/base-r-graphics-cover.svg",
-    "2062-interactive-plot": "images/interactive-plot-cover.svg",
-    "3001-imports": "images/3012-readr-readxl-cover.svg",
-    "3002-datatable": "images/3002_cover.svg",
-    "3003-dplyr-tidyr": "images/dplyr-tidyr-cover.svg",
-    "3004-web-scraping": "images/web_scraping_cover.svg",
-    "3005-pdf-reading": "images/pdf_reading_cover.svg",
-    "3006-reproducible-research": "images/reproducible_cover.svg",
-    "3007-research-databases": "images/charls_cover.svg",
-    "3008-regexp": "images/3008-regexp-cover.svg",
-    "3009-datetime": "images/3009-datetime-cover.svg",
-    "3010-stringr": "images/3010-stringr-cover.svg",
-    "3011-forcats": "images/3011-forcats-cover.svg",
-    "3012-readr-readxl": "images/3012-readr-readxl-cover.svg",
-    "3013-duckplyr": "images/duckplyr-cover.svg",
-    "3014-janitor-cleaning": "images/janitor-cover.svg",
-    "3015-tidytable": "images/3015-tidytable-cover.svg",
-    "4001-shiny": "images/shiny_cover.svg",
-  };
-
-  function getImagePath(href) {
-    if (!href) return '';
-    const cleanHref = href.split('#')[0];
-    const basename = cleanHref.replace('.html', '').replace('.rmd', '').replace('.qmd', '');
-    return imageMap[basename] || `images/${basename}-cover.svg`;
-  }
-
-  
-  // 从 searchData 生成卡片 HTML
-  function generateCard(item) {
-    const href = item.href || '#';
-    const title = item.title || '无标题';
-    const section = item.section || '';
-    const text = item.text || '';
-    const desc = text.replace(/```[\s\S]*?```/g, '').replace(/\s+/g, ' ').substring(0, 100) + '...';
-    const imagePath = getImagePath(href);
-    
-    return `
-      <div class="quarto-grid-item card h-100 card-left borderless">
-        <p class="card-img-top">
-          <img loading="lazy" src="${imagePath}" class="thumbnail-image card-img" style="height: 180px;" onerror="this.parentElement.style.display='none'">
-        </p>
-        <a href="${href}" class="quarto-grid-link">
-          <div class="card-body post-contents">
-            <h5 class="no-anchor card-title listing-title">${title}</h5>
-            ${section ? `<div class="listing-categories"><div class="listing-category">${section}</div></div>` : ''}
-            <div class="card-text listing-description delink">${desc}</div>
-          </div>
-        </a>
-      </div>
-    `;
-  }
-  
-  contentTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      contentTabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      
-      const sortMode = tab.dataset.sort;
-      if (!listingContainer) return;
-      
-      if (sortMode === 'recent') {
-        // 最近更新 - 恢复原始顺序
-        listingContainer.innerHTML = originalHTML;
-      } else if (sortMode === 'hot' || sortMode === 'random') {
-        // 热门/随机 - 从所有教程中随机抽取
-        if (searchData.length === 0) {
-          listingContainer.innerHTML = '<div class="p-3 text-muted">暂无数据</div>';
-          return;
-        }
-        
-        // 随机抽取 18 个教程
-        const shuffled = shuffleArray(searchData);
-        const selected = shuffled.slice(0, 18);
-        
-        // 生成卡片
-        listingContainer.innerHTML = selected.map(item => generateCard(item)).join('');
-      }
-    });
-  });
-  
-  // ==================== 随机笔记侧边栏 ====================
-  const tocNav = document.querySelector('#TOC') || document.querySelector('.toc');
-  if (!tocNav) return;
-
-  tocNav.innerHTML = `<div class="random-tip-sidebar"><div class="tip-header">📚 随机笔记</div><div class="tip-desc">加载中...</div></div>`;
-
-  try {
-    const sections = searchData.filter(item => item.section && item.section.length > 0);
-    
-    if (sections.length === 0) {
-      throw new Error('没有找到有效章节');
+      # 保留25%的偏差
+      prev_round_data &lt;- delphi_data |&gt; filter(round == round_num - 1)
+      prev_scores &lt;- prev_round_data[[paste0("item_", i)]]
+      expert_bias &lt;- (prev_scores - base_score) * 0.25
     }
 
-    const section = sections[Math.floor(Math.random() * sections.length)];
-    
-    let content = (section.text || '')
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/##[^\n]*/g, '')
-      .replace(/\|[^\n]*\|/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    if (content.length > 150) {
-      content = content.substring(0, 150).trim() + '...';
-    }
-    
-    const articleTitle = section.title || '笔记';
-    
-    tocNav.innerHTML = `
-      <div class="random-tip-sidebar">
-        <div class="tip-header">📚 随机笔记</div>
-        <div class="tip-section">${section.section}</div>
-        <div class="tip-desc">${content}</div>
-        <div class="tip-from">—— ${articleTitle}</div>
-        <div class="tip-actions">
-          <a href="${section.href}" class="tip-btn">阅读详情 →</a>
-          <span class="tip-refresh" onclick="location.reload()">🎲 换一篇</span>
-        </div>
-      </div>
-    `;
-  } catch (error) {
-    tocNav.innerHTML = `
-      <div class="random-tip-sidebar">
-        <div class="tip-header">📚 随机笔记</div>
-        <div class="tip-desc">请在服务器环境下查看随机笔记功能</div>
-        <div class="tip-actions">
-          <a href="1011-rpac_brucer.html" class="tip-btn">浏览教程 →</a>
-        </div>
-      </div>
-    `;
-  }
-});
+    # 最终评分(限制在1-9之间)
+    final_scores &lt;- base_score + expert_bias + random_variation
+    final_scores &lt;- pmax(pmin(final_scores, 9), 1)  # 限制在[1, 9]范围内
+    final_scores &lt;- round(final_scores, 1)
 
-// 分类标签颜色区分
-document.addEventListener('DOMContentLoaded', function() {
-  function applyCategoryColors() {
-    const categories = document.querySelectorAll('.listing-category');
-    categories.forEach(cat => {
-      const text = cat.textContent.trim();
-      
-      // 实用R包 - 蓝色系
-      if (text.includes('实用R包') || text.includes('表格制作') || text.includes('数据处理') || text.includes('模型整理') || text.includes('模型解释')) {
-        cat.style.backgroundColor = '#dbeafe';
-        cat.style.color = '#1e40af';
-      }
-      // 可视化教程 - 紫色系
-      else if (text.includes('可视化') || text.includes('统计图表') || text.includes('图形') || text.includes('美化') || text.includes('ggplot')) {
-        cat.style.backgroundColor = '#ede9fe';
-        cat.style.color = '#5b21b6';
-      }
-      // R语言方法 - 绿色系
-      else if (text.includes('R语言方法') || text.includes('回归') || text.includes('生存分析') || text.includes('因果推断') || text.includes('机器学习') || text.includes('建模') || text.includes('XGBoost') || text.includes('TMLE')) {
-        cat.style.backgroundColor = '#dcfce7';
-        cat.style.color = '#166534';
-      }
-      // 实用操作 - 橙色系
-      else if (text.includes('实用操作') || text.includes('数据输入') || text.includes('工作流程') || text.includes('数据预处理')) {
-        cat.style.backgroundColor = '#ffedd5';
-        cat.style.color = '#c2410c';
-      }
-      // 入门指南 - 青色系
-      else if (text.includes('入门') || text.includes('指南') || text.includes('基础')) {
-        cat.style.backgroundColor = '#ccfbf1';
-        cat.style.color = '#0f766e';
-      }
-      // 默认样式
-      else {
-        cat.style.backgroundColor = '#f3f4f6';
-        cat.style.color = '#4b5563';
-      }
-      
-      // 通用样式
-      cat.style.padding = '0.2rem 0.6rem';
-      cat.style.borderRadius = '4px';
-      cat.style.fontSize = '0.75rem';
-      cat.style.fontWeight = '500';
-      cat.style.marginRight = '0.25rem';
-      cat.style.display = 'inline-block';
-    });
-  }
-  
-  // 初始应用
-  applyCategoryColors();
-  
-  // 监听分页变化
-  const observer = new MutationObserver(applyCategoryColors);
-  const listing = document.querySelector('.quarto-listing');
-  if (listing) {
-    observer.observe(listing, { childList: true, subtree: true });
-  }
-});
-
-// ==================== 自定义侧边栏卡片 ====================
-document.addEventListener('DOMContentLoaded', function() {
-  // 等待搜索数据加载完成后再构建侧边栏
-  setTimeout(() => {
-    const marginSidebar = document.querySelector('#quarto-margin-sidebar');
-    if (!marginSidebar) return;
-
-    const isSectionPage = window.location.pathname.includes('/sections/');
-    const resolvePath = (path) => {
-      if (isSectionPage) {
-        if (!path.startsWith('sections/')) return '../' + path;
-        return path.replace('sections/', '');
-      }
-      return path;
-    };
-
-    const customSidebarContainer = document.createElement('div');
-    customSidebarContainer.className = 'custom-sidebar-cards';
-
-    const quickLinksHtml = `
-      <div class="sidebar-card quick-links">
-        <div class="sidebar-card-header"><span class="header-icon">🚀</span> 快捷入口</div>
-        <div class="quick-links-grid">
-          <a href="${resolvePath('0001-guide.html')}" class="quick-link-item" title="学习路线"><span class="emoji">🗺️</span><span class="text">路线</span></a>
-          <a href="${resolvePath('sections/packages.html')}" class="quick-link-item" title="实用R包"><span class="emoji">📦</span><span class="text">R包</span></a>
-          <a href="${resolvePath('sections/visualization.html')}" class="quick-link-item" title="可视化"><span class="emoji">🎨</span><span class="text">绘图</span></a>
-          <a href="${resolvePath('sections/statistics.html')}" class="quick-link-item" title="统计方法"><span class="emoji">📐</span><span class="text">统计</span></a>
-          <a href="${resolvePath('sections/machine-learning.html')}" class="quick-link-item" title="机器学习"><span class="emoji">🤖</span><span class="text">ML/AI</span></a>
-          <a href="${resolvePath('sections/operation.html')}" class="quick-link-item" title="实用操作"><span class="emoji">🛠️</span><span class="text">实操</span></a>
-        </div>
-      </div>
-    `;
-
-    // 每日推荐卡片逻辑 - 支持多个推荐和刷新
-    let recommendationHtml = '';
-    const data = window.searchData || [];
-    const filteredData = data.filter(item => item && item.title && item.href && item.title.length > 0);
-    
-    // 获取随机推荐（不重复）
-    function getRandomItems(arr, count) {
-      const shuffled = [...arr].sort(() => Math.random() - 0.5);
-      return shuffled.slice(0, Math.min(count, arr.length));
-    }
-    
-    // 渲染推荐卡片
-    function renderRecommendations(container) {
-      if (filteredData.length === 0) return;
-      
-      const items = getRandomItems(filteredData, 3); // 显示3个推荐
-      const cardsHtml = items.map((item, idx) => `
-        <div class="recommend-item" data-index="${idx}">
-          <span class="recommend-tag">${item.section || '精选'}</span>
-          <a href="${item.href}" class="recommend-title">${item.title}</a>
-        </div>
-      `).join('');
-      
-      container.innerHTML = `
-        <div class="sidebar-card-header">
-          <span class="header-icon">🎯</span> 随机推荐
-          <span class="refresh-btn" title="换一批" id="refresh-recommendations">🔄</span>
-        </div>
-        <div class="recommend-list">
-          ${cardsHtml}
-        </div>
-      `;
-      
-      // 绑定刷新按钮事件
-      const refreshBtn = container.querySelector('#refresh-recommendations');
-      if (refreshBtn) {
-        refreshBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          refreshBtn.style.transform = 'rotate(360deg)';
-          setTimeout(() => {
-            refreshBtn.style.transform = 'rotate(0deg)';
-            renderRecommendations(container);
-          }, 300);
-        });
-      }
-    }
-    
-    // 创建推荐卡片容器
-    const recommendCard = document.createElement('div');
-    recommendCard.className = 'sidebar-card recommendations';
-    
-    customSidebarContainer.innerHTML = quickLinksHtml;
-    customSidebarContainer.appendChild(recommendCard);
-    
-    // 渲染初始推荐
-    if (filteredData.length > 0) {
-      renderRecommendations(recommendCard);
-    }
-    
-    const toc = marginSidebar.querySelector('#TOC') || marginSidebar.querySelector('nav');
-    if (toc) toc.after(customSidebarContainer);
-    else marginSidebar.appendChild(customSidebarContainer);
-  }, 500); // 等待 500ms 确保搜索数据已加载
-});
-</script>
-<style>
-/* Force sidebar visibility and fix scroll/click issues */
-#quarto-margin-sidebar {
-  display: block !important;
-  width: 280px !important;
-  min-width: 280px !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  position: sticky !important;
-  top: 80px !important;
-  height: fit-content !important;
-  max-height: calc(100vh - 100px) !important;
-  overflow-y: auto !important;
-  z-index: 1000 !important;
-  pointer-events: auto !important;
-}
-
-/* Hide potential overlay elements that might block clicks on RIGHT sidebar */
-.quarto-sidebar-toggle-title,
-.zindex-over-content,
-#quarto-toc-toggle,
-#quarto-margin-sidebar > nav,
-#quarto-margin-sidebar > .nav-page {
-  display: none !important;
-  pointer-events: none !important;
-  visibility: hidden !important;
-}
-
-/* Ensure custom sidebar cards are always visible and clickable */
-.custom-sidebar-cards {
-  display: flex !important;
-  flex-direction: column;
-  gap: 1rem;
-  pointer-events: auto !important;
-  position: relative !important;
-  z-index: 1001 !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-.sidebar-card {
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-  overflow: hidden;
-  pointer-events: auto !important;
-  position: relative !important;
-  z-index: 1002 !important;
-}
-
-.sidebar-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
-}
-
-.sidebar-card-header {
-  background: #f8fafc;
-  padding: 0.6rem 0.9rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #64748b;
-  border-bottom: 1px solid #f1f5f9;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.quick-links-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  padding: 0.75rem 0.5rem;
-  gap: 0.5rem;
-}
-
-.quick-link-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.6rem 0.25rem;
-  text-decoration: none;
-  color: #64748b;
-  border-radius: 8px;
-  pointer-events: auto !important;
-  cursor: pointer;
-  position: relative !important;
-  z-index: 1003 !important;
-}
-
-.quick-link-item:hover {
-  background: #f1f5f9;
-  color: #4f46e5;
-}
-
-.quick-link-item .emoji {
-  font-size: 1.25rem;
-  margin-bottom: 0.35rem;
-}
-
-.quick-link-item .text {
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.daily-card-body {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.daily-tag {
-  font-size: 0.65rem;
-  background: #eef2ff;
-  color: #4f46e5;
-  padding: 2px 8px;
-  border-radius: 999px;
-  margin-bottom: 0.6rem;
-  width: fit-content;
-}
-
-.daily-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 0.6rem;
-  text-decoration: none;
-  pointer-events: auto !important;
-  cursor: pointer;
-}
-
-.daily-title:hover {
-  color: #4f46e5;
-}
-
-.daily-desc {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  margin-bottom: 1rem;
-}
-
-.daily-btn {
-  font-size: 0.8rem;
-  color: #4f46e5;
-  font-weight: 600;
-  text-decoration: none;
-  pointer-events: auto !important;
-  cursor: pointer;
-}
-
-/* 新的推荐列表样式 */
-.sidebar-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.refresh-btn {
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: transform 0.3s ease;
-  user-select: none;
-  opacity: 0.6;
-}
-
-.refresh-btn:hover {
-  opacity: 1;
-  transform: rotate(180deg);
-}
-
-.recommend-list {
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.recommend-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.6rem 0.75rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.recommend-item:hover {
-  background: #eef2ff;
-  transform: translateX(3px);
-}
-
-.recommend-tag {
-  font-size: 0.6rem;
-  background: #e0e7ff;
-  color: #4338ca;
-  padding: 2px 6px;
-  border-radius: 4px;
-  width: fit-content;
-  font-weight: 500;
-}
-
-.recommend-title {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #334155;
-  text-decoration: none;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.recommend-title:hover {
-  color: #4f46e5;
-}
-
-.homepage-search-script {
-  display: none;
-}
-/* 去掉外层 toc 的默认样式 */
-#TOC, .toc,
-.sidebar,
-.sidebar-navigation,
-nav.toc-active,
-#quarto-margin-sidebar {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-}
-
-
-/* 移动端隐藏右侧边栏 */
-@media (max-width: 991px) {
-  #quarto-margin-sidebar,
-  .sidebar.toc-left,
-  .margin-sidebar {
-    display: none !important;
-  }
-}
-
-.random-tip-sidebar {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e2e8f0;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 顶部装饰条 */
-.random-tip-sidebar::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-}
-
-.random-tip-sidebar .tip-header {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
-}
-
-.random-tip-sidebar .tip-section {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 0.6rem;
-  line-height: 1.4;
-}
-
-.random-tip-sidebar .tip-desc {
-  font-size: 0.85rem;
-  color: #64748b;
-  line-height: 1.6;
-  margin-bottom: 0.6rem;
-}
-
-.random-tip-sidebar .tip-from {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  font-style: italic;
-  margin-bottom: 0.8rem;
-}
-
-.random-tip-sidebar .tip-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 0.75rem;
-  border-top: 1px solid #f1f5f9;
-}
-
-.random-tip-sidebar .tip-btn {
-  display: inline-block;
-  font-size: 0.8rem;
-  color: white !important;
-  background: #3b82f6;
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  text-decoration: none !important;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.random-tip-sidebar .tip-btn:hover {
-  background: #2563eb;
-  transform: translateY(-1px);
-}
-
-.random-tip-sidebar .tip-refresh {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: color 0.2s;
-  user-select: none;
-}
-
-.random-tip-sidebar .tip-refresh:hover {
-  color: #64748b;
-}
-</style>
-</section>
-<section id="统计建模方法库" class="level2 hero-section">
-<h2 class="anchored" data-anchor-id="统计建模方法库">📊 统计建模方法库</h2>
-<p>这里收集了使用 R 语言实现的各类分析方法，涵盖<strong>回归分析</strong>、<strong>生存分析</strong>、<strong>因果推断</strong>、<strong>高级建模</strong>等领域。</p>
-</section>
-<div class="method-categories">
-<section id="基础回归" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="基础回归">📊 基础回归</h3>
-<p>经典回归方法</p>
-<ul>
-<li><a href="../1019-logistic.html"><strong>Logistic 回归</strong></a></li>
-<li><a href="../1021-linear-regression.html"><strong>多元线性回归</strong></a></li>
-<li><a href="../1112-robust-linear-regression.html"><strong>稳健线性回归</strong></a></li>
-<li><a href="../1104-ridge-lasso.html"><strong>岭回归与 Lasso</strong></a></li>
-<li><a href="../1105-regression-feature-selection.html"><strong>回归特征筛选</strong></a></li>
-<li><a href="../1026-poisson.html"><strong>Poisson/负二项回归</strong></a></li>
-<li><a href="../1036-anova.html"><strong>方差分析 (ANOVA)</strong></a></li>
-<li><a href="../1074-quantile-regression.html"><strong>分位数回归</strong></a></li>
-<li><a href="../1075-zero-inflated.html"><strong>零膨胀模型</strong></a></li>
-<li><a href="../1113-threshold-effects.html"><strong>阈值效应分析</strong></a></li>
-<li><a href="../1093-ordinal-regression.html"><strong>有序回归</strong></a></li>
-</ul>
-</section>
-<section id="生存分析" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="生存分析">⏱️ 生存分析</h3>
-<p>事件时间研究</p>
-<ul>
-<li><a href="../1020-survival.html"><strong>生存分析</strong></a></li>
-<li><a href="../1050-competing-risks.html"><strong>竞争风险分析</strong></a></li>
-<li><a href="../1027-rcs.html"><strong>限制性立方样条 (RCS)</strong></a></li>
-<li><a href="../1017-timeseries.html"><strong>时间序列分析</strong></a></li>
-<li><a href="../1055-tx-effects-survival.html"><strong>治疗效果分析</strong></a></li>
-<li><a href="../1061-random-survival-forest.html"><strong>随机生存森林 (RSF)</strong></a></li>
-<li><a href="../1077-composite-endpoints.html"><strong>复合结局分析</strong></a></li>
-</ul>
-</section>
-<section id="因果推断" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="因果推断">🎯 因果推断</h3>
-<p>从关联到因果</p>
-<ul>
-<li><a href="../1018-psm.html"><strong>倾向性得分匹配</strong></a></li>
-<li><a href="../1028-did.html"><strong>双重差分法 (DiD)</strong></a></li>
-<li><a href="../1023-mediation.html"><strong>中介效应分析</strong></a></li>
-<li><a href="../1054-subgroup.html"><strong>亚组分析与交互作用</strong></a></li>
-<li><a href="../1056-dag.html"><strong>DAG 因果图</strong></a></li>
-<li><a href="../1057-target-trial.html"><strong>目标试验模拟</strong></a></li>
-<li><a href="../1058-mendelian-randomization.html"><strong>孟德尔随机化</strong></a></li>
-<li><a href="../1060-instrumental-variables.html"><strong>工具变量法 (IV)</strong></a></li>
-<li><a href="../1059-evalue.html"><strong>E值敏感性分析</strong></a></li>
-<li><a href="../1065-tmle-doubly-robust.html"><strong>TMLE 双重稳健估计</strong></a></li>
-<li><a href="../1066-causalimpact.html"><strong>CausalImpact 时间序列因果</strong></a></li>
-<li><a href="../1076-ipw-weighting.html"><strong>IPW 倒概率加权</strong></a></li>
-<li><a href="../1092-double-machine-learning.html"><strong>双重机器学习 (DML)</strong></a></li>
-</ul>
-</section>
-<section id="高级建模" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="高级建模">📐 高级建模</h3>
-<p>复杂数据结构</p>
-<ul>
-<li><a href="../1024-multilevel.html"><strong>多水平模型</strong></a></li>
-<li><a href="../1025-gam.html"><strong>广义加性模型 (GAM)</strong></a></li>
-<li><a href="../1085-gee.html"><strong>广义估计方程 (GEE)</strong></a></li>
-<li><a href="../1086-multiple-imputation.html"><strong>多重插补</strong></a></li>
-<li><a href="../1087-msm-iptw.html"><strong>边际结构模型 (MSM) 与 IPTW</strong></a></li>
-<li><a href="../1088-fine-gray.html"><strong>Fine-Gray 竞争风险模型</strong></a></li>
-<li><a href="../1089-time-varying-cox.html"><strong>时变协变量 Cox 模型</strong></a></li>
-<li><a href="../1090-ps-weight-diagnostics.html"><strong>倾向评分权重诊断</strong></a></li>
-<li><a href="../1091-advanced-target-trial.html"><strong>目标试验模拟进阶</strong></a></li>
-<li><a href="../1032-sem.html"><strong>结构方程模型 (SEM)</strong></a></li>
-<li><a href="../1097-clpm.html"><strong>交叉滞后面板模型 (CLPM)</strong></a></li>
-<li><a href="../1031-lca.html"><strong>潜类别分析 (LCA)</strong></a></li>
-<li><a href="../1098-gbtm.html"><strong>基于群组的轨迹模型 (GBTM)</strong></a></li>
-<li><a href="../1039-pca.html"><strong>主成分分析 (PCA)</strong></a></li>
-<li><a href="../1100-markov.html"><strong>马尔可夫模型</strong></a></li>
-<li><a href="../1038-efa-cfa.html"><strong>因子分析 (EFA/CFA)</strong></a></li>
-<li><a href="../1037-plspm.html"><strong>PLS-PM 路径模型</strong></a></li>
-</ul>
-</section>
-<section id="贝叶斯统计" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="贝叶斯统计">📈 贝叶斯统计</h3>
-<p>概率推断方法</p>
-<ul>
-<li><a href="../1051-bayesian.html"><strong>贝叶斯统计入门</strong></a></li>
-<li><a href="../1078-rstanarm-bayesian.html"><strong>rstanarm 贝叶斯回归</strong></a></li>
-<li><a href="../1111-bayesian-multilevel-negbin.html"><strong>贝叶斯多层负二项回归</strong></a></li>
-<li><a href="../1073-prophet-forecasting.html"><strong>prophet 时间序列预测</strong></a></li>
-</ul>
-</section>
-<section id="模型评估" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="模型评估">🎯 模型评估</h3>
-<p>验证与诊断</p>
-<ul>
-<li><a href="../1052-bootstrap.html"><strong>Bootstrap与置换检验</strong></a></li>
-<li><a href="../1047-roc-analysis.html"><strong>ROC 分析</strong></a></li>
-<li><a href="../1100-auc-auprc.html"><strong>AUC 与 AUPRC 对比</strong></a></li>
-<li><a href="../1102-dca.html"><strong>决策曲线分析 (DCA)</strong></a></li>
-<li><a href="../1109-nomogram.html"><strong>列线图 (Nomogram)</strong></a></li>
-<li><a href="../1103-robustness-analysis.html"><strong>回归模型稳健性分析</strong></a></li>
-<li><a href="../1048-power-analysis.html"><strong>样本量计算</strong></a></li>
-<li><a href="../1049-eda.html"><strong>探索性数据分析</strong></a></li>
-</ul>
-</section>
-<section id="综述方法" class="level3 category-card">
-<h3 class="anchored" data-anchor-id="综述方法">📚 综述方法</h3>
-<p>证据综合</p>
-<ul>
-<li><a href="../1022-meta-analysis.html"><strong>Meta 分析</strong></a></li>
-<li><a href="../1041-network-meta.html"><strong>网状 Meta 分析</strong></a></li>
-<li><a href="../1029-umbrella-review.html"><strong>伞状综述</strong></a></li>
-<li><a href="../1040-scoping-review.html"><strong>范围综述</strong></a></li>
-</ul>
-</section>
-</div>
-<style>
-/* 禁用此页面的所有自动编号 */
-h2::before, h3::before {
-  content: none !important;
-  counter-increment: none !important;
-}
-
-section.level2, section.level3 {
-  counter-reset: none !important;
-}
-
-#title-block-header {
-  margin-bottom: 1rem !important;
-}
-
-.hero-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  color: white !important;
-  padding: 2rem !important;
-  border-radius: 16px !important;
-  margin-bottom: 1.5rem !important;
-  margin-top: 0 !important;
-  text-align: center !important;
-}
-
-.hero-section * {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-
-.hero-section h2 {
-  color: white !important;
-  border-bottom: none !important;
-  margin-top: 0 !important;
-  margin-bottom: 0.5rem !important;
-  font-size: 1.6rem !important;
-}
-
-.hero-section p {
-  color: rgba(255,255,255,0.9) !important;
-  font-size: 1rem !important;
-  max-width: 700px !important;
-  margin: 0 auto !important;
-}
-
-.method-categories {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.category-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  border: 1px solid #e5e7eb;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.category-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
-}
-
-.category-card h3 {
-  font-size: 1.1rem;
-  color: #1f2937;
-  margin-top: 0;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid #e0e7ff;
-}
-
-.category-card p {
-  font-size: 0.85rem;
-  color: #6b7280;
-  margin-bottom: 0.75rem;
-}
-
-.category-card ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.category-card li {
-  padding: 0.4rem 0;
-  font-size: 0.9rem;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.category-card li:last-child {
-  border-bottom: none;
-}
-
-.category-card a {
-  color: #4f46e5;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.category-card a:hover {
-  color: #3730a3;
-}
-
-@media (max-width: 768px) {
-  .method-categories {
-    grid-template-columns: 1fr;
+    round_data[[paste0("item_", i)]] &lt;- final_scores
   }
 
-  .hero-section {
-    padding: 1.5rem;
-  }
-
-  .hero-section h2 {
-    font-size: 1.4rem;
-  }
+  delphi_data &lt;- bind_rows(delphi_data, round_data)
 }
-</style>
+
+# 添加专家信息
+delphi_data &lt;- delphi_data |&gt;
+  left_join(experts, by = "expert_id")
+
+# 查看数据结构
+delphi_data |&gt; head(10)</code></pre>
+</section>
+<section id="数据清洗与预处理" class="level3">
+<h3 class="anchored" data-anchor-id="数据清洗与预处理">数据清洗与预处理</h3>
+<pre class="{r}"><code># 检查缺失值
+delphi_data |&gt;
+  summarise(across(starts_with("item_"), ~ sum(is.na(.))))
+
+# 检查评分范围(是否超出1-9)
+delphi_data |&gt;
+  pivot_longer(cols = starts_with("item_"), names_to = "item", values_to = "score") |&gt;
+  group_by(item) |&gt;
+  summarise(
+    min_score = min(score, na.rm = TRUE),
+    max_score = max(score, na.rm = TRUE)
+  )
+
+# 检查专家回复率
+reply_rate &lt;- delphi_data |&gt;
+  group_by(round) |&gt;
+  summarise(
+    total_experts = n_distinct(expert_id),
+    replied_experts = sum(!is.na(item_1))  # 假设item_1完整回复
+  ) |&gt;
+  mutate(reply_rate = replied_experts / total_experts * 100)
+
+reply_rate</code></pre>
+<hr>
+</section>
+</section>
+<section id="完整分析流程" class="level2">
+<h2 class="anchored" data-anchor-id="完整分析流程">完整分析流程</h2>
+<section id="步骤1-描述性统计与共识初步评估" class="level3">
+<h3 class="anchored" data-anchor-id="步骤1-描述性统计与共识初步评估">步骤1: 描述性统计与共识初步评估</h3>
+<p>首先,我们计算每一轮、每个议题的描述性统计量,包括均值、标准差、变异系数等。</p>
+<pre class="{r}"><code># 计算每轮每项的描述性统计
+summary_stats &lt;- delphi_data |&gt;
+  pivot_longer(
+    cols = starts_with("item_"),
+    names_to = "item",
+    values_to = "score"
+  ) |&gt;
+  group_by(round, item) |&gt;
+  summarise(
+    n = sum(!is.na(score)),
+    mean_score = mean(score, na.rm = TRUE),
+    sd_score = sd(score, na.rm = TRUE),
+    min_score = min(score, na.rm = TRUE),
+    q25 = quantile(score, 0.25, na.rm = TRUE),
+    median_score = median(score, na.rm = TRUE),
+    q75 = quantile(score, 0.75, na.rm = TRUE),
+    max_score = max(score, na.rm = TRUE),
+    .groups = "drop"
+  ) |&gt;
+  mutate(
+    cv_score = sd_score / mean_score * 100,  # 变异系数
+    item_name = case_when(
+      item == "item_1" ~ item_names[1],
+      item == "item_2" ~ item_names[2],
+      item == "item_3" ~ item_names[3],
+      item == "item_4" ~ item_names[4],
+      item == "item_5" ~ item_names[5],
+      item == "item_6" ~ item_names[6],
+      item == "item_7" ~ item_names[7],
+      item == "item_8" ~ item_names[8]
+    ),
+    round_label = paste("第", round, "轮")
+  )
+
+# 查看第一轮的统计结果
+summary_stats |&gt;
+  filter(round == 1) |&gt;
+  select(round_label, item_name, n, mean_score, sd_score, cv_score) |&gt;
+  arrange(desc(mean_score))</code></pre>
+<p><strong>结果解读</strong>: - <code>mean_score</code>: 专家的平均评分,反映对该议题的重要性评价 - <code>sd_score</code>: 标准差,反映意见的离散程度 - <code>cv_score</code>: 变异系数,标准化离散程度,便于比较不同议题</p>
+</section>
+<section id="步骤2-共识程度评估" class="level3">
+<h3 class="anchored" data-anchor-id="步骤2-共识程度评估">步骤2: 共识程度评估</h3>
+<p>根据变异系数(CV)判断共识程度:</p>
+<pre class="{r}"><code># 判断共识程度
+consensus_level &lt;- summary_stats |&gt;
+  mutate(
+    consensus = case_when(
+      cv_score &lt;= 10 ~ "强共识",
+      cv_score &lt;= 20 ~ "中等共识",
+      cv_score &lt;= 30 ~ "弱共识",
+      TRUE ~ "未达成共识"
+    )
+  )
+
+# 查看第三轮的共识结果
+consensus_result &lt;- consensus_level |&gt;
+  filter(round == 3) |&gt;
+  select(item_name, mean_score, cv_score, consensus) |&gt;
+  arrange(cv_score)
+
+consensus_result</code></pre>
+</section>
+<section id="步骤3-可视化分析" class="level3">
+<h3 class="anchored" data-anchor-id="步骤3-可视化分析">步骤3: 可视化分析</h3>
+<section id="箱线图-展示每轮每项的评分分布" class="level4">
+<h4 class="anchored" data-anchor-id="箱线图-展示每轮每项的评分分布">3.1 箱线图: 展示每轮每项的评分分布</h4>
+<p>```{r fig.height=8, fig.width=12} # 准备绘图数据 plot_data &lt;- delphi_data |&gt; pivot_longer( cols = starts_with(“item_”), names_to = “item”, values_to = “score” ) |&gt; mutate( item_name = case_when( item == “item_1” ~ item_names[1], item == “item_2” ~ item_names[2], item == “item_3” ~ item_names[3], item == “item_4” ~ item_names[4], item == “item_5” ~ item_names[5], item == “item_6” ~ item_names[6], item == “item_7” ~ item_names[7], item == “item_8” ~ item_names[8] ), round_label = paste(“第”, round, “轮”) ) |&gt; left_join( consensus_level |&gt; select(round, item, consensus), by = c(“round”, “item”) )</p>
+</section>
+</section>
+</section>
+<section id="计算每个议题的最终平均分用于排序" class="level1">
+<h1>计算每个议题的最终平均分,用于排序</h1>
+<p>item_order &lt;- plot_data |&gt; filter(round == 3) |&gt; group_by(item_name) |&gt; summarise(final_mean = mean(score, na.rm = TRUE), .groups = “drop”) |&gt; arrange(final_mean) |&gt; pull(item_name)</p>
+</section>
+<section id="绘制箱线图" class="level1">
+<h1>绘制箱线图</h1>
+<p>p1 &lt;- ggplot(plot_data, aes(x = factor(item_name, levels = item_order), y = score, fill = round_label)) + geom_boxplot(alpha = 0.8, position = position_dodge(width = 0.8)) + geom_jitter( aes(color = round_label), width = 0.1, alpha = 0.3 ) + facet_wrap(~ round_label, ncol = 3) + scale_fill_brewer(palette = “Set2”) + scale_color_brewer(palette = “Set2”) + labs( title = “德尔菲调查评分分布”, subtitle = “展示三轮调查中各议题的评分分布与收敛情况”, x = “议题”, y = “评分(1-9)”, fill = “调查轮次”, color = “调查轮次” ) + theme_minimal(base_size = 12) + theme( legend.position = “bottom”, axis.text.x = element_text(angle = 45, hjust = 1) )</p>
+<p>p1</p>
+<pre><code>
+**图表解读**:
+- 箱体表示中间50%专家的评分范围
+- 中线表示中位数评分
+- 离散点表示个别专家的极端观点
+- 从左到右三轮,可以观察到箱体逐渐变窄,说明意见在收敛
+
+#### 3.2 变异系数趋势图: 展示共识收敛过程
+
+```{r fig.height=8, fig.width=12}
+# 绘制变异系数趋势图
+p2 &lt;- consensus_level |&gt;
+  mutate(
+    round_label = paste("第", round, "轮"),
+    consensus_order = case_when(
+      consensus == "强共识" ~ 1,
+      consensus == "中等共识" ~ 2,
+      consensus == "弱共识" ~ 3,
+      consensus == "未达成共识" ~ 4
+    )
+  ) |&gt;
+  ggplot(aes(x = factor(round), y = cv_score, group = item, color = item_name)) +
+  geom_line(size = 1) +
+  geom_point(size = 3, aes(shape = consensus)) +
+  scale_color_brewer(palette = "Paired") +
+  scale_shape_manual(
+    values = c("强共识" = 16, "中等共识" = 15, "弱共识" = 17, "未达成共识" = 4),
+    name = "共识程度"
+  ) +
+  geom_hline(yintercept = 10, linetype = "dashed", color = "green", alpha = 0.5) +
+  geom_hline(yintercept = 20, linetype = "dashed", color = "orange", alpha = 0.5) +
+  geom_hline(yintercept = 30, linetype = "dashed", color = "red", alpha = 0.5) +
+  annotate(
+    "text",
+    x = 0.5,
+    y = c(8, 18, 28, 35),
+    label = c("强共识(CV≤10%)", "中等共识(CV≤20%)", "弱共识(CV≤30%)", "未达成共识"),
+    size = 3, color = c("green", "orange", "red", "black"), hjust = 1
+  ) +
+  labs(
+    title = "德尔菲调查共识收敛过程",
+    subtitle = "变异系数随轮次变化,曲线下降表示共识增强",
+    x = "调查轮次",
+    y = "变异系数(CV%)",
+    color = "议题"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "right",
+    legend.key.height = unit(2, "cm")
+  )
+
+p2</code></pre>
+<p><strong>图表解读</strong>: - 曲线下降:表示专家意见在收敛 - 曲线趋于水平:表示意见趋于稳定 - 最终CV值越低,共识越强</p>
+<section id="评分均值趋势图-展示重要性的排序稳定性" class="level4">
+<h4 class="anchored" data-anchor-id="评分均值趋势图-展示重要性的排序稳定性">3.3 评分均值趋势图: 展示重要性的排序稳定性</h4>
+<p>```{r fig.height=8, fig.width=12} # 绘制评分均值趋势图 p3 &lt;- consensus_level |&gt; mutate(round_label = paste(“第”, round, “轮”)) |&gt; ggplot(aes(x = factor(round), y = mean_score, group = item, color = item_name)) + geom_line(size = 1) + geom_point(size = 3) + scale_color_brewer(palette = “Paired”) + labs( title = “德尔菲调查评分均值趋势”, subtitle = “展示各议题重要性的排序稳定性”, x = “调查轮次”, y = “平均评分”, color = “议题” ) + theme_minimal(base_size = 12) + theme(legend.position = “right”, legend.key.height = unit(2, “cm”))</p>
+<p>p3</p>
+<pre><code>
+**图表解读**:
+- 曲线交叉:表示排序发生变化
+- 曲线平行:表示排序稳定
+- 最终评分越高的议题,重要性越高
+
+#### 3.4 共识热图: 直观展示共识状态
+
+```{r fig.height=6, fig.width=10}
+# 准备热图数据
+heatmap_data &lt;- consensus_level |&gt;
+  mutate(
+    round_label = paste("第", round, "轮"),
+    cv_numeric = cv_score
+  ) |&gt;
+  select(round_label, item_name, cv_numeric) |&gt;
+  pivot_wider(names_from = round_label, values_from = cv_numeric)
+
+# 绘制热图
+library(reshape2)
+heatmap_matrix &lt;- heatmap_data |&gt;
+  column_to_rownames(var = "item_name") |&gt;
+  as.matrix()
+
+p4 &lt;- ggplot(melt(heatmap_matrix), aes(x = Var2, y = Var1, fill = value)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = round(value, 1)), color = "white", size = 4, fontface = "bold") +
+  scale_fill_gradient2(
+    low = "red", mid = "yellow", high = "green",
+    midpoint = 20,
+    limits = c(0, 40),
+    name = "变异系数(CV%)"
+  ) +
+  labs(
+    title = "德尔菲调查共识状态热图",
+    subtitle = "绿色表示强共识,红色表示弱共识",
+    x = "调查轮次",
+    y = "议题"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    legend.position = "right"
+  )
+
+p4</code></pre>
+<p><strong>图表解读</strong>: - 绿色区域:强共识 - 黄色区域:中等共识 - 红色区域:弱共识 - 从左到右,颜色逐渐变绿,表示共识在增强</p>
+</section>
+<section id="步骤4-稳定性检验" class="level3">
+<h3 class="anchored" data-anchor-id="步骤4-稳定性检验">步骤4: 稳定性检验</h3>
+<p>检验专家意见在各轮次间的变化程度,判断是否达到稳定。</p>
+<pre class="{r}"><code># 计算评分变化量
+stability_data &lt;- delphi_data |&gt;
+  pivot_longer(
+    cols = starts_with("item_"),
+    names_to = "item",
+    values_to = "score"
+  ) |&gt;
+  arrange(expert_id, item, round) |&gt;
+  group_by(expert_id, item) |&gt;
+  mutate(
+    score_change = score - lag(score)
+  ) |&gt;
+  ungroup() |&gt;
+  filter(!is.na(score_change)) |&gt;
+  mutate(
+    item_name = case_when(
+      item == "item_1" ~ item_names[1],
+      item == "item_2" ~ item_names[2],
+      item == "item_3" ~ item_names[3],
+      item == "item_4" ~ item_names[4],
+      item == "item_5" ~ item_names[5],
+      item == "item_6" ~ item_names[6],
+      item == "item_7" ~ item_names[7],
+      item == "item_8" ~ item_names[8]
+    )
+  )
+
+# 计算整体稳定性指标
+stability_summary &lt;- stability_data |&gt;
+  group_by(round, item_name) |&gt;
+  summarise(
+    n_experts = n(),
+    mean_abs_change = mean(abs(score_change)),
+    max_abs_change = max(abs(score_change)),
+    .groups = "drop"
+  ) |&gt;
+  mutate(round_label = paste("第", round, "轮"))
+
+stability_summary</code></pre>
+<p><strong>结果解读</strong>: - <code>mean_abs_change</code>: 平均绝对变化量,值越小越稳定 - 通常要求 <code>mean_abs_change &lt; 0.5</code> 分 - 如果第三轮的变化量仍然较大,可能需要继续第四轮调查</p>
+</section>
+<section id="步骤5-最终共识判定" class="level3">
+<h3 class="anchored" data-anchor-id="步骤5-最终共识判定">步骤5: 最终共识判定</h3>
+<p>综合变异系数和稳定性指标,判断是否达成最终共识。</p>
+<pre class="{r}"><code># 综合判定最终共识
+final_consensus &lt;- consensus_level |&gt;
+  filter(round == 3) |&gt;
+  left_join(
+    stability_summary |&gt; filter(round == 3) |&gt; select(item_name, mean_abs_change),
+    by = "item_name"
+  ) |&gt;
+  mutate(
+    final_decision = case_when(
+      cv_score &lt;= 10 &amp; mean_abs_change &lt; 0.5 ~ "达成强共识",
+      cv_score &lt;= 20 &amp; mean_abs_change &lt; 0.5 ~ "达成中等共识",
+      cv_score &lt;= 30 ~ "达成弱共识,需要进一步讨论",
+      TRUE ~ "未达成共识,需要澄清议题"
+    )
+  ) |&gt;
+  select(item_name, mean_score, cv_score, mean_abs_change, final_decision) |&gt;
+  arrange(cv_score)
+
+final_consensus</code></pre>
+<hr>
+</section>
+<section id="结果解读与报告" class="level2">
+<h2 class="anchored" data-anchor-id="结果解读与报告">结果解读与报告</h2>
+<section id="最终结果解读" class="level3">
+<h3 class="anchored" data-anchor-id="最终结果解读">最终结果解读</h3>
+<p>根据分析结果,我们可以得出以下结论:</p>
+<ol type="1">
+<li><strong>共识达成情况</strong>:
+<ul>
+<li><strong>强共识议题</strong>: 评分CV ≤ 10%的议题,专家意见高度一致</li>
+<li><strong>中等共识议题</strong>: 评分CV在10-20%之间,意见基本一致</li>
+<li><strong>弱共识议题</strong>: 评分CV在20-30%之间,意见存在一定分歧</li>
+<li><strong>未达成共识</strong>: 评分CV &gt; 30%,意见分歧较大</li>
+</ul></li>
+<li><strong>重要性排序</strong>:
+<ul>
+<li>根据<code>mean_score</code>从高到低排序,可以确定研究优先级</li>
+<li>评分≥7分的议题可视为高优先级</li>
+<li>评分在5-7分之间的议题为中优先级</li>
+<li>评分&lt;5分的议题为低优先级</li>
+</ul></li>
+<li><strong>稳定性判断</strong>:
+<ul>
+<li>如果<code>mean_abs_change &lt; 0.5</code>分,说明意见已趋于稳定</li>
+<li>如果变化仍然较大,建议增加一轮调查</li>
+</ul></li>
+</ol>
+</section>
+<section id="论文报告格式" class="level3">
+<h3 class="anchored" data-anchor-id="论文报告格式">论文报告格式</h3>
+<section id="表1-德尔菲调查专家特征" class="level4">
+<h4 class="anchored" data-anchor-id="表1-德尔菲调查专家特征">表1: 德尔菲调查专家特征</h4>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>特征</th>
+<th>数量/比例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>邀请专家数</td>
+<td>[数值]</td>
+</tr>
+<tr class="even">
+<td>参与专家数</td>
+<td>[数值]</td>
+</tr>
+<tr class="odd">
+<td>回复率(%)</td>
+<td>[数值]</td>
+</tr>
+<tr class="even">
+<td>平均工作年限</td>
+<td>[数值]</td>
+</tr>
+<tr class="odd">
+<td>博士学位占比(%)</td>
+<td>[数值]</td>
+</tr>
+<tr class="even">
+<td>机构类型分布</td>
+<td>[列表]</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="表2-三轮德尔菲调查共识结果" class="level4">
+<h4 class="anchored" data-anchor-id="表2-三轮德尔菲调查共识结果">表2: 三轮德尔菲调查共识结果</h4>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>议题</th>
+<th>第1轮均值(CV%)</th>
+<th>第2轮均值(CV%)</th>
+<th>第3轮均值(CV%)</th>
+<th>共识程度</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>慢性病预防</td>
+<td>8.2 (25.3)</td>
+<td>8.4 (18.7)</td>
+<td>8.5 (12.4)</td>
+<td>中等共识</td>
+</tr>
+<tr class="even">
+<td>传染病防控</td>
+<td>7.9 (28.1)</td>
+<td>8.1 (21.5)</td>
+<td>8.2 (15.8)</td>
+<td>中等共识</td>
+</tr>
+<tr class="odd">
+<td>心理健康</td>
+<td>7.5 (22.4)</td>
+<td>7.7 (16.2)</td>
+<td>7.8 (10.3)</td>
+<td>强共识</td>
+</tr>
+<tr class="even">
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="表3-最终研究优先级排序" class="level4">
+<h4 class="anchored" data-anchor-id="表3-最终研究优先级排序">表3: 最终研究优先级排序</h4>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>排序</th>
+<th>议题</th>
+<th>平均评分</th>
+<th>95% CI</th>
+<th>共识程度</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>慢性病预防</td>
+<td>8.5</td>
+<td>(8.1, 8.9)</td>
+<td>中等共识</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>传染病防控</td>
+<td>8.2</td>
+<td>(7.8, 8.6)</td>
+<td>中等共识</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>心理健康</td>
+<td>7.8</td>
+<td>(7.5, 8.1)</td>
+<td>强共识</td>
+</tr>
+<tr class="even">
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="报告撰写要点" class="level3">
+<h3 class="anchored" data-anchor-id="报告撰写要点">报告撰写要点</h3>
+<p><strong>方法部分</strong>: - 详细描述专家选择标准 - 说明问卷设计过程 - 报告调查轮次和时间安排 - 说明评分量表和共识判定标准</p>
+<p><strong>结果部分</strong>: - 报告每轮的专家回复率 - 提供描述性统计表格 - 展示收敛过程图(变异系数趋势图) - 报告最终共识结果和稳定性</p>
+<p><strong>讨论部分</strong>: - 讨论达成共识的议题及其含义 - 分析未达成共识的原因 - 讨论结果的实用性和推广性 - 指出研究局限性</p>
+<hr>
+</section>
+</section>
+<section id="常见错误与纠偏" class="level2">
+<h2 class="anchored" data-anchor-id="常见错误与纠偏">常见错误与纠偏</h2>
+<section id="错误1-专家选择不当" class="level3">
+<h3 class="anchored" data-anchor-id="错误1-专家选择不当">错误1: 专家选择不当</h3>
+<p><strong>错误描述</strong>: 选择的专家缺乏专业知识或代表性不足。</p>
+<p><strong>错误原因</strong>: - 专家入选标准不明确 - 仅依赖便利抽样 - 忽视专家的背景多样性</p>
+<p><strong>表现形式</strong>: - 专家对问卷内容表示困惑 - 评分质量低下,缺乏逻辑性 - 最终结论缺乏可信度</p>
+<p><strong>正确做法</strong>: - 制定明确的专家入选标准(学位、职称、工作年限、研究成果) - 采用分层抽样,确保不同群体都有代表 - 收集专家的详细信息(机构、专业方向、研究经历) - 必要时进行专家资格审核</p>
+</section>
+<section id="错误2-问卷设计问题" class="level3">
+<h3 class="anchored" data-anchor-id="错误2-问卷设计问题">错误2: 问卷设计问题</h3>
+<p><strong>错误描述</strong>: 问卷存在歧义、引导性问题或定义不清。</p>
+<p><strong>错误原因</strong>: - 未进行预测试 - 题目表述不清晰 - 评分标准未明确定义</p>
+<p><strong>表现形式</strong>: - 专家提出澄清问题 - 评分分布异常(如集中于某一分数) - 某些议题的CV异常高</p>
+<p><strong>正确做法</strong>: - 进行多轮预测试(至少3-5位专家) - 清晰定义评分标准和量表含义 - 在问卷中提供详细的说明和示例 - 避免”你认为最重要的是”等引导性表述</p>
+</section>
+<section id="错误3-调查轮次过多或过少" class="level3">
+<h3 class="anchored" data-anchor-id="错误3-调查轮次过多或过少">错误3: 调查轮次过多或过少</h3>
+<p><strong>错误描述</strong>: 轮次过少导致未达成共识,轮次过多导致专家疲劳。</p>
+<p><strong>错误原因</strong>: - 未预先设定停止标准 - 盲目固定为3轮或4轮 - 忽视专家反馈</p>
+<p><strong>表现形式</strong>: - 3轮后CV仍然&gt;30%,但未继续调查 - 专家回复率在第4轮后急剧下降 - 专家表示”重复调查,疲劳”</p>
+<p><strong>正确做法</strong>: - 预设停止标准(CV &lt; 20% 或 变化量 &lt; 0.5分) - 动态调整轮次,最多不超过4轮 - 密切关注专家回复率和反馈意见 - 如果专家表示疲劳,可提前结束</p>
+</section>
+<section id="错误4-共识指标选择不当" class="level3">
+<h3 class="anchored" data-anchor-id="错误4-共识指标选择不当">错误4: 共识指标选择不当</h3>
+<p><strong>错误描述</strong>: 仅使用单一指标(如均值)判断共识,忽视离散程度。</p>
+<p><strong>错误原因</strong>: - 对共识指标理解不全面 - 仅关注均值而忽视变异 - 未结合稳定性判断</p>
+<p><strong>表现形式</strong>: - 均值接近,但CV很大,仍声称达成共识 - 某一轮CV突然降低,但实际意见未收敛 - 评分变化量仍然很大,但基于CV判定已达成共识</p>
+<p><strong>正确做法</strong>: - 综合使用多个指标(CV、IQR、稳定性) - 不仅看CV,还要看变化量 - 结合专家的定性反馈 - 必要时采用共识率等额外指标</p>
+</section>
+<section id="错误5-忽视专家流失" class="level3">
+<h3 class="anchored" data-anchor-id="错误5-忽视专家流失">错误5: 忽视专家流失</h3>
+<p><strong>错误描述</strong>: 专家在调查过程中流失,但未分析流失原因和影响。</p>
+<p><strong>错误原因</strong>: - 未追踪专家参与情况 - 未及时跟进未回复专家 - 忽视早期流失的潜在影响</p>
+<p><strong>表现形式</strong>: - 第3轮只剩8位专家(初始15位) - 早期流失的专家可能持有不同观点 - 结果可能产生偏差</p>
+<p><strong>正确做法</strong>: - 每轮记录专家回复情况 - 及时跟进未回复专家,了解原因 - 分析流失专家与留存专家的评分差异 - 如果流失率&gt;20%,考虑重新启动调查</p>
+</section>
+<section id="错误6-过度依赖统计指标" class="level3">
+<h3 class="anchored" data-anchor-id="错误6-过度依赖统计指标">错误6: 过度依赖统计指标</h3>
+<p><strong>错误描述</strong>: 仅根据CV等统计指标判断共识,忽视专家的定性反馈。</p>
+<p><strong>错误原因</strong>: - 过度追求”数据化” - 忽视专家的开放性意见 - 误解德尔菲法的本质</p>
+<p><strong>表现形式</strong>: - 某议题CV很低,但专家备注中有大量分歧意见 - 仅报告统计结果,未引用专家原话 - 结论缺乏深度和解释</p>
+<p><strong>正确做法</strong>: - 统计分析与定性反馈并重 - 引用专家的代表性观点 - 分析未达成共识议题的具体分歧点 - 在报告中展示专家的原话和理由</p>
+</section>
+<section id="错误7-报告不规范" class="level3">
+<h3 class="anchored" data-anchor-id="错误7-报告不规范">错误7: 报告不规范</h3>
+<p><strong>错误描述</strong>: 报告不完整,缺乏必要的细节和透明度。</p>
+<p><strong>错误原因</strong>: - 不了解德尔菲法的报告规范 - 嫌麻烦,省略重要信息 - 未遵循PRAGMA等报告指南</p>
+<p><strong>表现形式</strong>: - 未报告专家选择标准 - 未展示收敛过程 - 未说明共识判定标准 - 未讨论研究局限性</p>
+<p><strong>正确做法</strong>: - 遵循PRAGMA或SQUIRE等报告指南 - 详细报告方法、结果和讨论 - 提供补充材料(问卷原文、原始数据) - 诚实讨论局限性和潜在偏倚</p>
+<hr>
+</section>
+</section>
+<section id="进阶扩展" class="level2">
+<h2 class="anchored" data-anchor-id="进阶扩展">进阶扩展</h2>
+<section id="模糊德尔菲法fuzzy-delphi-method" class="level3">
+<h3 class="anchored" data-anchor-id="模糊德尔菲法fuzzy-delphi-method">1. 模糊德尔菲法(Fuzzy Delphi Method)</h3>
+<p>传统德尔菲法使用精确评分(如1-9分),而模糊德尔菲法允许专家使用模糊语言(如”非常重要”、“比较重要”)。</p>
+<p><strong>优势</strong>: - 更符合人类的自然表达习惯 - 能更好地处理不确定性 - 适用于信息模糊的领域</p>
+<p><strong>R实现</strong>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="co"># install.packages("fuzzyR")</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(fuzzyR)</span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 定义模糊集</span></span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>fuzzy_sets <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"不重要"</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">3</span>),</span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">"比较不重要"</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">5</span>),</span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">"一般"</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>),</span>
+<span id="cb53-9"><a href="#cb53-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">"比较重要"</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">9</span>),</span>
+<span id="cb53-10"><a href="#cb53-10" aria-hidden="true" tabindex="-1"></a>  <span class="st">"非常重要"</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">7</span>, <span class="dv">9</span>, <span class="dv">9</span>)</span>
+<span id="cb53-11"><a href="#cb53-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb53-12"><a href="#cb53-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-13"><a href="#cb53-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 模糊德尔菲分析(示例)</span></span>
+<span id="cb53-14"><a href="#cb53-14" aria-hidden="true" tabindex="-1"></a><span class="co"># fuzzy_delphi_result &lt;- fuzzy_delphi(data, fuzzy_sets)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="在线德尔菲平台" class="level3">
+<h3 class="anchored" data-anchor-id="在线德尔菲平台">2. 在线德尔菲平台</h3>
+<p>使用在线工具可以提高效率,自动计算统计指标,实时展示结果。</p>
+<p><strong>常用平台</strong>: - DelphiManager - Qualtrics(支持德尔菲模块) - Google Forms(需手动计算)</p>
+<p><strong>优势</strong>: - 自动化数据收集和统计 - 实时可视化收敛过程 - 减少人工统计错误</p>
+</section>
+<section id="德尔菲法报告规范" class="level3">
+<h3 class="anchored" data-anchor-id="德尔菲法报告规范">3. 德尔菲法报告规范</h3>
+<p><strong>PRAGMA(Reporting Items for Practice Guidelines in HealThcare)</strong>: 针对临床指南制定的德尔菲法报告规范。</p>
+<p><strong>关键条目</strong>: - 专家选择标准和流程 - 问卷开发和预测试过程 - 调查轮次和停止标准 - 共识判定方法 - 结果呈现方式</p>
+</section>
+<section id="德尔菲法的变体" class="level3">
+<h3 class="anchored" data-anchor-id="德尔菲法的变体">4. 德尔菲法的变体</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>变体</th>
+<th>特点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Policy Delphi</strong></td>
+<td>强调发现分歧而非达成共识</td>
+<td>政策制定、争议议题</td>
+</tr>
+<tr class="even">
+<td><strong>Decision Delphi</strong></td>
+<td>目标是做出决策,非共识</td>
+<td>需要立即决策的情况</td>
+</tr>
+<tr class="odd">
+<td><strong>Real-Time Delphi</strong></td>
+<td>每位专家提交后立即反馈</td>
+<td>时间紧迫的调查</td>
+</tr>
+<tr class="even">
+<td><strong>e-Delphi</strong></td>
+<td>完全在线进行</td>
+<td>分布式专家群体</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="混合方法-德尔菲法-其他方法" class="level3">
+<h3 class="anchored" data-anchor-id="混合方法-德尔菲法-其他方法">5. 混合方法: 德尔菲法 + 其他方法</h3>
+<p><strong>德尔菲法 + Meta分析</strong>: - 第一步:使用德尔菲法确定研究议题 - 第二步:对确定议题进行Meta分析</p>
+<p><strong>德尔菲法 + 实证研究</strong>: - 第一步:德尔菲法构建指标体系 - 第二步:使用实证数据验证指标</p>
+<p><strong>德尔菲法 + 成本效果分析</strong>: - 第一步:德尔菲法确定健康效用值 - 第二步:计算成本效果比</p>
+</section>
+<section id="r-包推荐" class="level3">
+<h3 class="anchored" data-anchor-id="r-包推荐">6. R 包推荐</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>R包</th>
+<th>功能</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>fuzzyR</code></td>
+<td>模糊集合理论</td>
+<td><a href="https://cran.r-project.org/web/packages/fuzzyR/">CRAN</a></td>
+</tr>
+<tr class="even">
+<td><code>ggplot2</code></td>
+<td>数据可视化</td>
+<td><a href="https://cran.r-project.org/web/packages/ggplot2/">CRAN</a></td>
+</tr>
+<tr class="odd">
+<td><code>patchwork</code></td>
+<td>图形组合</td>
+<td><a href="https://cran.r-project.org/web/packages/patchwork/">CRAN</a></td>
+</tr>
+<tr class="even">
+<td><code>kableExtra</code></td>
+<td>美化表格</td>
+<td><a href="https://cran.r-project.org/web/packages/kableExtra/">CRAN</a></td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+</section>
+<section id="总结" class="level2">
+<h2 class="anchored" data-anchor-id="总结">总结</h2>
+<p>德尔菲法是一种强大的专家调查方法,通过多轮匿名问卷调查和反馈,逐步收敛专家意见,最终达成共识。</p>
+<section id="核心流程回顾" class="level3">
+<h3 class="anchored" data-anchor-id="核心流程回顾">核心流程回顾</h3>
+<pre><code>专家选择 → 问卷设计 → 第一轮调查 → 统计汇总 → 第二轮调查
+    ↓                                                     ↓
+  明确标准                                          收敛判断
+    ↓                                                     ↓
+  预测试                                          第三轮调查(如需要)
+                                                      ↓
+                                                  最终共识</code></pre>
+</section>
+<section id="关键要点" class="level3">
+<h3 class="anchored" data-anchor-id="关键要点">关键要点</h3>
+<ol type="1">
+<li><strong>专家质量</strong>: 专家的选择和代表性是德尔菲法成功的关键</li>
+<li><strong>问卷设计</strong>: 清晰、无歧义的问卷是有效反馈的基础</li>
+<li><strong>收敛判断</strong>: 综合使用CV、稳定性等多个指标,不盲目固定轮次</li>
+<li><strong>透明报告</strong>: 详细报告方法、结果和局限,遵循报告规范</li>
+<li><strong>结合定性</strong>: 统计分析与专家的定性反馈并重</li>
+</ol>
+</section>
+<section id="适用时机" class="level3">
+<h3 class="anchored" data-anchor-id="适用时机">适用时机</h3>
+<ul>
+<li>✅ 适用于: 缺乏客观数据、需要专家经验、目标达成共识</li>
+<li>❌ 不适用于: 紧急决策、有明确数据支撑、目标探索性讨论</li>
+</ul>
+</section>
+<section id="推荐阅读" class="level3">
+<h3 class="anchored" data-anchor-id="推荐阅读">推荐阅读</h3>
+<ol type="1">
+<li>Dalkey N, Helmer O. An Experimental Application of the Delphi Method to the Use of Experts. <em>Management Science</em>, 1963.</li>
+<li>Linstone HA, Turoff M. The Delphi Method: Techniques and Applications. <em>Addison-Wesley</em>, 1975.</li>
+<li>Hasson F, Keeney S, McKenna H. Research guidelines for the Delphi survey technique. <em>Journal of Advanced Nursing</em>, 2000.</li>
+<li>Diamond IR et al.&nbsp;Defining consensus: a systematic review recommends methodologic criteria for reporting of Delphi studies. <em>Journal of Clinical Epidemiology</em>, 2014.</li>
+</ol>
+<hr>
+</section>
+</section>
+<section id="参考文献" class="level2">
+<h2 class="anchored" data-anchor-id="参考文献">参考文献</h2>
+<ol type="1">
+<li><p>Hasson, F., Keeney, S., &amp; McKenna, H. (2000). Research guidelines for the Delphi survey technique. <em>Journal of Advanced Nursing</em>, 32(4), 1008-1015.</p></li>
+<li><p>Diamond, I. R., Grant, R. C., Feldman, B. M., Pencharz, P. B., Ling, S. C., Moore, A. M., &amp; Wales, P. W. (2014). Defining consensus: a systematic review recommends methodologic criteria for reporting of Delphi studies. <em>Journal of Clinical Epidemiology</em>, 67(4), 401-409.</p></li>
+<li><p>Linstone, H. A., &amp; Turoff, M. (Eds.). (2002). The Delphi method: Techniques and applications. <em>Addison-Wesley</em>.</p></li>
+<li><p>Boukledid, R., Abdoul, H., Loustau, M., Sibony, O., &amp; Alberti, C. (2011). Using and reporting the Delphi method for selecting healthcare quality indicators: a systematic review. <em>PloS One</em>, 6(6), e20476.</p></li>
+<li><p>Murphy, M. K., Black, N. A., Lamping, D. L., McKee, C. M., Sanderson, C. F., Askham, J., &amp; Marteau, T. (1998). Consensus development methods, and their use in clinical guideline development. <em>Health Technology Assessment</em>, 2(3), i-iv, 1-88.</p></li>
+</ol>
+</section>
+</section>
 
 </main> <!-- /main -->
 <!-- Hypothesis 文字划线评论功能 -->
