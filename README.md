@@ -262,6 +262,7 @@
 | **质性研究**     | ⭐⭐   | [质性研究与文本挖掘](1030-qualitative-research.html)                                                                                                         | 文本分析、质性方法      |
 | **信号处理**     | ⭐⭐⭐ | [小波变换](1096-wavelet-transform.html), [变分模态分解](1034-nvmd.html), [FFT+VMD+GMM](1035-fft-nvmd-gmm.html)                                                     | 时频分析、信号分解      |
 | **环境流行病学** | ⭐⭐⭐ | [分布滞后模型 (DLNM)](1033-dlnm.html), [加权分位数和回归 (WQS)](1106-wqs.html), [分位数 G-计算 (qgcomp)](1107-qgcomp.html), [贝叶斯核机器回归 (BKMR)](1108-bkmr.html) | 暴露效应分析、混合暴露  |
+| **计算模拟**     | ⭐⭐⭐ | [元胞自动机完整教程](6001-cellular-automata.html)                                                                                                             | 复杂系统建模与空间动力学模拟 |
 
 </details>
 
