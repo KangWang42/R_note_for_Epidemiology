@@ -31,26 +31,54 @@ description: Generate comprehensive R package tutorials (tidyverse, data.table, 
 - **示例优先**: 每个功能都要有简洁但完整的可运行代码示例
 - **可复现性**: 所有示例必须设置种子 `set.seed(2026)`
 
-### 步骤1.5: 生成配图（每篇至少 1 张文内图）
+### 步骤1.5: 生成配图并在文章中引用（CRITICAL）
 
-**⚠️ 必须生成的图片**：
+**⚠️ 必须完成的两步操作**：
+
+**第一步：生成图片文件**
 
 1. **封面图 (MANDATORY)**: 
    - 路径：`doc/images/[number]-[topic]-cover.svg`
    - 风格：专业、展示包的核心功能
 
 2. **文内示意图 (MANDATORY - 每篇至少 1 张)**：
-   - 路径：`doc/images/diagrams/pkg-*.svg` 或 `.png`
+   - 路径：`doc/images/diagrams/pkg-*.svg`
+   - 格式：**必须使用 SVG 格式**（扩展名必须是 .svg）
+   - **尺寸要求**（CRITICAL）：
+     - **推荐标准尺寸**: `viewBox="0 0 1400 800"` (宽 1400, 高 800)
+     - **对比表格图**: 1400×800～1400×900 (横向宽幅)
+     - **功能架构图**: 1200×700～1400×800
+     - **工作流程图**: 1200×600～1400×800 (横向流程)
+     - **生态系统图**: 1000×700～1200×800
+     - ⚠️ **避免**: 过高的纵向布局 (如 1000×1100)，会导致显示不全
    - 用途：**功能架构图、工作流程、包对比表**
-   - 要求：
-     - 每篇必须有 1-2 张关键配图
-     - 主要用于：包架构图、功能对比、工作流程、性能对比图
-     - **必须在文章中使用 Markdown 语法引用**：`![图片说明](images/diagrams/pkg-xxx.png)`
    - 示例场景：
      - 包功能架构图
      - dplyr vs data.table 对比表
      - tidyverse 工作流程图
      - 包生态系统关系图
+
+**第二步：在文章中引用图片（CRITICAL）**
+
+⚠️ **生成图片后必须立即用 Markdown 语法在文章中引用！**
+
+```markdown
+## 功能架构
+
+![data.table 核心功能架构](images/diagrams/pkg-datatable-arch.svg)
+
+**架构说明**：上图展示了 data.table 的核心功能模块及其相互关系。
+```
+
+**插入位置**：
+- 架构图 → "包简介"或"核心功能"章节
+- 对比表 → "性能对比"章节
+- 工作流程图 → "快速开始"章节
+
+**验证**：
+```bash
+grep "!\[.*\](images/diagrams/" doc/[number]-[topic].rmd
+```
 
 ### 步骤2: 验证渲染 (CRITICAL)
 
