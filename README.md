@@ -137,6 +137,7 @@
 | **岭回归与 Lasso**       | ⭐⭐ | [教程链接](1104-ridge-lasso.html)                  | 解决共线性与变量筛选                           |
 | **回归特征筛选**         | ⭐⭐ | [教程链接](1105-regression-feature-selection.html) | 逐步回归与最佳子集                             |
 | **Logistic 回归**        | ⭐   | [教程链接](1019-logistic.html)                     | 二分类结局预测                                 |
+| **临床预测模型**     | ⭐⭐ | [教程链接](1100-prediction-model.html)            | 从构建到验证的完整实践                          |
 | **Poisson/负二项回归**   | ⭐   | [教程链接](1026-poisson.html)                      | 计数数据建模                                   |
 | **有序回归**             | ⭐   | [教程链接](1093-ordinal-regression.html)           | 有序分类结局建模                               |
 | **ROC 分析**             | ⭐   | [教程链接](1047-roc-analysis.html)                 | 模型区分度评估                                 |
