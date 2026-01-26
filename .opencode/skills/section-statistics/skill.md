@@ -194,6 +194,56 @@ install.packages(c("survival", "MatchIt", "lme4", "brms", "mediation"))
 - **解读**: 结果解读必须涵盖统计显著性与实际意义。
 - **视觉**: SVG 标注必须全部使用中文。
 
+## 代码块与表格格式规范 (CRITICAL)
+
+### 图片居中 (MANDATORY)
+
+**在 setup chunk 中设置全局图片居中**：
+
+```r
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  message = FALSE, 
+  warning = FALSE,
+  fig.align = 'center'  # 所有图片居中
+)
+```
+
+**或在单独代码块中设置**：
+
+```r
+```{r plot-name, fig.align='center', fig.width=8, fig.height=6}
+# 图表代码
+```
+```
+
+### 表格字体大小 (MANDATORY)
+
+**所有 gt 表格必须设置合适的字体大小，避免表格过小难以阅读**：
+
+```r
+tibble(...) |> 
+  gt() |> 
+  tab_options(
+    table.font.size = px(14),      # 表格字体 14px
+    data_row.padding = px(8)       # 行间距 8px
+  ) |> 
+  tab_style(
+    style = cell_fill(color = "#E8F4F8"),
+    locations = cells_column_labels()
+  )
+```
+
+**推荐字体大小**：
+- 常规表格：`px(14)` 
+- 大型对比表：`px(13)` 
+- 简洁表格：`px(15)`
+
+**必须添加的 tab_options 参数**：
+- `table.font.size`: 控制整体字号
+- `data_row.padding`: 控制行间距，提升可读性
+- `column_labels.font.size`: (可选) 单独设置表头字号
+
 ## 参考资源
 
 - [content-structure.md](references/content-structure.md): 详细内容模板与标题规范。
