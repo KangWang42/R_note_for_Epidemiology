@@ -1,96 +1,220 @@
 # AGENTS Instructions for R 语言学习笔记
 
-## Scope
-- Applies to the whole repository unless a deeper AGENTS.md exists.
-- This repo is a Quarto website with source files in `doc/` and outputs in `public/`.
-- Edit source files only; never manually edit generated content under `public/`.
+## Project Overview
+
+This is a **Quarto-based static website** that serves as a comprehensive learning resource for R language data science, with a focus on:
+- Epidemiology and biostatistics
+- Statistical analysis methods
+- Data visualization
+- Machine learning and AI
+- Special applications (health economics, qualitative research, signal processing)
+
+**Live Site**: https://r.wk8686.top  
+**Repository**: https://github.com/KangWang42/R_note_for_Epidemiology
+
+---
+
+## Technology Stack
+
+| Component | Technology | Version Requirement |
+|-----------|------------|---------------------|
+| Document Framework | [Quarto](https://quarto.org/) | ≥ 1.4 |
+| Programming Language | R | ≥ 4.3 |
+| Visualization | ggplot2 + extensions | ≥ 3.6 |
+| CI/CD | GitHub Actions | - |
+| Deployment | Self-hosted server | - |
+
+---
 
 ## Repository Layout
+
 ```
-├── doc/                    # Quarto source files
-│   ├── _quarto.yml         # Site config (output → ../public)
-│   ├── index.qmd           # Homepage
-│   ├── *.rmd / *.qmd       # Tutorial articles
-│   ├── sections/           # Auto-generated category pages
-│   ├── generate_sections.R # Pre-render script
-│   ├── images/             # Static media
-│   └── figure/             # Generated figures
-├── public/                 # Built website output (do not edit)
-├── .github/workflows/      # CI/CD: deploys public/ on push to main
-└── AGENTS.md               # This file
+├── doc/                          # Quarto source files (EDIT THESE ONLY)
+│   ├── _quarto.yml              # Main site configuration (sidebar, navbar, theme)
+│   ├── index.qmd                # Homepage with search & listings
+│   ├── 0001-guide.rmd           # Learning roadmap page
+│   ├── 00xx-*.rmd/qmd           # Guide/intro tutorials
+│   ├── 10xx-*.rmd               # Statistics methods tutorials
+│   ├── 20xx-*.rmd               # Data visualization tutorials
+│   ├── 30xx-*.rmd               # Data operations tutorials
+│   ├── 40xx-*.rmd               # Application development
+│   ├── 50xx-*.qmd               # AI tools tutorials
+│   ├── 60xx-*.rmd               # Special applications
+│   ├── sections/                # Auto-generated category pages (DO NOT EDIT)
+│   ├── generate_sections.R      # Pre-render script for section pages
+│   ├── create_covers.R          # Script for generating cover images
+│   ├── update_categories.R      # Script for updating article categories
+│   ├── styles.css               # Custom CSS styling
+│   ├── theme.scss               # SCSS theme variables
+│   ├── include_footer.html      # Footer include template
+│   ├── images/                  # Static cover images
+│   └── figure/                  # Generated figures from R code
+├── public/                       # Built website output (AUTO-GENERATED)
+├── .github/workflows/deploy.yml  # CI/CD: Deploy on push to main
+├── .gitignore                    # Git ignore rules
+└── AGENTS.md                     # This file
 ```
 
-## Build / Preview / Render Commands
+### File Naming Convention
+
+Articles follow a strict numbering system:
+
+| Range | Category | Description |
+|-------|----------|-------------|
+| `00xx` | 入门指南 | Getting started, learning roadmap, basics |
+| `10xx` | 统计分析方法 | Statistical analysis methods |
+| `20xx` | 数据可视化 | Data visualization tutorials |
+| `30xx` | 实用操作 | Data operations, imports, cleaning |
+| `40xx` | 应用开发 | Application development (Shiny) |
+| `50xx` | AI 工具 | AI programming tools documentation |
+| `60xx` | 特殊应用 | Special applications |
+
+Example: `1014-purrr.rmd` = Statistics category (#10), #14 in sequence, topic is purrr package.
+
+---
+
+## Build Commands
+
+### Development
 
 ```bash
-# Preview site (with hot reload)
-quarto preview doc
-
-# From doc/ directory
+# Preview site with hot reload (run from doc/ directory)
 cd doc && quarto preview
 
-# Render entire site
-quarto render doc
+# Or from project root
+quarto preview doc
+```
 
-# Render single article (preferred for testing changes)
+### Production Build
+
+```bash
+# Render entire site (run from doc/ directory)
+cd doc && quarto render
+
+# Or from project root
+quarto render doc
+```
+
+### Single Article Rendering (Preferred for Testing)
+
+```bash
+# Render specific article only
 quarto render doc/1014-purrr.rmd
 quarto render doc/0013-positron.qmd
 
-# Render section page
+# Render specific section page
 quarto render doc/sections/guide.qmd
+```
 
-# Clean build (only if explicitly requested)
+### Clean Build
+
+```bash
+# Remove generated files and rebuild (only if explicitly requested)
 rm -rf public && quarto render doc
 ```
 
-## Testing / Validation
+---
 
-- **No formal test suite** - validation is via successful rendering.
-- **Validate changes** by rendering the specific file you modified.
-- Check for R package errors; install missing packages and document them below.
-- Skim HTML output for layout issues, broken links, and warning messages.
+## Build Process Architecture
 
-### Installed R Dependencies (from past sessions)
-rpart.plot, stacks, Rtsne, uwot, isotree, dbscan, baguette, tidytable, DoubleML, clusterGeneration, readstata13, mlr3learners, paradox, DiceKriging, grf, EpiModel, igraph, network, sna, statnet.common, tergm, intergraph
+```
+quarto render doc/
+    │
+    ├── [PRE-RENDER] Rscript generate_sections.R
+    │       └── Generates sections/*.qmd from _quarto.yml sidebar config
+    │
+    ├── Renders all *.rmd/*.qmd files to HTML
+    │       └── Outputs to public/ directory
+    │
+    └── [POST-RENDER] Generates search.json for site search
+```
 
-## Tooling Prerequisites
+### Pre-render Script: `generate_sections.R`
 
-- **R**: ≥ 4.3 required
-- **Quarto**: ≥ 1.4 required
-- R packages are article-specific; install as needed per tutorial content.
-- No `renv` lockfile; packages are managed ad-hoc.
+This script automatically generates category index pages from `_quarto.yml` sidebar configuration:
+- Reads sidebar structure from `_quarto.yml`
+- Generates styled category cards with article links
+- Outputs to `doc/sections/*.qmd`
+- **Never manually edit** files in `doc/sections/`
 
-## Code Style: R
+---
 
-### Formatting
+## Development Workflow
+
+### Adding a New Tutorial
+
+1. **Create file** with proper naming: `[Section][Number]-[topic].rmd`
+   - Check existing files to determine next available number
+
+2. **Use YAML template**:
+   ```yaml
+   ---
+   title: 'Title: 中文副标题'
+   date: '2024-10-20'
+   categories:
+   - 实用 R 包
+   - 数据处理
+   image: figure/default-cover1.png
+   ---
+   ```
+
+3. **Set up R chunk options** at top of document:
+   ```r
+   ```{r setup, include=FALSE}
+   knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+   set.seed(42)  # For reproducibility
+   ```
+   ```
+
+4. **Add to `_quarto.yml`** sidebar configuration (find appropriate section)
+
+5. **Run pre-render script** to regenerate section pages:
+   ```bash
+   cd doc && Rscript generate_sections.R
+   ```
+
+6. **Update guide page** (`0001-guide.rmd`) to include new tutorial in learning roadmap
+
+7. **Test rendering**:
+   ```bash
+   quarto render doc/[your-file].rmd
+   ```
+
+### Adding Cover Image
+
+Place cover image in appropriate location:
+- `doc/images/[basename]-cover.svg` or
+- `doc/figure/[basename]-cover.png`
+
+Then reference in YAML: `image: images/[basename]-cover.svg`
+
+---
+
+## Code Style Guidelines
+
+### R Code Style
+
 - **Indentation**: 2 spaces, no tabs
 - **Line width**: ~80 characters where reasonable
 - **Naming**: `snake_case` for variables and functions
 - **Pipes**: Prefer native `|>`, accept `%>%` in existing code
 
-### Imports
-- Use `library()` only when multiple functions from a package are used.
-- Prefer `pkg::fn()` for one-off calls.
-- Never load unused packages.
-- Keep `library()` calls at the top of chunks.
+### Import Guidelines
 
 ```r
-# Good: explicit namespace for one-off use
+# Good: Explicit namespace for one-off use
 result <- dplyr::filter(data, x > 0)
 
-# Good: library() when using many functions
+# Good: library() when using many functions from same package
 library(ggplot2)
 ggplot(data, aes(x, y)) + geom_point() + theme_minimal()
 
-# Bad: loading package for single function
+# Bad: Loading package for single function
 library(scales)
 comma(1000)  # Use scales::comma(1000) instead
 ```
 
-### Functions
-- Use explicit, descriptive names; avoid single-letter variables.
-- Validate inputs in reusable functions (types, ranges, missing values).
-- Use informative error messages with `stop()`.
+### Function Writing
 
 ```r
 # Good
@@ -102,144 +226,215 @@ calculate_bmi <- function(weight_kg, height_m) {
 }
 ```
 
-## Quarto / RMarkdown Conventions
+---
 
-### YAML Header Template
+## Testing & Validation
+
+This project has **no formal test suite**. Validation is via successful rendering.
+
+### Validation Checklist (Before Committing)
+
+- [ ] Render the changed file: `quarto render doc/<file>`
+- [ ] Check for R errors or missing packages in console output
+- [ ] Skim HTML output for layout issues
+- [ ] Verify images and internal links resolve correctly
+- [ ] If adding new article, update `doc/_quarto.yml` sidebar
+- [ ] If adding new article, update `doc/0001-guide.rmd` to keep guide in sync
+- [ ] Run `Rscript generate_sections.R` if sidebar structure changed
+
+### Common Rendering Issues
+
+| Issue | Solution |
+|-------|----------|
+| Missing R package | Install with `install.packages("pkg")` |
+| Cache issues | Delete `doc/*_cache/` directories |
+| YAML syntax error | Validate indentation (spaces, not tabs) |
+| Image not found | Check relative path from `doc/` directory |
+
+---
+
+## Deployment Process
+
+### Automatic Deployment (GitHub Actions)
+
 ```yaml
+# .github/workflows/deploy.yml
+Trigger: Push to main branch with changes in public/**
+Steps:
+  1. Checkout code
+  2. Setup SSH
+  3. rsync public/ to server
+  4. Set file permissions
+```
+
+**Deployment secrets** (configured in GitHub):
+- `SERVER_SSH_KEY`: SSH private key for server access
+- `SERVER_HOST`: Server IP/hostname
+- `SERVER_USER`: SSH username
+- `SERVER_PATH`: Deployment directory on server
+
+### Manual Deployment
+
+For local testing, you can serve `public/` directory with any static server:
+```bash
+cd public && python -m http.server 8000
+```
+
 ---
-title: 'Title: 中文副标题'
-date: '2024-10-20'
-categories:
-- 实用 R 包
-- 数据处理
-image: figure/default-cover1.png
----
-```
-
-### Chunk Setup Pattern
-```r
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-set.seed(42)  # For reproducibility when needed
-```
-
-### Chunk Guidelines
-- Use clear, unique chunk labels.
-- Set `echo`, `message`, `warning` deliberately.
-- Use `set.seed()` for any stochastic output.
-- Use `include = FALSE` or `echo = FALSE` when output is not needed.
-- Avoid hard-coded absolute paths; use relative paths from `doc/`.
-
-## Naming and Content Rules
-
-### File Naming Convention
-```
-[Section][Number]-[topic].rmd
-
-Sections:
-  00xx = 入门指南 (Guide)
-  10xx = 统计分析方法 (Statistics)
-  20xx = 数据可视化 (Visualization)
-  30xx = 实用操作 (Operations)
-  40xx = 应用开发 (Applications)
-
-Examples:
-  0011-rmarkdown.rmd
-  1014-purrr.rmd
-  2025-bindboxplot.rmd
-  3002-datatable.rmd
-```
-
-### Content Guidelines
-- Keep headings in Chinese, consistent with existing style.
-- Ensure examples are reproducible and minimal.
-- Prefer vectorized operations over explicit loops.
-- Use consistent terminology between text and code.
-
-## Generated Output
-
-- **Never edit `public/` manually** - it is auto-generated.
-- Regenerate with `quarto render doc` when needed.
-- `_freeze` behavior: `execute.freeze: auto` (in `_quarto.yml`).
-- Sections are auto-generated via `doc/generate_sections.R` (pre-render).
 
 ## Git Hygiene
 
-- Scope commits to source files under `doc/`.
-- Avoid committing large generated assets unless required.
-- If `public/` changes, ensure it resulted from a render.
-- Do not push to `main` without successful local render.
+- **Scope commits** to source files under `doc/`
+- **Avoid committing** large generated assets unless required
+- **Never manually edit** `public/` - it is auto-generated
+- **Never manually edit** `doc/sections/*.qmd` - auto-generated by `generate_sections.R`
+- **Clean build artifacts** before commit if necessary:
+  ```bash
+  # Remove generated HTML/cache from doc/
+  git clean -fd doc/*.html doc/*_files/ doc/*_cache/
+  ```
 
-## Validation Checklist
+---
 
-Before committing changes:
-1. [ ] Render the changed file: `quarto render doc/<file>`
-2. [ ] Check for R errors or missing packages in console output
-3. [ ] Skim HTML output for layout issues
-4. [ ] Verify images and internal links resolve correctly
-5. [ ] If adding new article, update `doc/_quarto.yml` sidebar
-6. [ ] If adding new article, update `doc/0001-guide.rmd` to keep guide in sync
+## Content Organization Reference
 
-## Notes for Agentic Edits
+### Main Categories (from `_quarto.yml`)
 
-- Prefer targeted edits using existing patterns.
-- Minimize changes to unrelated sections.
-- Ask before making structural changes to navigation or sections.
-- When uncertain about Chinese terminology, maintain existing usage.
-- For new tutorials, copy structure from similar existing `.rmd` files.
+1. **入门指南** (Getting Started)
+   - 学习路线 (Learning Path)
+   - 基础知识 (Fundamentals)
+   - 工作流程 (Workflow)
 
-## Skill Auto-Load Rules
+2. **实用 R 包** (R Packages)
+   - 表格制作 (Table Generation)
+   - 数据处理 (Data Processing)
+   - 模型整理 (Model Tidying)
 
-Load these skills based on task type:
+3. **统计分析方法** (Statistical Methods)
+   - 基础回归 (Basic Regression)
+   - 生存分析 (Survival Analysis)
+   - 因果推断 (Causal Inference)
+   - 高级建模 (Advanced Modeling)
+   - 贝叶斯统计 (Bayesian Statistics)
+   - 模型评估 (Model Evaluation)
+   - 综述方法 (Review Methods)
+   - 流行病学研究设计 (Study Design)
 
-| Task Type | Skill to Load |
-|-----------|---------------|
-| 入门指南/学习路线/基础知识 | `section-intro-guide` |
-| 实用 R 包教程/评测/实践 | `section-r-packages` |
-| 统计分析方法 | `section-statistics` |
-| 机器学习/深度学习/AI | `section-ml-ai` |
-| 数据导入/清洗/转换/开发环境 | `section-operations` |
-| 数据可视化/图形设计/绘图美化 | `section-visualization` |
-| 卫生经济学/质性研究/信号处理 | `section-special` |
+4. **机器学习与AI** (ML & AI)
+   - 机器学习框架 (ML Frameworks)
+   - 深度学习 (Deep Learning)
+   - AI 工具 (AI Tools)
 
-## Automatic Skill Recognition (CRITICAL for New Sessions)
+5. **实用操作** (Practical Operations)
+   - 数据导入导出 (Data I/O)
+   - 数据清洗 (Data Cleaning)
+   - 数据转换 (Data Transformation)
+   - 文档写作 (Document Writing)
+   - 开发环境 (Development Environment)
 
-**RULE**: When user requests to generate tutorial content, the assistant MUST:
+6. **数据可视化** (Data Visualization)
+   - 图形基础 (Plotting Basics)
+   - 图形组合 (Plot Composition)
+   - 分布图 (Distribution Plots)
+   - 趋势图 (Trend Plots)
+   - 比较图 (Comparison Plots)
+   - 关系图 (Relationship Plots)
+   - 特殊图形 (Special Plots)
+   - 专题图 (Thematic Plots)
+   - 进阶美化 (Advanced Styling)
 
-1. **Identify task type** from user request using keywords
-2. **Automatically load appropriate skill** by calling `skill(name="...")` before starting work
-3. **Follow skill guidelines** strictly for content structure and workflow
+7. **特殊应用** (Special Applications)
+   - 卫生经济学 (Health Economics)
+   - 质性研究 (Qualitative Research)
+   - 信号处理 (Signal Processing)
+   - 环境流行病学 (Environmental Epidemiology)
+   - 建模方法 (Modeling Methods)
 
-### Keyword Mapping for Auto-Detection
+---
 
-| Request Keywords | Skill to Load |
-|-----------------|---------------|
-| 回归、生存分析、因果推断、贝叶斯、Meta、德尔菲、PSM、Cox、SEM、PCA、LCA、10xx | `section-statistics` |
-| R包、tidyverse、dplyr、ggplot2、purrr、data.table、mlr3、实用包 | `section-r-packages` |
-| 可视化、绘图、图表、图形、ggplot2、箱线图、散点图、热图、20xx | `section-visualization` |
-| 入门、学习路线、基础、新手、指南、00xx | `section-intro-guide` |
-| 机器学习、深度学习、AI、预测、分类、聚类、xgboost、torch | `section-ml-ai` |
-| 数据导入、清洗、转换、正则、字符串、日期、rvest、readxl、30xx | `section-operations` |
-| 卫生经济学、质性研究、信号处理、环境流行病学、TreeAge、VMD | `section-special` |
+## Key Configuration Files
 
-### Workflow for Tutorial Generation
+### `doc/_quarto.yml`
 
-When user asks to generate content:
-1. Parse request for keywords
-2. Match to appropriate skill from table above
-3. Execute: `skill(name="[matched-skill-name]")`
-4. Follow skill's structure and guidelines
-5. Follow rendering sequence: article → section → index
+Main configuration controlling:
+- Site metadata (title, navbar, footer)
+- Sidebar navigation structure (all article links)
+- Theme and styling (SCSS, CSS)
+- Output directory (`public/`)
+- Pre-render scripts
+- Code execution settings
 
-**EXAMPLE**:
-```
-User: "生成一个泊松回归教程"
-→ Keywords: "泊松回归", "教程"
-→ Skill: section-statistics
-→ Action: skill(name="section-statistics")
-→ Follow section-statistics guidelines to generate content
-```
+**Important**: The `sidebar.contents` section defines the entire site navigation. Changes here require re-running `generate_sections.R`.
+
+### `doc/styles.css`
+
+Custom CSS including:
+- Auto-section numbering (CSS counters for h2/h3)
+- Responsive layout (3-column desktop, mobile adaptations)
+- Card and component styling
+- Search box styling
+- Mobile TOC floating button
+- Print styles
+
+### `doc/theme.scss`
+
+SCSS variables for:
+- Color schemes
+- Typography
+- Component defaults
+
+---
+
+## Security Considerations
+
+1. **No sensitive data** in tutorials - use publicly available datasets
+2. **Server credentials** stored in GitHub Secrets only
+3. **SSH keys** for deployment are encrypted in GitHub
+4. **No API keys** should be committed to repository
+
+---
 
 ## External Rules
 
-- No `.cursor/rules`, `.cursorrules`, or `.github/copilot-instructions.md` detected.
-- If any are added later, incorporate their rules into this file.
+No additional rule files detected:
+- No `.cursor/rules`
+- No `.cursorrules`
+- No `.github/copilot-instructions.md`
+
+---
+
+## Common Tasks Reference
+
+### Task: Add New Tutorial
+
+1. Determine category and next available number
+2. Create `doc/[NNXX]-[topic].rmd` with proper YAML header
+3. Add entry to `doc/_quarto.yml` sidebar
+4. Run `cd doc && Rscript generate_sections.R`
+5. Update `doc/0001-guide.rmd` with new tutorial link
+6. Test: `quarto render doc/[NNXX]-[topic].rmd`
+7. Commit source files only
+
+### Task: Update Sidebar Structure
+
+1. Edit `doc/_quarto.yml` → `website.sidebar.contents`
+2. Run `cd doc && Rscript generate_sections.R`
+3. Verify section pages render correctly
+4. Commit `_quarto.yml` and regenerated `sections/*.qmd` files
+
+### Task: Fix Rendering Error
+
+1. Check console output for specific error
+2. If missing package: install it
+3. If YAML error: validate syntax
+4. If R error: debug code chunk
+5. Delete cache: `rm -rf doc/[file]_cache/`
+6. Re-render to verify fix
+
+---
+
+## Contact & Resources
+
+- **Issues**: https://github.com/KangWang42/R_note_for_Epidemiology/issues
+- **Quarto Docs**: https://quarto.org/docs/
+- **R Markdown Cookbook**: https://bookdown.org/yihui/rmarkdown-cookbook/
