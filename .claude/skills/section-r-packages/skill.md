@@ -93,7 +93,15 @@ quarto render doc/[number]-[package].rmd
 
 ### 步骤3: 更新导航系统 (CRITICAL)
 
-必须执行以下步骤，否则新文章无法在网站侧边栏 and 分类页显示。
+**⚠️ 重要顺序：必须先创建文章 → 更新 _quarto.yml → 运行 generate_sections.R**
+
+必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
+
+**⚠️ 更新导航前务必验证**:
+
+- 确认新文件已成功渲染
+- 确认文件编号无冲突
+- 确认YAML元数据正确
 
 1. **更新 `doc/_quarto.yml`**:
 
@@ -103,23 +111,29 @@ quarto render doc/[number]-[package].rmd
                - text: "文章标题"
                  href: "[number]-[package].rmd"
      ```
-2. **更新 `doc/0001-guide.rmd`**:
 
-   - 在对应分类的表格中添加一行：
-     ```markdown
-     | [包名] | [文章标题]([number]-[package].html) | [简短说明] |
-     ```
-3. **运行自动生成脚本 (MANDATORY)**:
+2. **运行自动生成脚本 (MANDATORY - 在更新 _quarto.yml 之后)**:
 
-   - 此脚本会根据 `_quarto.yml` 更新 `sections/packages.qmd` 等分类索引页。
+   - ⚠️ **必须在 _quarto.yml 更新后运行**，否则新的文章链接不会出现在 sections 中
+   - 此脚本会根据 `_quarto.yml` 更新对应的 section 分类索引页。
 
    ```bash
-   # 在项目根目录下运行
-   workdir="doc" Rscript doc/generate_sections.R
+   # 在 doc 目录下运行
+   cd doc && Rscript generate_sections.R
    ```
-4. **更新 `README.md`**:
 
-   - 在 `🧭 内容导航` -> `📦 实用 R 包` 的对应折叠块中添加链接。
+3. **验证 sections 已更新**:
+
+   ```bash
+   # 检查新文章是否出现在对应的 section 中
+   grep "[number]-[package]" doc/sections/packages.qmd
+   ```
+
+4. **重新渲染 sections 页面**:
+
+   ```bash
+   quarto render doc/sections/packages.qmd
+   ```
 
 ### 步骤4: 最终渲染与提交
 
