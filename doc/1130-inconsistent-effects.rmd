@@ -1,0 +1,305 @@
+---
+title: "效应不一致与回归陷阱：从单因素到多因素的解释"
+author: "Antigravity"
+date: "2026-01-30"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(gtsummary)
+library(patchwork)
+library(dagitty)
+library(ggdag)
+theme_set(theme_minimal())
+```
+
+# 1. 为什么结果会“打架”？
+
+在流行病学和临床研究中，我们经常遇到令人困惑的现象：
+
+*   **单因素分析（或统计描述）**显示 X 对 Y 有显著影响，但在**多因素回归**中，这种影响消失了。
+*   单因素分析显示 X 是 Y 的保护因素（系数为负），但多因素回归中变成了危险因素（系数为正）。
+*   单因素分析没发现关联，放入多因素模型后反而显著了。
+
+这些现象统称为**效应估计的不一致性 (Inconsistency in Effect Estimation)**。这并非一定是“错误”，往往揭示了变量间复杂的相互作用。
+
+本教程将通过**因果图 (DAG)** 和 **R 语言模拟数据**，深入解析 5 种最常见的情景：
+
+1.  **辛普森悖论 (Simpson's Paradox)**：符号完全反转。
+2.  **混杂效应 (Confounding)**：虚假关联的消除。
+3.  **中介效应 (Mediation)**：机制的解释。
+4.  **抑制效应 (Suppression)**：被掩盖的真相。
+5.  **多重共线性 (Multicollinearity)**：数学上的不稳定。
+
+---
+
+# 2. 情景一：辛普森悖论 (符号反转)
+
+这是最极端的情况：总体看是正相关，分组看却是负相关（或反之）。
+
+## 2.1 原理解析
+
+通常是因为存在一个**强混杂因素**，它既影响分组（X），又强烈影响结果（Y），且在不同组间分布极不平衡。
+
+## 2.2 R 语言模拟
+
+假设我们要研究**运动量 (Exercise)** 对 **胆固醇水平 (Cholesterol)** 的影响。
+直觉上，运动越多，胆固醇应该越低。但我们可能会看到相反的结果。
+
+```{r}
+# 模拟数据
+set.seed(123)
+n <- 200
+
+# 构造一个混杂因素：年龄 (Age)
+# 年龄越大，运动越少；年龄越大，胆固醇越高
+sim_data_simpson <- tibble(
+  Age_Group = sample(c("Young", "Old"), n, replace = TRUE, prob = c(0.5, 0.5))
+) %>%
+  mutate(
+    # 运动量 (X): 年轻人运动多(均值10)，老年人运动少(均值4)
+    Exercise = if_else(Age_Group == "Young",
+                       rnorm(n(), mean = 10, sd = 2),
+                       rnorm(n(), mean = 4, sd = 2)),
+
+    # 胆固醇 (Y): 基础值 + 运动的保护作用(-0.5) + 年龄的风险作用(+50)
+    # 注意：真实的运动效应是 -0.5 (负相关)
+    Cholesterol = 180 - 0.5 * Exercise +
+                  if_else(Age_Group == "Old", 50, 0) +
+                  rnorm(n(), sd = 5)
+  )
+
+# 1. 单因素分析 (只看运动和胆固醇)
+m1_simpson <- lm(Cholesterol ~ Exercise, data = sim_data_simpson)
+
+# 2. 多因素分析 (控制年龄)
+m2_simpson <- lm(Cholesterol ~ Exercise + Age_Group, data = sim_data_simpson)
+
+# 展示结果对比
+tbl_merge(
+  list(tbl_regression(m1_simpson), tbl_regression(m2_simpson)),
+  tab_spanner = c("**单因素 (错误)**", "**多因素 (正确)**")
+)
+```
+
+**解读：**
+*   **单因素模型**中，Exercise 的系数是 **正值** (显著)！这意味着运动越多，胆固醇越高？这显然违背常识。
+*   **多因素模型**中，控制了 Age_Group 后，Exercise 的系数变成了 **负值** (显著)，回归了真相。
+
+## 2.3 可视化解释
+
+为什么会这样？画图一看便知。
+
+```{r}
+p_simpson <- ggplot(sim_data_simpson, aes(x = Exercise, y = Cholesterol)) +
+  geom_point(aes(color = Age_Group), alpha = 0.6) +
+  # 总体的回归线 (红色虚线)
+  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "dashed") +
+  # 分组的回归线 (组内颜色实线)
+  geom_smooth(aes(color = Age_Group), method = "lm", se = FALSE) +
+  labs(title = "辛普森悖论可视化",
+       subtitle = "红色虚线：总体趋势 (正相关)\n彩色实线：分层趋势 (负相关)") +
+  scale_color_jco()
+
+p_simpson
+```
+
+**结论：** 这里的“不一致”是因为**忽略了关键混杂因素（年龄）**。单因素结果是偏差（Bias），多因素结果才是无偏估计。
+
+---
+
+# 3. 情景二：混杂效应 (显著变不显著)
+
+这是最常见的情况：单因素有意义，多因素没意义。
+这通常意味着 X 对 Y 没有直接因果关系，它们只是因为共享了同一个原因 Z 而看起来相关。
+
+## 3.1 案例：咖啡与肺癌
+
+假设我们观察到喝咖啡 (Coffee) 的人肺癌 (Lung Cancer) 风险更高。
+实际上是因为喝咖啡的人往往也吸烟 (Smoking)，吸烟才是肺癌的真凶。
+
+```{r}
+set.seed(456)
+# 构造 DAG: Coffee <- Smoking -> Lung_Cancer
+sim_data_confound <- tibble(
+  Smoking = rbinom(n, 1, 0.5) # 0不吸烟, 1吸烟
+) %>%
+  mutate(
+    # 吸烟的人更爱喝咖啡
+    Coffee = 2 + 3 * Smoking + rnorm(n()),
+    # 吸烟导致肺癌风险增加，咖啡本身无影响
+    Lung_Cancer_Risk = 0.1 + 0.6 * Smoking + 0 * Coffee + rnorm(n(), sd = 0.1)
+  )
+
+# 1. 单因素：咖啡 -> 肺癌
+m1_conf <- lm(Lung_Cancer_Risk ~ Coffee, data = sim_data_confound)
+
+# 2. 多因素：咖啡 + 吸烟 -> 肺癌
+m2_conf <- lm(Lung_Cancer_Risk ~ Coffee + Smoking, data = sim_data_confound)
+
+tbl_merge(
+  list(tbl_regression(m1_conf), tbl_regression(m2_conf)),
+  tab_spanner = c("**单因素 (虚假关联)**", "**多因素 (去混杂)**")
+)
+```
+
+**解读：**
+*   **单因素**：咖啡显著增加肺癌风险。
+*   **多因素**：放入吸烟后，咖啡的效应变得不显著（接近 0）。
+*   **结论**：单因素结果是假象，多因素结果揭示了咖啡本身不致癌。
+
+---
+
+# 4. 情景三：中介效应 (显著变不显著/变小)
+
+**注意！** 这种情况下的统计表现和“混杂效应”一模一样（单因素显著，多因素不显著），但**科学解释完全不同**。
+
+## 4.1 路径区别
+
+*   **混杂 (Confounding)**: $X \leftarrow Z \to Y$ (Z 是干扰项，我们要剔除它)
+*   **中介 (Mediation)**: $X \to M \to Y$ (M 是 X 发挥作用的机制/路径)
+
+如果我们研究 **肥胖 (X)** 对 **糖尿病 (Y)** 的影响，引入了 **胰岛素抵抗 (M)**。
+肥胖正是通过导致胰岛素抵抗来引发糖尿病的。
+
+```{r}
+# 构造 DAG: BMI -> Insulin_Resist -> Diabetes
+sim_data_med <- tibble(
+  BMI = rnorm(n, 25, 4)
+) %>%
+  mutate(
+    # 肥胖导致胰岛素抵抗
+    Insulin_Resist = 0.5 * BMI + rnorm(n()),
+    # 胰岛素抵抗导致糖尿病 (BMI没有直接路径，全是间接的)
+    Diabetes_Risk = 0.8 * Insulin_Resist + rnorm(n())
+  )
+
+# 1. 单因素 (总效应)
+m1_med <- lm(Diabetes_Risk ~ BMI, data = sim_data_med)
+
+# 2. 多因素 (直接效应)
+m2_med <- lm(Diabetes_Risk ~ BMI + Insulin_Resist, data = sim_data_med)
+
+tbl_merge(
+  list(tbl_regression(m1_med), tbl_regression(m2_med)),
+  tab_spanner = c("**单因素 (总效应)**", "**多因素 (直接效应)**")
+)
+```
+
+**如何区分混杂和中介？**
+统计软件无法区分！这完全取决于**专业知识**和**因果时序**。
+*   如果 Z 在 X 之前发生（如年龄、性别），它是混杂。
+*   如果 Z 在 X 之后发生，且是 X 的结果，它是中介。
+
+**关键点：** 如果你的目的是解释“X 是否导致 Y”，在这个模型中**不应该**控制中介变量。控制中介变量会把 X 的效应“解释掉”了（Over-adjustment bias）。
+*   单因素回归反映了 X 对 Y 的**总效应**（这是对的！肥胖确实导致糖尿病）。
+*   多因素回归反映了 X 除去 M 途径后的**直接效应**（在这里接近 0）。
+
+---
+
+# 5. 情景四：抑制/遮蔽效应 (不显著变显著)
+
+这是比较少见但很高级的情况：单因素分析 X 没意义，加了 Z 之后，X 反而显著了。
+
+这通常是因为 X 和 Z 正相关，但它们对 Y 的影响方向相反。Z 在单因素分析中“掩盖”了 X 的真实作用。
+
+**案例：** 销售人员的**推销压力 (Pressure)** 对 **客户满意度 (Satisfaction)** 的影响。
+*   推销压力越大，客户越反感（直接负效应）。
+*   但是，推销压力大往往意味着**沟通次数 (Communication)** 多，而沟通多会提高满意度（正效应）。
+*   结果：单看“压力”，正负抵消，看似无关。控制“沟通次数”后，压力的负面效应暴露无遗。
+
+```{r}
+# X: 压力, Z: 沟通, Y: 满意度
+sim_data_supp <- tibble(
+  Pressure = rnorm(n)
+) %>%
+  mutate(
+    # 压力大导致沟通多 (正相关)
+    Communication = 0.7 * Pressure + rnorm(n),
+    # 压力降低满意度(-0.5)，沟通提高满意度(+0.5)
+    Satisfaction = -0.5 * Pressure + 0.5 * Communication + rnorm(n)
+  )
+
+# 1. 单因素
+m1_supp <- lm(Satisfaction ~ Pressure, data = sim_data_supp)
+
+# 2. 多因素
+m2_supp <- lm(Satisfaction ~ Pressure + Communication, data = sim_data_supp)
+
+tbl_merge(
+  list(tbl_regression(m1_supp), tbl_regression(m2_supp)),
+  tab_spanner = c("**单因素 (被遮蔽)**", "**多因素 (去遮蔽)**")
+)
+```
+
+**解读：**
+*   单因素中，Pressure 的 p 值不显著，系数很小。
+*   多因素中，Pressure 变成了显著的**负数**，Communication 是显著的**正数**。
+*   这是因为我们剔除了沟通带来的“好处”，看到了压力纯粹的“坏处”。
+
+---
+
+# 6. 情景五：多重共线性 (Multicollinearity)
+
+当两个自变量 X1 和 X2 高度相关（例如 r > 0.8）时，放入同一个模型会导致系数估计极不稳定。
+
+**特征：**
+*   模型的总体 F 检验显著（$R^2$ 很大）。
+*   但是单个变量的 t 检验都不显著。
+*   系数的标准误 (SE) 异常大。
+*   系数符号可能随数据的微小变动而剧烈跳动。
+
+**诊断：** 计算方差膨胀因子 (VIF)。
+
+```{r}
+library(car)
+# 构造共线性数据
+X1 <- rnorm(n)
+X2 <- 0.95 * X1 + rnorm(n, sd = 0.1) # X1 和 X2 极度相关
+Y <- 2 * X1 + 3 * X2 + rnorm(n)
+
+m_collinear <- lm(Y ~ X1 + X2)
+# 查看 VIF
+vif(m_collinear) # 如果 VIF > 10 甚至 > 5，说明共线性严重
+```
+
+**处理：**
+*   删除其中一个变量。
+*   将它们合并为一个新变量（如主成分分析 PCA）。
+*   使用岭回归 (Ridge Regression) 或 Lasso。
+
+---
+
+# 7. 总结与论文写作指南
+
+如何理解和在论文中解释这些不一致？请对照下表：
+
+| 现象 | 单因素 | 多因素 | 原因诊断 | 论文处理策略 |
+|:---|:---|:---|:---|:---|
+| **去混杂** | 显著 | 不显著 / 变小 | 协变量是 X 的前因 (Confounder) | 以多因素为准，解释为“单因素的关联是由混杂因素 Z 解释的”。 |
+| **中介效应** | 显著 | 不显著 / 变小 | 协变量是 X 的后果 (Mediator) | **小心！** 如果想看总效应，报告单因素（或不含中介的多因素模型）；如果想看机制，进行中介分析。不要简单说 X 无效。 |
+| **辛普森悖论** | 正相关 | 负相关 | 存在分布不均的强混杂因子 | 以多因素（分层分析）为准，这是由于混杂导致的偏差。 |
+| **抑制效应** | 不显著 | 显著 | 协变量掩盖了 X 的效应 | 这是一个有趣的发现，解释为“控制 Z 后，揭示了 X 的真实影响”。 |
+| **共线性** | 显著 | SE 变大/不显著 | VIF 高，变量间强相关 | 删除变量或降维，不要强行解释多因素模型中的单个系数。 |
+
+## 实战 Checkilist
+
+1.  **先画图 (DAG)**：在跑回归前，先根据专业知识画出变量间的假设关系。确认哪些是混杂，哪些是中介。
+2.  **看分布**：检查自变量之间是否高度相关 (VIF)。
+3.  **做对比**：常规做法是构建 Table 2，展示 Model 1 (Crude), Model 2 (Adjusted for demo), Model 3 (Fully adjusted)。
+4.  **解释变化**：系数的变化幅度如果超过 10%，通常认为有混杂存在，这是有意义的统计现象，需要在讨论部分 (Discussion) 解释原因。
+
+## 示例话术 (Discussion)
+
+> "Although the univariate analysis suggested a significant association between X and Y, this association was attenuated and became non-significant after adjusting for age and smoking status. This suggests that the observed crude association was largely confounded by these demographic and lifestyle factors."
+> (尽管单因素分析提示 X 和 Y 相关，但在调整年龄和吸烟后，这种关联减弱且变得不显著。这提示观察到的粗关联主要是由这些人口学和生活方式因素混杂导致的。)
+
+> "Interestingly, the association between X and Y became stronger and statistically significant only after adjusting for Z. This indicates a suppression effect, where Z masked the true relationship in the crude analysis."
+> (有趣的是，只有在调整了 Z 之后，X 和 Y 的关联才变强且显著。这提示存在抑制效应，即 Z 在粗分析中掩盖了真实关系。)
