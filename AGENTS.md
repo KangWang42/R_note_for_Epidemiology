@@ -2,27 +2,19 @@
 
 ## Project Overview
 
-This is a **Quarto-based static website** that serves as a comprehensive learning resource for R language data science, with a focus on:
-- Epidemiology and biostatistics
-- Statistical analysis methods
-- Data visualization
-- Machine learning and AI
-- Special applications (health economics, qualitative research, signal processing)
-
-**Live Site**: https://r.wk8686.top  
-**Repository**: https://github.com/KangWang42/R_note_for_Epidemiology
+我要求你生成文章的时候，一定要查看对应的Skills，使用skills的规范来生成
 
 ---
 
 ## Technology Stack
 
-| Component | Technology | Version Requirement |
-|-----------|------------|---------------------|
-| Document Framework | [Quarto](https://quarto.org/) | ≥ 1.4 |
-| Programming Language | R | ≥ 4.3 |
-| Visualization | ggplot2 + extensions | ≥ 3.6 |
-| CI/CD | GitHub Actions | - |
-| Deployment | Self-hosted server | - |
+| Component            | Technology                 | Version Requirement |
+| -------------------- | -------------------------- | ------------------- |
+| Document Framework   | [Quarto](https://quarto.org/) | ≥ 1.4              |
+| Programming Language | R                          | ≥ 4.3              |
+| Visualization        | ggplot2 + extensions       | ≥ 3.6              |
+| CI/CD                | GitHub Actions             | -                   |
+| Deployment           | Self-hosted server         | -                   |
 
 ---
 
@@ -59,15 +51,15 @@ This is a **Quarto-based static website** that serves as a comprehensive learnin
 
 Articles follow a strict numbering system:
 
-| Range | Category | Description |
-|-------|----------|-------------|
-| `00xx` | 入门指南 | Getting started, learning roadmap, basics |
-| `10xx` | 统计分析方法 | Statistical analysis methods |
-| `20xx` | 数据可视化 | Data visualization tutorials |
-| `30xx` | 实用操作 | Data operations, imports, cleaning |
-| `40xx` | 应用开发 | Application development (Shiny) |
-| `50xx` | AI 工具 | AI programming tools documentation |
-| `60xx` | 特殊应用 | Special applications |
+| Range    | Category     | Description                               |
+| -------- | ------------ | ----------------------------------------- |
+| `00xx` | 入门指南     | Getting started, learning roadmap, basics |
+| `10xx` | 统计分析方法 | Statistical analysis methods              |
+| `20xx` | 数据可视化   | Data visualization tutorials              |
+| `30xx` | 实用操作     | Data operations, imports, cleaning        |
+| `40xx` | 应用开发     | Application development (Shiny)           |
+| `50xx` | AI 工具      | AI programming tools documentation        |
+| `60xx` | 特殊应用     | Special applications                      |
 
 Example: `1014-purrr.rmd` = Statistics category (#10), #14 in sequence, topic is purrr package.
 
@@ -132,6 +124,7 @@ quarto render doc/
 ### Pre-render Script: `generate_sections.R`
 
 This script automatically generates category index pages from `_quarto.yml` sidebar configuration:
+
 - Reads sidebar structure from `_quarto.yml`
 - Generates styled category cards with article links
 - Outputs to `doc/sections/*.qmd`
@@ -144,9 +137,10 @@ This script automatically generates category index pages from `_quarto.yml` side
 ### Adding a New Tutorial
 
 1. **Create file** with proper naming: `[Section][Number]-[topic].rmd`
-   - Check existing files to determine next available number
 
+   - Check existing files to determine next available number
 2. **Use YAML template**:
+
    ```yaml
    ---
    title: 'Title: 中文副标题'
@@ -157,25 +151,26 @@ This script automatically generates category index pages from `_quarto.yml` side
    image: figure/default-cover1.png
    ---
    ```
-
 3. **Set up R chunk options** at top of document:
+
    ```r
    ```{r setup, include=FALSE}
    knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
    set.seed(42)  # For reproducibility
    ```
+
    ```
 
+   ```
 4. **Add to `_quarto.yml`** sidebar configuration (find appropriate section)
-
 5. **Run pre-render script** to regenerate section pages:
+
    ```bash
    cd doc && Rscript generate_sections.R
    ```
-
 6. **Update guide page** (`0001-guide.rmd`) to include new tutorial in learning roadmap
-
 7. **Test rendering**:
+
    ```bash
    quarto render doc/[your-file].rmd
    ```
@@ -183,6 +178,7 @@ This script automatically generates category index pages from `_quarto.yml` side
 ### Adding Cover Image
 
 Place cover image in appropriate location:
+
 - `doc/images/[basename]-cover.svg` or
 - `doc/figure/[basename]-cover.png`
 
@@ -244,12 +240,12 @@ This project has **no formal test suite**. Validation is via successful renderin
 
 ### Common Rendering Issues
 
-| Issue | Solution |
-|-------|----------|
-| Missing R package | Install with `install.packages("pkg")` |
-| Cache issues | Delete `doc/*_cache/` directories |
-| YAML syntax error | Validate indentation (spaces, not tabs) |
-| Image not found | Check relative path from `doc/` directory |
+| Issue             | Solution                                    |
+| ----------------- | ------------------------------------------- |
+| Missing R package | Install with `install.packages("pkg")`    |
+| Cache issues      | Delete `doc/*_cache/` directories         |
+| YAML syntax error | Validate indentation (spaces, not tabs)     |
+| Image not found   | Check relative path from `doc/` directory |
 
 ---
 
@@ -268,6 +264,7 @@ Steps:
 ```
 
 **Deployment secrets** (configured in GitHub):
+
 - `SERVER_SSH_KEY`: SSH private key for server access
 - `SERVER_HOST`: Server IP/hostname
 - `SERVER_USER`: SSH username
@@ -276,6 +273,7 @@ Steps:
 ### Manual Deployment
 
 For local testing, you can serve `public/` directory with any static server:
+
 ```bash
 cd public && python -m http.server 8000
 ```
@@ -301,16 +299,17 @@ cd public && python -m http.server 8000
 ### Main Categories (from `_quarto.yml`)
 
 1. **入门指南** (Getting Started)
+
    - 学习路线 (Learning Path)
    - 基础知识 (Fundamentals)
    - 工作流程 (Workflow)
-
 2. **实用 R 包** (R Packages)
+
    - 表格制作 (Table Generation)
    - 数据处理 (Data Processing)
    - 模型整理 (Model Tidying)
-
 3. **统计分析方法** (Statistical Methods)
+
    - 基础回归 (Basic Regression)
    - 生存分析 (Survival Analysis)
    - 因果推断 (Causal Inference)
@@ -319,20 +318,20 @@ cd public && python -m http.server 8000
    - 模型评估 (Model Evaluation)
    - 综述方法 (Review Methods)
    - 流行病学研究设计 (Study Design)
-
 4. **机器学习与AI** (ML & AI)
+
    - 机器学习框架 (ML Frameworks)
    - 深度学习 (Deep Learning)
    - AI 工具 (AI Tools)
-
 5. **实用操作** (Practical Operations)
+
    - 数据导入导出 (Data I/O)
    - 数据清洗 (Data Cleaning)
    - 数据转换 (Data Transformation)
    - 文档写作 (Document Writing)
    - 开发环境 (Development Environment)
-
 6. **数据可视化** (Data Visualization)
+
    - 图形基础 (Plotting Basics)
    - 图形组合 (Plot Composition)
    - 分布图 (Distribution Plots)
@@ -342,8 +341,8 @@ cd public && python -m http.server 8000
    - 特殊图形 (Special Plots)
    - 专题图 (Thematic Plots)
    - 进阶美化 (Advanced Styling)
-
 7. **特殊应用** (Special Applications)
+
    - 卫生经济学 (Health Economics)
    - 质性研究 (Qualitative Research)
    - 信号处理 (Signal Processing)
@@ -357,6 +356,7 @@ cd public && python -m http.server 8000
 ### `doc/_quarto.yml`
 
 Main configuration controlling:
+
 - Site metadata (title, navbar, footer)
 - Sidebar navigation structure (all article links)
 - Theme and styling (SCSS, CSS)
@@ -369,6 +369,7 @@ Main configuration controlling:
 ### `doc/styles.css`
 
 Custom CSS including:
+
 - Auto-section numbering (CSS counters for h2/h3)
 - Responsive layout (3-column desktop, mobile adaptations)
 - Card and component styling
@@ -379,6 +380,7 @@ Custom CSS including:
 ### `doc/theme.scss`
 
 SCSS variables for:
+
 - Color schemes
 - Typography
 - Component defaults
@@ -397,6 +399,7 @@ SCSS variables for:
 ## External Rules
 
 No additional rule files detected:
+
 - No `.cursor/rules`
 - No `.cursorrules`
 - No `.github/copilot-instructions.md`

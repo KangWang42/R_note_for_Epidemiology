@@ -118,17 +118,27 @@ description: 生成 AI 工具介绍类页面的超详细教程内容，强调工
    cd doc && Rscript generate_sections.R
    ```
 
-3. **验证 sections 已更新**:
+3. **渲染 sections 页面 (MANDATORY - 必须执行)**:
+
+   ⚠️ **运行 generate_sections.R 后必须立即渲染 sections 页面！**
+
+   ```bash
+   # 渲染 ai-tools 页面（新增文章所在分类）
+   quarto render doc/sections/machine-learning.qmd
+
+   # 如果需要，也渲染主页以更新导航
+   quarto render doc/index.qmd
+   ```
+
+   **为什么必须渲染**：
+   - generate_sections.R 只更新 .qmd 源文件
+   - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
+
+4. **验证 sections 已更新**:
 
    ```bash
    # 检查新文章是否出现在对应的 section 中
-   grep "[number]-[topic]" doc/sections/ai-tools.qmd
-   ```
-
-4. **重新渲染 sections 页面**:
-
-   ```bash
-   quarto render doc/sections/ai-tools.qmd
+   grep "[number]-[topic]" doc/sections/machine-learning.qmd
    ```
 
 ### 其他操作

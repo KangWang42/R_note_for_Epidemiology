@@ -165,7 +165,23 @@ install.packages(c("survival", "MatchIt", "lme4", "brms", "mediation"))
    cd doc && Rscript generate_sections.R
    ```
 
-3. **验证 sections 已更新**:
+3. **渲染 sections 页面 (MANDATORY - 必须执行)**:
+
+   ⚠️ **运行 generate_sections.R 后必须立即渲染 sections 页面！**
+
+   ```bash
+   # 渲染 statistics 页面（新增文章所在分类）
+   quarto render doc/sections/statistics.qmd
+
+   # 如果需要，也渲染主页以更新导航
+   quarto render doc/index.qmd
+   ```
+
+   **为什么必须渲染**：
+   - generate_sections.R 只更新 .qmd 源文件
+   - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
+
+4. **验证 sections 已更新**:
 
    ```bash
    # 检查新文章是否出现在 sections/statistics.qmd 中
