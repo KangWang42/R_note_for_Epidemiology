@@ -2,28 +2,38 @@
 document.addEventListener('DOMContentLoaded', function() {
   // DEBUG: console.log('[侧边栏] DOMContentLoaded 触发');
   
-  // 监听 searchData 加载完成事件
+  // 监听 searchData 加载完成事件 - 数据加载后异步刷新精选教程
   window.addEventListener('searchDataReady', function(event) {
     // DEBUG: console.log('[侧边栏] 接收到 searchDataReady 事件, 数据量:', event.detail.data.length);
-    initializeSidebar();
+    // 数据加载后，如果侧边栏已存在，则刷新精选教程
+    const featuredCard = document.querySelector('.featured');
+    if (featuredCard && window.searchData && window.searchData.length > 0) {
+      renderFeatured(featuredCard);
+    }
   });
   
-  // 轮询检查 searchData 是否加载(最多等待5秒)
+  // 立即初始化侧边栏，不等待 searchData
+  initializeSidebar();
+  
+  // 短超时检查（仅用于刷新精选教程）
   let checkCount = 0;
-  const maxChecks = 50; // 50 * 100ms = 5秒
+  const maxChecks = 10; // 10 * 100ms = 1秒，更短的等待时间
   
   const checkDataInterval = setInterval(() => {
     checkCount++;
     
-    if (window.searchData && window.searchData.length > 0) {
-      // DEBUG: console.log('[侧边栏] searchData 已加载,开始初始化');
+    if (window.searchData && window.searchData.length > 0 && checkCount < maxChecks) {
+      // 数据加载了，停止检查
       clearInterval(checkDataInterval);
-      initializeSidebar();
     } else if (checkCount >= maxChecks) {
-      // DEBUG: console.error('[侧边栏] 超时: searchData 未在5秒内加载');
+      // 1秒后，如果数据已加载，刷新精选教程
       clearInterval(checkDataInterval);
-      // 即使超时也要初始化侧边栏（显示学习路径和本周必学）
-      initializeSidebar();
+      if (window.searchData && window.searchData.length > 0) {
+        const featuredCard = document.querySelector('.featured');
+        if (featuredCard) {
+          renderFeatured(featuredCard);
+        }
+      }
     }
   }, 100); // 每100ms检查一次
 });
@@ -36,6 +46,15 @@ if (typeof window.sidebarInitialized === 'undefined') {
 function initializeSidebar() {
   if (window.sidebarInitialized) {
     // DEBUG: console.log('[侧边栏] 已经初始化过,跳过');
+    return;
+  }
+  
+  // 只在首页显示自定义侧边栏，文章页面显示原始TOC
+  const path = window.location.pathname;
+  const isHomePage = path === '/' || path.endsWith('/index.html') || path === '';
+  
+  if (!isHomePage) {
+    // DEBUG: console.log('[侧边栏] 非首页，跳过自定义侧边栏');
     return;
   }
   
@@ -76,18 +95,8 @@ function initializeSidebar() {
       const items = getRandomItems(dataToUse, 3);
       // DEBUG: console.log('[精选教程] 随机选取的教程数:', items.length);
       
+      // 有数据时才渲染精选教程，否则不显示
       if (items.length === 0) {
-        // DEBUG: console.warn('[精选教程] 没有可用数据,显示占位内容');
-        container.innerHTML = `
-          <div class="sidebar-card-header">
-            <span class="header-icon"><i class="bi bi-star"></i></span> 精选教程
-          </div>
-          <div class="featured-list">
-            <div style="padding: 1rem; text-align: center; color: #64748b;">
-              正在加载教程数据...
-            </div>
-          </div>
-        `;
         return;
       }
       
