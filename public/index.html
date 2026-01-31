@@ -3331,6 +3331,8 @@ function initializeSidebar() {
     return;
   }
   
+  // 立即标记为已初始化，防止竞态条件
+  sidebarInitialized = true;
   console.log('[侧边栏] 开始初始化侧边栏...');
   
   const marginSidebar = document.querySelector('#quarto-margin-sidebar');
@@ -3423,60 +3425,6 @@ function initializeSidebar() {
       }
     }
     
-    // 更新知识地图统计
-    // 使用预计算的准确数据（来自文件系统分析）
-    // 比 DOM 提取更可靠，避免分页导致的不准确
-    function updateKnowledgeStats() {
-      console.log('[知识地图] 开始更新统计数据（使用预计算值）...');
-      
-      // 预计算数据（基于 YAML categories 统计）
-      // 更新日期: 2026-01-26
-      // 获取方式: grep -h "^categories:" -A 5 *.rmd *.qmd | grep "^- " | sort | uniq -c
-      const precomputedStats = {
-        total: 203,        // 教程总数（不含 index.qmd）
-        topics: 7,         // 主分类数：统计分析方法、数据可视化、R包、机器学习与AI、实用操作、特殊应用、入门指南
-        packages: 16,      // R包相关教程数（包含"实用 R 包"分类）
-        categories: {
-          viz: 56,         // 数据可视化
-          stats: 74,       // 统计分析方法
-          pkg: 28,         // R包
-          ml: 24           // 机器学习与AI
-        }
-      };
-      
-      // 更新统计数字
-      const totalEl = document.getElementById('stats-total');
-      const topicsEl = document.getElementById('stats-topics');
-      const levelEl = document.getElementById('stats-level');
-      
-      if (totalEl) {
-        totalEl.textContent = precomputedStats.total;
-        console.log('[知识地图] ✓ 教程总数:', precomputedStats.total);
-      }
-      
-      if (topicsEl) {
-        topicsEl.textContent = precomputedStats.topics;
-        console.log('[知识地图] ✓ 主题数:', precomputedStats.topics);
-      }
-      
-      if (levelEl) {
-        levelEl.textContent = precomputedStats.packages + "+";
-        console.log('[知识地图] ✓ R包数:', precomputedStats.packages);
-      }
-      
-      const vizEl = document.getElementById('count-viz');
-      const statsEl = document.getElementById('count-stats');
-      const pkgEl = document.getElementById('count-pkg');
-      const mlEl = document.getElementById('count-ml');
-      
-      if (vizEl) vizEl.textContent = precomputedStats.categories.viz;
-      if (statsEl) statsEl.textContent = precomputedStats.categories.stats;
-      if (pkgEl) pkgEl.textContent = precomputedStats.categories.pkg;
-      if (mlEl) mlEl.textContent = precomputedStats.categories.ml;
-      
-      console.log('[知识地图] ✓ 分类统计:', precomputedStats.categories);
-    }
-
   const customSidebarContainer = document.createElement('div');
   customSidebarContainer.className = 'custom-sidebar-cards';
 
@@ -3526,39 +3474,12 @@ function initializeSidebar() {
     </div>
   `;
 
-  // ==================== 知识地图卡片 ====================
-  const knowledgeMapHtml = `
-    <div class="sidebar-card knowledge-map">
-      <div class="sidebar-card-header"><span class="header-icon"><i class="bi bi-diagram-3"></i></span> 知识地图</div>
-      <div class="map-stats">
-        <div class="stat-item">
-          <div class="stat-number" id="stats-total">...</div>
-          <div class="stat-label">教程</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-number" id="stats-topics">...</div>
-          <div class="stat-label">主题</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-number" id="stats-level">...</div>
-          <div class="stat-label">R包</div>
-        </div>
-      </div>
-      <div class="map-categories">
-        <a href="${resolvePath('sections/visualization.html')}" class="category-chip viz">可视化 <span id="count-viz">..</span></a>
-        <a href="${resolvePath('sections/statistics.html')}" class="category-chip stats">统计 <span id="count-stats">..</span></a>
-        <a href="${resolvePath('sections/packages.html')}" class="category-chip pkg">R包 <span id="count-pkg">..</span></a>
-        <a href="${resolvePath('sections/machine-learning.html')}" class="category-chip ml">ML <span id="count-ml">..</span></a>
-      </div>
-    </div>
-  `;
-
   // ==================== 精选教程卡片 ====================
   const featuredCard = document.createElement('div');
   featuredCard.className = 'sidebar-card featured';
   
   // 组装所有卡片
-  customSidebarContainer.innerHTML = learningPathHtml + essentialsHtml + knowledgeMapHtml;
+  customSidebarContainer.innerHTML = learningPathHtml + essentialsHtml;
   customSidebarContainer.appendChild(featuredCard);
   
   console.log('[侧边栏] 卡片HTML已组装');
@@ -3591,12 +3512,10 @@ function initializeSidebar() {
     if (currentData.length > 0) {
       window.filteredDataGlobal = currentData;
       renderFeatured(featuredCard);
-      updateKnowledgeStats(); // 现在可以找到DOM元素了!
       console.log('[侧边栏] 内容渲染完成!');
     }
   }
   
-  sidebarInitialized = true; // 标记为已初始化
   console.log('[侧边栏] 初始化完成!');
 }
 </script>
