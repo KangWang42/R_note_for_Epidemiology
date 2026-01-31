@@ -8,6 +8,10 @@
 
 如果我说文章没有问题，你就直接gitadd然后push，注意所有修改的内容都要提交，能提交的都要提交
 
+无论什么时候不要全量渲染
+
+渲染的话，要render文章，同时还要render index.qmd 和render 新的section的qmd为html
+
 ---
 
 Repository Layout

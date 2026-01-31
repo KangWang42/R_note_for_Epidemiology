@@ -256,6 +256,7 @@
 | **AI 工具对比**  | ⭐     | [OpenCode vs Claude Code](5007-opencode-vs-claude-code.html)                      | AI 编程工具选型         |
 | **Claude Code**  | ⭐     | [Claude Code 完全指南](5008-claudecode.html)                                      | Anthropic 官方 AI 助手  | ⭐新增 |
 | **OpenCode Hooks** | ⭐     | [OpenCode Hooks 钩子系统](5009-opencode-hooks.html)                               | 工作流自动化与 Hooks 系统 | ⭐新增 |
+| **LLM 选型**     | ⭐     | [主流大语言模型 API 选型指南](5010-llm-comparison.html)                              | Kimi/DeepSeek/GLM/Gemini/Claude/GPT-5 对比 | ⭐新增 |
 
 </details>
 
