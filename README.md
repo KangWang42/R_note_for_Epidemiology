@@ -73,6 +73,7 @@
 | **tidytable**     | data.table 引擎 |  ⭐⭐  | [教程链接](3015-tidytable.html)     |
 | **gtsummary**     | 论文表格生成    |  ⭐⭐  | [教程链接](1053-gtsummary.html)     |
 | **ggguides**      | 图例简化        |   ⭐   | [教程链接](2034-ggguides.html)      |
+| **officer**       | Office文档自动化 |  ⭐⭐  | [教程链接](1068-officer.html)       |
 
 </details>
 
