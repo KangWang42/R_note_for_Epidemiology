@@ -87,15 +87,95 @@ description: 生成 AI 工具介绍类页面的超详细教程内容，强调工
 
 ## 完成后操作
 
-- 自动更新 `doc/_quarto.yml` 的侧边栏入口，在"机器学习与AI"分类下添加"AI 工具"子分类。
-- 必须完成 3 项 render 验证且全部成功：
-  - `quarto render doc/<当前文章>`
-  - `quarto render doc/index.qmd`
-  - `quarto render doc/sections/<对应分类>.qmd`
-- 三项 render 全部通过后再执行其它操作`，确认无报错。
-- **更新 `doc/0001-guide.rmd`**：在对应分类表格中添加新教程条目，保持与现有格式一致。
-- **同步更新 `README.md`**：在对应分类的折叠块中添加新教程条目，保持与 guide 内容一致。README 中的教程链接使用 `.html` 后缀。
-- 渲染完成后询问是否提交；用户确认后执行 commit，并push。
+### 步骤1: 更新导航系统 (CRITICAL)
+
+**⚠️ 重要顺序：必须先创建文章 → 更新 _quarto.yml → 运行 generate_sections.R**
+
+必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
+
+**⚠️ 更新导航前务必验证**:
+
+- 确认新文件已成功渲染
+- 确认文件编号无冲突
+- 确认YAML元数据正确
+
+1. **更新 `doc/_quarto.yml`**:
+
+   - 找到 `sidebar` -> `contents` -> `机器学习与AI` -> `AI 工具` 部分。
+   - 添加新条目，**严格遵守 14 空格缩进**:
+     ```yaml
+               - text: "文章标题"
+                 href: "[number]-[topic].qmd"
+     ```
+
+2. **运行自动生成脚本 (MANDATORY - 在更新 _quarto.yml 之后)**:
+
+   - ⚠️ **必须在 _quarto.yml 更新后运行**，否则新的文章链接不会出现在 sections 中
+   - 此脚本会根据 `_quarto.yml` 更新 `sections/machine-learning.qmd` 等分类索引页。
+
+   ```bash
+   # 在 doc 目录下运行
+   cd doc && Rscript generate_sections.R
+   ```
+
+3. **渲染 sections 页面 (MANDATORY - 必须执行)**:
+
+   ⚠️ **运行 generate_sections.R 后必须立即渲染 sections 页面！**
+
+   ```bash
+   # 渲染 machine-learning 页面（新增文章所在分类）
+   # ⚠️ 注意：不要使用 --output-dir 参数，让 Quarto 自动输出到正确位置
+   cd doc && quarto render sections/machine-learning.qmd
+
+   # 如果需要，也渲染主页以更新导航
+   quarto render index.qmd
+   ```
+
+   **为什么必须渲染**：
+   - generate_sections.R 只更新 .qmd 源文件
+   - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
+
+   **⚠️ 警告：不要使用 `--output-dir` 参数**：
+   - 错误：`quarto render sections/machine-learning.qmd --output-dir ../public/sections`
+   - 这会导致输出到 `public/sections/sections/` 嵌套目录
+   - 正确：直接在 doc 目录下运行 `quarto render sections/machine-learning.qmd`
+   - Quarto 会根据 `_quarto.yml` 中的 `output-dir` 配置自动输出到正确位置
+
+4. **验证 sections 已更新**:
+
+   ```bash
+   # 检查新文章是否出现在对应的 section 中
+   grep "[number]-[topic]" doc/sections/machine-learning.qmd
+   ```
+
+### 步骤2: 更新学习指南和 README (MANDATORY)
+
+1. **更新 `doc/0001-guide.rmd`**：
+   - 在对应分类表格中添加新教程条目
+   - 保持与现有格式一致
+   - 链接使用 `.html` 后缀
+
+2. **同步更新 `README.md`**：
+   - 在对应分类的折叠块中添加新教程条目
+   - 保持与 guide 内容一致
+   - README 中的教程链接使用 `.html` 后缀
+
+### 步骤3: 最终渲染与提交
+
+1. **重新渲染受影响页面**:
+
+   ```bash
+   quarto render doc/sections/machine-learning.qmd
+   quarto render doc/index.qmd
+   ```
+
+2. **提交代码**:
+
+   ```bash
+   git add doc/[number]-[topic].qmd doc/images/[topic]-cover.svg
+   git add doc/_quarto.yml doc/0001-guide.rmd README.md doc/sections/machine-learning.qmd
+   git commit -m "feat(ai-tools): 新增[工具名称]教程"
+   ```
 
 示例主题：OpenCode、Cursor、GitHub Copilot、Claude、ChatGPT 使用技巧等。
 如果未指定具体工具或使用场景，请先提出澄清问题。

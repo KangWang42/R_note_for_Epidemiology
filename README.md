@@ -253,6 +253,7 @@
 | **深度学习**     | ⭐⭐   | [LSTM 时间序列预测](1044-lstm.html), [torch 深度学习](1069-torch-deep-learning.html) | 神经网络、LSTM、PyTorch |
 | **模型整理**     | ⭐     | [broom 模型整理](1043-broom.html)                                                 | 统一模型输出            |
 | **AI 工具对比**  | ⭐     | [OpenCode vs Claude Code](5007-opencode-vs-claude-code.html)                      | AI 编程工具选型         |
+| **Claude Code**  | ⭐     | [Claude Code 完全指南](5008-claudecode.html)                                      | Anthropic 官方 AI 助手  | ⭐新增 |
 
 </details>
 
