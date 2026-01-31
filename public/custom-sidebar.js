@@ -22,20 +22,25 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (checkCount >= maxChecks) {
       // DEBUG: console.error('[侧边栏] 超时: searchData 未在5秒内加载');
       clearInterval(checkDataInterval);
+      // 即使超时也要初始化侧边栏（显示学习路径和本周必学）
+      initializeSidebar();
     }
   }, 100); // 每100ms检查一次
 });
 
-let sidebarInitialized = false; // 防止重复初始化
+// 使用 window 对象防止重复声明错误
+if (typeof window.sidebarInitialized === 'undefined') {
+  window.sidebarInitialized = false;
+}
 
 function initializeSidebar() {
-  if (sidebarInitialized) {
+  if (window.sidebarInitialized) {
     // DEBUG: console.log('[侧边栏] 已经初始化过,跳过');
     return;
   }
   
   // 立即标记为已初始化，防止竞态条件
-  sidebarInitialized = true;
+  window.sidebarInitialized = true;
   // DEBUG: console.log('[侧边栏] 开始初始化侧边栏...');
   
   const marginSidebar = document.querySelector('#quarto-margin-sidebar');
