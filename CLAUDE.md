@@ -6,21 +6,11 @@
 
 缺少的R包你安装之后再运行，除非我普通电脑运行不了或者时间太久，不然不要evalFALSE
 
----
-
-## Technology Stack
-
-| Component            | Technology                 | Version Requirement |
-| -------------------- | -------------------------- | ------------------- |
-| Document Framework   | [Quarto](https://quarto.org/) | ≥ 1.4              |
-| Programming Language | R                          | ≥ 4.3              |
-| Visualization        | ggplot2 + extensions       | ≥ 3.6              |
-| CI/CD                | GitHub Actions             | -                   |
-| Deployment           | Self-hosted server         | -                   |
+如果我说文章没有问题，你就直接gitadd然后push，注意所有修改的内容都要提交，能提交的都要提交
 
 ---
 
-## Repository Layout
+Repository Layout
 
 ```
 ├── doc/                          # Quarto source files (EDIT THESE ONLY)

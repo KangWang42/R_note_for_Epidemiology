@@ -254,6 +254,7 @@
 | **模型整理**     | ⭐     | [broom 模型整理](1043-broom.html)                                                 | 统一模型输出            |
 | **AI 工具对比**  | ⭐     | [OpenCode vs Claude Code](5007-opencode-vs-claude-code.html)                      | AI 编程工具选型         |
 | **Claude Code**  | ⭐     | [Claude Code 完全指南](5008-claudecode.html)                                      | Anthropic 官方 AI 助手  | ⭐新增 |
+| **OpenCode Hooks** | ⭐     | [OpenCode Hooks 钩子系统](5009-opencode-hooks.html)                               | 工作流自动化与 Hooks 系统 | ⭐新增 |
 
 </details>
 

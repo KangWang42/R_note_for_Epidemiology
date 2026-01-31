@@ -87,15 +87,26 @@ description: 生成 AI 工具介绍类页面的超详细教程内容，强调工
 
 ## 完成后操作
 
-### 步骤1: 更新导航系统 (CRITICAL)
+### 步骤1: 渲染文章 (CRITICAL)
 
-**⚠️ 重要顺序：必须先创建文章 → 更新 _quarto.yml → 运行 generate_sections.R**
+创建文章后必须立即渲染，生成 HTML 文件：
+
+```bash
+# 渲染单文件
+quarto render doc/[number]-[topic].qmd
+
+# 确保无报错、格式正确
+```
+
+### 步骤2: 更新导航系统 (CRITICAL)
+
+**⚠️ 重要顺序：创建文章 → 渲染文章 → 更新 _quarto.yml → 运行 generate_sections.R**
 
 必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
 
 **⚠️ 更新导航前务必验证**:
 
-- 确认新文件已成功渲染
+- 确认新文件已成功渲染（HTML 文件已生成）
 - 确认文件编号无冲突
 - 确认YAML元数据正确
 
@@ -131,7 +142,9 @@ description: 生成 AI 工具介绍类页面的超详细教程内容，强调工
    quarto render index.qmd
    ```
 
-   **为什么必须渲染**：
+   **注意**：这里的渲染是生成分类索引页面，不是文章本身。文章本身已在步骤1中渲染。
+
+   **为什么必须渲染 sections 页面**：
    - generate_sections.R 只更新 .qmd 源文件
    - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
 
@@ -148,7 +161,7 @@ description: 生成 AI 工具介绍类页面的超详细教程内容，强调工
    grep "[number]-[topic]" doc/sections/machine-learning.qmd
    ```
 
-### 步骤2: 更新学习指南和 README (MANDATORY)
+### 步骤3: 更新学习指南和 README (MANDATORY)
 
 1. **更新 `doc/0001-guide.rmd`**：
    - 在对应分类表格中添加新教程条目
@@ -160,7 +173,7 @@ description: 生成 AI 工具介绍类页面的超详细教程内容，强调工
    - 保持与 guide 内容一致
    - README 中的教程链接使用 `.html` 后缀
 
-### 步骤3: 最终渲染与提交
+### 步骤4: 最终渲染与提交
 
 1. **重新渲染受影响页面**:
 
