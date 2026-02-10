@@ -1,0 +1,735 @@
+---
+title: 'VPS 代理搭建完全指南：从零到 ChatGPT 稳定访问'
+date: '2026-02-10'
+categories:
+- 机器学习与AI
+- AI 工具
+image: images/5011-vps-proxy-cover.svg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+::: {.callout-important}
+## 免责声明
+
+本文仅用于技术学习与交流，请遵守当地法律法规。所有 IP、端口、密码等示例均为虚构，请替换为你自己的实际信息。
+:::
+
+---
+
+## 目标与最终架构
+
+通过 VPS + 住宅 IP 代理组合，实现稳定、低延迟的 ChatGPT 访问。最终数据流如下：
+
+```
+┌──────────┐   Hysteria 2    ┌──────────────┐   SOCKS5    ┌─────────────┐
+│  你的电脑  │ ──(UDP/QUIC)──→│   VPS 服务器   │ ──────────→│  住宅IP代理   │ ──→ ChatGPT
+│  Clash    │   port 8443     │  美国 洛杉矶   │  port 443  │  美国 纯净IP  │
+└──────────┘                 └──────────────┘             └─────────────┘
+    ~170ms                      ~100ms
+              总延迟 ≈ 276ms
+```
+
+### 为什么要这个架构
+
+| 方案 | 优点 | 缺点 |
+|:-----|:-----|:-----|
+| 直接用机场节点访问 ChatGPT | 延迟低 (~174ms) | 数据中心 IP 容易被 ChatGPT 封禁，不稳定 |
+| 直接连住宅 IP | IP 纯净不被封 | 从中国直连住宅 IP 不通 |
+| **VPS 中转 + 住宅 IP** | ✅ IP 纯净 + 稳定 | 双跳延迟较高 (~276ms) |
+
+核心思路很简单：数据中心 IP 会被 OpenAI 大规模封禁，而住宅 IP 基本不会。但住宅 IP 从国内无法直连，所以用一台海外 VPS 做中转，通过 Hysteria 2 隧道把流量送到 VPS，再由 VPS 连接住宅 IP 代理，最终到达 ChatGPT。
+
+---
+
+## 前置需求
+
+| 项目 | 说明 | 参考价格 |
+|:-----|:-----|:---------|
+| VPS 服务器 | 美国 VPS，需要 Ubuntu 22.04+ | ~$10/年 |
+| 住宅 IP 代理 | SOCKS5 类型，美国住宅 IP | 按流量计费 |
+| Clash 客户端 | Clash Verge / Mihomo（支持 Hysteria 2） | 免费 |
+| SSH 工具 | Windows 自带 OpenSSH 或 PuTTY | 免费 |
+
+VPS 推荐选择 RackNerd、Bandwagon 等便宜的美国洛杉矶机房，延迟和稳定性较好。住宅 IP 代理则需要找专门的住宅代理服务商，确保是真正的 ISP 住宅 IP，而非伪装的数据中心 IP。
+
+### VPS 基本信息（示例）
+
+```
+IP:        <你的VPS公网IP>
+SSH 端口:   2222（建议从默认 22 改掉）
+系统:      Ubuntu 22.04 LTS
+```
+
+---
+
+## VPS 初始化
+
+### 首次 SSH 连接
+
+```bash
+ssh root@<你的VPS_IP>
+```
+
+::: {.callout-warning}
+## 坑 #1：SSH 密钥认证
+
+首次登录后，立即设置 SSH 密钥认证，后续禁用密码登录。这是最基本的安全措施。
+:::
+
+```bash
+# 在本地生成密钥（如果没有）
+ssh-keygen -t ed25519
+
+# 上传公钥到 VPS
+ssh-copy-id root@<你的VPS_IP>
+```
+
+### 修改 SSH 端口（防暴力破解）
+
+::: {.callout-caution}
+## 坑 #2：SSH 暴力破解导致连接被挤掉
+
+默认 22 端口会被全球扫描器暴力攻击。攻击者可能占满 `MaxStartups` 连接槽，导致正常 SSH 连接被服务器拒绝（报错 `kex_exchange_identification: Connection closed`）。**必须在搭建之初就改端口**。
+:::
+
+```bash
+# 使用 sshd_config.d（推荐）
+cat > /etc/ssh/sshd_config.d/custom.conf << 'EOF'
+Port 2222
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+PubkeyAuthentication yes
+MaxAuthTries 3
+MaxStartups 50:30:100
+LoginGraceTime 30
+X11Forwarding no
+ClientAliveInterval 120
+ClientAliveCountMax 3
+EOF
+
+# 放行新端口
+iptables -I INPUT -p tcp --dport 2222 -j ACCEPT
+
+# 重启 SSH
+systemctl restart ssh
+```
+
+::: {.callout-important}
+## 不要关闭当前 SSH 会话！
+
+先用新端口测试连接成功后，再关闭旧会话。否则如果配置有误，你会被锁在外面。
+:::
+
+```bash
+# 新终端测试
+ssh -p 2222 root@<你的VPS_IP>
+```
+
+SSH 配置参数说明：
+
+| 参数 | 值 | 说明 |
+|:-----|:---|:-----|
+| `Port` | 2222 | 避开默认端口，减少被扫描概率 |
+| `PermitRootLogin` | prohibit-password | 允许 root 登录但禁止密码 |
+| `MaxStartups` | 50:30:100 | 最多 50 个并发连接请求 |
+| `LoginGraceTime` | 30 | 30 秒内未完成认证则断开 |
+| `ClientAliveInterval` | 120 | 每 120 秒发送心跳，保持连接 |
+
+---
+
+## 安装 Xray（VMess+WS 基础代理）
+
+::: {.callout-note}
+## 关于 Xray
+
+Xray 是 VMess 协议的服务端。虽然最终推荐使用 Hysteria 2，但 Xray 作为**备用方案**保留，在 Hysteria 2 出问题时可以回退使用。
+:::
+
+### 安装 Xray
+
+```bash
+bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+```
+
+### 配置 Xray
+
+::: {.callout-caution}
+## 坑 #3：不要用 `echo` 写 JSON 配置！
+
+SSH 远程执行 `echo '{"key": "value"}' > config.json` 时，引号和花括号会被 Shell 吃掉，导致 JSON 损坏 → Xray 崩溃 → 端口不监听 → 代理超时。
+
+**正确做法**：在本地编辑器写好文件，用 `scp` 上传。
+:::
+
+在本地创建 `config.json`：
+
+```json
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": 443,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "<你的UUID，用 uuidgen 命令生成>",
+            "alterId": 0
+          }
+        ]
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/ray"
+        },
+        "sockopt": {
+          "tcpFastOpen": true,
+          "tcpNoDelay": true,
+          "tcpKeepAliveInterval": 60
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {
+        "domainStrategy": "AsIs"
+      },
+      "streamSettings": {
+        "sockopt": {
+          "tcpFastOpen": true,
+          "tcpNoDelay": true,
+          "tcpKeepAliveInterval": 60
+        }
+      }
+    }
+  ]
+}
+```
+
+上传并启动：
+
+```bash
+# 从本地上传（注意 -P 大写指定端口）
+scp -P 2222 config.json root@<你的VPS_IP>:/usr/local/etc/xray/config.json
+
+# 重启 Xray
+systemctl restart xray
+
+# 验证
+systemctl is-active xray    # 应该显示 active
+ss -tlnp | grep 443         # 应该看到 xray 在监听
+```
+
+### Xray 配置要点解释
+
+| 参数 | 作用 | 为什么需要 |
+|:-----|:-----|:-----------|
+| `sniffing.enabled` | 嗅探流量目标域名 | 更智能的路由决策 |
+| `domainStrategy: "AsIs"` | 不在 VPS 重新解析 DNS | 避免多一次 DNS 查询延迟 |
+| `tcpFastOpen: true` | TCP 快速打开 | 新连接省一个 RTT |
+| `tcpNoDelay: true` | 禁用 Nagle 算法 | 小包立即发送，降低延迟 |
+| `tcpKeepAliveInterval: 60` | 60 秒发一次心跳 | 保持长连接不断开 |
+
+---
+
+## 内核网络优化（关键！）
+
+::: {.callout-important}
+## 性价比最高的优化
+
+这一步对延迟和吞吐量的提升非常明显，是所有优化中性价比最高的。强烈建议在搭建代理之前就完成这些内核参数调优。
+:::
+
+### 创建 sysctl 优化配置
+
+```bash
+cat > /etc/sysctl.d/99-vps-optimize.conf << 'EOF'
+# === BBR 拥塞控制 ===
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+
+# === 增大缓冲区（默认 212KB → 16MB） ===
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.rmem_default = 1048576
+net.core.wmem_default = 1048576
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+
+# === 连接队列 ===
+net.core.somaxconn = 65535
+net.core.netdev_max_backlog = 65535
+
+# === 低延迟优化 ===
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_mtu_probing = 1
+
+# === 连接保活 ===
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_keepalive_intvl = 30
+net.ipv4.tcp_keepalive_probes = 5
+net.ipv4.tcp_tw_reuse = 1
+
+# === 文件描述符 ===
+fs.file-max = 1048576
+
+# === 安全加固 ===
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_max_syn_backlog = 65535
+net.ipv4.tcp_syn_retries = 2
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+
+# === 禁用 IPv6 ===
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+EOF
+
+# 应用
+sysctl -p /etc/sysctl.d/99-vps-optimize.conf
+```
+
+### 各参数效果说明
+
+| 参数 | 默认值 | 优化值 | 效果 |
+|:-----|:-------|:-------|:-----|
+| `tcp_congestion_control` | cubic | **bbr** | Google BBR 算法，高延迟链路性能提升 30%+ |
+| `rmem_max / wmem_max` | 212KB | **16MB** | 高带宽场景吞吐量大幅提升 |
+| `tcp_fastopen` | 0 | **3** | 客户端+服务端都支持 TFO，省一个 RTT |
+| `tcp_slow_start_after_idle` | 1 | **0** | 空闲后恢复时不降速（代理场景必开） |
+| `tcp_mtu_probing` | 0 | **1** | 自动寻找最优 MTU，减少分片 |
+| `tcp_keepalive_time` | 7200 | **600** | 10 分钟检测死连接（默认 2 小时太慢） |
+| `tcp_syncookies` | 0 | **1** | SYN Flood 防护 |
+
+### 验证优化生效
+
+```bash
+sysctl net.ipv4.tcp_congestion_control      # 应该输出 bbr
+sysctl net.core.rmem_max                     # 应该输出 16777216
+sysctl net.ipv4.tcp_fastopen                 # 应该输出 3
+sysctl net.ipv4.tcp_slow_start_after_idle    # 应该输出 0
+```
+
+---
+
+## 安装 Hysteria 2（推荐，低延迟协议）
+
+::: {.callout-tip}
+## 为什么用 Hysteria 2 替代 VMess+WS？
+
+- VMess+WS 基于 TCP，每次连接需要 TCP 握手(1 RTT) + TLS 握手(1 RTT) + WS 升级(1 RTT) = 3 RTT
+- Hysteria 2 基于 UDP/QUIC，0-RTT 建连，且**抗丢包能力极强**
+- 实测延迟从 313ms 降到 276ms，网络抖动时体验差距更大
+:::
+
+### 安装 Hysteria 2
+
+```bash
+bash <(curl -fsSL https://get.hy2.sh/)
+```
+
+### 生成自签名 TLS 证书
+
+```bash
+mkdir -p /etc/hysteria
+
+openssl req -x509 -nodes -newkey rsa:2048 \
+  -keyout /etc/hysteria/server.key \
+  -out /etc/hysteria/server.crt \
+  -subj '/CN=bing.com' -days 3650
+```
+
+::: {.callout-caution}
+## 坑 #4：证书权限问题
+
+Hysteria 2 的 systemd 服务以 `hysteria` 用户运行（非 root），如果证书权限是 600（只有 root 可读），服务会因 `permission denied` 启动失败。
+
+**必须设置证书为可读：**
+:::
+
+```bash
+chmod 644 /etc/hysteria/server.key /etc/hysteria/server.crt
+```
+
+### 编写配置文件
+
+```bash
+cat > /etc/hysteria/config.yaml << 'EOF'
+listen: :8443
+
+tls:
+  cert: /etc/hysteria/server.crt
+  key: /etc/hysteria/server.key
+
+auth:
+  type: password
+  password: <你的密码>
+EOF
+```
+
+::: {.callout-warning}
+## 坑 #5：YAML 特殊字符
+
+密码中不要用 `!`（YAML 的 tag 标记）、`:` 或 `{}`，否则 YAML 解析出错。如果必须用特殊字符，请加引号：`password: "My!Pass:Word"`
+:::
+
+### 启动服务
+
+```bash
+systemctl start hysteria-server
+systemctl enable hysteria-server  # 开机自启
+
+# 验证
+systemctl is-active hysteria-server  # 应显示 active
+ss -ulnp | grep 8443                # 注意是 UDP（-u）
+```
+
+::: {.callout-caution}
+## 坑 #6：端口占用
+
+如果之前手动运行过 `hysteria server -c ...` 测试，后台进程可能还在占用端口。systemd 启动时会报 `bind: address already in use`。
+
+**解决：** `killall -9 hysteria` 再启动 systemd 服务。
+:::
+
+### 端口检查清单
+
+| 端口 | 协议 | 服务 | 验证命令 |
+|:-----|:-----|:-----|:---------|
+| 2222 | TCP | SSH | `ss -tlnp \| grep 2222` |
+| 443 | TCP | Xray (备用) | `ss -tlnp \| grep 443` |
+| 8443 | **UDP** | Hysteria 2 | `ss -ulnp \| grep 8443` |
+
+---
+
+## Clash/Mihomo 客户端配置
+
+### 代理节点定义
+
+```yaml
+proxies:
+  # === 主力节点：Hysteria 2（低延迟） ===
+  - name: "🖥️ VPS-美国"
+    type: hysteria2
+    server: <你的VPS_IP>
+    port: 8443
+    password: <你的Hysteria密码>
+    skip-cert-verify: true     # 自签名证书必须加这个
+    udp: true
+
+  # === 备用节点：VMess+WS（如果 Hysteria 2 出问题） ===
+  # - name: "🖥️ VPS-美国-VMess"
+  #   type: vmess
+  #   server: <你的VPS_IP>
+  #   port: 443
+  #   uuid: <你的UUID>
+  #   alterId: 0
+  #   cipher: auto
+  #   udp: true
+  #   network: ws
+  #   ws-opts:
+  #     path: /ray
+
+  # === 住宅IP（通过 VPS 中转，ChatGPT 必过） ===
+  - name: "🏠 住宅IP-美国"
+    type: socks5
+    server: <住宅IP代理地址>
+    port: 443
+    username: <代理用户名>
+    password: <代理密码>
+    udp: true
+    dialer-proxy: "🖥️ VPS-美国"   # 关键！通过 VPS 隧道连接住宅IP
+```
+
+### `dialer-proxy` 原理
+
+`dialer-proxy` 是 Clash 的核心功能之一，它让一个代理节点**通过另一个代理节点建立连接**，形成代理链：
+
+```
+                    dialer-proxy 的作用
+                    ═══════════════════
+    ┌─────────────────────────────────────────────┐
+    │               Clash 客户端内部                │
+    │                                             │
+    │  住宅IP节点 ──dialer-proxy──→ VPS节点         │
+    │                                             │
+    │  含义：先通过 VPS 建立隧道，                   │
+    │        再在隧道内连接住宅IP                    │
+    └─────────────────────────────────────────────┘
+
+   实际数据流：
+   你 ──Hysteria2──→ VPS ──SOCKS5──→ 住宅IP ──→ ChatGPT
+```
+
+::: {.callout-warning}
+## 坑 #7：循环依赖
+
+千万不要把 `dialer-proxy` 设成一个包含自身的代理组！例如：住宅 IP 的 dialer-proxy 不能指向包含住宅 IP 的组。**必须直接指向具体的 VPS 节点名称。**
+:::
+
+### AI 服务代理组
+
+```yaml
+proxy-groups:
+  # fallback 锚点参数
+  FallBack: &FallBack
+    type: fallback
+    url: http://www.gstatic.com/generate_204
+    interval: 3000     # 3秒检测一次
+    timeout: 3000      # 3秒超时
+    lazy: true
+
+  # AI 服务：住宅IP 优先，机场节点兜底
+  - name: 🤖 AI服务
+    <<: *FallBack
+    proxies:
+      - 🏠 住宅IP-美国     # 优先，IP 纯净不被封
+      - 🤖 AI用节点        # 兜底，快但可能被封
+```
+
+fallback 类型的代理组会自动检测节点可用性。当住宅 IP 正常时优先使用住宅 IP，一旦住宅 IP 出问题，自动切换到备用节点。这样既保证了稳定性，又不需要手动干预。
+
+### AI 相关分流规则
+
+```yaml
+rules:
+  # === AI 服务 ===
+  - DOMAIN,auth.openai.com,🤖 AI服务
+  - DOMAIN-SUFFIX,openai.com,🤖 AI服务
+  - DOMAIN-SUFFIX,chatgpt.com,🤖 AI服务
+  - DOMAIN-SUFFIX,oaistatic.com,🤖 AI服务
+  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 AI服务
+  - DOMAIN-SUFFIX,claude.ai,🤖 AI服务
+  - DOMAIN-SUFFIX,anthropic.com,🤖 AI服务
+  - PROCESS-NAME,cursor.exe,🤖 AI服务
+```
+
+分流规则的作用是把特定域名或进程的流量定向到指定代理组。这里把所有 OpenAI、Anthropic 相关的域名以及 Cursor 编辑器的流量都走"AI服务"代理组，确保这些服务始终通过住宅 IP 访问。
+
+---
+
+## 踩坑总结
+
+### 严重问题一览
+
+| # | 坑 | 现象 | 原因 | 解决 |
+|:--|:---|:-----|:-----|:-----|
+| 1 | SSH echo 写 JSON | Xray 崩溃，443 不监听 | Shell 吃掉引号/花括号，JSON 损坏 | **本地写好文件，SCP 上传** |
+| 2 | SSH 暴力破解 | SSH 连不上，`kex_exchange_identification` | 攻击者占满连接槽 | **改端口 + MaxStartups 50** |
+| 3 | Hysteria 证书权限 | systemd 启动失败 | 服务以 hysteria 用户运行，没权限读 key | **`chmod 644`** |
+| 4 | YAML 密码含 `!` | 配置解析错误 | `!` 是 YAML tag 特殊字符 | **避免特殊字符或加引号** |
+| 5 | 端口被占用 | Hysteria systemd 失败 | 手动测试运行的进程没杀 | **`killall -9 hysteria`** |
+
+### 常见知识点
+
+| 问题 | 正确做法 |
+|:-----|:---------|
+| VPN 配置后 SSH 断了 | WireGuard 配置加 `Table = off`，防止劫持路由表 |
+| Cloudflare WARP 装不上 | 老系统 glibc 版本不够，用 `wgcf`（WireGuard 方案）替代 |
+| 住宅 IP 直连不通 | 用 VPS 做中转，Clash 的 `dialer-proxy` 实现隧道嵌套 |
+| 代理延迟能不能更低 | 双跳跨太平洋 ~276ms 已是物理极限，**权衡体验 vs 稳定性** |
+
+---
+
+## 日常运维
+
+### 一键检查所有服务状态
+
+```bash
+ssh -p 2222 root@<你的VPS_IP> "\
+  echo '=== Xray ===' && systemctl is-active xray && \
+  echo '=== Hysteria 2 ===' && systemctl is-active hysteria-server && \
+  echo '=== Ports ===' && ss -tulnp | grep -E '443|8443|2222' && \
+  echo '=== Memory ===' && free -m | head -2 && \
+  echo '=== Uptime ===' && uptime"
+```
+
+建议将上面这行命令保存为本地的 shell 脚本或 PowerShell 函数，日常一行命令即可检查所有服务的运行状态。
+
+### 回退到 VMess
+
+如果 Hysteria 2 出现问题（比如 ISP 封禁 UDP），可以快速回退到 VMess+WS 方案：
+
+1. Clash 配置文件中：注释掉 Hysteria 2 节点，取消注释 VMess 节点
+2. 或者直接用事先准备好的备份配置文件
+3. 重新加载 Clash 配置
+
+::: {.callout-tip}
+## 备份策略
+
+建议维护两份 Clash 配置文件：一份主力 Hysteria 2 版本，一份备用 VMess 版本。出问题时直接切换即可。
+:::
+
+### VPS 服务器重启后
+
+所有服务都设了开机自启，重启后自动恢复，无需手动干预：
+
+```bash
+systemctl enable xray
+systemctl enable hysteria-server
+```
+
+### 更新 Hysteria 2
+
+```bash
+bash <(curl -fsSL https://get.hy2.sh/)
+systemctl restart hysteria-server
+```
+
+---
+
+## 性能对比
+
+| 方案 | 延迟 | 稳定性 | ChatGPT 可用性 |
+|:-----|:-----|:-------|:---------------|
+| 机场节点直连 | ⚡ 174ms | ❌ 不稳定，容易被封 | ❓ 看运气 |
+| VPS VMess+WS + 住宅 IP | 🟡 313ms | ✅ 稳定 | ✅ 可用 |
+| VPS Hysteria 2 + 住宅 IP | 🟢 276ms | ✅✅ 更稳定（抗丢包） | ✅ 可用 |
+
+Hysteria 2 + 住宅 IP 是**稳定性和延迟的最佳平衡点**。276ms 看似比机场慢约 100ms，但它的 IP 不会被封，而且 QUIC 协议在网络波动时的体验远好于基于 TCP 的方案。
+
+### 延迟构成分析
+
+整条链路的延迟可以拆解为以下几个部分：
+
+```
+你的电脑 ──→ VPS（洛杉矶）：~170ms（跨太平洋）
+VPS ──→ 住宅IP代理：~5ms（美国境内）
+住宅IP ──→ ChatGPT 服务器：~1ms（同区域）
+协议开销（QUIC + SOCKS5）：~100ms
+────────────────────────────
+总计：~276ms
+```
+
+延迟的大头在跨太平洋这一段，这是物理距离决定的，无法再压缩。协议层面 Hysteria 2 已经做到了最优（0-RTT），进一步优化的空间有限。
+
+---
+
+## 协议对比：VMess+WS vs Hysteria 2
+
+| 对比维度 | VMess + WebSocket | Hysteria 2 |
+|:---------|:------------------|:-----------|
+| **传输层** | TCP | UDP (QUIC) |
+| **建连开销** | 3 RTT（TCP + TLS + WS） | 0-1 RTT（QUIC） |
+| **抗丢包** | 差（TCP 丢包重传阻塞） | 强（QUIC 独立流，不互相阻塞） |
+| **伪装方式** | WebSocket 伪装为 HTTPS 流量 | 自定义 QUIC，可伪装 | 
+| **被封风险** | 低（TCP 443 不容易被针对） | 中（UDP 可能被 QoS 限速） |
+| **实测延迟** | ~313ms | ~276ms |
+| **适用场景** | ISP 封锁 UDP 的环境 | 默认首选 |
+
+两种方案各有优劣。Hysteria 2 在正常网络环境下体验更好，但如果你的 ISP 对 UDP 流量进行了严格限制或封锁，VMess+WS 反而可能更稳定。所以建议两种方案都配置好，根据实际情况切换。
+
+---
+
+## 安全加固建议
+
+除了前面提到的 SSH 端口修改和密钥认证，还建议进行以下安全加固：
+
+### 防火墙配置
+
+```bash
+# 安装 ufw（Ubuntu 默认防火墙前端）
+apt install ufw -y
+
+# 设置默认策略
+ufw default deny incoming
+ufw default allow outgoing
+
+# 放行必要端口
+ufw allow 2222/tcp    # SSH
+ufw allow 443/tcp     # Xray
+ufw allow 8443/udp    # Hysteria 2
+
+# 启用防火墙
+ufw enable
+
+# 查看状态
+ufw status verbose
+```
+
+### 自动更新安全补丁
+
+```bash
+apt install unattended-upgrades -y
+dpkg-reconfigure -plow unattended-upgrades
+```
+
+### 定期检查日志
+
+```bash
+# 查看 SSH 登录失败记录
+journalctl -u ssh --since "24 hours ago" | grep "Failed"
+
+# 查看 Hysteria 2 日志
+journalctl -u hysteria-server --since "1 hour ago"
+
+# 查看 Xray 日志
+journalctl -u xray --since "1 hour ago"
+```
+
+---
+
+## 完整文件清单
+
+| 文件 | 位置 | 说明 |
+|:-----|:-----|:-----|
+| Xray 配置 | `/usr/local/etc/xray/config.json` | VMess+WS 服务端（备用） |
+| Hysteria 2 配置 | `/etc/hysteria/config.yaml` | QUIC 主力服务端 |
+| TLS 证书 | `/etc/hysteria/server.crt` + `.key` | 自签名 10 年有效 |
+| sysctl 优化 | `/etc/sysctl.d/99-vps-optimize.conf` | 内核网络参数 |
+| SSH 加固 | `/etc/ssh/sshd_config.d/custom.conf` | 安全配置 |
+| Clash 配置 | 客户端本地 | 代理规则（建议命名区分主力/备用版本） |
+
+---
+
+## 常见问题
+
+### ChatGPT 还是提示 IP 被封怎么办？
+
+首先确认你是否真的在走住宅 IP。在 Clash 的日志或连接面板中查看 `chatgpt.com` 的流量是否经过了"住宅IP"节点。如果走的是机场节点或 VPS 直连，那 IP 仍然是数据中心 IP，被封是正常的。
+
+### Hysteria 2 连不上？
+
+按以下顺序排查：
+
+1. **VPS 端口是否开放？** `ss -ulnp | grep 8443` 检查服务是否监听
+2. **防火墙是否放行？** `ufw status` 或 `iptables -L` 检查规则
+3. **ISP 是否封锁 UDP？** 尝试切换到 VMess+WS 方案，如果 VMess 能连说明是 UDP 被限制
+4. **密码是否正确？** 客户端和服务端密码必须完全一致
+
+### 住宅 IP 代理用完了流量怎么办？
+
+住宅 IP 代理通常按流量计费。如果流量用完，你的 VPS 到住宅 IP 的 SOCKS5 连接会失败，Clash 的 fallback 机制会自动切换到备用节点。此时 ChatGPT 可能会因为使用数据中心 IP 而不稳定，需要及时充值或更换住宅 IP 服务商。
+
+### 为什么不直接用 Cloudflare WARP？
+
+Cloudflare WARP 确实可以给 VPS 一个"干净"的出站 IP，但它走的仍然是 Cloudflare 的数据中心 IP，并非真正的住宅 IP。对于 ChatGPT 这种严格检测 IP 类型的服务，WARP 的效果不如真正的住宅 IP 代理可靠。而且在部分老系统上，WARP 客户端因 glibc 版本不够而无法安装。
+
+---
+
+## 扩展阅读
+
+| 资源 | 说明 |
+|:-----|:-----|
+| [Hysteria 2 官方文档](https://hysteria.network/) | 协议原理、配置参考 |
+| [Xray-core GitHub](https://github.com/XTLS/Xray-core) | Xray 源码与文档 |
+| [Clash Meta Wiki](https://wiki.metacubex.one/) | Clash.Meta/Mihomo 配置详解 |
+| [Google BBR 论文](https://research.google/pubs/pub45646/) | BBR 拥塞控制算法原理 |
+| [QUIC 协议 RFC 9000](https://www.rfc-editor.org/rfc/rfc9000) | QUIC 协议规范 |

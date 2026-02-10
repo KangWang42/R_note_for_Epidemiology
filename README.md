@@ -257,6 +257,7 @@
 | **Claude Code**  | ⭐     | [Claude Code 完全指南](5008-claudecode.html)                                      | Anthropic 官方 AI 助手  | ⭐新增 |
 | **OpenCode Hooks** | ⭐     | [OpenCode Hooks 钩子系统](5009-opencode-hooks.html)                               | 工作流自动化与 Hooks 系统 | ⭐新增 |
 | **LLM 选型**     | ⭐     | [主流大语言模型 API 选型指南](5010-llm-comparison.html)                              | Kimi/DeepSeek/GLM/Gemini/Claude/GPT-5 对比 | ⭐新增 |
+| **VPS 代理**     | ⭐     | [VPS 代理搭建完全指南](5011-vps-proxy-chatgpt.html)                                  | Hysteria 2 + 住宅IP 稳定访问 ChatGPT | ⭐新增 |
 
 </details>
 
