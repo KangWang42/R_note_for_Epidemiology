@@ -259,6 +259,7 @@
 | **OpenCode Hooks** | ⭐     | [OpenCode Hooks 钩子系统](5009-opencode-hooks.html)                               | 工作流自动化与 Hooks 系统 | ⭐新增 |
 | **LLM 选型**     | ⭐     | [主流大语言模型 API 选型指南](5010-llm-comparison.html)                              | Kimi/DeepSeek/GLM/Gemini/Claude/GPT-5 对比 | ⭐新增 |
 | **VPS 代理**     | ⭐     | [VPS 代理搭建完全指南](5011-vps-proxy-chatgpt.html)                                  | Hysteria 2 + 住宅IP 稳定访问 ChatGPT | ⭐新增 |
+| **OpenAI 订阅与Codex** | ⭐     | [OpenAI 购买与使用教程](5012-openai-subscription-codex-guide.html)                   | Go/Plus/Pro 区别、Codex 差异、降智挽救与链式代理 | ⭐新增 |
 
 </details>
 
