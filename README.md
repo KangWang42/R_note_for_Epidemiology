@@ -263,6 +263,10 @@
 | **OpenAI 订阅与Codex** | ⭐     | [OpenAI 购买与使用教程](5012-openai-subscription-codex-guide.html)                   | Go/Plus/Pro 区别、Codex 差异、降智挽救与链式代理 | ⭐新增 |
 | **EpiClaude**    | ⭐     | [EpiClaude 流行病学科研工作流](5013-epiclaude.html)                                  | 面向流行病学/生物统计的 Claude Code 配置与技能生态 | ⭐新增 |
 | **CLAUDE.md 写作** | ⭐     | [如何写好一份 CLAUDE.md](5014-claude-md-guide.html)                                  | 删除测试、分层指针、硬红线，写出让 AI 守规矩的规则文件 | ⭐新增 |
+| **技能·project-init** | ⭐     | [技能分享：project-init 项目初始化](5015-skill-project-init.html)                    | 一键搭建七层目录骨架、模板与 Git 配置 | ⭐新增 |
+| **技能·r-biostats** | ⭐     | [技能分享：r-biostats 统计分析](5016-skill-r-biostats.html)                          | PLAN→CODE→RUN→VERIFY→DOC 五阶状态机做分析 | ⭐新增 |
+| **技能·pub-figures** | ⭐     | [技能分享：publication-figures 图件](5017-skill-publication-figures.html)            | 发表级图件标准与约 180 种图型选型画廊 | ⭐新增 |
+| **技能·academic-pub** | ⭐     | [技能分享：academic-publishing 论文写作](5018-skill-academic-publishing.html)        | 中英双语论文逐部件门控、零编造零 AI 痕迹 | ⭐新增 |
 
 </details>
 
