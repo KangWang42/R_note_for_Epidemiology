@@ -1,0 +1,352 @@
+---
+title: 'EpiClaude：面向流行病学与生物统计的 Claude Code 工作流'
+date: '2026-06-16'
+categories:
+- 机器学习与AI
+- AI 工具
+image: images/5013-epiclaude-cover.svg
+description: 把 Claude Code 改造成懂科研规范的流行病学研究助手——从项目初始化、统计分析、发表级图表到论文写作与质控审查，一套带门禁的可复现工作流。
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## 什么是 EpiClaude
+
+[EpiClaude](https://github.com/KangWang42/EpiClaude) 是一套**面向流行病学与生物统计研究的 Claude Code 配置系统与技能生态**。它不是一个独立软件，而是一组挂在 Claude Code 之上的全局规则（`CLAUDE.md`）、可复用技能（Skills）与项目脚手架，把通用编程助手改造成「懂科研规范」的研究流水线助手。
+
+普通的 AI 助手能写代码、能聊数据，但它不知道你这一行是临床研究：原始数据不能改、脚本要连续编号、表图要按论文行文顺序命名、结果改了要同步到单一数据源、论文里不能暴露调参痕迹和 AI 味。EpiClaude 把这些「研究工程」的隐性规矩固化成硬规则与带门禁的工作流，让 AI 在帮你干活时**自动守规矩**，而不是每次都要你盯着。
+
+### 它解决什么问题
+
+科研项目天然是碎片化的：数据管理、统计分析、出图、写论文、查一致性，各做各的，过两周自己都找不到「哪张图是哪段代码出的」。EpiClaude 用四件事把这些串起来：
+
+| 痛点 | EpiClaude 的做法 |
+|:-----|:-----------------|
+| 文件命名混乱、脚本堆积 | 标准化七层目录 + 连续编号 + registry 单一编号源 |
+| 结果改了论文没跟着改 | 结果单源 `results.yaml`，下游一律取数不手敲 |
+| AI 写的东西一眼假、有 AI 味 | `humanizer-zh` 去 AI 痕迹 + 投稿前自检清单 |
+| 跑完不验证就说「做完了」 | 强制实跑 + 全量扫 error/warning 才算完成 |
+| 原始数据被误改 | 可选 Hook 在写入 `01_data/rawdata/` 时直接拦截 |
+
+### 核心特点
+
+| 特性 | 说明 |
+|:-----|:-----|
+| 🧬 **领域专用** | 规则与技能都为流行病学/卫生统计场景设计，不是泛用模板 |
+| 🚦 **门禁工作流** | 分析、写作、交付、审查都是「逐项过检才能下一步」的状态机 |
+| 📐 **发表级产出** | 内置约 180 种图型模板，mm 级尺寸、字体嵌入、期刊配色 |
+| 🔁 **可复现优先** | 单一数据源架构，每张表图都能追溯到生成代码 |
+| 🌏 **中英双语写作** | 中文期刊/学位论文与英文 IMRaD 三条线，各有规范 |
+| 🛡️ **可选 Hook 守卫** | 用 bash 脚本强制执行机械性规则，而非仅靠「建议」 |
+
+::: {.callout-note}
+## EpiClaude 与 Claude Code 是什么关系
+
+Claude Code 是 Anthropic 的官方终端 AI 编程助手（详见[本站的 Claude Code 完全指南](5008-claudecode.html)）。EpiClaude 是**跑在 Claude Code 之上的一层配置**——它复用 Claude Code 的全部能力（读写文件、执行脚本、Git 操作、Skills/Agents/MCP），只是额外灌入了流行病学研究的规则与技能。换句话说：先装 Claude Code，再装 EpiClaude，让它「专精科研」。
+:::
+
+---
+
+## 什么人需要它
+
+EpiClaude 不是给所有人的。它的价值密度，随着「你有多少重复的科研工程负担」而上升。
+
+### 强烈推荐
+
+- **医学/公卫研究生与青年研究者**：要独立从原始数据做到投稿，但缺少规范化的项目管理训练，常被命名、版本、复现折腾。
+- **流行病学家与生物统计师**：做队列、病例对照、RWD（真实世界数据）研究，分析方法多、表图多、结果反复迭代，最怕「结果变了忘了同步」。
+- **统计咨询团队**：要把分析打包成客户能独立复现、看不出 AI 痕迹的专业交付物，需要稳定的交付规范。
+- **带学生的导师/课题组**：希望组内项目结构统一，便于交接、复核与审稿前自查。
+
+### 可以考虑
+
+- 其他定量学科（计量经济、心理测量、临床试验统计）想引入「可复现研究工程」实践的人。
+- 个人研究者想给自己立规矩，避免 AI 协作时常见的「跑了没验证、改了没同步」。
+
+### 不太适合
+
+- 只想让 AI 临时写几行 R/Python、不在意项目结构的轻量用户——规则会显得繁琐。
+- 完全不用 Claude Code 的人（EpiClaude 依赖 Claude Code 运行）。
+- 非研究、非数据分析场景（如纯前端开发、运维），规则与技能用不上。
+
+::: {.callout-tip}
+## 一句话判断
+如果你经常一个人从「一份原始数据」做到「一篇能投稿的论文」，并且被命名混乱、结果对不上、AI 味重这些问题反复折磨，那么 EpiClaude 就是为你设计的。
+:::
+
+---
+
+## 它包含什么
+
+EpiClaude 由三部分组成：一份全局规则、一套五层技能架构、一套可选 Hook。
+
+### 全局规则（CLAUDE.md）
+
+约 120 行的「硬红线」规则集，每个 session 都会加载。它遵循一条**删除测试**原则：一条规则只有在「删掉后 AI 会犯具体可观察的错误」时才保留，因此没有空话。核心覆盖：
+
+- 数据完整性：`01_data/rawdata/` 只读，绝不修改原始数据；一律相对路径。
+- 代码纪律：`02_code/` 连续编号、脚本数 ≤ 10、一次性脚本归档、写完必跑并全量扫 error/warning。
+- 结果单源：结果变了同步 `results.yaml`，方法变了同步 `DECISIONS.md`，操作完同步 `SESSION_LOG.md`，发现缺口立即记 `BACKLOG.md`。
+- 口径纪律：分组/终点/纳排/主分析方法定义不明时**先问用户**，不擅自决定。
+- 零 AI 痕迹：论文、表图、代码、交付物里不出现 emoji、AI 工作痕迹或暗示「非人工」的措辞。
+
+### 五层技能架构
+
+技能（Skill）是按需加载的专业模块。任务落入某个场景，对应技能自动被调用并按其规范执行。
+
+| 层级 | 技能 | 作用 |
+|:-----|:-----|:-----|
+| **原则层** | `biostat-principles` | 底层行为原则；任何分析/写作开工前先对齐 |
+| **执行层** | `project-init`、`r-biostats`、`publication-figures` | 项目脚手架、R 统计分析工作流、发表级图件规范 |
+| **产出层** | `academic-publishing`、`consulting-delivery`、`sysu-ppt` | 中英论文与投稿材料、咨询交付包、学术汇报 PPT |
+| **质控层** | `humanizer-zh`、`epi-project-audit` | 中文去 AI 痕迹、六层项目审查 |
+| **工具层** | `docx`、`pdf`、`pptx`、`xlsx`、`skill-creator`、`git-commit-helper` | 文档处理、技能维护、提交信息生成 |
+
+各技能的典型触发与产出：
+
+- **`project-init`**：说「创建项目/初始化」就触发，一键生成七层目录、模板、Git 配置、空 registry。
+- **`r-biostats`**：任何 R 统计分析——描述统计、回归、生存分析、中介、Meta、清洗——的执行层。
+- **`publication-figures`**：任何出图任务。约 180 种图型按分析意图编目，附 mm 尺寸、PDF+PNG 双存、字体嵌入规范。
+- **`academic-publishing`**：写中文期刊论著、中文学位论文、英文 IMRaD 三条线，逐部件门控写作。
+- **`consulting-delivery`**：把分析打包成客户可独立复现、看不出 AI 痕迹的交付包。
+- **`humanizer-zh`**：把任意中文改写到读不出 AI 生成痕迹，靠困惑度与突发性双杠杆。
+- **`epi-project-audit`**：六层审查的状态机，逐项过检才能签发。
+
+### 标准目录结构
+
+EpiClaude 给每个研究项目规定了一致的七层骨架，便于交接、复现与审查：
+
+```
+01_data/rawdata/   只读原始数据
+02_code/           NN_描述.{R,py} 连续编号 + config.R / conventions.R
+03_tables/         Table{N}_..xlsx（附表进 supplementary/）
+04_figures/        Fig{N}_..{png,pdf}（附图进 supplementary/）
+05_reports/        可分享结果包（咨询交付）
+06_results/        中间对象，按内容命名不编号
+07_paper/          论文文稿 + results.yaml（结果机器单源）
+09_backup/         旧版 / 一次性脚本 / 探索实验
+CLAUDE.md / SESSION_LOG.md / DECISIONS.md / BACKLOG.md
+```
+
+### 可选 Hook 配置
+
+EpiClaude 提供五个 bash 脚本，把「机械性规则」从口头建议升级为强制执行（通过 Claude Code 的 Hook 机制触发）：
+
+| Hook 脚本 | 作用 |
+|:----------|:-----|
+| `protect_rawdata.sh` | 拦截对 `01_data/rawdata/` 的任何写入 |
+| `check_r_syntax.sh` | 保存 `.R` 文件时校验语法 |
+| `scan_ai_trace.sh` | 检测文本中的 AI 特征用语 |
+| `fig_selfcheck.sh` | 注入图件要素的自动核查 |
+| `check_results_rds.sh` | 提醒表格数据该存 xlsx 而非二进制对象 |
+
+---
+
+## 与同类方案对比
+
+| 方案 | 定位 | 领域适配 | 工作流门禁 | 可复现规范 | 学习成本 |
+|:-----|:-----|:---------|:-----------|:-----------|:---------|
+| **EpiClaude** | 科研工作流配置层 | ✅ 流行病学/卫生统计 | ✅ 状态机门禁 | ✅ 单一数据源 | 中 |
+| 裸 Claude Code | 通用编程助手 | ❌ 无领域规则 | ❌ 无 | ❌ 靠自觉 | 低 |
+| 自建 CLAUDE.md | 个人规则文件 | 取决于你写多少 | ❌ 一般无 | 取决于你 | 高（要自己设计） |
+| Cursor / Copilot | IDE 内 AI 补全 | ❌ | ❌ | ❌ | 低 |
+| 通用项目模板（如 `usethis`） | R 项目脚手架 | 部分 | ❌ | 部分 | 低 |
+
+**EpiClaude 的独特点**：
+
+1. **领域内建**：规则与技能直接讲流行病学的语言（纳排、终点、分组、敏感性分析），不需要你再翻译。
+2. **门禁而非建议**：关键规则用 Hook 强制，机械错误在发生前被拦住。
+3. **产出即规范**：图按发表标准、论文按期刊规范、交付包按咨询标准，AI 一次到位而非反复返工。
+4. **省去自建成本**：自己从零写一套高质量 `CLAUDE.md` + 技能要花大量时间，EpiClaude 直接给你一套经过「删除测试」打磨的。
+
+::: {.callout-warning}
+## 不是银弹
+EpiClaude 约束的是「工程规范」，不替你做科研判断。分组怎么定、用什么模型、纳排标准，仍然需要你（研究者）来决定——规则恰恰要求 AI 在这些口径不明时停下来问你，而不是替你猜。
+:::
+
+---
+
+## 安装与配置
+
+### 前置条件
+
+- 已安装并能正常使用 **Claude Code**（参见 [Claude Code 完全指南](5008-claudecode.html)）。
+- 本机有 **Git**。
+- R（用于运行分析脚本）；若涉及个别 Python 管线，再装对应环境。
+
+### 安装步骤
+
+EpiClaude 的安装本质就是「把 `CLAUDE.md` 与 `skills/` 复制到 Claude Code 的配置目录」。
+
+**macOS / Linux：**
+
+```bash
+# 克隆仓库到本地
+git clone git@github.com:KangWang42/EpiClaude.git ~/.claude-epiclaude
+
+# 复制全局规则
+cp ~/.claude-epiclaude/CLAUDE.md ~/.claude/CLAUDE.md
+
+# 复制技能目录
+cp -r ~/.claude-epiclaude/skills ~/.claude/skills
+```
+
+**Windows（Git Bash）：**
+
+```bash
+git clone git@github.com:KangWang42/EpiClaude.git "$USERPROFILE/.claude-epiclaude"
+cp "$USERPROFILE/.claude-epiclaude/CLAUDE.md" "$USERPROFILE/.claude/CLAUDE.md"
+cp -r "$USERPROFILE/.claude-epiclaude/skills" "$USERPROFILE/.claude/skills"
+```
+
+::: {.callout-tip}
+## 已有自己的 CLAUDE.md 怎么办
+直接覆盖会丢掉你原有的全局规则。建议先备份：`cp ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak`，再把 EpiClaude 的内容与你已有规则**人工合并**，而不是盲目覆盖。技能目录则可以共存——把 EpiClaude 的 `skills/` 子目录逐个拷入即可。
+:::
+
+### 启用可选 Hook
+
+Hook 是机械性强制的关键。在 Claude Code 的 `settings.json` 中按需注册脚本，例如保护原始数据：
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/protect_rawdata.sh" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+::: {.callout-note}
+具体 Hook 名称与触发时机以仓库内脚本和 Claude Code 当前的 Hook 文档为准。建议先只启用 `protect_rawdata.sh`（最有价值、风险最低），熟悉后再逐步加上语法校验与 AI 痕迹扫描。
+:::
+
+### 验证安装
+
+启动 Claude Code 后，可以用两个简单动作确认 EpiClaude 已生效：
+
+1. 让它「初始化一个新研究项目」，若自动按七层目录结构创建并建立空 registry，说明 `project-init` 技能与规则已加载。
+2. 让它做一个简单分析，故意不说明分组口径，观察它是否「先问你分组怎么定」而不是擅自选择——这是规则生效的标志。
+
+---
+
+## 怎么用：典型工作流
+
+EpiClaude 的用法是「自然语言描述任务，技能自动路由」。你不需要记技能名，只要说你要做什么，对应规则与技能会自动接管。下面是一条从零到论文的主线。
+
+### 第一步：初始化项目
+
+直接说「帮我创建一个队列研究项目」。`project-init` 会建好 `01_data` 到 `09_backup` 的七层结构、模板文件、Git 配置和空的表图 registry。你只需把原始数据放进 `01_data/rawdata/`。
+
+### 第二步：数据清洗与统计分析
+
+说「读 `01_data/rawdata/` 里的数据，做基线描述和 Cox 回归」。`r-biostats` 接管，按 `config.R` / `conventions.R` 的统一口径写编号脚本，跑完会全量扫 error/warning。关键点：**脚本写完一定实跑验证**，不会出现「写了没跑就说做完」。
+
+### 第三步：出图
+
+说「把生存曲线做成发表级图」。`publication-figures` 接管，按 mm 尺寸、字体嵌入、期刊配色出图，PDF + PNG 双存，图号由 registry 统一分配，不在脚本里写死 `Fig3`。
+
+### 第四步：同步结果单源
+
+每当结果变化，数字写入 `07_paper/results.yaml`，再派生出 `0_result_summaries.md`。下游论文、报告、PPT 一律从这里取数，禁止手敲——这是「结果改了论文没跟着改」这一痛点的根治办法。
+
+### 第五步：写论文
+
+说「根据现在的结果写中文论著的结果部分」。`academic-publishing` 逐部件门控写作：写一段 → 自检 → 你批准 → 下一部件，全程引用 `results.yaml` 的数字，零编造。
+
+### 第六步：去 AI 味与质控
+
+论文初稿出来后，`humanizer-zh` 扫 AI 套话黑名单、最小改写、复扫归零；`epi-project-audit` 做六层一致性审查（命名、代码、结果、论文是否对得上），全过才签发。
+
+### 第七步：交付或备份
+
+要发给客户就走 `consulting-delivery` 打成可复现交付包；到了重要里程碑，由它提示你「是否 commit 备份」，你确认后才提交，绝不擅自 push。
+
+---
+
+## 场景实战
+
+### 场景一：研究生第一次独立做课题
+
+**问题**：手上一份 RWD 数据，导师要求三个月内出一篇能投的论文，但自己没做过完整项目，怕做到一半文件全乱。
+
+**做法**：
+1. 让 EpiClaude 初始化项目，原始数据进 `01_data/rawdata/`（之后这个目录被 Hook 锁死，误删误改都不会发生）。
+2. 分阶段说需求：清洗 → 基线表 → 主分析 → 敏感性分析，每个阶段对应一个编号脚本，总数控制在 10 个以内。
+3. 出图、写论文、去 AI 味依次走对应技能。
+4. 投稿前用 `epi-project-audit` 全面自查一遍。
+
+**效果**：三个月后交出的不只是论文，还有一个结构清晰、可复现、能直接交给导师复核的完整项目。
+
+**进阶技巧**：把每次想到但还没做的事（缺哪篇文献、还能补哪个敏感性分析）随手让它记进 `BACKLOG.md`，规划下一步时先扫这个清单，避免「想法过两轮就忘」。
+
+### 场景二：统计咨询交付
+
+**问题**：帮人做了一批分析，要发回对方，但担心交付物有 AI 痕迹、对方无法独立复现。
+
+**做法**：分析完成后说「打包成交付给客户的结果包」。`consulting-delivery` 会在 `05_reports/` 下建规范文件夹，整理出对方能独立运行复现的脚本与说明，并过一遍 `humanizer-zh` 去 AI 味。
+
+**效果**：交付物专业、可复现、读不出 AI 生成痕迹，且主流程源与交付包保持同步。
+
+### 场景三：投稿前一致性自查
+
+**问题**：论文改了好几版，担心正文引用的数字、表号、图号和实际产出对不上。
+
+**做法**：说「审稿前帮我全面查一下项目一致性」。`epi-project-audit` 逐层核对编号是否连续、表图是否按行文顺序、正文数字是否都来自 `results.yaml`、有无 AI 痕迹，发现问题给出修复建议，全过才算签发。
+
+**效果**：把「投出去才被审稿人发现数字对不上」的风险，提前在本地清掉。
+
+---
+
+## 效果优化与最佳实践
+
+- **让它先问、不要让它猜**：遇到分组/终点/纳排不明，规则要求它停下来问你。配合这一点，你给任务时可以故意留口径让它确认，确保方向不偏。
+- **结果单源是纪律不是建议**：坚持所有数字走 `results.yaml`，一旦开始手敲，单源就失效了。
+- **一次性脚本立刻归档**：临时绘图、诊断脚本写完就让它移进 `09_backup/`，保持 `02_code/` 干净、编号连续。
+- **里程碑才提交**：改一点不必提交；完成一个主分析、定稿一个论文部件再 commit，提交信息写清这一阶段做了什么。
+- **Hook 由少到多**：先启用原始数据保护，稳定后再加语法校验、AI 痕迹扫描，避免一上来被太多拦截打断。
+- **定期扫 BACKLOG**：把它当成「待补清单」的唯一入口，发现即记，规划时先看。
+
+---
+
+## 常见问题与解答
+
+**Q：EpiClaude 会自动改我的原始数据吗？**
+不会。规则把 `01_data/rawdata/` 设为只读，启用 `protect_rawdata.sh` 后任何写入都会被 Hook 直接拦截。
+
+**Q：我不做流行病学，做计量经济/心理测量能用吗？**
+大部分工程规范（目录、编号、结果单源、去 AI 味、审查）是通用的，可以用；但部分技能（如纳排、生存分析口径）偏医学，针对性会弱一些。
+
+**Q：必须用 R 吗？能用 Python 吗？**
+默认语言是 R，`02_code/` 分析脚本一律 `.R`。仅在特定工具链或既有 Python 管线的项目才用 Python，并需在项目 `CLAUDE.md` 注明原因。
+
+**Q：会不会因为规则太多让 AI 变慢、变啰嗦？**
+规则遵循「删除测试」，只保留删掉会出错的条目，总量控制在约 120 行；多步流程下沉到按需加载的技能，不会每次都全量灌入。
+
+**Q：它会自动 git push 吗？**
+不会。默认只在本地 commit 留回退点，且 commit 前会先征询你；除非你明确要求，绝不 push 到远端。
+
+**Q：技能可以自己改或新增吗？**
+可以。工具层有 `skill-creator` 专门用来创建或修改技能；你也可以直接编辑 `~/.claude/skills/` 下对应目录。
+
+---
+
+## 扩展资源
+
+- 项目仓库：[github.com/KangWang42/EpiClaude](https://github.com/KangWang42/EpiClaude)
+- 配套阅读：[Claude Code 完全指南](5008-claudecode.html)、[OpenCode Skills 技能系统](5002-opencode-skills.html)、[OpenCode Hooks 钩子系统](5009-opencode-hooks.html)
+- Claude Code 官方文档：<https://docs.anthropic.com/en/docs/claude-code>
+- 相关工具：本站「机器学习与AI → AI 工具」分类下的其他 AI 编程助手教程
+
+::: {.callout-tip}
+## 给新用户的最后建议
+不要试图一开始就用满所有技能。先用 `project-init` 把项目结构立起来，把原始数据保护住，再在做分析、出图、写论文时让对应技能自然接管。规则的价值会在你做到第二、第三个项目时显现——那时你会发现交接、复现、审稿前自查都不再是负担。
+:::
