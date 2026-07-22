@@ -1,5 +1,27 @@
+// Quarto 在 max-items 少于默认分页数时仍初始化分页插件，但不会输出分页容器。
+// 在 DOMContentLoaded 前补充隐藏容器，避免 List.js 访问不存在的节点。
+(function ensureHomeListingPagination() {
+  if (!document.body || !document.body.classList.contains('home-page')) return;
+  const listing = document.querySelector('#listing-listing');
+  if (!listing || listing.querySelector('.pagination')) return;
+
+  const wrapper = document.createElement('nav');
+  wrapper.className = 'listing-pagination home-listing-pagination';
+  wrapper.setAttribute('aria-hidden', 'true');
+  wrapper.innerHTML = '<ul class="pagination"></ul>';
+  listing.appendChild(wrapper);
+})();
+
 // ==================== 自定义侧边栏卡片 ====================
 document.addEventListener('DOMContentLoaded', function() {
+  const pagePath = window.location.pathname;
+  const isHomePage = pagePath === '/' || pagePath.endsWith('/index.html') || pagePath === '';
+
+  // 新首页使用完整宽度的信息架构，不再创建右侧随机卡片或轮询搜索数据。
+  if (!isHomePage || document.body.classList.contains('home-page') || !document.querySelector('#quarto-margin-sidebar')) {
+    return;
+  }
+
   // DEBUG: console.log('[侧边栏] DOMContentLoaded 触发');
   
   // 监听 searchData 加载完成事件 - 数据加载后异步刷新精选教程
