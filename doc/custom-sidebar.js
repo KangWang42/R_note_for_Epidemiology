@@ -1,6 +1,6 @@
 /**
  * 全站轻量导航增强。
- * 仅处理首页分页兼容、旧侧栏清理和移动目录可访问性。
+ * 仅处理首页分页兼容、侧栏清理和移动目录可访问性。
  */
 (function () {
   'use strict';
@@ -8,7 +8,7 @@
   function ensureHomeListingPagination() {
     if (!document.body || !document.body.classList.contains('home-page')) return;
 
-    var listing = document.querySelector('#listing-listing');
+    var listing = document.querySelector('#listing-home-latest');
     if (!listing || listing.querySelector('.pagination')) return;
 
     var wrapper = document.createElement('nav');
@@ -16,43 +16,6 @@
     wrapper.setAttribute('aria-hidden', 'true');
     wrapper.innerHTML = '<ul class="pagination"></ul>';
     listing.appendChild(wrapper);
-  }
-
-  function normalizePrimaryNavigation() {
-    var list = document.querySelector('#navbarCollapse > ul.navbar-nav.me-auto');
-    if (!list) return;
-
-    var allowedLabels = ['主页', '学习路线'];
-    var items = Array.from(list.children).filter(function (item) {
-      return item.classList.contains('nav-item');
-    });
-
-    items.forEach(function (item) {
-      var label = item.querySelector(':scope > .nav-link .menu-text');
-      var text = label ? label.textContent.trim() : '';
-      if (!allowedLabels.includes(text)) item.remove();
-    });
-
-    var existingRoute = Array.from(list.querySelectorAll(':scope > .nav-item')).some(
-      function (item) {
-        var label = item.querySelector(':scope > .nav-link .menu-text');
-        return label && label.textContent.trim() === '学习路线';
-      }
-    );
-
-    if (!existingRoute) {
-      var homeLink = list.querySelector(':scope > .nav-item .nav-link');
-      var routeHref = homeLink
-        ? homeLink.getAttribute('href').replace(/index\.html(?:#.*)?$/, '0001-guide.html')
-        : './0001-guide.html';
-      var routeItem = document.createElement('li');
-      routeItem.className = 'nav-item';
-      routeItem.innerHTML =
-        '<a class="nav-link" href="' +
-        routeHref +
-        '"><span class="menu-text">学习路线</span></a>';
-      list.appendChild(routeItem);
-    }
   }
 
   function enhanceHomeTaskNavigation() {
@@ -123,8 +86,14 @@
     var overlay = document.querySelector('.toc-modal-overlay');
     var closeButton = document.querySelector('.toc-modal-close');
     var panel = document.querySelector('.toc-modal-content');
+    var mobileDock = document.querySelector('.quarto-secondary-nav .container-fluid');
 
     if (!button || !overlay || !panel) return;
+
+    if (mobileDock && window.matchMedia('(max-width: 991.98px)').matches) {
+      button.classList.add('toc-nav-docked');
+      mobileDock.appendChild(button);
+    }
 
     if (!overlay.id) overlay.id = 'mobile-toc-dialog';
     panel.setAttribute('role', 'dialog');
@@ -168,7 +137,6 @@
   }
 
   function init() {
-    normalizePrimaryNavigation();
     enhanceHomeTaskNavigation();
     removeDecorativeEmoji();
     collapseInactiveSections();
