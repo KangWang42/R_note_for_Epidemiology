@@ -1,21 +1,51 @@
 /**
  * 全站轻量导航增强。
- * 仅处理首页分页兼容、侧栏清理和移动目录可访问性。
+ * 仅处理首页分页、侧栏清理和移动目录可访问性。
  */
 (function () {
   'use strict';
 
-  function ensureHomeListingPagination() {
+  function enhanceHomeListingPagination() {
     if (!document.body || !document.body.classList.contains('home-page')) return;
 
     var listing = document.querySelector('#listing-home-latest');
-    if (!listing || listing.querySelector('.pagination')) return;
+    if (!listing) return;
 
-    var wrapper = document.createElement('nav');
-    wrapper.className = 'listing-pagination home-listing-pagination';
-    wrapper.setAttribute('aria-hidden', 'true');
-    wrapper.innerHTML = '<ul class="pagination"></ul>';
-    listing.appendChild(wrapper);
+    var wrapper = listing.querySelector('.listing-pagination');
+    if (!wrapper) {
+      wrapper = document.createElement('nav');
+      wrapper.className = 'listing-pagination home-listing-pagination';
+      wrapper.innerHTML = '<ul class="pagination"></ul>';
+      listing.appendChild(wrapper);
+    }
+
+    wrapper.classList.add('home-listing-pagination');
+    wrapper.setAttribute('aria-label', '教程分页');
+    wrapper.removeAttribute('aria-hidden');
+
+    listing.addEventListener('click', function (event) {
+      var pageLink = event.target.closest('.home-listing-pagination .page-link');
+      if (!pageLink) return;
+
+      event.preventDefault();
+      window.setTimeout(function () {
+        var heading = document.querySelector('.home-latest-heading');
+        if (!heading) return;
+
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(function () {
+            var top = heading.getBoundingClientRect().top + window.scrollY - 96;
+            var root = document.documentElement;
+            var previousScrollBehavior = root.style.scrollBehavior;
+            root.style.scrollBehavior = 'auto';
+            window.scrollTo(0, Math.max(0, top));
+            window.requestAnimationFrame(function () {
+              root.style.scrollBehavior = previousScrollBehavior;
+            });
+          });
+        });
+      }, 0);
+    }, true);
   }
 
   function enhanceHomeTaskNavigation() {
@@ -143,7 +173,7 @@
     enhanceMobileToc();
   }
 
-  ensureHomeListingPagination();
+  enhanceHomeListingPagination();
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, { once: true });
