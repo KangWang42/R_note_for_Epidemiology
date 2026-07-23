@@ -1,0 +1,112 @@
+---
+title: 'EpiAgentKit Skill · skill-creator：Agent Skill 的设计、验证与打包'
+date: '2026-07-23'
+categories:
+- EpiAgentKit
+- 科研 Skills
+- 维护与扩展
+image: images/epiagentkit-platform-architecture.webp
+description: 全面介绍 skill-creator 如何从真实任务示例设计 Skill，组织 SKILL.md、references、scripts 与 assets，并完成初始化、验证、打包和迭代。
+---
+
+`skill-creator` 是创建或更新 Agent Skill 的通用入口。它把一组专业知识、工作流程和工具集成组织成可发现、可复用、可验证的能力包，并控制上下文成本与执行自由度。
+
+![EpiAgentKit 以领域 Skills 连接规则、工具和双平台运行环境](images/epiagentkit-platform-architecture.webp){fig-alt="EpiAgentKit 平台架构，领域 Skills 位于全局规则与 Claude Code、Codex 执行环境之间"}
+
+## Skill 不只是提示词
+
+一个 Skill 包含任务触发说明、核心执行流程和按需加载的资源。它让 Agent 知道什么时候进入某个专业流程、必须做哪些步骤、哪些判断需要研究者确认，以及怎样复用脚本和模板得到稳定结果。
+
+Skill 不能保证模型自动拥有未知数据或外部权限，但可以把成熟方法、边界和确定性工具封装为重复使用的工作方式。
+
+## 核心设计原则
+
+### 简洁主文件
+
+上下文是共享资源。`SKILL.md` 只保留任务开始时真正需要的路由、必须步骤、边界和资源导航。模型已经知道的通用常识不重复讲解，长例子与变体放 references。
+
+### 优化而非累积
+
+更新既有 Skill 先判断哪些内容应保留、重写、合并、下沉、脚本化或删除。发现一个新问题不等于必须再加一段规则，重复内容和互相冲突的例外会降低可执行性。
+
+### 合适的自由度
+
+高风险、易错和需要完全一致的操作使用具体脚本与严格步骤；允许多种专业判断的任务给原则、检查点和示例；探索性任务保留更高自由度。约束强度与失败成本匹配。
+
+### 渐进式披露
+
+Agent 先通过 description 决定是否触发，再完整读取 `SKILL.md`，最后只在条件满足时加载 references、scripts 或 assets。这样既保留详细能力，又避免每次任务把整个知识库塞进上下文。
+
+## 标准目录
+
+```text
+skill-name/
+├── SKILL.md
+├── references/
+├── scripts/
+└── assets/
+```
+
+`SKILL.md` 是必需文件，包含 YAML front matter 和正文。`name` 使用规范名称，`description` 同时写清能做什么、何时触发和重要排除边界。
+
+`references/` 保存长规范、场景变体和方法细节；`scripts/` 保存重复且需要确定性的操作；`assets/` 保存输出要复用的模板、图片、字体或媒体。没有实际用途的目录不创建。
+
+## 不应包含的内容
+
+不要为 Skill 额外创建与执行无关的 README、变更日志、安装说明副本和过程记录。用户文档可以存在于所属产品仓库，但不应挤进 Skill 包并与 `SKILL.md` 重复。
+
+同一知识点只保留一个权威来源，引用比复制更可靠。
+
+## 六步创建流程
+
+1. 收集真实任务示例，明确成功结果、失败模式和相邻边界。
+2. 规划哪些知识进入主文件，哪些下沉为 reference、script 或 asset。
+3. 使用初始化脚本创建规范目录和 front matter。
+4. 先实现可复用资源，再编辑 `SKILL.md` 的路由与流程。
+5. 运行快速验证并打包，检查名称、结构、链接和资源。
+6. 在真实任务中使用，根据实际缺口迭代，而不是凭想象扩写。
+
+## 真实示例与触发边界
+
+设计前至少准备应触发、相邻但不应触发、错误输入、已有项目和轻量任务等代表性例子。description 需要让路由器在这些例子上做出稳定选择。
+
+例如文件操作 Skill 应在用户真实要求 `.docx` 时触发，不能因为用户说“写报告”就自动承担报告内容；统计图 Skill 应排除流程图和机制图。清楚的排除边界与正向能力同样重要。
+
+## 脚本和资源设计
+
+相同代码被反复重写，或某操作要求稳定输出时，应转成脚本。脚本接受清楚参数，提供帮助信息，失败时返回可理解错误，并在代表输入上实际运行。
+
+模板和视觉资产按输出目的组织，避免把示例结果误当作固定内容。参考文件应从 `SKILL.md` 有明确入口，不能留下无法被发现的孤儿资源。
+
+## 初始化、验证与打包
+
+```bash
+python scripts/init_skill.py my-skill --path skills
+python scripts/quick_validate.py skills/my-skill
+python scripts/package_skill.py skills/my-skill
+```
+
+`init_skill.py` 创建基础结构，`quick_validate.py` 检查 front matter、命名和文件组织，`package_skill.py` 生成可分发包。脚本通过后仍需执行代表性任务，验证触发边界与实际效果。
+
+## 内部参考
+
+`references/workflows.md` 提供顺序型、条件型、循环型和多阶段工作流模式；`references/output-patterns.md` 提供模板、示例和质量检查组织方式。二者按当前 Skill 设计问题加载，不复制进每个新 Skill。
+
+## EpiAgentKit 中的使用方式
+
+创建普通 Skill 可以直接使用本技能。修改 EpiAgentKit 内现有 Skill 时，先加载 `epiagentkit-maintenance` 建立基线、最小变更与双平台验证，再由 `skill-creator` 处理 Skill 结构和质量。
+
+## 能力边界
+
+本技能不替创建者定义尚未明确的专业标准，不因内容多就判定 Skill 完整，也不能用 validator 通过代替真实任务验证。
+
+## 安装与入口
+
+```bash
+python scripts/epiagentkit.py install --target all --preset custom \
+  --skills skill-creator --yes
+```
+
+- [epiagentkit-maintenance 仓库维护](5033-skill-epiagentkit-maintenance.html)
+- [git-commit-helper 版本历史](5035-skill-git-commit-helper.html)
+- [EpiAgentKit Skills 目录](5019-epiagentkit-skills.html)

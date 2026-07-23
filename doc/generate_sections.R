@@ -18,6 +18,14 @@ section_config <- list(
     hero_desc = "第一次来？这里有完整的学习路线和教程目录，帮你快速找到想学的内容。",
     grid_min_width = "300px"
   ),
+  "EpiAgentKit 科研 Skills 库" = list(
+    file = "sections/epiagentkit.qmd",
+    title = "EpiAgentKit 科研 Skills 库",
+    subtitle = "覆盖证据、项目、分析、论文、视觉、汇报、交付与审查的完整科研工作流",
+    hero_title = "EpiAgentKit 科研 Skills 库",
+    hero_desc = "20 个可组合的科研 Skills，每个技能均有独立、完整的能力说明与使用边界。",
+    grid_min_width = "300px"
+  ),
   "实用 R 包" = list(
     file = "sections/packages.qmd",
     title = "实用 R 包",
@@ -73,6 +81,14 @@ category_descriptions <- list(
   "学习路线" = "新手入门必读",
   "基础知识" = "R 基础与工具",
   "工作流程" = "科研工作流",
+  "总览与安装" = "认识架构、安装方式与 20 个 Skills 全景",
+  "原则与证据" = "锁定研究口径并核验方法与来源",
+  "项目与分析" = "初始化项目、执行统计分析并生成图件",
+  "论文与报告" = "生成论文、投稿材料和专业报告",
+  "科研视觉与汇报" = "制作非统计视觉与中山大学学术汇报",
+  "咨询与审查" = "交付可复现成果并完成六层项目质控",
+  "文件操作" = "可靠读写 Word、PDF、PowerPoint 和 Excel",
+  "维护与扩展" = "维护 EpiAgentKit、创建 Skills 和整理版本历史",
   "表格制作" = "快速生成发表级表格",
   "数据处理" = "高效数据处理工具",
   "模型整理" = "模型结果整理工具",

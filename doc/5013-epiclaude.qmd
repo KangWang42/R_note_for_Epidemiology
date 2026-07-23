@@ -1,352 +1,252 @@
 ---
-title: 'EpiClaude：面向流行病学与生物统计的 Claude Code 工作流'
-date: '2026-06-16'
+title: 'EpiAgentKit：Claude Code 与 Codex 的流行病学和生物统计科研工作流'
+date: '2026-07-23'
 categories:
-- 机器学习与AI
+- EpiAgentKit
+- 科研 Skills
 - AI 工具
-image: images/5013-epiclaude-cover.svg
-description: 把 Claude Code 改造成懂科研规范的流行病学研究助手——从项目初始化、统计分析、发表级图表到论文写作与质控审查，一套带门禁的可复现工作流。
+image: images/5013-epiagentkit-cover.webp
+description: 全面介绍 EpiAgentKit 的双平台架构、20 个科研 Skills、完整研究工作流、安装同步方式、确定性检查和安全边界。
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
-```
+[EpiAgentKit](https://github.com/KangWang42/EpiAgentKit) 是本站重点维护的科研 Skills 库。它面向流行病学、卫生统计、临床研究和统计咨询，把项目规则、专业技能、文件工具、确定性检查和双平台配置管理组织成一套可执行工作流。研究者可以在 Claude Code 或 OpenAI Codex 中使用同一套规范，从研究问题与证据核验开始，继续完成 R 分析、统计图、论文、报告、汇报、咨询交付和项目审查。
 
-## 什么是 EpiClaude
+::: {.callout-important}
+## 本专题的阅读入口
 
-[EpiClaude](https://github.com/KangWang42/EpiClaude) 是一套**面向流行病学与生物统计研究的 Claude Code 配置系统与技能生态**。它不是一个独立软件，而是一组挂在 Claude Code 之上的全局规则（`CLAUDE.md`）、可复用技能（Skills）与项目脚手架，把通用编程助手改造成「懂科研规范」的研究流水线助手。
-
-普通的 AI 助手能写代码、能聊数据，但它不知道你这一行是临床研究：原始数据不能改、脚本要连续编号、表图要按论文行文顺序命名、结果改了要同步到单一数据源、论文里不能暴露调参痕迹和 AI 味。EpiClaude 把这些「研究工程」的隐性规矩固化成硬规则与带门禁的工作流，让 AI 在帮你干活时**自动守规矩**，而不是每次都要你盯着。
-
-### 它解决什么问题
-
-科研项目天然是碎片化的：数据管理、统计分析、出图、写论文、查一致性，各做各的，过两周自己都找不到「哪张图是哪段代码出的」。EpiClaude 用四件事把这些串起来：
-
-| 痛点 | EpiClaude 的做法 |
-|:-----|:-----------------|
-| 文件命名混乱、脚本堆积 | 标准化七层目录 + 连续编号 + registry 单一编号源 |
-| 结果改了论文没跟着改 | 结果单源 `results.yaml`，下游一律取数不手敲 |
-| AI 写的东西一眼假、有 AI 味 | `humanizer-zh` 去 AI 痕迹 + 投稿前自检清单 |
-| 跑完不验证就说「做完了」 | 强制实跑 + 全量扫 error/warning 才算完成 |
-| 原始数据被误改 | 可选 Hook 在写入 `01_data/rawdata/` 时直接拦截 |
-
-### 核心特点
-
-| 特性 | 说明 |
-|:-----|:-----|
-| 🧬 **领域专用** | 规则与技能都为流行病学/卫生统计场景设计，不是泛用模板 |
-| 🚦 **门禁工作流** | 分析、写作、交付、审查都是「逐项过检才能下一步」的状态机 |
-| 📐 **发表级产出** | 内置约 180 种图型模板，mm 级尺寸、字体嵌入、期刊配色 |
-| 🔁 **可复现优先** | 单一数据源架构，每张表图都能追溯到生成代码 |
-| 🌏 **中英双语写作** | 中文期刊/学位论文与英文 IMRaD 三条线，各有规范 |
-| 🛡️ **可选 Hook 守卫** | 用 bash 脚本强制执行机械性规则，而非仅靠「建议」 |
-
-::: {.callout-note}
-## EpiClaude 与 Claude Code 是什么关系
-
-Claude Code 是 Anthropic 的官方终端 AI 编程助手（详见[本站的 Claude Code 完全指南](5008-claudecode.html)）。EpiClaude 是**跑在 Claude Code 之上的一层配置**——它复用 Claude Code 的全部能力（读写文件、执行脚本、Git 操作、Skills/Agents/MCP），只是额外灌入了流行病学研究的规则与技能。换句话说：先装 Claude Code，再装 EpiClaude，让它「专精科研」。
+本文负责解释 EpiAgentKit 是什么、整套系统如何协作以及怎样安装使用。[20 个 Skills 完整目录](5019-epiagentkit-skills.html)集中列出全部技能；每个 skill 另有独立详解文章，说明触发条件、内部组成、执行流程、典型产物和能力边界。
 :::
 
----
+## 核心定位
 
-## 什么人需要它
+EpiAgentKit 不是新的统计软件，也不是一组需要反复复制的提示词。它是一套面向科研 Agent 的行为系统，主要解决四类问题：研究口径容易被模型猜测，分析代码写完却没有实跑，结果数字在论文和表图之间发生漂移，以及项目交付缺少可复现和可审查的证据链。
 
-EpiClaude 不是给所有人的。它的价值密度，随着「你有多少重复的科研工程负担」而上升。
+它采用按任务加载的 Agent Skills 机制。全局规则只保留每个会话都必须遵守的红线和路由，具体分析、写作、视觉、文件处理与审查步骤放在对应 skill 中，需要时才加载。这样既能保持专业约束，又不会把全部规范塞入每次对话。
 
-### 强烈推荐
+| 研究问题 | EpiAgentKit 的处理方式 |
+|:---|:---|
+| 分组、终点、纳排或主分析存在多种合理定义 | 停止猜测，先由研究者确认口径 |
+| 原始数据可能被误改 | 规则与 hook 共同保护 `01_data/rawdata/` 及项目声明的其他原始数据根 |
+| 代码写了但没有运行 | 分析流程要求写入脚本、实际执行、扫描完整输出并核对结果 |
+| 结果改了，论文数字没有同步 | 正式项目使用 `results.yaml` 保存机器可读结果，再派生报告、论文和 PPT 所需数字 |
+| 图表能看但不符合最终载体 | 统计图与非统计视觉分流，按物理尺寸、字体、来源和载体分别验证 |
+| AI 文本改变事实或夸大论断 | 写作前锁定数字、引文、表图和论断方向，按研究设计校准措辞 |
+| 咨询结果难以交接复现 | 从已验证主流程派生自包含交付包，并在隔离环境中复现 |
+| 项目看似完成但内部不一致 | 六层项目审查与确定性预检共同阻止带 ERROR 的项目签发 |
 
-- **医学/公卫研究生与青年研究者**：要独立从原始数据做到投稿，但缺少规范化的项目管理训练，常被命名、版本、复现折腾。
-- **流行病学家与生物统计师**：做队列、病例对照、RWD（真实世界数据）研究，分析方法多、表图多、结果反复迭代，最怕「结果变了忘了同步」。
-- **统计咨询团队**：要把分析打包成客户能独立复现、看不出 AI 痕迹的专业交付物，需要稳定的交付规范。
-- **带学生的导师/课题组**：希望组内项目结构统一，便于交接、复核与审稿前自查。
+## 双平台架构
 
-### 可以考虑
+EpiAgentKit 以同一个 GitHub 仓库作为 Claude Code 与 Codex 的配置源。仓库内容分为四层，各层承担不同职责。
 
-- 其他定量学科（计量经济、心理测量、临床试验统计）想引入「可复现研究工程」实践的人。
-- 个人研究者想给自己立规矩，避免 AI 协作时常见的「跑了没验证、改了没同步」。
+| 层级 | 主要内容 | 作用 |
+|:---|:---|:---|
+| 全局规则 | `CLAUDE.md`、同步生成的 `AGENTS.md` | 保存硬红线、最短路由、结果单源和完成条件 |
+| 领域 Skills | `skills/*/SKILL.md`、`references/`、`scripts/`、`assets/` | 按需加载专业工作流、长规范、确定性脚本和模板资产 |
+| Hooks | `hooks/` | 在文件编辑或命令执行前后保护原始数据、检查 R 语法和提示结果格式问题 |
+| 配置管理器 | `scripts/epiagentkit.py` | 完成安装、同步、冲突清理、双端验收和项目预检 |
 
-### 不太适合
+Claude Code 与 Codex 不需要维护两套不同技能。安装器会根据平台真实目录进行映射，Codex 的自定义 skills 默认安装到 `~/.agents/skills/`，Claude Code 使用自己的 skills 目录。`doctor` 负责核对安装清单、规则、skills 和 hooks 是否一致。
 
-- 只想让 AI 临时写几行 R/Python、不在意项目结构的轻量用户——规则会显得繁琐。
-- 完全不用 Claude Code 的人（EpiClaude 依赖 Claude Code 运行）。
-- 非研究、非数据分析场景（如纯前端开发、运维），规则与技能用不上。
+## 能力全景
 
-::: {.callout-tip}
-## 一句话判断
-如果你经常一个人从「一份原始数据」做到「一篇能投稿的论文」，并且被命名混乱、结果对不上、AI 味重这些问题反复折磨，那么 EpiClaude 就是为你设计的。
-:::
+当前版本提供 20 个可分发 skills。下面的表格先给出每个技能的主要效果，完整内容见[技能目录与组合指南](5019-epiagentkit-skills.html)和各自的独立文章。
 
----
+| Skill | 主要效果 | 独立详解 |
+|:---|:---|:---|
+| `biostat-principles` | 为分析、写作、交付和审查提供口径、最小实现、追溯、复现与隔离探索原则 | [查看](5020-skill-biostat-principles.html) |
+| `evidence-research` | 快速核验题名、作者、DOI、PMID 和来源身份，或执行正式证据检索与证据矩阵 | [查看](5021-skill-evidence-research.html) |
+| `project-init` | 创建研究或咨询项目骨架、方案文件、结果单源、registry、日志和归档约定 | [查看](5015-skill-project-init.html) |
+| `r-biostats` | 按 PLAN、CODE、RUN、VERIFY、DOC 闭环完成 R 清洗、建模和结果记录 | [查看](5016-skill-r-biostats.html) |
+| `publication-figures` | 为真实统计数据选择图型并按最终物理尺寸生成和核验发表级图件 | [查看](5017-skill-publication-figures.html) |
+| `academic-publishing` | 生成中英文论文、学位论文、投稿材料和审稿回复，并执行逐部件自检 | [查看](5018-skill-academic-publishing.html) |
+| `academic-humanizer` | 在不改变数字、引文和论断方向的前提下润色、压缩和校准学术文本 | [查看](5022-skill-academic-humanizer.html) |
+| `report-writing` | 把结果、流程或进展写成结论先行的专业中文报告，并按需生成 Word | [查看](5023-skill-report-writing.html) |
+| `research-visuals` | 为论文、PPT、标书、报告、README 和网页生成非统计科研视觉 | [查看](5024-skill-research-visuals.html) |
+| `svg-diagrams` | 在明确矢量需求或生成式路径耗尽后制作可编辑、内容精确的 SVG 图解 | [查看](5025-skill-svg-diagrams.html) |
+| `sysu-ppt` | 基于中山大学模板制作组会、开题、答辩和正式研究汇报 PPT | [查看](5026-skill-sysu-ppt.html) |
+| `consulting-delivery` | 把已验证的 R 或 Python 分析整理为客户可独立阅读和复现的交付包 | [查看](5027-skill-consulting-delivery.html) |
+| `epi-project-audit` | 从项目骨架到科学合理性执行六层审查，输出 ERROR、WARN 和修复清单 | [查看](5028-skill-epi-project-audit.html) |
+| `docx` | 创建、读取、编辑、渲染和验证 Word 文档及其 OOXML 结构 | [查看](5029-skill-docx.html) |
+| `pdf` | 提取、合并、拆分、旋转、加水印、OCR、表单和加密处理 | [查看](5030-skill-pdf.html) |
+| `pptx` | 读取、创建、编辑、渲染、拆分合并并检查 PowerPoint 文件 | [查看](5031-skill-pptx.html) |
+| `xlsx` | 读写、清洗、格式化和验证 Excel、CSV 与 TSV，并保留公式和模板 | [查看](5032-skill-xlsx.html) |
+| `epiagentkit-maintenance` | 维护规则、skills、hooks、同步器、兼容性测试和文档，防止行为回退 | [查看](5033-skill-epiagentkit-maintenance.html) |
+| `skill-creator` | 初始化、设计、验证和打包新的 Agent Skill | [查看](5034-skill-skill-creator.html) |
+| `git-commit-helper` | 基于完整差异和验证证据组织可审查的 Conventional Commit | [查看](5035-skill-git-commit-helper.html) |
 
-## 它包含什么
+## 两种任务模式
 
-EpiClaude 由三部分组成：一份全局规则、一套五层技能架构、一套可选 Hook。
+EpiAgentKit 区分轻量任务与正式项目。这个边界决定是否需要完整目录、方案、结果单源和审查账本。
 
-### 全局规则（CLAUDE.md）
+| 模式 | 适用情况 | 系统行为 |
+|:---|:---|:---|
+| 轻量任务 | 简单作业、单次处理、快速核验或只需少量输出 | 只加载必要 skill，保持输入只读，集中输出并执行与风险相称的验证 |
+| 正式项目 | 用户明确初始化项目、投稿、咨询交付，或工作区已有标准研究骨架 | 使用方案、统计分析计划、结果单源、日志、registry、备份和最终审查流程 |
 
-约 120 行的「硬红线」规则集，每个 session 都会加载。它遵循一条**删除测试**原则：一条规则只有在「删掉后 AI 会犯具体可观察的错误」时才保留，因此没有空话。核心覆盖：
+触发某个专业 skill 不会自动把轻量任务升级为正式项目。例如，快速核验一个 DOI 可以只使用 `evidence-research`，不需要创建七层目录；只有研究治理和文件布局确实需要时，才使用 `project-init`。
 
-- 数据完整性：`01_data/rawdata/` 只读，绝不修改原始数据；一律相对路径。
-- 代码纪律：`02_code/` 连续编号、脚本数 ≤ 10、一次性脚本归档、写完必跑并全量扫 error/warning。
-- 结果单源：结果变了同步 `results.yaml`，方法变了同步 `DECISIONS.md`，操作完同步 `SESSION_LOG.md`，发现缺口立即记 `BACKLOG.md`。
-- 口径纪律：分组/终点/纳排/主分析方法定义不明时**先问用户**，不擅自决定。
-- 零 AI 痕迹：论文、表图、代码、交付物里不出现 emoji、AI 工作痕迹或暗示「非人工」的措辞。
+## 完整研究工作流
 
-### 五层技能架构
+一条典型主线由多个 skills 接力完成，而不是由单个技能包办所有工作。
 
-技能（Skill）是按需加载的专业模块。任务落入某个场景，对应技能自动被调用并按其规范执行。
+1. **问题与口径确认。** `biostat-principles` 先锁定分组、终点、纳排、分析集和主分析方法。存在多种合理口径时，由研究者决定。
+2. **证据核验。** `evidence-research` 核验方法依据、量表、结局定义或真实引文，并区分快速核验与正式证据综述。
+3. **项目初始化。** `project-init` 在明确需要正式项目时创建研究或咨询骨架，建立 `PROTOCOL.md`、`SAP.md`、结果单源和追溯文件。
+4. **统计分析。** `r-biostats` 编写并实跑 R 脚本，核对样本量、异常值、warning、结果范围和输出文件。
+5. **统计图制作。** `publication-figures` 根据真实数据关系选择图型，按最终宽高、字体、配色和导出格式完成检查。
+6. **论文、报告和汇报。** `academic-publishing`、`report-writing` 或 `sysu-ppt` 分别负责对应内容主流程，文件 skills 只在需要真实文件时加入。
+7. **学术审校。** `academic-humanizer` 锁定不可变事实，清理模板化表达并把论断强度校准到研究设计允许的范围。
+8. **咨询交付。** `consulting-delivery` 从已验证主流程派生外发包，禁止只改分享包而不回写主流程。
+9. **项目签发。** `epi-project-audit` 联合确定性检查逐层收集证据；ERROR 阻止签发，WARN 必须解释。
 
-| 层级 | 技能 | 作用 |
-|:-----|:-----|:-----|
-| **原则层** | `biostat-principles` | 底层行为原则；任何分析/写作开工前先对齐 |
-| **执行层** | `project-init`、`r-biostats`、`publication-figures` | 项目脚手架、R 统计分析工作流、发表级图件规范 |
-| **产出层** | `academic-publishing`、`consulting-delivery`、`sysu-ppt` | 中英论文与投稿材料、咨询交付包、学术汇报 PPT |
-| **质控层** | `humanizer-zh`、`epi-project-audit` | 中文去 AI 痕迹、六层项目审查 |
-| **工具层** | `docx`、`pdf`、`pptx`、`xlsx`、`skill-creator`、`git-commit-helper` | 文档处理、技能维护、提交信息生成 |
+### Skills 的组合原则
 
-各技能的典型触发与产出：
+Skills 按“内容主流程、视觉或文件操作、终审”的顺序组合。论文从零生成使用 `biostat-principles → academic-publishing → academic-humanizer`，需要 Word 时再加入 `docx`；统计分析使用 `biostat-principles → r-biostats`，实际绘制结果图时加入 `publication-figures`；学术汇报使用 `sysu-ppt`，实际操作演示文件时加入 `pptx`。
 
-- **`project-init`**：说「创建项目/初始化」就触发，一键生成七层目录、模板、Git 配置、空 registry。
-- **`r-biostats`**：任何 R 统计分析——描述统计、回归、生存分析、中介、Meta、清洗——的执行层。
-- **`publication-figures`**：任何出图任务。约 180 种图型按分析意图编目，附 mm 尺寸、PDF+PNG 双存、字体嵌入规范。
-- **`academic-publishing`**：写中文期刊论著、中文学位论文、英文 IMRaD 三条线，逐部件门控写作。
-- **`consulting-delivery`**：把分析打包成客户可独立复现、看不出 AI 痕迹的交付包。
-- **`humanizer-zh`**：把任意中文改写到读不出 AI 生成痕迹，靠困惑度与突发性双杠杆。
-- **`epi-project-audit`**：六层审查的状态机，逐项过检才能签发。
+统计图与非统计视觉严格分流。包含坐标、比例或真实数据映射的结果图使用 `publication-figures`；流程图、框架图、机制图、技术路线和图形摘要使用 `research-visuals`。`svg-diagrams` 是明确矢量需求或既定回退条件下的工具，不替代统计图工作流。
 
-### 标准目录结构
+## 标准项目结构
 
-EpiClaude 给每个研究项目规定了一致的七层骨架，便于交接、复现与审查：
+正式研究项目使用稳定语义目录，把输入、代码、最终表图、中间结果、论文和备份分开。
 
-```
+```text
 01_data/rawdata/   只读原始数据
-02_code/           NN_描述.{R,py} 连续编号 + config.R / conventions.R
-03_tables/         Table{N}_..xlsx（附表进 supplementary/）
-04_figures/        Fig{N}_..{png,pdf}（附图进 supplementary/）
-05_reports/        可分享结果包（咨询交付）
-06_results/        中间对象，按内容命名不编号
-07_paper/          论文文稿 + results.yaml（结果机器单源）
-09_backup/         旧版 / 一次性脚本 / 探索实验
-CLAUDE.md / SESSION_LOG.md / DECISIONS.md / BACKLOG.md
+02_code/           编号分析脚本、config、conventions 与 registry
+03_tables/         最终表格与附表
+04_figures/        最终图件与附图
+05_reports/        从主流程派生的报告或咨询交付包
+06_results/        清洗后数据、模型对象和其他中间结果
+07_paper/          论文部件、results.yaml 与人读结果摘要
+09_backup/         旧版、一次性脚本和隔离探索
 ```
 
-### 可选 Hook 配置
+项目根还会保存研究方案、统计分析计划、方法决策、操作记录和待补事项。关键数字以 `07_paper/results.yaml` 为机器单源，`0_result_summaries.md` 只是便于阅读的派生版本。
 
-EpiClaude 提供五个 bash 脚本，把「机械性规则」从口头建议升级为强制执行（通过 Claude Code 的 Hook 机制触发）：
+## 安装与同步
 
-| Hook 脚本 | 作用 |
-|:----------|:-----|
-| `protect_rawdata.sh` | 拦截对 `01_data/rawdata/` 的任何写入 |
-| `check_r_syntax.sh` | 保存 `.R` 文件时校验语法 |
-| `scan_ai_trace.sh` | 检测文本中的 AI 特征用语 |
-| `fig_selfcheck.sh` | 注入图件要素的自动核查 |
-| `check_results_rds.sh` | 提醒表格数据该存 xlsx 而非二进制对象 |
-
----
-
-## 与同类方案对比
-
-| 方案 | 定位 | 领域适配 | 工作流门禁 | 可复现规范 | 学习成本 |
-|:-----|:-----|:---------|:-----------|:-----------|:---------|
-| **EpiClaude** | 科研工作流配置层 | ✅ 流行病学/卫生统计 | ✅ 状态机门禁 | ✅ 单一数据源 | 中 |
-| 裸 Claude Code | 通用编程助手 | ❌ 无领域规则 | ❌ 无 | ❌ 靠自觉 | 低 |
-| 自建 CLAUDE.md | 个人规则文件 | 取决于你写多少 | ❌ 一般无 | 取决于你 | 高（要自己设计） |
-| Cursor / Copilot | IDE 内 AI 补全 | ❌ | ❌ | ❌ | 低 |
-| 通用项目模板（如 `usethis`） | R 项目脚手架 | 部分 | ❌ | 部分 | 低 |
-
-**EpiClaude 的独特点**：
-
-1. **领域内建**：规则与技能直接讲流行病学的语言（纳排、终点、分组、敏感性分析），不需要你再翻译。
-2. **门禁而非建议**：关键规则用 Hook 强制，机械错误在发生前被拦住。
-3. **产出即规范**：图按发表标准、论文按期刊规范、交付包按咨询标准，AI 一次到位而非反复返工。
-4. **省去自建成本**：自己从零写一套高质量 `CLAUDE.md` + 技能要花大量时间，EpiClaude 直接给你一套经过「删除测试」打磨的。
-
-::: {.callout-warning}
-## 不是银弹
-EpiClaude 约束的是「工程规范」，不替你做科研判断。分组怎么定、用什么模型、纳排标准，仍然需要你（研究者）来决定——规则恰恰要求 AI 在这些口径不明时停下来问你，而不是替你猜。
-:::
-
----
-
-## 安装与配置
-
-### 前置条件
-
-- 已安装并能正常使用 **Claude Code**（参见 [Claude Code 完全指南](5008-claudecode.html)）。
-- 本机有 **Git**。
-- R（用于运行分析脚本）；若涉及个别 Python 管线，再装对应环境。
-
-### 安装步骤
-
-EpiClaude 的安装本质就是「把 `CLAUDE.md` 与 `skills/` 复制到 Claude Code 的配置目录」。
-
-**macOS / Linux：**
+基础安装需要 Python 3.10 或更高版本。R 只在执行 R 分析、统计出图或 R 驱动的 PPT 工作流时需要。EpiAgentKit 不负责安装或升级 R、Python、Node、Java、LibreOffice、TeX、Git 或依赖包；它只复制规则、skills、hooks 并执行安装检查。
 
 ```bash
-# 克隆仓库到本地
-git clone git@github.com:KangWang42/EpiClaude.git ~/.claude-epiclaude
-
-# 复制全局规则
-cp ~/.claude-epiclaude/CLAUDE.md ~/.claude/CLAUDE.md
-
-# 复制技能目录
-cp -r ~/.claude-epiclaude/skills ~/.claude/skills
+git clone https://github.com/KangWang42/EpiAgentKit.git
+cd EpiAgentKit
+python scripts/epiagentkit.py install
 ```
 
-**Windows（Git Bash）：**
+没有 Git 时可以下载并解压源码，再运行同一安装命令。安装器支持 Claude Code、Codex 或双平台，结束时默认运行 `doctor`。已有个人配置会保留，只有 EpiAgentKit 受管文件和 hooks 会被更新。
+
+### 常用安装方式
 
 ```bash
-git clone git@github.com:KangWang42/EpiClaude.git "$USERPROFILE/.claude-epiclaude"
-cp "$USERPROFILE/.claude-epiclaude/CLAUDE.md" "$USERPROFILE/.claude/CLAUDE.md"
-cp -r "$USERPROFILE/.claude-epiclaude/skills" "$USERPROFILE/.claude/skills"
+# Claude Code 与 Codex 完整安装
+python scripts/epiagentkit.py install --target all --preset full --yes
+
+# 统计分析组合
+python scripts/epiagentkit.py install --target all --preset analysis --yes
+
+# 论文、报告与证据组合
+python scripts/epiagentkit.py install --target all --preset writing --yes
+
+# PPT 与科研视觉组合
+python scripts/epiagentkit.py install --target all --preset ppt --yes
+
+# 自选 skills，并自动补齐依赖
+python scripts/epiagentkit.py install --target all --preset custom \
+  --skills sysu-ppt,report-writing --with-rules --yes
+
+# 只演练，不修改用户目录
+python scripts/epiagentkit.py install --target all --preset full --yes --dry-run
 ```
 
-::: {.callout-tip}
-## 已有自己的 CLAUDE.md 怎么办
-直接覆盖会丢掉你原有的全局规则。建议先备份：`cp ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak`，再把 EpiClaude 的内容与你已有规则**人工合并**，而不是盲目覆盖。技能目录则可以共存——把 EpiClaude 的 `skills/` 子目录逐个拷入即可。
-:::
+### 日常维护命令
 
-### 启用可选 Hook
+```bash
+# 查看可分发 skills 与预设
+python scripts/epiagentkit.py list
 
-Hook 是机械性强制的关键。在 Claude Code 的 `settings.json` 中按需注册脚本，例如保护原始数据：
+# 从仓库同步已安装内容
+python scripts/epiagentkit.py sync --target all
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          { "type": "command", "command": "~/.claude/hooks/protect_rawdata.sh" }
-        ]
-      }
-    ]
-  }
-}
+# 验证双平台安装一致性
+python scripts/epiagentkit.py doctor --target all
+
+# 对正式研究项目执行确定性预检
+python scripts/epiagentkit.py check-project <项目根>
 ```
 
-::: {.callout-note}
-具体 Hook 名称与触发时机以仓库内脚本和 Claude Code 当前的 Hook 文档为准。建议先只启用 `protect_rawdata.sh`（最有价值、风险最低），熟悉后再逐步加上语法校验与 AI 痕迹扫描。
-:::
+## Hooks 与确定性检查
 
-### 验证安装
+Skills 适合表达需要判断的专业流程，hooks 和脚本负责重复且需要确定性的检查。当前仓库包括以下主要能力。
 
-启动 Claude Code 后，可以用两个简单动作确认 EpiClaude 已生效：
+| 检查 | 作用 |
+|:---|:---|
+| 原始数据路径保护 | 在可确定解析的编辑请求写入原始数据根之前阻断操作 |
+| R 语法检查 | 编辑 `.R` 文件后调用 `Rscript` 做 parse 检查 |
+| 文本痕迹检查 | 扫描正式文本中的生成过程痕迹、禁止字符和明确 emoji |
+| 图件事件提醒 | 检测 `04_figures/` 的新图或改图，要求按图件清单进行实际视觉核验 |
+| 结果格式提醒 | 检测 `06_results/` 新增 `.rds`，提示表格化数据应保存为 `.xlsx` |
+| 项目预检 | 检查目录、命名、日志、敏感信息风险、结果来源和当前版唯一性 |
 
-1. 让它「初始化一个新研究项目」，若自动按七层目录结构创建并建立空 registry，说明 `project-init` 技能与规则已加载。
-2. 让它做一个简单分析，故意不说明分组口径，观察它是否「先问你分组怎么定」而不是擅自选择——这是规则生效的标志。
+Hook 只能覆盖可确定识别的机械边界，不能替代研究判断、文件权限和最终项目审查。例如，原始数据保护 hook 不会尝试理解任意 shell 或 Python 代码，因此仍需遵守原始数据只读规则并执行签发前检查。
 
----
+## 安全边界
 
-## 怎么用：典型工作流
+| EpiAgentKit 会做 | EpiAgentKit 不会做 |
+|:---|:---|
+| 依据项目文件、真实分析结果和可核验来源推进任务 | 编造研究发现、引文、DOI、PMID、伦理号、基金号或期刊要求 |
+| 在授权范围内运行代码、生成成果、整理非原始文件并审查 | 修改原始数据，或在数据异常未闭环时擅自填补、排除并继续计算 |
+| 根据研究设计校准观察性结果的论断强度 | 把关联写成已证实因果，或把探索性峰值包装成最终结论 |
+| 用规则、hooks 和审查减少可预防错误 | 替代研究者对设计、统计口径、临床意义和最终签发的责任 |
+| 复用本机已有兼容环境执行任务 | 自动安装、升级或降级运行环境和依赖包 |
 
-EpiClaude 的用法是「自然语言描述任务，技能自动路由」。你不需要记技能名，只要说你要做什么，对应规则与技能会自动接管。下面是一条从零到论文的主线。
+## 典型使用场景
 
-### 第一步：初始化项目
+### 从队列数据到论文
 
-直接说「帮我创建一个队列研究项目」。`project-init` 会建好 `01_data` 到 `09_backup` 的七层结构、模板文件、Git 配置和空的表图 registry。你只需把原始数据放进 `01_data/rawdata/`。
+研究者先确认暴露、结局、纳排和协变量，再由 `project-init` 建立正式项目。`r-biostats` 完成清洗、基线描述和 Cox 回归，`publication-figures` 输出森林图与生存曲线，结果数字进入 `results.yaml`。`academic-publishing` 依次生成方法、结果、引言、讨论与摘要，`academic-humanizer` 做证据约束终审，最终由 `epi-project-audit` 检查代码、数字、表图和正文一致性。
 
-### 第二步：数据清洗与统计分析
+### 快速核验方法依据
 
-说「读 `01_data/rawdata/` 里的数据，做基线描述和 Cox 回归」。`r-biostats` 接管，按 `config.R` / `conventions.R` 的统一口径写编号脚本，跑完会全量扫 error/warning。关键点：**脚本写完一定实跑验证**，不会出现「写了没跑就说做完」。
+如果只需验证一条 DOI、指南或统计方法依据，直接使用 `evidence-research` 的 rapid verification 模式即可。该任务保持轻量，不创建项目目录和账本；只有需要可复核检索协议、纳排记录和证据矩阵时，才进入 formal evidence review。
 
-### 第三步：出图
+### 统计咨询交付
 
-说「把生存曲线做成发表级图」。`publication-figures` 接管，按 mm 尺寸、字体嵌入、期刊配色出图，PDF + PNG 双存，图号由 registry 统一分配，不在脚本里写死 `Fig3`。
+分析主流程完成并验证后，`consulting-delivery` 在 `05_reports/` 生成自包含交付目录，整理运行入口、说明、表格和图件，并在新的 R 会话或用户已准备的 Python 隔离环境中复现。分享包是主流程派生物，发现错误必须先回主流程修复，再重新生成交付包。
 
-### 第四步：同步结果单源
+### 组会、开题与答辩
 
-每当结果变化，数字写入 `07_paper/results.yaml`，再派生出 `0_result_summaries.md`。下游论文、报告、PPT 一律从这里取数，禁止手敲——这是「结果改了论文没跟着改」这一痛点的根治办法。
+`sysu-ppt` 根据体裁、汇报时长、内容关系和证据量设计逐页结构，复用中山大学模板并通过 officer R 包生成演示文件。统计图来自 `publication-figures`，非统计配图来自 `research-visuals`，最终文件由 `pptx` 执行内容和视觉质量检查。
 
-### 第五步：写论文
+## 适用对象
 
-说「根据现在的结果写中文论著的结果部分」。`academic-publishing` 逐部件门控写作：写一段 → 自检 → 你批准 → 下一部件，全程引用 `results.yaml` 的数字，零编造。
+EpiAgentKit 适合需要持续处理流行病学、卫生统计、真实世界数据、临床研究、学位论文或统计咨询的研究者和团队。它尤其适用于一个人需要从原始数据一直做到表图、论文和交付的场景，也适合课题组统一项目结构、审查标准和交接方式。
 
-### 第六步：去 AI 味与质控
+如果任务只是临时计算一个小结果，完整项目结构可能过重。EpiAgentKit 因此保留轻量任务模式，只在用户明确初始化、投稿、交付或既有正式项目中启用完整项目规范。
 
-论文初稿出来后，`humanizer-zh` 扫 AI 套话黑名单、最小改写、复扫归零；`epi-project-audit` 做六层一致性审查（命名、代码、结果、论文是否对得上），全过才签发。
+## 常见问题
 
-### 第七步：交付或备份
+**必须同时安装 Claude Code 和 Codex 吗？**
 
-要发给客户就走 `consulting-delivery` 打成可复现交付包；到了重要里程碑，由它提示你「是否 commit 备份」，你确认后才提交，绝不擅自 push。
+不需要。安装器可选择 `claude`、`codex` 或 `all`。选择双平台的意义是让两个 Agent 共用同一规则与 skills，而不是要求同时使用。
 
----
+**必须使用 R 吗？**
 
-## 场景实战
+统计分析主技能 `r-biostats` 面向 R；咨询交付可以处理已完成的 R 或 Python 分析，文件处理和项目维护也不依赖 R。EpiAgentKit 不会为任务自动创建或升级运行环境。
 
-### 场景一：研究生第一次独立做课题
+**每次都要记住 skill 名称吗？**
 
-**问题**：手上一份 RWD 数据，导师要求三个月内出一篇能投的论文，但自己没做过完整项目，怕做到一半文件全乱。
+不需要。自然语言任务会根据 description 自动路由，也可以在 Claude Code 中使用 `/skill-name`，或在 Codex 中使用 `$skill-name` 显式调用。
 
-**做法**：
-1. 让 EpiClaude 初始化项目，原始数据进 `01_data/rawdata/`（之后这个目录被 Hook 锁死，误删误改都不会发生）。
-2. 分阶段说需求：清洗 → 基线表 → 主分析 → 敏感性分析，每个阶段对应一个编号脚本，总数控制在 10 个以内。
-3. 出图、写论文、去 AI 味依次走对应技能。
-4. 投稿前用 `epi-project-audit` 全面自查一遍。
+**它会自动提交或推送 Git 吗？**
 
-**效果**：三个月后交出的不只是论文，还有一个结构清晰、可复现、能直接交给导师复核的完整项目。
+在 Git 可用且当前目录已经是仓库时，明确修改请求完成并验证后可以按项目规则自动提交。只有用户当轮明确要求 push 时才会推送，不会强制推送或改写远端历史。
 
-**进阶技巧**：把每次想到但还没做的事（缺哪篇文献、还能补哪个敏感性分析）随手让它记进 `BACKLOG.md`，规划下一步时先扫这个清单，避免「想法过两轮就忘」。
+**如何确认本机安装的是最新仓库内容？**
 
-### 场景二：统计咨询交付
+在本地仓库更新源码后运行 `sync --target all`，再运行 `doctor --target all`。`list` 可以显示当前可分发 skills 与预设组合。
 
-**问题**：帮人做了一批分析，要发回对方，但担心交付物有 AI 痕迹、对方无法独立复现。
+## 扩展阅读
 
-**做法**：分析完成后说「打包成交付给客户的结果包」。`consulting-delivery` 会在 `05_reports/` 下建规范文件夹，整理出对方能独立运行复现的脚本与说明，并过一遍 `humanizer-zh` 去 AI 味。
-
-**效果**：交付物专业、可复现、读不出 AI 生成痕迹，且主流程源与交付包保持同步。
-
-### 场景三：投稿前一致性自查
-
-**问题**：论文改了好几版，担心正文引用的数字、表号、图号和实际产出对不上。
-
-**做法**：说「审稿前帮我全面查一下项目一致性」。`epi-project-audit` 逐层核对编号是否连续、表图是否按行文顺序、正文数字是否都来自 `results.yaml`、有无 AI 痕迹，发现问题给出修复建议，全过才算签发。
-
-**效果**：把「投出去才被审稿人发现数字对不上」的风险，提前在本地清掉。
-
----
-
-## 效果优化与最佳实践
-
-- **让它先问、不要让它猜**：遇到分组/终点/纳排不明，规则要求它停下来问你。配合这一点，你给任务时可以故意留口径让它确认，确保方向不偏。
-- **结果单源是纪律不是建议**：坚持所有数字走 `results.yaml`，一旦开始手敲，单源就失效了。
-- **一次性脚本立刻归档**：临时绘图、诊断脚本写完就让它移进 `09_backup/`，保持 `02_code/` 干净、编号连续。
-- **里程碑才提交**：改一点不必提交；完成一个主分析、定稿一个论文部件再 commit，提交信息写清这一阶段做了什么。
-- **Hook 由少到多**：先启用原始数据保护，稳定后再加语法校验、AI 痕迹扫描，避免一上来被太多拦截打断。
-- **定期扫 BACKLOG**：把它当成「待补清单」的唯一入口，发现即记，规划时先看。
-
----
-
-## 常见问题与解答
-
-**Q：EpiClaude 会自动改我的原始数据吗？**
-不会。规则把 `01_data/rawdata/` 设为只读，启用 `protect_rawdata.sh` 后任何写入都会被 Hook 直接拦截。
-
-**Q：我不做流行病学，做计量经济/心理测量能用吗？**
-大部分工程规范（目录、编号、结果单源、去 AI 味、审查）是通用的，可以用；但部分技能（如纳排、生存分析口径）偏医学，针对性会弱一些。
-
-**Q：必须用 R 吗？能用 Python 吗？**
-默认语言是 R，`02_code/` 分析脚本一律 `.R`。仅在特定工具链或既有 Python 管线的项目才用 Python，并需在项目 `CLAUDE.md` 注明原因。
-
-**Q：会不会因为规则太多让 AI 变慢、变啰嗦？**
-规则遵循「删除测试」，只保留删掉会出错的条目，总量控制在约 120 行；多步流程下沉到按需加载的技能，不会每次都全量灌入。
-
-**Q：它会自动 git push 吗？**
-不会。默认只在本地 commit 留回退点，且 commit 前会先征询你；除非你明确要求，绝不 push 到远端。
-
-**Q：技能可以自己改或新增吗？**
-可以。工具层有 `skill-creator` 专门用来创建或修改技能；你也可以直接编辑 `~/.claude/skills/` 下对应目录。
-
----
-
-## 扩展资源
-
-- 项目仓库：[github.com/KangWang42/EpiClaude](https://github.com/KangWang42/EpiClaude)
-- 配套阅读：[Claude Code 完全指南](5008-claudecode.html)、[OpenCode Skills 技能系统](5002-opencode-skills.html)、[OpenCode Hooks 钩子系统](5009-opencode-hooks.html)
-- Claude Code 官方文档：<https://docs.anthropic.com/en/docs/claude-code>
-- 相关工具：本站「机器学习与AI → AI 工具」分类下的其他 AI 编程助手教程
-
-::: {.callout-tip}
-## 给新用户的最后建议
-不要试图一开始就用满所有技能。先用 `project-init` 把项目结构立起来，把原始数据保护住，再在做分析、出图、写论文时让对应技能自然接管。规则的价值会在你做到第二、第三个项目时显现——那时你会发现交接、复现、审稿前自查都不再是负担。
-:::
+- [20 个 Skills 完整目录与组合指南](5019-epiagentkit-skills.html)
+- [EpiAgentKit GitHub 仓库](https://github.com/KangWang42/EpiAgentKit)
+- [Claude Code 完全指南](5008-claudecode.html)
+- [如何写好一份 CLAUDE.md](5014-claude-md-guide.html)

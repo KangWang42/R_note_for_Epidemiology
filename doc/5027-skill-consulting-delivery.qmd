@@ -1,0 +1,113 @@
+---
+title: 'EpiAgentKit Skill · consulting-delivery：可独立复现的统计咨询交付包'
+date: '2026-07-23'
+categories:
+- EpiAgentKit
+- 科研 Skills
+- 咨询与审查
+image: images/epiagentkit-forest-demo.png
+description: 全面介绍 consulting-delivery 如何从已验证主流程派生自包含交付包，完成编号、复现、专业文档、隐私检查和版本归档。
+---
+
+`consulting-delivery` 把已经完成并验证的 R 或 Python 分析打包成客户可以独立运行、直接阅读和继续核对的专业交付物。目标是接收方解压后运行 `run_all.R` 或 `run_all.py` 重现全部结果，并可直接打开 `01_方法与结果.docx` 阅读。
+
+![EpiAgentKit 中由真实数据生成的森林图示例](images/epiagentkit-forest-demo.png){fig-alt="真实演示数据生成的森林图，展示咨询交付包中的发表级统计图输出"}
+
+## 触发边界
+
+用户明确要求“给客户”“外发”“打包结果”或在 `05_reports/` 创建咨询结果文件夹时触发。自己研究使用的中间结果、尚未验证的脚本和探索性模型不进入本技能。
+
+上游必须有 `biostat-principles` 约束的可复现主流程和已经完成的分析。文档与全包语言还需经过 `academic-humanizer` 审校。
+
+## 分享包不是第二个结果源
+
+| 来源类型 | 真源 | 处理方式 |
+|:---|:---|:---|
+| 主流程已有结果 | 主流程 | 分享包是导出快照，内容修改先回主流程 |
+| 为本次外发新增的补充结果 | 主流程或明确的一次性区域 | 长期使用则纳入编号脚本，一次性内容隔离保存 |
+| 新方法或探索结果 | `09_backup/` 的隔离实验 | 满足预设条件后才能进入主流程和分享包 |
+
+口径、因子顺序、P 值格式、表组成、配色、字体和表图 registry 集中在 `config.*` 与 `conventions.*`。导出脚本创建目录、复制表图、生成文档和扫描交付痕迹，不能在包内手工改出一个与主流程不一致的版本。
+
+## 八阶状态机
+
+1. `SCAFFOLD`：用脚本建立交付骨架。
+2. `MIGRATE`：迁移本包需要的数据、代码、表格和图件。
+3. `ISOLATE`：移除项目根依赖，改为包内相对路径。
+4. `RUN_ALL`：编写与主流程语言一致的一键入口。
+5. `REPRODUCE`：在空 R 会话或用户已有 Python 隔离环境中实测。
+6. `WRITE`：生成客户说明和方法结果 Word。
+7. `ACADEMIC_EDIT`：完成不可变事实、语体与全包痕迹审校。
+8. `FINAL`：核对复现、编号、隐私、目录和压缩包。
+
+`REPRODUCE` 失败必须回到 `ISOLATE` 修正路径、依赖和隐式状态，不能因为原开发环境可以运行就判定通过。
+
+## 标准目录
+
+```text
+05_reports/结果-4-20-主题/
+├── 00_客户说明.md
+├── 01_方法与结果.docx
+├── run_all.R 或 run_all.py
+├── README.md
+├── data/
+├── code/
+├── results/
+├── tables/
+└── figures/
+```
+
+骨架由 `scripts/consulting_scaffold.R` 的 `create_delivery_pack()` 创建。根目录不放散落 CSV、截图、缓存或临时稿。
+
+## 命名与编号
+
+交付文件夹使用 `结果-M-D-主题` 或用户指定的稳定名称，包内代码从 `01_` 起连续编号，表格使用 `TableN_`，图件使用 `FigN_`。数据、脚本、表格和图件在合并、增删或改名后立即补齐连续编号，并同步代码路径与 Word 中的表图引用。
+
+不使用“最终版”“最新”“final2”“new”“v2”等状态名。同一主题在 `05_reports/` 只保留一个当前包，历史批次连同代码与核验记录一起归档。
+
+## 一键复现要求
+
+R 包在空会话中运行 `run_all.R`；Python 包使用用户已经准备好的隔离环境运行 `run_all.py`。所有路径相对，依赖显式声明，不读取包外文件，不依赖当前交互环境对象。
+
+表格化中间数据通过 `results/*.xlsx` 传递，不使用 RDS 或 RData 跨脚本保存隐式对象。模型对象留在生成它的脚本中，只导出下游需要的稳定结果表。
+
+通过标准包括：入口无 error，全部预期表图生成，输出数字与主流程 `03_tables/` 一致。若本机缺少环境或依赖，只报告缺项与影响，不代用户安装或升级。
+
+## 客户文档
+
+`00_客户说明.md` 逐文件说明用途、运行入口、阅读顺序和导出来源。`01_方法与结果.docx` 直接嵌入真实表图，方法和结果采用研究者视角，数字与表格一致，不暴露内部变量名、调试过程、版本号或生成过程痕迹。
+
+全包的 Markdown、Word、代码注释、CSV 和 Excel 都需要检查不恰当的助手口吻、内部标记和 emoji。匹配字符串后仍需人工判断，不能把正常术语因子串命中而误改。
+
+## 安全与签发
+
+交付前检查患者 ID、出生日期、机构名、数据库密码、API key 和内部路径。隐私数据按约定脱敏，配置只报告键是否设置，不回显凭证。
+
+正式项目还要运行中央 `epi-project-audit` 的预检入口。ERROR 阻止签发，WARN 逐项解释。最终压缩包名称与文件夹一致，包内无缓存、临时文件和历史版本。
+
+## 内部组成
+
+| 资源 | 内容 |
+|:---|:---|
+| `SKILL.md` | 单源关系、状态机、目录、编号、复现和终检规范 |
+| `references/templates.md` | R/Python 入口、客户说明和方法结果文档模板 |
+| `consulting_scaffold.R` | 标准交付目录的确定性生成 |
+
+## 典型组合
+
+完整路径为 `biostat-principles → r-biostats 或项目 Python 主流程 → consulting-delivery → academic-humanizer → epi-project-audit`。需要 Word 底层操作时加 `docx`，统计图返工时回到 `publication-figures`。
+
+## 能力边界
+
+本技能不替未完成分析补结果，不把探索模型包装成正式结论，也不允许只修改分享包而不回写主流程。用户明确要求脱离主流程的定制版时，必须在说明与决策记录中标明。
+
+## 安装与入口
+
+```bash
+python scripts/epiagentkit.py install --target all --preset custom \
+  --skills consulting-delivery --yes
+```
+
+- [EpiAgentKit 总览](5013-epiclaude.html)
+- [r-biostats 统计分析](5016-skill-r-biostats.html)
+- [epi-project-audit 六层审查](5028-skill-epi-project-audit.html)

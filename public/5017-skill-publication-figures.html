@@ -1,15 +1,14 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-Hans" xml:lang="zh-Hans"><head>
 
 <meta charset="utf-8">
 <meta name="generator" content="quarto-1.8.27">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="dcterms.date" content="2026-06-16">
-<meta name="description" content="publication-figures 让 AI 出图一次到位、不再因字号分辨率配色字体被退回。它内置约 180 种图型选型画廊、mm 级尺寸规范、字体嵌入与出图自检清单。本文讲清它的应用场景、用法、内容与下载。">
+<meta name="description" content="全面介绍 publication-figures 的图前要求、统计图路由、物理尺寸、字体、配色、多面板、约 180 种图型资源、R 与 Python 导出和逐图验证。">
 
-<title>EpiClaude 技能分享 · publication-figures：发表级图件标准与选型画廊 – R 语言学习笔记</title>
+<title>EpiAgentKit Skill · publication-figures：发表级统计图与图型画廊 – R 语言学习笔记</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -83,25 +82,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   "collapse-after": 3,
   "panel-placement": "end",
   "type": "overlay",
-  "limit": 50,
+  "limit": 12,
   "keyboard-shortcut": [
-    "f",
-    "/",
-    "s"
+    "/"
   ],
-  "show-item-context": false,
   "language": {
-    "search-no-results-text": "No results",
-    "search-matching-documents-text": "matching documents",
-    "search-copy-link-title": "Copy link to search",
-    "search-hide-matches-text": "Hide additional matches",
-    "search-more-match-text": "more match in this document",
-    "search-more-matches-text": "more matches in this document",
-    "search-clear-button-title": "Clear",
+    "search-no-results-text": "没有结果",
+    "search-matching-documents-text": "匹配的文档",
+    "search-copy-link-title": "复制搜索链接",
+    "search-hide-matches-text": "隐藏其它匹配结果",
+    "search-more-match-text": "更多匹配结果",
+    "search-more-matches-text": "更多匹配结果",
+    "search-clear-button-title": "清除",
     "search-text-placeholder": "",
-    "search-detached-cancel-button-title": "Cancel",
-    "search-submit-button-title": "Submit",
-    "search-label": "Search"
+    "search-detached-cancel-button-title": "取消",
+    "search-submit-button-title": "提交",
+    "search-label": "搜索"
   }
 }</script>
 <style>html{ scroll-behavior: smooth; }</style>
@@ -117,8 +113,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- Open Graph / Facebook -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://r.wk8686.top/">
-<meta property="og:title" content="EpiClaude 技能分享 · publication-figures：发表级图件标准与选型画廊 – R 语言学习笔记">
-<meta property="og:description" content="publication-figures 让 AI 出图一次到位、不再因字号分辨率配色字体被退回。它内置约 180 种图型选型画廊、mm 级尺寸规范、字体嵌入与出图自检清单。本文讲清它的应用场景、用法、内容与下载。">
+<meta property="og:title" content="EpiAgentKit Skill · publication-figures：发表级统计图与图型画廊 – R 语言学习笔记">
+<meta property="og:description" content="全面介绍 publication-figures 的图前要求、统计图路由、物理尺寸、字体、配色、多面板、约 180 种图型资源、R 与 Python 导出和逐图验证。">
 <meta property="og:image" content="https://r.wk8686.top/images/og-image.svg">
 
 <!-- Twitter -->
@@ -131,7 +127,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script>
 // 立即应用主题防止闪烁
 (function(){
-  var saved = localStorage.getItem('r-notes-theme');
+  var saved = null;
+  try {
+    saved = localStorage.getItem('r-notes-theme');
+  } catch (_) {
+    // 存储受限时仍按系统主题完成首帧渲染。
+  }
   var isDark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (isDark) {
     document.documentElement.setAttribute('data-theme', 'dark');
@@ -145,20 +146,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="custom-sidebar.css">
-<!-- R notes theme bootstrap -->
-<script>
-(function(){
-  var saved = null;
-  try { saved = localStorage.getItem('r-notes-theme'); } catch (_) {}
-  var isDark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  if (isDark) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    document.documentElement.setAttribute('data-bs-theme', 'dark');
-    document.documentElement.classList.add('quarto-dark');
-    document.documentElement.classList.remove('quarto-light');
-  }
-})();
-</script></head>
+</head>
 
 <body class="nav-sidebar floating nav-fixed quarto-light">
 
@@ -171,8 +159,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <span class="navbar-title">R 语言学习笔记</span>
     </a>
   </div>
-            <div id="quarto-search" class="" title="Search"></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+            <div id="quarto-search" class="" title="搜索"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="展开或折叠导航栏" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -181,201 +169,70 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <a class="nav-link" href="./index.html"> 
 <span class="menu-text">主页</span></a>
   </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/guide.html"> 
+<span class="menu-text">学习路线</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/epiagentkit.html"> 
+<span class="menu-text">EpiAgentKit</span></a>
+  </li>  
   <li class="nav-item dropdown ">
     <a class="nav-link dropdown-toggle" href="#" id="nav-menu-" role="link" data-bs-toggle="dropdown" aria-expanded="false">
- <span class="menu-text">入门指南</span>
+ <span class="menu-text">全部教程</span>
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu-">    
         <li>
-    <a class="dropdown-item" href="./sections/guide.html#学习路线">
- <span class="dropdown-text">📘 学习路线</span></a>
+    <a class="dropdown-item" href="./sections/guide.html">
+ <span class="dropdown-text">入门指南</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./sections/guide.html#基础知识">
- <span class="dropdown-text">📖 基础知识</span></a>
+    <a class="dropdown-item" href="./sections/epiagentkit.html">
+ <span class="dropdown-text">EpiAgentKit 科研 Skills 库</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./sections/guide.html#工作流程">
- <span class="dropdown-text">⚙️ 工作流程</span></a>
+    <a class="dropdown-item" href="./sections/packages.html">
+ <span class="dropdown-text">实用 R 包</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/statistics.html">
+ <span class="dropdown-text">统计分析方法</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/machine-learning.html">
+ <span class="dropdown-text">机器学习与人工智能</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/operation.html">
+ <span class="dropdown-text">实用操作</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/visualization.html">
+ <span class="dropdown-text">数据可视化</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./sections/special.html">
+ <span class="dropdown-text">特殊应用</span></a>
   </li>  
     </ul>
   </li>
-  <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-r-包" role="link" data-bs-toggle="dropdown" aria-expanded="false">
- <span class="menu-text">实用 R 包</span>
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="nav-menu-r-包">    
-        <li>
-    <a class="dropdown-item" href="./sections/packages.html#表格制作">
- <span class="dropdown-text">📊 表格制作</span></a>
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/statistics.html"> 
+<span class="menu-text">统计方法</span></a>
   </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/packages.html#数据处理">
- <span class="dropdown-text">🔄 数据处理</span></a>
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/visualization.html"> 
+<span class="menu-text">数据可视化</span></a>
   </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/packages.html#模型整理">
- <span class="dropdown-text">📈 模型整理</span></a>
+  <li class="nav-item">
+    <a class="nav-link" href="./sections/machine-learning.html"> 
+<span class="menu-text">机器学习与 AI</span></a>
   </li>  
-    </ul>
-  </li>
-  <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu--1" role="link" data-bs-toggle="dropdown" aria-expanded="false">
- <span class="menu-text">统计方法</span>
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="nav-menu--1">    
-        <li>
-    <a class="dropdown-item" href="./sections/statistics.html#基础回归">
- <span class="dropdown-text">📊 基础回归</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/statistics.html#生存分析">
- <span class="dropdown-text">⏱️ 生存分析</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/statistics.html#因果推断">
- <span class="dropdown-text">🎯 因果推断</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/statistics.html#高级建模">
- <span class="dropdown-text">📐 高级建模</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/statistics.html#贝叶斯统计">
- <span class="dropdown-text">📈 贝叶斯统计</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/statistics.html#模型评估">
- <span class="dropdown-text">🎯 模型评估</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/statistics.html#综述方法">
- <span class="dropdown-text">📚 综述方法</span></a>
-  </li>  
-    </ul>
-  </li>
-  <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-ai" role="link" data-bs-toggle="dropdown" aria-expanded="false">
- <span class="menu-text">机器学习</span>
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="nav-menu-ai">    
-        <li>
-    <a class="dropdown-item" href="./sections/machine-learning.html#机器学习框架">
- <span class="dropdown-text">🤖 机器学习框架</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/machine-learning.html#深度学习">
- <span class="dropdown-text">🧠 深度学习</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/machine-learning.html#ai-工具">
- <span class="dropdown-text">🛠️ AI 工具</span></a>
-  </li>  
-    </ul>
-  </li>
-  <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu--2" role="link" data-bs-toggle="dropdown" aria-expanded="false">
- <span class="menu-text">实用操作</span>
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="nav-menu--2">    
-        <li>
-    <a class="dropdown-item" href="./sections/operation.html#数据导入导出">
- <span class="dropdown-text">📥 数据导入导出</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/operation.html#数据清洗">
- <span class="dropdown-text">🧹 数据清洗</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/operation.html#数据转换">
- <span class="dropdown-text">🔄 数据转换</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/operation.html#文档写作">
- <span class="dropdown-text">📝 文档写作</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/operation.html#开发环境">
- <span class="dropdown-text">💻 开发环境</span></a>
-  </li>  
-    </ul>
-  </li>
-  <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu--3" role="link" data-bs-toggle="dropdown" aria-expanded="false">
- <span class="menu-text">数据可视化</span>
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="nav-menu--3">    
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#图形基础">
- <span class="dropdown-text">🏗️ 图形基础</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#图形组合">
- <span class="dropdown-text">🔀 图形组合</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#分布图">
- <span class="dropdown-text">📊 分布图</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#趋势图">
- <span class="dropdown-text">📈 趋势图</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#比较图">
- <span class="dropdown-text">📊 比较图</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#关系图">
- <span class="dropdown-text">🔄 关系图</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#特殊图形">
- <span class="dropdown-text">🎨 特殊图形</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#专题图">
- <span class="dropdown-text">🗺️ 专题图</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/visualization.html#进阶美化">
- <span class="dropdown-text">✨ 进阶美化</span></a>
-  </li>  
-    </ul>
-  </li>
-  <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu--4" role="link" data-bs-toggle="dropdown" aria-expanded="false">
- <span class="menu-text">特殊应用</span>
-    </a>
-    <ul class="dropdown-menu" aria-labelledby="nav-menu--4">    
-        <li>
-    <a class="dropdown-item" href="./sections/special.html#卫生经济学">
- <span class="dropdown-text">💰 卫生经济学</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/special.html#质性研究">
- <span class="dropdown-text">🔬 质性研究</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/special.html#信号处理">
- <span class="dropdown-text">📡 信号处理</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/special.html#环境流行病学">
- <span class="dropdown-text">🌍 环境流行病学</span></a>
-  </li>  
-        <li>
-    <a class="dropdown-item" href="./sections/special.html#建模方法">
- <span class="dropdown-text">🔬 建模方法</span></a>
-  </li>  
-    </ul>
-  </li>
 </ul>
             <ul class="navbar-nav navbar-nav-scroll ms-auto">
-  <li class="nav-item compact">
-    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> <i class="bi bi-github" role="img" aria-label="GitHub">
-</i> 
-<span class="menu-text"></span></a>
+  <li class="nav-item">
+    <a class="nav-link" href="https://github.com/KangWang42/R_note_for_Epidemiology"> 
+<span class="menu-text">GitHub</span></a>
   </li>  
 </ul>
           </div> <!-- /navcollapse -->
@@ -385,15 +242,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     </nav>
   <nav class="quarto-secondary-nav">
     <div class="container-fluid d-flex">
-      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">机器学习与AI</li><li class="breadcrumb-item"><a href="./5001-opencode.html">🛠️ AI 工具</a></li><li class="breadcrumb-item"><a href="./5017-skill-publication-figures.html">技能分享：publication-figures 图件</a></li></ol></nav>
-        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">EpiAgentKit 科研 Skills 库</li><li class="breadcrumb-item"><a href="./5015-skill-project-init.html">项目与分析</a></li><li class="breadcrumb-item"><a href="./5017-skill-publication-figures.html">publication-figures 发表级统计图</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
-      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
-        <i class="bi bi-search"></i>
-      </button>
     </div>
   </nav>
 </header>
@@ -401,27 +255,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
-        <div class="mt-2 flex-shrink-0 align-items-center">
-        <div class="sidebar-search">
-        <div id="quarto-search" class="" title="Search"></div>
-        </div>
-        </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
  <span class="menu-text">入门指南</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
- <span class="menu-text">📘 学习路线</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+ <span class="menu-text">学习路线</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
@@ -437,8 +286,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
- <span class="menu-text">📖 基础知识</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+ <span class="menu-text">基础知识</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
@@ -466,8 +315,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
- <span class="menu-text">⚙️ 工作流程</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+ <span class="menu-text">工作流程</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
@@ -485,8 +334,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
- <span class="menu-text">实用 R 包</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+ <span class="menu-text">EpiAgentKit 科研 Skills 库</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
@@ -494,12 +343,243 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
- <span class="menu-text">📊 表格制作</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+ <span class="menu-text">总览与安装</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5013-epiclaude.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EpiAgentKit 科研工作流总览</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5019-epiagentkit-skills.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">20 个 Skills 完整目录</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">原则与证据</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5020-skill-biostat-principles.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">biostat-principles 生物统计原则</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5021-skill-evidence-research.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">evidence-research 科研证据核验</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="true">
+ <span class="menu-text">项目与分析</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5015-skill-project-init.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">project-init 项目初始化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5016-skill-r-biostats.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">r-biostats R 统计分析</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5017-skill-publication-figures.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">publication-figures 发表级统计图</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false">
+ <span class="menu-text">论文与报告</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5018-skill-academic-publishing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">academic-publishing 论文与投稿</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5022-skill-academic-humanizer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">academic-humanizer 学术文本审校</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5023-skill-report-writing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">report-writing 专业报告</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
+ <span class="menu-text">科研视觉与汇报</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5024-skill-research-visuals.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">research-visuals 科研非统计视觉</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5025-skill-svg-diagrams.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">svg-diagrams 精确 SVG 图解</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5026-skill-sysu-ppt.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sysu-ppt 中山大学学术汇报</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">咨询与审查</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5027-skill-consulting-delivery.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">consulting-delivery 咨询交付包</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5028-skill-epi-project-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">epi-project-audit 六层项目审查</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">文件操作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5029-skill-docx.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">docx Word 文件操作</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5030-skill-pdf.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pdf PDF 文件操作</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5031-skill-pptx.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pptx PowerPoint 文件操作</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5032-skill-xlsx.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">xlsx 电子表格操作</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">维护与扩展</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5033-skill-epiagentkit-maintenance.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">epiagentkit-maintenance 仓库维护</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5034-skill-skill-creator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">skill-creator Skill 创建</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./5035-skill-git-commit-helper.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">git-commit-helper Git 提交历史</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">实用 R 包</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">表格制作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1011-rpac_brucer.html" class="sidebar-item-text sidebar-link">
@@ -540,13 +620,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
- <span class="menu-text">🔄 数据处理</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false">
+ <span class="menu-text">数据处理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1014-purrr.html" class="sidebar-item-text sidebar-link">
@@ -587,13 +667,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
- <span class="menu-text">📈 模型整理</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false">
+ <span class="menu-text">模型整理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1043-broom.html" class="sidebar-item-text sidebar-link">
@@ -612,22 +692,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true">
- <span class="menu-text">统计方法</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="false">
+ <span class="menu-text">统计分析方法</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
- <span class="menu-text">📊 基础回归</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false">
+ <span class="menu-text">基础回归</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-19" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1119-distributions.html" class="sidebar-item-text sidebar-link">
@@ -734,13 +814,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
- <span class="menu-text">⏱️ 生存分析</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="false">
+ <span class="menu-text">生存分析</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-20" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1020-survival.html" class="sidebar-item-text sidebar-link">
@@ -787,13 +867,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
- <span class="menu-text">🎯 因果推断</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="false">
+ <span class="menu-text">因果推断</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-21" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1018-psm.html" class="sidebar-item-text sidebar-link">
@@ -876,13 +956,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
- <span class="menu-text">📐 高级建模</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="false">
+ <span class="menu-text">高级建模</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-22" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1127-panel-data.html" class="sidebar-item-text sidebar-link">
@@ -1013,13 +1093,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
- <span class="menu-text">📈 贝叶斯统计</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false">
+ <span class="menu-text">贝叶斯统计</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-23" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1051-bayesian.html" class="sidebar-item-text sidebar-link">
@@ -1048,13 +1128,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
- <span class="menu-text">🎯 模型评估</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-24" role="navigation" aria-expanded="false">
+ <span class="menu-text">模型评估</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-24" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-24" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1128-questionnaire-validity.html" class="sidebar-item-text sidebar-link">
@@ -1125,13 +1205,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false">
- <span class="menu-text">📚 综述方法</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-25" role="navigation" aria-expanded="false">
+ <span class="menu-text">综述方法</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-25" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-25" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1022-meta-analysis.html" class="sidebar-item-text sidebar-link">
@@ -1166,13 +1246,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false">
- <span class="menu-text">🔬 流行病学研究设计</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-26" role="navigation" aria-expanded="false">
+ <span class="menu-text">流行病学研究设计</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-26" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-26" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1115-cross-sectional.html" class="sidebar-item-text sidebar-link">
@@ -1209,22 +1289,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
- <span class="menu-text">机器学习</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-27" role="navigation" aria-expanded="false">
+ <span class="menu-text">机器学习与人工智能</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-27" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-27" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false">
- <span class="menu-text">🤖 机器学习框架</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-19" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-28" role="navigation" aria-expanded="false">
+ <span class="menu-text">机器学习框架</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-28" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-19" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-28" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1016-mlr3.html" class="sidebar-item-text sidebar-link">
@@ -1325,13 +1405,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="false">
- <span class="menu-text">🧠 深度学习</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-20" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-29" role="navigation" aria-expanded="false">
+ <span class="menu-text">深度学习</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-29" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-20" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-29" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1044-lstm.html" class="sidebar-item-text sidebar-link">
@@ -1348,13 +1428,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="true">
- <span class="menu-text">🛠️ AI 工具</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-21" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-30" role="navigation" aria-expanded="false">
+ <span class="menu-text">人工智能工具</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-30" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-21" class="collapse list-unstyled sidebar-section depth2 show">  
+      <ul id="quarto-sidebar-section-30" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./5001-opencode.html" class="sidebar-item-text sidebar-link">
@@ -1429,38 +1509,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./5013-epiclaude.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EpiClaude 流行病学科研工作流</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./5014-claude-md-guide.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">如何写好一份 CLAUDE.md</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./5015-skill-project-init.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">技能分享：project-init 项目初始化</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./5016-skill-r-biostats.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">技能分享：r-biostats 统计分析</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./5017-skill-publication-figures.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">技能分享：publication-figures 图件</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./5018-skill-academic-publishing.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">技能分享：academic-publishing 论文写作</span></a>
   </div>
 </li>
       </ul>
@@ -1469,22 +1519,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-31" role="navigation" aria-expanded="false">
  <span class="menu-text">实用操作</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-22" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-31" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-22" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-31" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false">
- <span class="menu-text">📥 数据导入导出</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-23" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-32" role="navigation" aria-expanded="false">
+ <span class="menu-text">数据导入导出</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-32" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-23" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-32" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./3001-imports.html" class="sidebar-item-text sidebar-link">
@@ -1531,13 +1581,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-24" role="navigation" aria-expanded="false">
- <span class="menu-text">🧹 数据清洗</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-24" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-33" role="navigation" aria-expanded="false">
+ <span class="menu-text">数据清洗</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-33" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-24" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-33" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1046-missing-data.html" class="sidebar-item-text sidebar-link">
@@ -1560,13 +1610,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-25" role="navigation" aria-expanded="false">
- <span class="menu-text">🔄 数据转换</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-25" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-34" role="navigation" aria-expanded="false">
+ <span class="menu-text">数据转换</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-34" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-25" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-34" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./3010-stringr.html" class="sidebar-item-text sidebar-link">
@@ -1595,13 +1645,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-26" role="navigation" aria-expanded="false">
- <span class="menu-text">📝 文档写作</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-26" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-35" role="navigation" aria-expanded="false">
+ <span class="menu-text">文档写作</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-35" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-26" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-35" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./0011-rmarkdown.html" class="sidebar-item-text sidebar-link">
@@ -1618,13 +1668,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-27" role="navigation" aria-expanded="false">
- <span class="menu-text">💻 开发环境</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-27" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-36" role="navigation" aria-expanded="false">
+ <span class="menu-text">开发环境</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-36" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-27" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-36" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./0013-positron.html" class="sidebar-item-text sidebar-link">
@@ -1661,22 +1711,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-28" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-37" role="navigation" aria-expanded="false">
  <span class="menu-text">数据可视化</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-28" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-37" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-28" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-37" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-29" role="navigation" aria-expanded="false">
- <span class="menu-text">🏗️ 图形基础</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-29" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-38" role="navigation" aria-expanded="false">
+ <span class="menu-text">图形基础</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-38" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-29" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-38" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2032-ggplot2-intro.html" class="sidebar-item-text sidebar-link">
@@ -1711,13 +1761,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-30" role="navigation" aria-expanded="false">
- <span class="menu-text">🔀 图形组合</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-30" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-39" role="navigation" aria-expanded="false">
+ <span class="menu-text">图形组合</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-39" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-30" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-39" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2012-patchwork.html" class="sidebar-item-text sidebar-link">
@@ -1740,13 +1790,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-31" role="navigation" aria-expanded="false">
- <span class="menu-text">📊 分布图</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-31" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-40" role="navigation" aria-expanded="false">
+ <span class="menu-text">分布图</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-40" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-31" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-40" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2025-bindboxplot.html" class="sidebar-item-text sidebar-link">
@@ -1775,13 +1825,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-32" role="navigation" aria-expanded="false">
- <span class="menu-text">📈 趋势图</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-32" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-41" role="navigation" aria-expanded="false">
+ <span class="menu-text">趋势图</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-41" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-32" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-41" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2026-bindscatterplot.html" class="sidebar-item-text sidebar-link">
@@ -1816,13 +1866,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-33" role="navigation" aria-expanded="false">
- <span class="menu-text">📊 比较图</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-33" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-42" role="navigation" aria-expanded="false">
+ <span class="menu-text">比较图</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-42" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-33" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-42" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2028-bindbarchart.html" class="sidebar-item-text sidebar-link">
@@ -1857,13 +1907,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-34" role="navigation" aria-expanded="false">
- <span class="menu-text">🔄 关系图</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-34" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-43" role="navigation" aria-expanded="false">
+ <span class="menu-text">关系图</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-43" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-34" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-43" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2040-bindbubblechart.html" class="sidebar-item-text sidebar-link">
@@ -1898,13 +1948,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-35" role="navigation" aria-expanded="false">
- <span class="menu-text">🎨 特殊图形</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-35" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-44" role="navigation" aria-expanded="false">
+ <span class="menu-text">特殊图形</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-44" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-35" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-44" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2037-bindwaffle.html" class="sidebar-item-text sidebar-link">
@@ -1945,13 +1995,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-36" role="navigation" aria-expanded="false">
- <span class="menu-text">🗺️ 专题图</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-36" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-45" role="navigation" aria-expanded="false">
+ <span class="menu-text">专题图</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-45" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-36" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-45" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2015-map.html" class="sidebar-item-text sidebar-link">
@@ -2010,13 +2060,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-37" role="navigation" aria-expanded="false">
- <span class="menu-text">📊 其他图形</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-37" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-46" role="navigation" aria-expanded="false">
+ <span class="menu-text">其他图形</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-46" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-37" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-46" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2050-bindcountplot.html" class="sidebar-item-text sidebar-link">
@@ -2081,13 +2131,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-38" role="navigation" aria-expanded="false">
- <span class="menu-text">✨ 进阶美化</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-38" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-47" role="navigation" aria-expanded="false">
+ <span class="menu-text">进阶美化</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-47" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-38" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-47" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./2017-ggtext.html" class="sidebar-item-text sidebar-link">
@@ -2124,22 +2174,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-39" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-48" role="navigation" aria-expanded="false">
  <span class="menu-text">特殊应用</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-39" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-48" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-39" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-48" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-40" role="navigation" aria-expanded="false">
- <span class="menu-text">🖥️ 计算模拟</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-40" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-49" role="navigation" aria-expanded="false">
+ <span class="menu-text">计算模拟</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-49" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-40" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-49" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./6001-cellular-automata.html" class="sidebar-item-text sidebar-link">
@@ -2150,13 +2200,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-41" role="navigation" aria-expanded="false">
- <span class="menu-text">💰 卫生经济学</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-41" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-50" role="navigation" aria-expanded="false">
+ <span class="menu-text">卫生经济学</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-50" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-41" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-50" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1015-health-economics.html" class="sidebar-item-text sidebar-link">
@@ -2173,13 +2223,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-42" role="navigation" aria-expanded="false">
- <span class="menu-text">🔬 质性研究</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-42" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-51" role="navigation" aria-expanded="false">
+ <span class="menu-text">质性研究</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-51" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-42" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-51" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1030-qualitative-research.html" class="sidebar-item-text sidebar-link">
@@ -2190,13 +2240,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-43" role="navigation" aria-expanded="false">
- <span class="menu-text">📡 信号处理</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-43" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-52" role="navigation" aria-expanded="false">
+ <span class="menu-text">信号处理</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-52" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-43" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-52" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1096-wavelet-transform.html" class="sidebar-item-text sidebar-link">
@@ -2219,13 +2269,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-44" role="navigation" aria-expanded="false">
- <span class="menu-text">🌍 环境流行病学</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-44" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-53" role="navigation" aria-expanded="false">
+ <span class="menu-text">环境流行病学</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-53" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-44" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-53" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1033-dlnm.html" class="sidebar-item-text sidebar-link">
@@ -2254,13 +2304,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-45" role="navigation" aria-expanded="false">
- <span class="menu-text">🔬 建模方法</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-45" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-54" role="navigation" aria-expanded="false">
+ <span class="menu-text">建模方法</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-54" role="navigation" aria-expanded="false" aria-label="展开或折叠此栏">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-45" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-54" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./1110-abm.html" class="sidebar-item-text sidebar-link">
@@ -2281,46 +2331,47 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">目录</h2>
    
   <ul>
-  <li><a href="#这个技能解决什么问题" id="toc-这个技能解决什么问题" class="nav-link active" data-scroll-target="#这个技能解决什么问题">这个技能解决什么问题</a></li>
-  <li><a href="#应用场景" id="toc-应用场景" class="nav-link" data-scroll-target="#应用场景">应用场景</a></li>
-  <li><a href="#它怎么工作复杂度分层-检索-自检" id="toc-它怎么工作复杂度分层-检索-自检" class="nav-link" data-scroll-target="#它怎么工作复杂度分层-检索-自检">它怎么工作：复杂度分层 + 检索 + 自检</a></li>
-  <li><a href="#如何使用" id="toc-如何使用" class="nav-link" data-scroll-target="#如何使用">如何使用</a>
+  <li><a href="#触发边界" id="toc-触发边界" class="nav-link active" data-scroll-target="#触发边界">触发边界</a></li>
+  <li><a href="#上游原则" id="toc-上游原则" class="nav-link" data-scroll-target="#上游原则">上游原则</a></li>
+  <li><a href="#图前要求" id="toc-图前要求" class="nav-link" data-scroll-target="#图前要求">图前要求</a></li>
+  <li><a href="#复杂度分层" id="toc-复杂度分层" class="nav-link" data-scroll-target="#复杂度分层">复杂度分层</a></li>
+  <li><a href="#约-180-种图型资源" id="toc-约-180-种图型资源" class="nav-link" data-scroll-target="#约-180-种图型资源">约 180 种图型资源</a></li>
+  <li><a href="#物理尺寸" id="toc-物理尺寸" class="nav-link" data-scroll-target="#物理尺寸">物理尺寸</a></li>
+  <li><a href="#分辨率与格式" id="toc-分辨率与格式" class="nav-link" data-scroll-target="#分辨率与格式">分辨率与格式</a></li>
+  <li><a href="#字体" id="toc-字体" class="nav-link" data-scroll-target="#字体">字体</a></li>
+  <li><a href="#配色与可访问性" id="toc-配色与可访问性" class="nav-link" data-scroll-target="#配色与可访问性">配色与可访问性</a></li>
+  <li><a href="#主题与结构" id="toc-主题与结构" class="nav-link" data-scroll-target="#主题与结构">主题与结构</a></li>
+  <li><a href="#多面板" id="toc-多面板" class="nav-link" data-scroll-target="#多面板">多面板</a></li>
+  <li><a href="#r-与-python-导出" id="toc-r-与-python-导出" class="nav-link" data-scroll-target="#r-与-python-导出">R 与 Python 导出</a></li>
+  <li><a href="#每张图的三重检查" id="toc-每张图的三重检查" class="nav-link" data-scroll-target="#每张图的三重检查">每张图的三重检查</a>
   <ul class="collapse">
-  <li><a href="#第一步提出出图需求" id="toc-第一步提出出图需求" class="nav-link" data-scroll-target="#第一步提出出图需求">第一步：提出出图需求</a></li>
-  <li><a href="#第二步技能落规范出图" id="toc-第二步技能落规范出图" class="nav-link" data-scroll-target="#第二步技能落规范出图">第二步：技能落规范出图</a></li>
-  <li><a href="#第三步自检与验证" id="toc-第三步自检与验证" class="nav-link" data-scroll-target="#第三步自检与验证">第三步：自检与验证</a></li>
+  <li><a href="#数据正确性" id="toc-数据正确性" class="nav-link" data-scroll-target="#数据正确性">数据正确性</a></li>
+  <li><a href="#科学合理性" id="toc-科学合理性" class="nav-link" data-scroll-target="#科学合理性">科学合理性</a></li>
+  <li><a href="#视觉可读性" id="toc-视觉可读性" class="nav-link" data-scroll-target="#视觉可读性">视觉可读性</a></li>
   </ul></li>
-  <li><a href="#技能内容详解" id="toc-技能内容详解" class="nav-link" data-scroll-target="#技能内容详解">技能内容详解</a>
-  <ul class="collapse">
-  <li><a href="#物理尺寸按印刷宽度画不事后缩放" id="toc-物理尺寸按印刷宽度画不事后缩放" class="nav-link" data-scroll-target="#物理尺寸按印刷宽度画不事后缩放">物理尺寸（按印刷宽度画，不事后缩放）</a></li>
-  <li><a href="#字体与中文处理" id="toc-字体与中文处理" class="nav-link" data-scroll-target="#字体与中文处理">字体与中文处理</a></li>
-  <li><a href="#配色" id="toc-配色" class="nav-link" data-scroll-target="#配色">配色</a></li>
-  <li><a href="#各图型尺寸经验值节选" id="toc-各图型尺寸经验值节选" class="nav-link" data-scroll-target="#各图型尺寸经验值节选">各图型尺寸经验值（节选）</a></li>
-  <li><a href="#致丑陋陷阱硬禁止" id="toc-致丑陋陷阱硬禁止" class="nav-link" data-scroll-target="#致丑陋陷阱硬禁止">致丑陋陷阱（硬禁止）</a></li>
-  <li><a href="#出图后强制三查" id="toc-出图后强制三查" class="nav-link" data-scroll-target="#出图后强制三查">出图后强制三查</a></li>
-  </ul></li>
-  <li><a href="#与其他技能的衔接" id="toc-与其他技能的衔接" class="nav-link" data-scroll-target="#与其他技能的衔接">与其他技能的衔接</a></li>
-  <li><a href="#常见问题" id="toc-常见问题" class="nav-link" data-scroll-target="#常见问题">常见问题</a></li>
-  <li><a href="#下载与获取" id="toc-下载与获取" class="nav-link" data-scroll-target="#下载与获取">下载与获取</a></li>
-  <li><a href="#扩展资源" id="toc-扩展资源" class="nav-link" data-scroll-target="#扩展资源">扩展资源</a></li>
+  <li><a href="#常见不合格情况" id="toc-常见不合格情况" class="nav-link" data-scroll-target="#常见不合格情况">常见不合格情况</a></li>
+  <li><a href="#与其他-skills-的组合" id="toc-与其他-skills-的组合" class="nav-link" data-scroll-target="#与其他-skills-的组合">与其他 Skills 的组合</a></li>
+  <li><a href="#能力边界" id="toc-能力边界" class="nav-link" data-scroll-target="#能力边界">能力边界</a></li>
+  <li><a href="#安装与入口" id="toc-安装与入口" class="nav-link" data-scroll-target="#安装与入口">安装与入口</a></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
 <main class="content column-body" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">机器学习与AI</li><li class="breadcrumb-item"><a href="./5001-opencode.html">🛠️ AI 工具</a></li><li class="breadcrumb-item"><a href="./5017-skill-publication-figures.html">技能分享：publication-figures 图件</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">EpiAgentKit 科研 Skills 库</li><li class="breadcrumb-item"><a href="./5015-skill-project-init.html">项目与分析</a></li><li class="breadcrumb-item"><a href="./5017-skill-publication-figures.html">publication-figures 发表级统计图</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">EpiClaude 技能分享 · publication-figures：发表级图件标准与选型画廊</h1>
+<h1 class="title">EpiAgentKit Skill · publication-figures：发表级统计图与图型画廊</h1>
   <div class="quarto-categories">
-    <div class="quarto-category">机器学习与AI</div>
-    <div class="quarto-category">AI 工具</div>
+    <div class="quarto-category">EpiAgentKit</div>
+    <div class="quarto-category">科研 Skills</div>
+    <div class="quarto-category">项目与分析</div>
   </div>
   </div>
 
 <div>
   <div class="description">
-    publication-figures 让 AI 出图一次到位、不再因字号分辨率配色字体被退回。它内置约 180 种图型选型画廊、mm 级尺寸规范、字体嵌入与出图自检清单。本文讲清它的应用场景、用法、内容与下载。
+    全面介绍 publication-figures 的图前要求、统计图路由、物理尺寸、字体、配色、多面板、约 180 种图型资源、R 与 Python 导出和逐图验证。
   </div>
 </div>
 
@@ -2329,9 +2380,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
     
     <div>
-    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-heading">发布于</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">June 16, 2026</p>
+      <p class="date">2026年7月23日</p>
     </div>
   </div>
   
@@ -2343,257 +2394,137 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
+<p><code>publication-figures</code> 处理统计图、数据图和其他含坐标或尺度映射的结果图。它把图型选择、真实数据口径、印刷尺寸、字体、配色、多面板、导出格式和最终检查纳入同一流程，使图件不仅看起来整洁，还能在论文、报告和汇报的真实尺寸中准确传达结果。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/epiagentkit-forest-demo.png" class="img-fluid figure-img" alt="发表级森林图示例，左侧为变量与分组，中间为效应值及置信区间，右侧为数值结果"></p>
+<figcaption>EpiAgentKit 使用真实演示数据生成的森林图，包含效应值与 95% 置信区间</figcaption>
+</figure>
 </div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Note</span>关于本系列
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>本文是 <a href="5013-epiclaude.html">EpiClaude</a> 技能逐个分享系列之一。<code>publication-figures</code> 是 EpiClaude 的「出图规范层」——任何 ggplot / matplotlib 出图任务都先过它。它的数据来自 <a href="5016-skill-r-biostats.html">r-biostats</a> 的分析结果。</p>
-</div>
-</div>
-<section id="这个技能解决什么问题" class="level2">
-<h2 class="anchored" data-anchor-id="这个技能解决什么问题">这个技能解决什么问题</h2>
-<p>图件是论文最容易被退回的部件之一：字号太小看不清、分辨率不够印出来糊、中文 PDF 变方块、配色彩虹刺眼、坐标轴没单位、同一篇论文不同图风格不一……这些都不是「画错了」，而是「没按发表标准画」。返工一轮少则半天。</p>
-<p><code>publication-figures</code> 的核心目标是一句话：<strong>一次出图即可直接投稿</strong>。它把发表级图件的全部硬指标（物理尺寸、分辨率、字体、配色、主题、多面板、各图型经验值）和一份出图前后的自检清单固化下来，让 AI 出图开箱即达投稿标准。同时它还内置一个约 180 种图型的选型画廊，帮你在「该用什么图」上做得更专业、更有新意。</p>
-<hr>
+<section id="触发边界" class="level2">
+<h2 class="anchored" data-anchor-id="触发边界">触发边界</h2>
+<p>森林图、生存曲线、ROC、校准图、热图、回归诊断、散点图、柱状图、箱线图和所有真实数据映射图触发本技能。任何 ggplot2、matplotlib 或统计结果出图任务也适用。</p>
+<p>流程图、概念框架、机制图、技术路线和系统架构转 <code>research-visuals</code>。科研原始图像不由本技能生成或重绘。Excel 内部图表可以由 <code>xlsx</code> 处理，但正式统计图仍优先使用本技能。</p>
 </section>
-<section id="应用场景" class="level2">
-<h2 class="anchored" data-anchor-id="应用场景">应用场景</h2>
-<ul>
-<li><strong>任何论文图件</strong>：散点、箱线、小提琴、KM 曲线、ROC、森林图、列线图、RCS、火山图、热图、PCA 等。</li>
-<li><strong>答辩 / 汇报 PPT 出图</strong>：需要清晰、专业、风格统一的图。</li>
-<li><strong>图件返工</strong>：已有的图被审稿人或导师挑了字号、配色、分辨率问题，要按标准重做。</li>
-<li><strong>投稿前图件审查</strong>：上传前做一遍发表级自检。</li>
-<li><strong>不知道用什么图 / 想让图更优雅</strong>：用选型画廊找合适、更有表达力的图型。</li>
-</ul>
-<p>它对 R（ggplot2）和 Python（matplotlib）都适用。</p>
-<hr>
+<section id="上游原则" class="level2">
+<h2 class="anchored" data-anchor-id="上游原则">上游原则</h2>
+<p>开始前加载 <code>biostat-principles</code>，确认研究对象、变量、分组、时间窗、统计量、估计值、区间、参考组、缺失处理和图件用途。图形不能替用户选择一个尚未锁定的统计口径。</p>
+<p>图中数字必须来自已经验证的数据或结果对象。不能为了构图效果调整点位、方向、样本量或置信区间。</p>
 </section>
-<section id="它怎么工作复杂度分层-检索-自检" class="level2">
-<h2 class="anchored" data-anchor-id="它怎么工作复杂度分层-检索-自检">它怎么工作：复杂度分层 + 检索 + 自检</h2>
-<p>技能不是对所有图一视同仁，而是先判断复杂度层级，再决定要不要「开宝库」：</p>
-<pre class="mermaid"><code>flowchart TD
-    S["出图请求"] --&gt; L{"复杂度层级"}
-    L --&gt;|T1 标准统计图| T1["fig_setup.R 零调参出图"]
-    L --&gt;|T2 优雅升级| T2["查 chart-gallery 选替代图型"]
-    L --&gt;|T3 顶刊复现| T3["grep recipes_catalog 打开配方借鉴"]
-    T1 --&gt; N["落规范 §1–§12"]
-    T2 --&gt; N
-    T3 --&gt; N
-    N --&gt; CK["自检清单逐条过"]
-    CK --&gt; RD["Read PDF/PNG 验证"]
-    RD --&gt;|不过| N
-    RD --&gt; OK["图件完成"]</code></pre>
+<section id="图前要求" class="level2">
+<h2 class="anchored" data-anchor-id="图前要求">图前要求</h2>
+<p>每张图开始前明确：读者要回答的问题；数据与统计对象；x、y、颜色、形状和分面的映射；分组与水平顺序；最终载体和物理尺寸；语言与字体；期刊格式；输出路径；必须核对的数字和关系。</p>
+<p>图前要求还决定哪些信息必须写在图内，哪些留给图注。一个图不同时承担所有分析结果，图例、标签和面板数量由核心信息任务决定。</p>
+</section>
+<section id="复杂度分层" class="level2">
+<h2 class="anchored" data-anchor-id="复杂度分层">复杂度分层</h2>
+<p>简单图使用基础主题和最小模板，避免为了调用配方而增加无关结构。复杂图、多面板、专门医学图和特殊注释先检索画廊与配方，再按真实数据改写。</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 30%">
-<col style="width: 30%">
-<col style="width: 40%">
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
 </colgroup>
 <thead>
 <tr class="header">
 <th style="text-align: left;">层级</th>
-<th style="text-align: left;">何时</th>
-<th style="text-align: left;">怎么做</th>
+<th style="text-align: left;">例子</th>
+<th style="text-align: left;">推荐路径</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td style="text-align: left;"><strong>T1 朴素默认</strong></td>
-<td style="text-align: left;">标准统计图、用户没要”高级”</td>
-<td style="text-align: left;">用 <code>fig_setup.R</code> 零调参出图，不堆元素</td>
+<td style="text-align: left;">基础</td>
+<td style="text-align: left;">散点、箱线、柱状、折线</td>
+<td style="text-align: left;">公共主题与直接语法</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;"><strong>T2 优雅升级</strong></td>
-<td style="text-align: left;">朴素图信息损失或要”好看点”</td>
-<td style="text-align: left;">查画廊选替代图型（云雨/山脊/哑铃/棒棒糖/桑基…），升级必须比朴素图多传达信息</td>
+<td style="text-align: left;">专门统计图</td>
+<td style="text-align: left;">森林图、生存、ROC、校准、火山图</td>
+<td style="text-align: left;">先查常用配方</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;"><strong>T3 顶刊复现</strong></td>
-<td style="text-align: left;">要”Nature 风/复杂高级”</td>
-<td style="text-align: left;">必走配方检索，打开 work.R 借鉴技法/配色/拼接再重写</td>
-</tr>
-</tbody>
-</table>
-<p>核心原则：<strong>优雅 ≠ 炫技，新意服务表达</strong>。一张图只讲一个核心关系，能朴素讲清就不堆元素。</p>
-<hr>
-</section>
-<section id="如何使用" class="level2">
-<h2 class="anchored" data-anchor-id="如何使用">如何使用</h2>
-<section id="第一步提出出图需求" class="level3">
-<h3 class="anchored" data-anchor-id="第一步提出出图需求">第一步：提出出图需求</h3>
-<blockquote class="blockquote">
-<p>把主分析的 Cox 结果画成发表级森林图</p>
-</blockquote>
-<p>技能会判断这是 T1/T2/T3 哪一层，标准森林图走 T1，顶刊同款走 T3 检索配方。</p>
-</section>
-<section id="第二步技能落规范出图" class="level3">
-<h3 class="anchored" data-anchor-id="第二步技能落规范出图">第二步：技能落规范出图</h3>
-<p>它会按 mm 物理尺寸、字体嵌入、ggsci 配色、双格式导出生成图。R 的最小骨架长这样：</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(dat, <span class="fu">aes</span>(x, y, <span class="at">colour =</span> group)) <span class="sc">+</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_colour_lancet</span>() <span class="sc">+</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Follow-up (months)"</span>, <span class="at">y =</span> <span class="st">"Tumor volume (mm³)"</span>) <span class="sc">+</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_classic</span>(<span class="at">base_size =</span> <span class="dv">8</span>, <span class="at">base_family =</span> <span class="st">"Arial"</span>)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">ggsave</span>(<span class="fu">fig_path</span>(<span class="st">"volume"</span>, <span class="st">"pdf"</span>), p, <span class="at">width =</span> <span class="dv">88</span>, <span class="at">height =</span> <span class="dv">70</span>,</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>       <span class="at">units =</span> <span class="st">"mm"</span>, <span class="at">device =</span> cairo_pdf)</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">ggsave</span>(<span class="fu">fig_path</span>(<span class="st">"volume"</span>, <span class="st">"png"</span>), p, <span class="at">width =</span> <span class="dv">88</span>, <span class="at">height =</span> <span class="dv">70</span>,</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>       <span class="at">units =</span> <span class="st">"mm"</span>, <span class="at">dpi =</span> <span class="dv">300</span>, <span class="at">bg =</span> <span class="st">"white"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="第三步自检与验证" class="level3">
-<h3 class="anchored" data-anchor-id="第三步自检与验证">第三步：自检与验证</h3>
-<p>出图后技能会逐条过自检清单，并 Read 生成的 PNG/PDF 实际看一眼——中文图还要额外把 PDF 第一页转 PNG 复核，确认中文不是方块、没被裁切。任一条不过就返工。</p>
-<hr>
-</section>
-</section>
-<section id="技能内容详解" class="level2">
-<h2 class="anchored" data-anchor-id="技能内容详解">技能内容详解</h2>
-<section id="物理尺寸按印刷宽度画不事后缩放" class="level3">
-<h3 class="anchored" data-anchor-id="物理尺寸按印刷宽度画不事后缩放">物理尺寸（按印刷宽度画，不事后缩放）</h3>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th style="text-align: left;">版面类型</th>
-<th style="text-align: left;">宽度</th>
-<th style="text-align: left;">最大高度</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">单栏</td>
-<td style="text-align: left;">约 88–90 mm</td>
-<td style="text-align: left;">170 mm</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">1.5 栏</td>
-<td style="text-align: left;">约 120–140 mm</td>
-<td style="text-align: left;">170 mm</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">双栏 / 全幅</td>
-<td style="text-align: left;">约 180 mm</td>
-<td style="text-align: left;">225 mm</td>
-</tr>
-</tbody>
-</table>
-<p>绘图时必须显式传 <strong>mm</strong> 宽高，绝不靠 <code>width = 8, height = 6</code> 这种英寸默认值糊弄。</p>
-</section>
-<section id="字体与中文处理" class="level3">
-<h3 class="anchored" data-anchor-id="字体与中文处理">字体与中文处理</h3>
-<ul>
-<li>默认 Arial / Helvetica，中文统一一种（思源黑体 / 苹方 / 微软雅黑）。</li>
-<li>字号按印刷尺寸：刻度 6–7pt、轴标题与图例 7–8pt、面板标签 8pt bold。</li>
-<li>字体必须嵌入：R 用 <code>cairo_pdf</code>，Python 用 <code>pdf.fonttype = 42</code>。</li>
-<li>中文图件必须显式注册中文字体（<code>sysfonts::font_add</code> + <code>showtext::showtext_auto()</code>），否则 PDF 中文变方块。</li>
-</ul>
-</section>
-<section id="配色" class="level3">
-<h3 class="anchored" data-anchor-id="配色">配色</h3>
-<p>医学期刊配色顺位：<code>ggsci::pal_lancet()</code> → <code>pal_nejm()</code> → <code>pal_jco()</code> → <code>pal_nature()</code>。分类组 ≤5 时首选色盲友好调色板；连续热图用 viridis，<strong>绝不用红绿对比做连续映射</strong>；同一论文所有图同分组颜色必须完全一致。</p>
-</section>
-<section id="各图型尺寸经验值节选" class="level3">
-<h3 class="anchored" data-anchor-id="各图型尺寸经验值节选">各图型尺寸经验值（节选）</h3>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th style="text-align: left;">图类型</th>
-<th style="text-align: left;">推荐尺寸（宽×高 mm）</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">ROC / 校准曲线（单图）</td>
-<td style="text-align: left;">88 × 85（方形）</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">森林图</td>
-<td style="text-align: left;">160 × (5–8 × 行数 + 20)</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">列线图（≤6 变量）</td>
-<td style="text-align: left;">180 × 110</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">RCS / 剂量反应曲线</td>
-<td style="text-align: left;">120 × 85</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">KM 生存（含 risk table）</td>
-<td style="text-align: left;">120 × 120</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">相关热图 / 矩阵</td>
-<td style="text-align: left;">130 × 130（方形）</td>
+<td style="text-align: left;">复杂或组合图</td>
+<td style="text-align: left;">多重注释热图、关联网络、多面板复合图</td>
+<td style="text-align: left;">查高级索引与历史案例</td>
 </tr>
 </tbody>
 </table>
 </section>
-<section id="致丑陋陷阱硬禁止" class="level3">
-<h3 class="anchored" data-anchor-id="致丑陋陷阱硬禁止">致丑陋陷阱（硬禁止）</h3>
-<p>技能列出一串「违反即不合格」的禁令，例如：</p>
+<section id="约-180-种图型资源" class="level2">
+<h2 class="anchored" data-anchor-id="约-180-种图型资源">约 180 种图型资源</h2>
+<p><code>references/chart-gallery.md</code> 提供约 180 种统计图的选型画廊，按数据关系、研究问题和使用条件组织。它帮助回答“应该画什么”，而不是把所有图型都视为可互换装饰。</p>
+<p><code>recipes_catalog.md</code> 与 <code>recipes_advanced_index.md</code> 分别索引常用配方和复杂案例，<code>recipes_common_50/</code> 保存柱状图、差异图、热图、火山图、Venn、UpSet、生存曲线、森林图、ROC、PCA 和瀑布图等 R 脚本。使用时必须替换为当前数据、变量和口径，不能原样套示例数字。</p>
+</section>
+<section id="物理尺寸" class="level2">
+<h2 class="anchored" data-anchor-id="物理尺寸">物理尺寸</h2>
+<p>图件按最终印刷或显示宽度生成，不依赖投稿前统一缩小。论文单栏通常约 85 mm，双栏约 170 至 180 mm；报告和 PPT 按实际占位计算。</p>
+<p>物理尺寸改变会影响字号、线宽、点大小、图例和面板间距。先以最终尺寸设计，才能确保坐标轴和注释在 Word、PDF 或投影中仍清楚。</p>
+</section>
+<section id="分辨率与格式" class="level2">
+<h2 class="anchored" data-anchor-id="分辨率与格式">分辨率与格式</h2>
+<p>线图和文字密集图优先保存矢量 PDF，审稿和网页预览同时输出高分辨率 PNG。需要 SVG 时可以输出矢量文件，但不能用位图放大伪装成矢量。</p>
+<p>同一图的 PDF 与 PNG 由同一代码、数据和尺寸参数生成，避免两个版本内容漂移。输出路径通过 registry 的 <code>fig_path()</code> 获取。</p>
+</section>
+<section id="字体" class="level2">
+<h2 class="anchored" data-anchor-id="字体">字体</h2>
+<p>英文图通常使用 Arial、Helvetica 或期刊指定字体。中文图显式注册可用中文字体，并在 PDF 与 PNG 中验证是否缺字、乱码或字体回退。</p>
+<p>字体嵌入和设备兼容性需要在实际导出文件中检查。开发窗口显示正常不代表 PDF 中中文正确。</p>
+</section>
+<section id="配色与可访问性" class="level2">
+<h2 class="anchored" data-anchor-id="配色与可访问性">配色与可访问性</h2>
+<p>颜色服务于分组和重点，不按变量数量随机分配。主要比较使用有限、低饱和且有足够对比的颜色，参考组与辅助信息使用中性色。颜色不是唯一线索时，可同时使用形状、线型或直接标签。</p>
+<p>连续变量使用与数值意义匹配的连续色阶，发散色只用于有真实中点的情形。避免彩虹色、过度透明、荧光色和大面积高饱和背景。</p>
+</section>
+<section id="主题与结构" class="level2">
+<h2 class="anchored" data-anchor-id="主题与结构">主题与结构</h2>
+<p>公共主题集中管理字体、轴线、网格、图例、标题、边距和背景。图标题通常由论文图注承担，图内避免重复标题和长解释。标签优先直接、简短且与变量定义一致。</p>
+<p>坐标轴范围、变换、参考线和截断必须有统计理由。柱状图从零起点，效应估计图可围绕无效线组织；对数尺度和断轴要明确标示。</p>
+</section>
+<section id="多面板" class="level2">
+<h2 class="anchored" data-anchor-id="多面板">多面板</h2>
+<p>多面板先统一数据口径、字体、颜色、坐标和图例，再使用 patchwork 或同类工具组合。面板标记按阅读顺序连续，子图之间的宽高由信息量而非均分画布决定。</p>
+<p>共用图例只保留一份。任何子图单独缩放后文字过小，说明组合方案需要重排，而不是继续压缩。</p>
+</section>
+<section id="r-与-python-导出" class="level2">
+<h2 class="anchored" data-anchor-id="r-与-python-导出">R 与 Python 导出</h2>
+<p>R 通过 <code>scripts/fig_setup.R</code> 提供公共主题和双格式保存函数，脚本使用 <code>ggsave</code>、Cairo 或合适设备输出。Python 使用 matplotlib 或 seaborn 时同样显式设置物理尺寸、字体、DPI、边距和格式。</p>
+<p>导出函数不能掩盖警告。保存后重新读取图件并核对像素、页面尺寸、字体、透明背景和空边。</p>
+</section>
+<section id="每张图的三重检查" class="level2">
+<h2 class="anchored" data-anchor-id="每张图的三重检查">每张图的三重检查</h2>
+<section id="数据正确性" class="level3">
+<h3 class="anchored" data-anchor-id="数据正确性">数据正确性</h3>
+<p>核对样本量、统计量、分组、参考组、效应方向、置信区间、P 值、事件数和坐标范围。图与相应 Excel 表格及结果单源一致。</p>
+</section>
+<section id="科学合理性" class="level3">
+<h3 class="anchored" data-anchor-id="科学合理性">科学合理性</h3>
+<p>图型与研究问题匹配，尺度、归一化、平滑、误差条和显著性标记有方法依据。不能用面积或三维效果夸大差异，也不能隐藏负面结果。</p>
+</section>
+<section id="视觉可读性" class="level3">
+<h3 class="anchored" data-anchor-id="视觉可读性">视觉可读性</h3>
+<p>在最终显示尺寸查看字体、线宽、点、图例、标签、面板、留白和裁切。分类映射全图一致，连接线与标签不重叠，PDF 与 PNG 内容相同。</p>
+</section>
+</section>
+<section id="常见不合格情况" class="level2">
+<h2 class="anchored" data-anchor-id="常见不合格情况">常见不合格情况</h2>
+<p>事后把整图缩小、中文字体未注册、图例占用过多空间、颜色过多、坐标轴或误差条被裁切、<code>coord_equal</code> 造成大片空白、面板标签不连续、同一类别跨图换色、显著性星号没有对应检验，均需要返工。</p>
+</section>
+<section id="与其他-skills-的组合" class="level2">
+<h2 class="anchored" data-anchor-id="与其他-skills-的组合">与其他 Skills 的组合</h2>
+<p>分析出图使用 <code>biostat-principles → r-biostats → publication-figures</code>；论文和报告嵌图分别与 <code>academic-publishing</code>、<code>report-writing</code> 配合；PPT 中的真实数据图与 <code>sysu-ppt</code> 配合。非统计视觉转 <code>research-visuals</code>。</p>
+</section>
+<section id="能力边界" class="level2">
+<h2 class="anchored" data-anchor-id="能力边界">能力边界</h2>
+<p>本技能不生成不存在的数据，不改变研究口径，不把图型新颖当作科学优势，也不负责流程、机制和框架图。</p>
+</section>
+<section id="安装与入口" class="level2">
+<h2 class="anchored" data-anchor-id="安装与入口">安装与入口</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> scripts/epiagentkit.py install <span class="at">--target</span> all <span class="at">--preset</span> analysis <span class="at">--yes</span></span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
 <ul>
-<li>不用 <code>width = 8, height = 6</code> 英寸默认值，一律 <code>units = "mm"</code>。</li>
-<li>不在 ≤88×66mm 小画布用 <code>base_size = 12</code>，小画布压到 7–8pt。</li>
-<li>中文长标题（&gt;12 字）必须换行。</li>
-<li>图例不得压住任何数据曲线、散点、柱、误差棒。</li>
-<li>同分类层多组不得完全重叠交付，必须显式错位。</li>
-<li>不只看 PNG 就声称 PDF 没问题——两条字体路径独立，中文图必须额外复核 PDF。</li>
-</ul>
-</section>
-<section id="出图后强制三查" class="level3">
-<h3 class="anchored" data-anchor-id="出图后强制三查">出图后强制三查</h3>
-<p>每生成或重渲一张图都要做，不只看好不好看，更看对不对：</p>
-<ol type="1">
-<li><strong>数值可溯源</strong>：图上每个数字都能在数据源查到且一致，schematic 里的数字禁止硬编码。</li>
-<li><strong>无统计假象</strong>：警惕「所有格子同值」这类计算 bug，检查量级、方向、分布是否合常理。</li>
-<li><strong>表达正确</strong>：分类映射无 NA、图例不压数据、标签无内部变量名、多结局图含全部结局、与全文风格一致。</li>
-</ol>
-<hr>
-</section>
-</section>
-<section id="与其他技能的衔接" class="level2">
-<h2 class="anchored" data-anchor-id="与其他技能的衔接">与其他技能的衔接</h2>
-<pre class="mermaid"><code>flowchart LR
-    RB["r-biostats 产出分析结果"] --&gt; PF["publication-figures 按规范出图"]
-    PF --&gt; AP["academic-publishing 图嵌入论文"]
-    B["biostat-principles 可复现规则"] --&gt; PF</code></pre>
-<ul>
-<li>上游：数据来自 <code>r-biostats</code> 的分析；遵守 <code>biostat-principles</code> 的口径与可复现规则。</li>
-<li>下游：图件被 <code>academic-publishing</code> 嵌入论文（换语言时图内文字也要随之重出）。</li>
-</ul>
-<hr>
-</section>
-<section id="常见问题" class="level2">
-<h2 class="anchored" data-anchor-id="常见问题">常见问题</h2>
-<p><strong>Q：T1/T2/T3 我要自己指定吗？</strong> 不用，技能会判断。你只要在想要更精致时说一句「做好看点 / 顶刊同款」，它就升级层级。</p>
-<p><strong>Q：为什么强调 mm 而不是英寸？</strong> 期刊版面以 mm 计。按最终印刷宽度画图，字号比例才正确；事后缩放会让字号失真。</p>
-<p><strong>Q：中文图老是乱码怎么办？</strong> 确保走了 <code>sysfonts::font_add</code> 注册中文字体，PDF 用 <code>cairo_pdf</code>、PNG 用 <code>ragg::agg_png</code>，并 Read 验证。技能默认就这么做。</p>
-<hr>
-</section>
-<section id="下载与获取" class="level2">
-<h2 class="anchored" data-anchor-id="下载与获取">下载与获取</h2>
-<ul>
-<li><strong>技能源码（在线浏览）</strong>：<a href="https://github.com/KangWang42/EpiClaude/tree/main/skills/publication-figures" class="uri">https://github.com/KangWang42/EpiClaude/tree/main/skills/publication-figures</a></li>
-<li><strong>整套 EpiClaude 仓库</strong>：<a href="https://github.com/KangWang42/EpiClaude" class="uri">https://github.com/KangWang42/EpiClaude</a></li>
-</ul>
-<p>安装方式（macOS / Linux）：</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:KangWang42/EpiClaude.git ~/.claude-epiclaude</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> ~/.claude-epiclaude/CLAUDE.md ~/.claude/CLAUDE.md</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> <span class="at">-r</span> ~/.claude-epiclaude/skills ~/.claude/skills</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>装好后，任何出图请求都会自动触发本技能。整体介绍见 <a href="5013-epiclaude.html">EpiClaude 流行病学科研工作流</a>。</p>
-<hr>
-</section>
-<section id="扩展资源" class="level2">
-<h2 class="anchored" data-anchor-id="扩展资源">扩展资源</h2>
-<ul>
-<li>配套技能：<a href="5015-skill-project-init.html">project-init（项目初始化）</a>、<a href="5016-skill-r-biostats.html">r-biostats（统计分析）</a>、<a href="5018-skill-academic-publishing.html">academic-publishing（论文写作）</a></li>
-<li>本站相关：<a href="2032-ggplot2-intro.html">ggplot2 可视化入门</a>、<a href="2011-viscolor.html">配色方案</a>、<a href="2016-forestplot.html">森林图</a>、<a href="2012-patchwork.html">patchwork 图片拼接</a></li>
+<li><a href="5016-skill-r-biostats.html">r-biostats R 统计分析</a></li>
+<li><a href="5024-skill-research-visuals.html">research-visuals 非统计视觉</a></li>
+<li><a href="5019-epiagentkit-skills.html">EpiAgentKit Skills 目录</a></li>
 </ul>
 
 
@@ -2601,8 +2532,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 </main> <!-- /main -->
 <!-- Back to Top Button -->
-<button id="back-to-top" aria-label="Back to Top">
-
+<button id="back-to-top" type="button" aria-label="返回顶部">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 
         <path d="M18 15l-6-6-6 6"></path>
@@ -2615,8 +2545,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <!-- Floating TOC Button (Mobile Only) -->
 
-<button id="toc-floating-btn" aria-label="Table of Contents">
-
+<button id="toc-floating-btn" type="button" aria-label="打开目录" aria-controls="mobile-toc-dialog" aria-expanded="false">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 
         <line x1="8" y1="6" x2="21" y2="6"></line>
@@ -2639,16 +2568,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <!-- TOC Modal -->
 
-<div class="toc-modal-overlay">
-
-    <div class="toc-modal-content">
-
+<div class="toc-modal-overlay" id="mobile-toc-dialog">
+    <div class="toc-modal-content" role="dialog" aria-modal="true" aria-labelledby="mobile-toc-title">
         <div class="toc-modal-header">
-
-            <div class="toc-modal-title">目录</div>
-
-            <button class="toc-modal-close" aria-label="Close">×</button>
-
+            <div class="toc-modal-title" id="mobile-toc-title">目录</div>
+            <button class="toc-modal-close" type="button" aria-label="关闭目录">×</button>
         </div>
 
         <div class="toc-modal-body" id="toc-modal-body">
@@ -2668,37 +2592,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     // Back to Top Logic
 
     const backToTopBtn = document.getElementById('back-to-top');
+    let scrollUpdateQueued = false;
 
-
+    const updateBackToTop = () => {
+        if (backToTopBtn) {
+            backToTopBtn.classList.toggle('visible', window.scrollY > 300);
+        }
+        scrollUpdateQueued = false;
+    };
 
     window.addEventListener('scroll', () => {
-
-        if (window.scrollY > 300) {
-
-            backToTopBtn.classList.add('visible');
-
-        } else {
-
-            backToTopBtn.classList.remove('visible');
-
+        if (!scrollUpdateQueued) {
+            scrollUpdateQueued = true;
+            window.requestAnimationFrame(updateBackToTop);
         }
+    }, { passive: true });
 
-    });
-
-
-
-    backToTopBtn.addEventListener('click', () => {
-
-        window.scrollTo({
-
-            top: 0,
-
-            behavior: 'smooth'
-
+    if (backToTopBtn) {
+        backToTopBtn.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
         });
-
-    });
-
+    }
 
 
     // Mobile Table Scrolling Logic
@@ -2734,15 +2651,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         const tocOverlay = document.querySelector('.toc-modal-overlay');
 
         const tocClose = document.querySelector('.toc-modal-close');
-
         const tocBody = document.getElementById('toc-modal-body');
-
         const originalToc = document.getElementById('TOC');
+        const mobileTocDock = document.querySelector('.quarto-secondary-nav .container-fluid');
 
-
+        if (tocBtn && mobileTocDock && window.matchMedia('(max-width: 991.98px)').matches) {
+            tocBtn.classList.add('toc-nav-docked');
+            mobileTocDock.appendChild(tocBtn);
+        }
 
         if (originalToc && tocBtn) {
-
             // Check if TOC has content
 
             const tocLinks = originalToc.querySelectorAll('a');
@@ -2835,8 +2753,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 
-        if (sidebar && mainContent) {
+        const pagePath = window.location.pathname;
+        const isArticlePage = !document.body.classList.contains('home-page') &&
+            !pagePath.includes('/sections/') &&
+            !pagePath.endsWith('/') &&
+            !pagePath.endsWith('/index.html');
 
+        if (isArticlePage && sidebar && mainContent) {
             const links = Array.from(sidebar.querySelectorAll('a.sidebar-item-text'));
 
 
@@ -2887,8 +2810,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
             footerNav.style.paddingTop = '2rem';
 
-            footerNav.style.borderTop = '1px solid #e5e7eb';
-
+            footerNav.style.borderTop = '1px solid var(--line)';
 
 
             // 1. Prev/Next Navigation
@@ -2993,14 +2915,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
                         <div class="random-recommendation">
 
-                            <h4>👋 随便看看</h4>
-
+                            <h4>随便看看</h4>
                             <p>探索更多 R 语言精彩内容</p>
-
                             <a href="${randomLink.href}" class="random-btn">
-
-                                🎲 ${randomTitle}
-
+                                ${randomTitle}
                             </a>
 
                         </div>
@@ -3067,14 +2985,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         padding: 0.6rem 1.2rem;
 
-        border: 2px solid #e5e7eb;
-
+        border: 1px solid var(--line);
         border-radius: 50px;
 
-        background: white;
-
-        color: #6b7280;
-
+        background: var(--surface);
+        color: var(--ink-soft);
         font-size: 0.95rem;
 
         font-weight: 500;
@@ -3091,24 +3006,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
     .like-btn:hover {
 
-        border-color: #f472b6;
-
-        color: #ec4899;
-
-        background: #fdf2f8;
-
+        border-color: var(--accent);
+        color: var(--accent-dark);
+        background: var(--accent-soft);
     }
 
 
 
     .like-btn.liked {
 
-        border-color: #ec4899;
-
-        color: #ec4899;
-
-        background: #fdf2f8;
-
+        border-color: var(--accent);
+        color: var(--accent-dark);
+        background: var(--accent-soft);
     }
 
 
@@ -3233,8 +3142,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         font-size: 0.75rem;
 
-        color: #9ca3af;
-
+        color: var(--ink-faint);
         padding-left: 0.25rem;
 
     }
@@ -3335,10 +3243,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
             <div class="like-section-inner">
 
-                <p class="like-prompt">觉得有帮助？点赞支持一下 👇</p>
-
-                <button class="like-btn ${isLiked ? 'liked' : ''}" id="article-like-btn" aria-label="点赞">
-
+                <p class="like-prompt">觉得有帮助？欢迎点赞支持。</p>
+                <button type="button" class="like-btn ${isLiked ? 'liked' : ''}" id="article-like-btn" aria-label="点赞" aria-pressed="${isLiked ? 'true' : 'false'}">
                     <svg class="like-icon" viewBox="0 0 24 24" width="24" height="24">
 
                         <path class="heart-outline" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -3514,27 +3420,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
                 localStorage.setItem(likeKey, 'false');
 
             } else {
-
                 this.classList.add('liked');
-
                 likeCount++;
-
                 likeText.textContent = '已喜欢';
-
                 localStorage.setItem(likeKey, 'true');
-
 
 
                 this.classList.add('pop');
 
                 setTimeout(() => this.classList.remove('pop'), 300);
-
             }
 
-
-
+            this.setAttribute('aria-pressed', currentlyLiked ? 'false' : 'true');
             likeCountSpan.textContent = likeCount > 0 ? likeCount : '';
-
 
 
             // Sync with Supabase in background
@@ -3569,20 +3467,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         commentSection.innerHTML = `
 
-            <h4 class="comment-title">💬 评论区</h4>
-
+            <h4 class="comment-title">评论区</h4>
             <div class="comment-form">
 
+                <label class="visually-hidden" for="comment-nickname">昵称（可选）</label>
                 <input type="text" id="comment-nickname" class="comment-nickname" placeholder="昵称（可选）" maxlength="20">
-
+                <label class="visually-hidden" for="comment-content">评论内容</label>
                 <textarea id="comment-content" class="comment-textarea" placeholder="写下你的想法..." maxlength="500" rows="3"></textarea>
-
                 <div class="comment-form-footer">
 
                     <span class="char-count"><span id="char-count">0</span>/500</span>
 
-                    <button id="submit-comment" class="comment-submit-btn">发表评论</button>
-
+                    <button type="button" id="submit-comment" class="comment-submit-btn">发表评论</button>
                 </div>
 
             </div>
@@ -3739,8 +3635,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
             if (!comments || comments.length === 0) {
 
-                commentList.innerHTML = '<div class="no-comments">暂无评论，来做第一个留言的人吧 🎉</div>';
-
+                commentList.innerHTML = '<div class="no-comments">暂无评论，欢迎留下第一条评论。</div>';
                 return;
 
             }
@@ -3881,8 +3776,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         padding-top: 2rem;
 
-        border-top: 2px solid #e5e7eb;
-
+        border-top: 1px solid var(--line);
     }
 
 
@@ -3901,8 +3795,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         font-size: 1.4rem;
 
-        color: #1f2937;
-
+        color: var(--ink);
         margin: 0 0 0.5rem 0;
 
     }
@@ -3911,8 +3804,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
     .interaction-header p {
 
-        color: #6b7280;
-
+        color: var(--ink-soft);
         font-size: 0.95rem;
 
         margin: 0;
@@ -3929,8 +3821,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         padding: 2rem 0;
 
-        border-top: 2px solid #e5e7eb;
-
+        border-top: 1px solid var(--line);
         text-align: center;
 
     }
@@ -3953,8 +3844,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
     .like-prompt {
 
-        color: #6b7280;
-
+        color: var(--ink-soft);
         font-size: 0.95rem;
 
         margin: 0;
@@ -4015,8 +3905,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         padding: 1.5rem;
 
-        background: #f9fafb;
-
+        background: var(--surface-soft);
         border-radius: 12px;
 
     }
@@ -4027,8 +3916,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         font-size: 1.1rem;
 
-        color: #1f2937;
-
+        color: var(--ink);
         margin: 0 0 1rem 0;
 
     }
@@ -4049,16 +3937,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         padding: 0.5rem 0.75rem;
 
-        border: 1px solid #e5e7eb;
-
+        border: 1px solid var(--line-strong);
         border-radius: 8px;
 
         font-size: 0.9rem;
 
         margin-bottom: 0.75rem;
 
-        background: white;
-
+        background: var(--surface);
+        color: var(--ink);
     }
 
 
@@ -4069,8 +3956,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         padding: 0.75rem;
 
-        border: 1px solid #e5e7eb;
-
+        border: 1px solid var(--line-strong);
         border-radius: 8px;
 
         font-size: 0.95rem;
@@ -4079,8 +3965,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         min-height: 80px;
 
-        background: white;
-
+        background: var(--surface);
+        color: var(--ink);
         font-family: inherit;
 
         box-sizing: border-box;
@@ -4097,10 +3983,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         outline: none;
 
-        border-color: #4f46e5;
-
-        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
     }
 
 
@@ -4121,8 +4005,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         font-size: 0.8rem;
 
-        color: #9ca3af;
-
+        color: var(--ink-faint);
     }
 
 
@@ -4131,10 +4014,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         padding: 0.6rem 1.5rem;
 
-        background: #4f46e5;
-
-        color: white;
-
+        background: var(--accent);
+        color: var(--on-accent);
         border: none;
 
         border-radius: 8px;
@@ -4153,8 +4034,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
     .comment-submit-btn:hover:not(:disabled) {
 
-        background: #4338ca;
-
+        background: var(--accent-dark);
         transform: translateY(-1px);
 
     }
@@ -4185,8 +4065,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         text-align: center;
 
-        color: #9ca3af;
-
+        color: var(--ink-faint);
         padding: 1.5rem;
 
         font-size: 0.95rem;
@@ -4197,16 +4076,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
     .comment-item {
 
-        background: white;
-
+        background: var(--surface);
         border-radius: 8px;
 
         padding: 1rem;
 
         margin-bottom: 0.75rem;
 
-        border: 1px solid #e5e7eb;
-
+        border: 1px solid var(--line);
     }
 
 
@@ -4229,8 +4106,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         font-weight: 600;
 
-        color: #1f2937;
-
+        color: var(--ink);
         font-size: 0.9rem;
 
     }
@@ -4241,8 +4117,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
         font-size: 0.8rem;
 
-        color: #9ca3af;
-
+        color: var(--ink-faint);
     }
 
 
@@ -4271,16 +4146,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
     .comment-delete:hover {
 
-        background: #fef2f2;
-
+        background: color-mix(in srgb, #ef4444 12%, transparent);
     }
 
 
 
     .comment-body {
 
-        color: #374151;
-
+        color: var(--ink-soft);
         font-size: 0.95rem;
 
         line-height: 1.6;
@@ -4322,21 +4195,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     }
 
 </style>
-<script>
-(function() {
-  // 智能检测路径
-  var scriptPath = 'custom-sidebar.js';
-  if (window.location.pathname.includes('/sections/')) {
-    scriptPath = '../custom-sidebar.js';
-  }
-  
-  // 动态加载脚本
-  var script = document.createElement('script');
-  script.src = scriptPath;
-  script.async = false;
-  document.head.appendChild(script);
-})();
-</script>
+<script src="./custom-sidebar.js?v=20260722-paging2" defer=""></script>
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
@@ -4362,12 +4221,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       // flash "checked"
       button.classList.add('code-copy-button-checked');
       var currentTitle = button.getAttribute("title");
-      button.setAttribute("title", "Copied!");
+      button.setAttribute("title", "已复制");
       let tooltip;
       if (window.bootstrap) {
         button.setAttribute("data-bs-toggle", "tooltip");
         button.setAttribute("data-bs-placement", "left");
-        button.setAttribute("data-bs-title", "Copied!");
+        button.setAttribute("data-bs-title", "已复制");
         tooltip = new bootstrap.Tooltip(button, 
           { trigger: "manual", 
             customClass: "code-copy-button-tooltip",
@@ -4751,69 +4610,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     </div>
   </div>
 </footer>
-<script>
-(function() {
-  'use strict';
-  var THEME_KEY = 'r-notes-theme';
-  function getPreferredTheme() {
-    var saved = localStorage.getItem(THEME_KEY);
-    if (saved) return saved;
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    return 'light';
-  }
-  function setTheme(theme) {
-    var html = document.documentElement;
-    var body = document.body;
-    if (theme === 'dark') {
-      html.setAttribute('data-theme', 'dark');
-      html.setAttribute('data-bs-theme', 'dark');
-      html.classList.add('quarto-dark');
-      html.classList.remove('quarto-light');
-      body.classList.add('quarto-dark');
-      body.classList.remove('quarto-light');
-    } else {
-      html.removeAttribute('data-theme');
-      html.setAttribute('data-bs-theme', 'light');
-      html.classList.remove('quarto-dark');
-      html.classList.add('quarto-light');
-      body.classList.remove('quarto-dark');
-      body.classList.add('quarto-light');
-    }
-    localStorage.setItem(THEME_KEY, theme);
-  }
-  function toggleTheme() {
-    var current = document.documentElement.getAttribute('data-theme');
-    var newTheme = current === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-  }
-  function createToggleButton() {
-    var btn = document.createElement('button');
-    btn.id = 'theme-toggle';
-    btn.setAttribute('aria-label', '切换主题');
-    btn.setAttribute('title', '切换日间/夜间模式');
-    var moonIcon = '<svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
-    var sunIcon = '<svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
-    btn.innerHTML = moonIcon + sunIcon;
-    btn.addEventListener('click', toggleTheme);
-    document.body.appendChild(btn);
-  }
-  function init() {
-    setTheme(getPreferredTheme());
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', createToggleButton);
-    } else {
-      createToggleButton();
-    }
-  }
-  init();
-})();
-</script>
+<script src="./theme-toggle.js" defer=""></script>
 
 
 
 
 <script src="site_libs/quarto-html/zenscroll-min.js"></script>
-<script src="./theme-toggle.js" defer></script>
 </body></html>

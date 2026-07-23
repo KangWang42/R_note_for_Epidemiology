@@ -1,0 +1,115 @@
+---
+title: 'EpiAgentKit Skill · svg-diagrams：精确可编辑的 SVG 图解回退'
+date: '2026-07-23'
+categories:
+- EpiAgentKit
+- 科研 Skills
+- 科研视觉与汇报
+image: images/epiagentkit-research-workflow.webp
+description: 详解 svg-diagrams 的回退凭证、拓扑选择、语义元数据、载体适配、自动验证和与 research-visuals 的严格边界。
+---
+
+`svg-diagrams` 使用原生 SVG 构建内容精确、可编辑的非统计图解。它可以处理流程、技术路线、层级、包含关系、概念框架、机制、时间线、矩阵和系统架构，但在 EpiAgentKit 中不是泛化配图的默认入口，而是受约束的最终回退。
+
+![EpiAgentKit 研究工作流可被表达为流程、分支与模块关系](images/epiagentkit-research-workflow.webp){fig-alt="EpiAgentKit 从问题定义、证据核验、分析、图表、写作、汇报到审查的研究流程"}
+
+## 何时触发
+
+以下四类任务进入本技能：用户明确要求 SVG、矢量源或完全可编辑图形；当前会话确实没有可用图像生成工具；imagegen 的允许路径已实际耗尽而关键文字或关系仍不准确；审校或修改已有 SVG。
+
+“文字较多”“SVG 更容易做”“预计生成工具可能写错”和两次 HTTP 524 都不是有效回退凭证。统计数据图继续使用 `publication-figures`。
+
+## 内容要求
+
+绘图前列出用途、载体、信息角色、语言、节点 ID、标题、可选副标题、语义类别、层级和关系。标题、数字、样本量、方向和节点关系必须来自用户材料或已锁定的视觉简报，不能为了版面完整而补写。
+
+若从 `research-visuals` 回退，SVG 必须沿用已经确认的节点、标签、关系和验收条件。工具切换不能顺便改变信息结构。
+
+## 图类与拓扑
+
+| 拓扑 | 适合表达 | 不宜用于 |
+|:---|:---|:---|
+| 层级汇聚 | 多因素或模块汇入机制并指向结局 | 纯时间顺序或并列证据 |
+| 谱系或时间轴 | 时间、证据分歧、研究维度和结论分布 | 明确的汇聚关系 |
+| 嵌套包含 | 总体、子集、分析集、亚组和样本量结构 | 有先后方向的流程 |
+| 线性或分支流程 | 步骤、决策、筛选和处理阶段 | 只有概念归属的内容 |
+| 矩阵或架构 | 二维比较、模块边界和输入处理输出 | 少量节点的简单关系 |
+
+队列筛选和样本纳排使用居中纵向主路径，排除项从侧栏接出，末端按结局或分析集分支。它不是概念汇聚图，也不把普通排除步骤默认标红。
+
+## 两种视觉配置
+
+`journal-flow` 用于队列筛选、CONSORT、样本纳排和病例流转，采用紧凑内容框、近直角边界和明确的常规路径与排除路径。`editorial` 用于概念机制、技术路线、层级、时间轴、矩阵和架构，允许低饱和浅填充与较宽松的内容组织。
+
+两者都使用白底、细边框、常规正文、几何优先和有限语义色。默认两类主色，只有真实警示、失败、异常、不良结局或必须单独识别的状态才增加第三类主色。
+
+## 几何与生成流程
+
+1. 记录 SVG 触发或回退凭证。
+2. 锁定内容要求和最终载体尺寸。
+3. 选择图类、阅读方向和拓扑。
+4. 计算画布、边距、轨道、节点宽高、锚点、间距和连线坐标。
+5. 使用原生 SVG 元素与可编辑文字生成源文件。
+6. 同时导出同名 PNG，供 Word 和无法直接嵌入 SVG 的环境使用。
+7. 运行自动 validator，再按实际嵌入尺寸目视审查。
+
+SVG 避免 `foreignObject`、外部 CSS、网络字体和滤镜。连接线不穿字、不穿框，同行同列节点共享锚点和间距，包含关系按共同中心或共同基线嵌套。
+
+## 载体适配
+
+| 载体 | 默认考虑 |
+|:---|:---|
+| PPT 全页 | 16:9 画布，半页或栏位按真实占位重算比例 |
+| 论文 | 单栏约 85 mm，双栏约 170 至 180 mm，图注通常留给正文 |
+| 报告 | 按 Word 版心约 140 至 165 mm 设计，并保留 PNG |
+| README 与网页 | 按内容列宽设计，兼顾桌面与窄屏文字可读性 |
+
+内容决定高度，不为填满固定画布制造大面积空白。载体已有标题时，SVG 内不重复放标题。
+
+## 语义元数据
+
+新图的画布、卡片、嵌套层、主流程、排除路径、末端节点、标题、连接线和坐标轴写入 `data-role`。内容类别使用 `biology`、`exposure`、`covariate`、`risk`、`outcome` 和 `nonlinear`，阅读角色使用 `primary`、`secondary`、`critical` 与 `neutral`。
+
+类别不自动决定颜色。外观由阅读角色、位置、边界和层级共同表达，避免每个变量一个颜色。
+
+## 内部组成
+
+| 资源 | 内容 |
+|:---|:---|
+| `design-system.md` | 字体、颜色、边框、对齐和跨载体设计系统 |
+| `layout-recipes.md` | 层级汇聚、谱系时间轴与嵌套样本结构 |
+| `request-template.md` | 将散乱材料整理为内容要求 |
+| `journal-flow-screening.svg` | 队列筛选几何起点 |
+| `journal-flow-branching.svg` | 末端分支流程几何起点 |
+| `validate_svg.py` | XML、语义角色、文字、画布和配置验证 |
+
+## 自动验证
+
+```bash
+python skills/svg-diagrams/scripts/validate_svg.py output.svg \
+  --profile editorial --purpose ppt --expected-ratio 1.777778 \
+  --require-text "主流程" --forbid-text "RESEARCH WORKFLOW"
+```
+
+validator 通过后仍需目视检查文字裁切、连接线、字号、空边与 PNG 预览。自动检查不能代替对来源内容和最终尺寸的人工判断。
+
+## 与其他 Skills 的组合
+
+默认路径为 `research-visuals → imagegen`，只有满足回退条件后才进入 `svg-diagrams`。论文和报告保留 SVG 源与 PNG 派生物；PPT 优先嵌入 SVG；混合图先分别生成统计面板与 SVG 面板，再统一字体、配色与边距。
+
+## 能力边界
+
+本技能不生成统计图，不重绘科研原始图像，也不把 Mermaid、Graphviz 或 HTML 默认主题截图当作发表成品。它保证结构可编辑，但不能替研究者确定未提供的机制、方向和样本数字。
+
+## 安装与入口
+
+`svg-diagrams` 不在默认预设中时，可通过自定义安装加入，并由安装器补齐依赖。
+
+```bash
+python scripts/epiagentkit.py install --target all --preset custom \
+  --skills svg-diagrams --yes
+```
+
+- [research-visuals 科研视觉主流程](5024-skill-research-visuals.html)
+- [publication-figures 统计图件](5017-skill-publication-figures.html)
+- [EpiAgentKit Skills 目录](5019-epiagentkit-skills.html)

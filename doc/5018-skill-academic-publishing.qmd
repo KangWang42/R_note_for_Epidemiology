@@ -1,196 +1,157 @@
 ---
-title: 'EpiClaude 技能分享 · academic-publishing：中英双语学术论文生成'
-date: '2026-06-16'
+title: 'EpiAgentKit Skill · academic-publishing：论文、学位论文与投稿材料'
+date: '2026-07-23'
 categories:
-- 机器学习与AI
-- AI 工具
-image: images/5018-skill-academic-publishing-cover.svg
-description: academic-publishing 把项目里跑完的分析转成可投稿的论文与投稿材料，逐部件门控写作、数据取自单一来源、零编造、零 AI 痕迹。覆盖中文论著、中文学位论文、英文 IMRaD 三条线。本文讲清它的应用场景、用法、内容与下载。
+- EpiAgentKit
+- 科研 Skills
+- 论文与报告
+image: images/epiagentkit-research-workflow.webp
+description: 全面介绍 academic-publishing 的中英文论文与学位论文路线、逐部件写作、结果单源、表图嵌入、投稿材料、四项终检和 Word 拼装。
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
-```
+`academic-publishing` 是 EpiAgentKit 的学术内容生成主流程，覆盖中文期刊论著、中文学位论文和英文 IMRaD 稿件，还可以生成 cover letter、highlights、graphical abstract 文案、response to reviewers、rebuttal 与编辑部邮件。
 
-::: {.callout-note}
-## 关于本系列
-本文是 [EpiClaude](5013-epiclaude.html) 技能逐个分享系列之一。`academic-publishing` 是 EpiClaude 的「产出层」——把 [r-biostats](5016-skill-r-biostats.html) 算出的结果、[publication-figures](5017-skill-publication-figures.html) 出的图，转成可投稿的论文。
-:::
+它以项目已有的分析代码、结果单源、表格、图件、方案和真实文献为基础逐部件写作，内部执行“写作、检查、标记完成、进入下一部件”的闭环，最后再拼装为 Word。
 
-## 这个技能解决什么问题
+![EpiAgentKit 从数据分析、表图到论文、汇报与审查的完整工作流](images/epiagentkit-research-workflow.webp){fig-alt="EpiAgentKit 科研工作流，论文写作从已验证分析和表图进入学术出版与项目审查"}
 
-让 AI 写论文，最大的风险有三个：**编数字**（凭印象写样本量、CI、P 值，与实际分析对不上）、**AI 味重**（满篇套话、三段式、宣传腔，审稿人一眼看穿）、**一次性吐全文**（结构松散、各部件口径打架、改一处忘了同步另一处）。任何一个都足以让稿子被退。
+## 何时触发
 
-`academic-publishing` 的定位是一句话：**把项目里已经跑完的分析转成可投稿的论文与投稿材料，语言到位、结构到位、零编造、看不出 AI 痕迹**。它通过「数据单源 + 逐部件门控 + 反 AI 痕迹」三道机制，把上面三个风险逐一封死。
+用户要求从零生成论文、论文初稿、学位论文、毕业论文、答辩稿、综述章、摘要、引言、方法、结果、讨论、题名或投稿材料时触发。对已有文本的局部润色、压缩和语气校准由 `academic-humanizer` 主导。
 
----
+需要实际创建或修改 Word 文件时，加入 `docx`。只要正文时不强制生成 `.docx`。
 
-## 应用场景
+## 三条写作路线
 
-技能覆盖三条写作线和投稿材料：
+| 路线 | 主要规范 | 结构特点 |
+|:---|:---|:---|
+| 中文期刊论著 | GB/T 7713.2 与目标期刊要求 | 摘要、引言、资料与方法、结果、讨论等 |
+| 中文学位论文 | GB/T 7713.1、学校模板和长文规范 | 章节完整、综述与方法细节更充分、交叉引用更多 |
+| 英文期刊论文 | IMRaD 与目标期刊指南 | Introduction、Methods、Results、Discussion 和投稿组件 |
 
-- **中文期刊论著**（GB/T 7713.2，≤5000 字）：投中文核心期刊的标准论著。
-- **中文学位论文**（GB/T 7713.1 长文）：硕士、博士论文，含封面、双声明、中英摘要、综述章、致谢等前后置部件。
-- **英文期刊**（IMRaD）：投 SCI 的英文 manuscript。
-- **单部件生成或润色**：只写/改引言、方法、结果、讨论、摘要、题名中的某一个。
-- **投稿材料**：Cover Letter、Response to Reviewers、Highlights、Graphical Abstract、Title Page、各类声明。
-- **投稿前自查**：逻辑、数据、格式、合规四查。
+目标期刊、学校或资助机构的明确要求优先于默认结构。未核验的格式、字数和引用样式不猜测。
 
-**边界**：它只「消费」分析结果，不改分析——结果由 `r-biostats` 产出，图由 `publication-figures` 出，表由 `xlsx` 出。报告类（非论文）文档走 `report-writing`，咨询交付包走 `consulting-delivery`。
+## 开工前读取
 
----
+写第一个字之前，读取项目规则、`PROTOCOL.md`、`SAP.md`、`DECISIONS.md`、`BACKLOG.md`、`07_paper/results.yaml`、人读结果摘要、分析脚本、表格、图件和已有文稿。需要引用依据时使用 `evidence-research` 核验来源身份与论断。
 
-## 它怎么工作：先吃透项目，再逐部件门控
+若项目只有零散结果而没有可追溯来源，先列出缺口。不能根据文件名或趋势图猜样本量、效应值、伦理号、基金号和研究发现。
 
-技能不会一上来就写。它先读项目建立「事实底座」，然后按一条固定顺序逐部件推进，每个部件写完自检通过才进下一个：
+## 语言与部件路由
 
-```mermaid
-flowchart TD
-    F["吃透项目 results.yaml/DECISIONS/表图/代码"] --> M["Methods"]
-    M --> R["Results"]
-    R --> I["Introduction"]
-    I --> D["Discussion + Conclusion"]
-    D --> A["Abstract"]
-    A --> T["Title + Keywords"]
-    T --> RF["References 整理"]
-    RF --> SM["投稿材料按需"]
-    SM --> W["拼装 Word"]
-    M -. 自检不过 .-> M
-    R -. 自检不过 .-> R
-```
+开始时先确定中文或英文、期刊论文或学位论文、整篇或单部件、目标读者、目标期刊或学校、字数、引用格式和交付文件。
 
-为什么是「先 Results 和 Methods，再 Introduction 和 Discussion，最后 Abstract、Title」？因为结果锁定后，引言的 gap 和讨论的解释才有靶子，摘要才能精准压缩。
+单部件任务只加载对应参考和相邻上下文，不为写一个摘要强制生成整篇论文。结构性重写仍需核对全文的数字、术语和论断方向。
 
-每个部件都走：**写入独立 md → 跑该部件自检清单 → 字数核对 → 标记完成 → 下一部件**。禁止一次性吐全文。
+## 整篇写作顺序
 
----
+写作顺序通常从方法和结果开始，再写讨论、引言、摘要和题名。这样摘要与引言不会在结果尚未锁定时先产生超出证据的故事。
 
-## 如何使用
+每个部件完成后检查来源、数字、表图引用、段落功能、术语、缩写和与前后部件的一致性，标记完成后才进入下一部分。遇到冲突回到结果或方法单源，不在正文中选一个看起来合理的版本。
 
-### 第一步：发起并确认语言与部件
+## 结果单源
 
-> 根据现在的结果，写中文论著的结果部分
+论文数字来自 `07_paper/results.yaml` 或已经验证的结果表，通过 `val()` 等方式写入，不手工复制样本量、百分比、效应值、置信区间和 P 值。`0_result_summaries.md` 只用于阅读和规划，不是另一个可编辑结果源。
 
-技能第一步判定「语言 × 部件」，只加载需要的 reference 以节省上下文。如果目标期刊、语言、分组、终点等关键信息不明，它会先问你（一次问 2–3 个最关键的，不一口气抛十个）。
+结果变化时先更新分析与结果单源，再重新派生表格、摘要和论文部件。正文中不能残留旧数字。
 
-### 第二步：技能吃透项目
+## 各部件的功能
 
-写第一个字前，它按顺序读 `results.yaml`（数据唯一源）、`DECISIONS.md`（方法口径）、`03_tables/`+`04_figures/`（表图清单）、`02_code/` 关键脚本顶部（变量定义、模型设定）、项目 `CLAUDE.md`（研究背景），产出一张内部「事实卡」。
+### 题名与摘要
 
-### 第三步：逐部件写 + 自检
+题名准确表达研究对象、主题与设计，不加入未经支持的机制或因果词。摘要独立闭环，方法和结果与正文一致，结论不超出主要发现和研究设计。
 
-它一次只写一个部件，写完立即跑该部件的自检清单。所有数字用 `val("07_paper/results.yaml", "key")` 取，源里没有就标 `[NEED CONFIRMATION]`，绝不瞎填。
+### 引言
 
-### 第四步：投稿前四查 + 拼装 Word
+引言建立真实问题、知识缺口和研究目标。每个经验性论断有可核验来源，不堆背景常识，也不把研究结果提前写进研究假设。
 
-全文写完过「逻辑/数据/格式/合规」四查，再用 `python-docx` 直接生成终稿 docx（禁用 `pandoc -o`，因为中文字体、三线表、真上下标控制不到位）。
+### 方法
 
----
+方法按研究对象、数据来源、变量、结局、纳排、统计分析、敏感性分析、软件和伦理组织，使读者能够理解和复现。清洗探索过程不写入正文，正文只报告最终中性口径。
 
-## 技能内容详解
+### 结果
 
-### 八条铁律
+结果按预设问题和表图顺序呈现，先描述样本和基线，再报告主分析、敏感性和补充分析。正文解释最重要数字，不把表格逐行复述，也不加入讨论性推断。
 
-技能开篇就立了八条「违反=未完成」的铁律，是它质量的地基：
+### 讨论
 
-1. **数据唯一来源 = `results.yaml`**：所有数字取自该源，禁止手敲，禁止四舍五入到与源不一致。
-2. **期刊 Guide for Authors 是最高法**：目标期刊的官方须知覆盖一切默认值。
-3. **不编造**：参考文献、伦理号、基金号、统计结论一律不虚构，缺的用占位符。
-4. **不照抄**：参考范文只借鉴修辞功能与句式骨架，不复制原句。
-5. **逐部分门控**：一次只写一个部分，禁止一次性吐全文。
-6. **疑点先问**：分组/终点/纳排/主分析/目标期刊不明先问。
-7. **零 AI 痕迹**：中文过反 AI 黑名单 + 困惑度/突发性；英文过 over-claim 黑名单。
-8. **局部修改也走完整标准**：哪怕只改一句，也要加载对应 reference、跑自检、复扫一致性。
+讨论从主要发现出发，与可核验文献比较，解释可能机制与差异，讨论临床或公共卫生意义、优势、限制和外推范围。观察性研究保持关联性措辞。
 
-### 三条写作线的差异
+## 图、表与公式
 
-| 线 | 规范 | 篇幅 | 关键 reference |
-|:---|:-----|:-----|:---------------|
-| 中文期刊论著 | GB/T 7713.2 | ≤5000 字 | `chinese-paper.md` + `section-content-playbook.md` |
-| 中文学位论文 | GB/T 7713.1 | 80–120 页长文 | `chinese-thesis.md` + `thesis-formatting.md` |
-| 英文期刊 | IMRaD | 期刊上限 | `english-writing.md` + `english-phrasebank.md` |
+已有 `03_tables/` 表格与 `04_figures/` 图件应实际读取并嵌入，不只写“见表 1”。表题在上、图题在下，编号和正文引用连续一致。统计图由 `publication-figures` 生成，流程和图形摘要由 `research-visuals` 生成。
 
-期刊论著与学位论文的结构、字数、排版完全不同，分不清就先问。
+公式使用可编辑的数学结构，符号首次出现定义。Word 拼装时检查公式、上下标、希腊字母、图表尺寸和跨页位置。
 
-### 反 AI 痕迹机制
+## 投稿材料
 
-这是技能最有特色的部分。中文稿要过 `chinese-anti-ai.md` 的套话黑名单，并用「提高困惑度（具体化、低频专业词、具体数字）+ 提高突发性（句长方差、段首多样、连接词收敛）」两个杠杆改写；英文稿过 over-claim 黑名单与时态规范。全程研究者第一作者视角（「本研究 / we」），不暴露版本演进、调参、工程细节。中文稿还可叠加 [humanizer-zh](5014-claude-md-guide.html) 再过一遍。
+| 材料 | 核心内容 |
+|:---|:---|
+| Cover letter | 投稿目的、工作贡献、期刊适配、原创与利益冲突声明 |
+| Highlights | 少量可核验的核心发现与方法贡献 |
+| Response to reviewers | 逐条回应、实际修改、证据和稿件位置 |
+| Rebuttal | 对争议点给出克制、可核验的论证 |
+| 编辑部邮件 | 首段说明目的，末段给出请求动作、日期与附件 |
 
-### 投稿前四查
+尚未完成的补充分析不能写成已完成。拒绝某条意见时说明科学理由和证据，不使用对抗性语言。
 
-| 查 | 看什么 |
-|:---|:-------|
-| **逻辑查** | 题名↔全文、摘要↔结果、引言 Gap↔结果是否回答、结论无新内容、探索性结果未升格 |
-| **数据查** | 样本量全文一致、摘要=结果=讨论=表图=数据源同一数字、效应量措辞与强度匹配 |
-| **格式查** | 字数、摘要结构、关键词、参考文献格式、图表按引用顺序连续编号 |
-| **合规查** | 伦理、知情同意、利益冲突、基金、数据可用性、报告清单（STROBE/COREQ 等） |
+## Word 拼装
 
----
+正文部件完成并通过内部检查后，按目标期刊或学校模板拼装 Word。文档层操作由 `docx` 负责，处理样式、目录、分节、页眉页脚、题注、交叉引用、表格、图片和渲染检查。
 
-## 图表与公式嵌入
+内容与文件操作分层，可以避免为了排版方便改变论文事实，也便于结果更新后重新生成。
 
-技能要求正文真正含图表，不能只写「见表1」而正文无内容：
+## 投稿前四项检查
 
-- **随文排版**：每个表/图紧随首次引用它的段落之后插入，不堆在文末；只有附表附图（S 系列）集中文末。
-- **表**：把关键数据写进 Markdown 表格，拼装时转三线表。
-- **图**：`![图注](04_figures/FigN_xxx.png)` 嵌入，图注在图下方。
-- **公式**：`$$LaTeX$$` 标记，拼装转 OMML，禁止 fallback 字符串。
-- **图表语言随正文**：英文稿绝不沿用中文图表，需用英文标签重出。
+### 逻辑
 
----
+研究问题、方法、结果和结论对应，段落功能清楚，摘要与正文一致，讨论不引入未报告结果。
 
-## 与其他技能的衔接
+### 数据
 
-```mermaid
-flowchart LR
-    RB["r-biostats 结果"] --> AP["academic-publishing 写论文"]
-    PF["publication-figures 图"] --> AP
-    XL["xlsx 表"] --> AP
-    AP --> HZ["humanizer-zh 去 AI 味"]
-    AP --> DX["docx Word 细排"]
-```
+数字、方向、单位、样本量、效应值、置信区间、P 值、表图编号和结果单源逐项一致。
 
-- 开工前对齐 `biostat-principles`（口径与可复现）。
-- 结果由 `r-biostats` 产出、图由 `publication-figures` 出、表由 `xlsx` 出；本技能只消费不改分析。
-- 中文去 AI 味叠加 `humanizer-zh`；Word 细排叫 `docx`。
-- 结果变回写 `results.yaml`、方法变回写 `DECISIONS.md`、操作完写 `SESSION_LOG.md`。
+### 格式
 
----
+题名、摘要、层级、引用、参考文献、表图、缩写、统计符号和 Word 版式符合目标要求。
 
-## 常见问题
+### 合规
 
-**Q：它会自己编参考文献吗？**
-不会。文献未提供就用 `[待补充引用]`（中）/ `[ref]`（英）占位并计数，绝不虚构。
+伦理、知情同意、注册、数据可用性、作者贡献、利益冲突、基金和 AI 使用披露只写真实且已经确认的信息。
 
-**Q：能一次把整篇论文写完吗？**
-技能刻意不这么做。它逐部件门控，写一个、自检一个、过一个再写下一个——这是保证结构与口径一致的关键。
+## 学术文本终审
 
-**Q：写出来的中文怎么避免 AI 味？**
-过反 AI 黑名单 + 困惑度/突发性双杠杆改写，必要时再叠加 humanizer-zh。核心是具体化、句长有变化、收敛连接词。
+完成稿使用 `academic-humanizer` 建立数字、引文、公式、表图和论断方向的不可变事实清单，再清理模板化表达、校准证据强度和匹配作者声纹或目标期刊语体。
 
-**Q：终稿为什么不用 pandoc 转 Word？**
-中文字体字号、三线表、首行缩进、真上下标，pandoc 控制不到位，所以用 `python-docx` 直接生成。
+终审不追求“检测分数”，不通过改变事实或规避披露制造所谓自然感。任何事实冲突先回来源核对。
 
----
+## 内部参考
 
-## 下载与获取
+| Reference | 主要内容 |
+|:---|:---|
+| `chinese-paper.md` | 中文期刊论文结构与部件要求 |
+| `chinese-thesis.md`、`thesis-formatting.md` | 学位论文长文与格式 |
+| `english-writing.md`、`english-phrasebank.md` | 英文 IMRaD 与规范表达 |
+| `section-content-playbook.md` | 各部件的信息任务与检查点 |
+| `submission-materials.md` | 投稿信、highlights 和审稿回复 |
+| `review-killers.md` | 投稿前常见致命问题 |
+| `docx-assembly.md` | Word 拼装与验证 |
+| `chinese-style-audit.md` | 中文语言与结构检查 |
 
-- **技能源码（在线浏览）**：<https://github.com/KangWang42/EpiClaude/tree/main/skills/academic-publishing>
-- **整套 EpiClaude 仓库**：<https://github.com/KangWang42/EpiClaude>
+## 典型组合
 
-安装方式（macOS / Linux）：
+完整路径为 `biostat-principles → academic-publishing → academic-humanizer → docx`。需要新文献依据时加入 `evidence-research`，统计图和非统计视觉分别加入 `publication-figures` 与 `research-visuals`。
+
+## 能力边界
+
+本技能不编造研究结果、引文、DOI、PMID、伦理号或基金号，不把文献替代项目数据，不替作者选择未确认口径，也不通过润色强化证据。
+
+## 安装与入口
 
 ```bash
-git clone git@github.com:KangWang42/EpiClaude.git ~/.claude-epiclaude
-cp ~/.claude-epiclaude/CLAUDE.md ~/.claude/CLAUDE.md
-cp -r ~/.claude-epiclaude/skills ~/.claude/skills
+python scripts/epiagentkit.py install --target all --preset writing --yes
 ```
 
-装好后，说一句「写论文 / 写英文论文 / 写学位论文」即可触发本技能。整体介绍见 [EpiClaude 流行病学科研工作流](5013-epiclaude.html)。
-
----
-
-## 扩展资源
-
-- 配套技能：[project-init（项目初始化）](5015-skill-project-init.html)、[r-biostats（统计分析）](5016-skill-r-biostats.html)、[publication-figures（发表级图件）](5017-skill-publication-figures.html)
-- 基础阅读：[EpiClaude 总览](5013-epiclaude.html)、[如何写好一份 CLAUDE.md](5014-claude-md-guide.html)、[Claude Code 完全指南](5008-claudecode.html)
+- [academic-humanizer 学术终审](5022-skill-academic-humanizer.html)
+- [docx Word 文件操作](5029-skill-docx.html)
+- [EpiAgentKit Skills 目录](5019-epiagentkit-skills.html)
