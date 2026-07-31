@@ -1,405 +1,195 @@
 # R 语言学习笔记
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://img.shields.io/badge/License-MIT-blue.svg)
-[![R](https://img.shields.io/badge/R-4.x-blue.svg)](https://img.shields.io/badge/R-4.x-blue.svg)
-[![Quarto](https://img.shields.io/badge/Quarto-1.4-blue.svg)](https://img.shields.io/badge/Quarto-1.4-blue.svg)
+[![在线站点](https://img.shields.io/badge/在线站点-r.wk8686.top-176b74.svg)](https://r.wk8686.top/)
+[![R](https://img.shields.io/badge/R-4.x-276DC3.svg)](https://www.r-project.org/)
+[![Quarto](https://img.shields.io/badge/Quarto-website-39729E.svg)](https://quarto.org/)
+[![教程源文件](https://img.shields.io/badge/教程源文件-250-3f7d66.svg)](#内容地图)
 
-一个全面、系统的 **R 语言数据科学学习资源库**，涵盖：
+面向 R 语言学习者、流行病学研究者和生物统计实践者的中文教程站。内容从 R 与 Quarto 基础延伸到研究设计、回归建模、纵向与生存数据、因果推断、预测模型、机器学习、科研绘图和 EpiAgentKit 科研 Skills。教程不仅给出代码，也强调问题定义、方法选择、结果解释和适用边界。
 
-- 📊 数据分析方法
-- 🛠️ 实用 R 包教程
-- 📈 数据可视化复现方案
-- 🎯 因果推断与统计建模
-- 🚀 机器学习与深度学习
-- 🛠️ 特殊应用（卫生经济学、质性研究、信号处理）
-- 🏥 **卫生统计学与公共卫生研究方法**
+当前仓库包含 250 个按编号管理的教程源文件。在线站点提供全文搜索、栏目导航、文章目录、深色模式和移动端布局。
 
-本项目不仅局限于流行病学研究，还广泛涵盖了**卫生统计学**、**循证医学**、**临床预测模型**以及**环境卫生学**等多个领域的专业统计知识和 R 语言实现方案。
+<p align="center">
+  <a href="https://r.wk8686.top/">
+    <img src="doc/images/readme-site-preview.png" alt="R 语言学习笔记网站首页实景，显示顶部栏目导航、搜索入口、学习路径与最新教程区域" width="100%">
+  </a>
+</p>
 
-无论你是初学者还是进阶数据科学家，这里都有你需要的内容。
+## 快速入口
 
----
+| 目标 | 入口 |
+| --- | --- |
+| 在线阅读全部内容 | [r.wk8686.top](https://r.wk8686.top/) |
+| 从基础开始学习 | [学习路线](https://r.wk8686.top/sections/guide.html) |
+| 查找统计分析方法 | [统计分析方法](https://r.wk8686.top/sections/statistics.html) |
+| 查找科研绘图教程 | [数据可视化](https://r.wk8686.top/sections/visualization.html) |
+| 查找机器学习方法 | [机器学习与人工智能](https://r.wk8686.top/sections/machine-learning.html) |
+| 浏览科研 Skills | [EpiAgentKit 科研 Skills 库](https://r.wk8686.top/sections/epiagentkit.html) |
+| 报告错误或提出选题 | [GitHub Issues](https://github.com/KangWang42/R_note_for_Epidemiology/issues) |
 
-## ✨ 项目特色
+## 项目定位
 
-| 特性                   | 描述                                                 |
-| :--------------------- | :--------------------------------------------------- |
-| 📚**系统化教程** | 从基础语法到高级统计建模，循序渐进，完整覆盖学习路径 |
-| 💻**代码可复现** | 每篇教程都配有完整可运行的代码示例，可直接复制使用   |
-| 🎯**实战导向**   | 以真实数据分析场景为背景编写，贴近实际研究需求       |
-| 🔄**持续更新**   | 紧跟 R 生态系统的最新发展，及时补充前沿方法          |
-| 📖**结构清晰**   | 采用二级目录结构，快速定位所需内容                   |
+本项目解决三个相互关联的问题：如何选择与研究问题匹配的方法，如何在 R 中复现分析与图形，以及如何在不夸大证据的前提下解释输出。文章通常围绕一个明确任务组织，给出数据准备、函数或模型调用、结果读取、常见错误和进一步阅读。
 
----
+项目以教程和可复现示例为主，不是统一封装的 R 软件包，也不是可直接替代研究方案或统计分析计划的模板库。模拟数据仅用于教学；具体研究仍需根据目标人群、暴露或干预、结局、估计目标、偏倚结构和数据质量确定分析方案。
 
-## 📖️ 项目概览
+## 内容地图
 
-### 🌐 在线访问
+| 栏目 | 主要内容 | 在线入口 |
+| --- | --- | --- |
+| 入门指南 | R Markdown、Quarto、开发环境与可重复研究工作流 | [学习路线](https://r.wk8686.top/sections/guide.html) |
+| 实用 R 包 | 数据整理、统计汇总、模型整理、表格与可视化扩展 | [实用 R 包](https://r.wk8686.top/sections/packages.html) |
+| 统计分析方法 | 研究设计、回归、生存、纵向数据、因果推断、贝叶斯方法与预测模型 | [统计分析方法](https://r.wk8686.top/sections/statistics.html) |
+| 数据可视化 | 图形基础、分布与比较图、科研绘图、组合排版和交互图 | [数据可视化](https://r.wk8686.top/sections/visualization.html) |
+| 机器学习与人工智能 | 预处理、重采样、分类回归、聚类、集成学习与模型解释 | [机器学习与人工智能](https://r.wk8686.top/sections/machine-learning.html) |
+| 实用操作 | 数据导入、清洗、字符串与日期、数据库、网络数据和文档自动化 | [实用操作](https://r.wk8686.top/sections/operation.html) |
+| 特殊应用 | 卫生经济学、环境流行病学、质性研究、信号处理与模拟 | [特殊应用](https://r.wk8686.top/sections/special.html) |
+| EpiAgentKit | 生物统计原则、证据检索、项目初始化、分析、写作、图件与审查 Skills | [EpiAgentKit 科研 Skills 库](https://r.wk8686.top/sections/epiagentkit.html) |
 
-**网站地址**: [https://r.wk8686.top](https://r.wk8686.top)
+栏目页由站点配置生成，是完整内容导航的唯一维护入口。部分教程会因同时服务多个任务而出现在不同学习路径中。
 
-### 📊 内容统计
+## 从研究问题到结果解释
 
-| 类别          | 教程数量 |
-| :------------ | :------: |
-| 实用 R 包     |   10+   |
-| 数据可视化    |   50+   |
-| 统计分析方法  |   61+   |
-| 机器学习与 AI |   15+   |
-| 实用操作      |   15+   |
+<p align="center">
+  <img src="doc/images/readme-learning-path.png" alt="教程使用路径示意图：从研究问题出发，依次选择学习路径、阅读可复现教程、运行代码与图表，最后解释结果及其适用边界" width="100%">
+</p>
 
----
+这条路径对应本站教程的基本阅读方式：
 
-## 🧭 内容导航
+1. 明确研究问题、数据结构和需要估计或预测的对象。
+2. 从栏目页或搜索结果选择方法路线，先比较相邻方法，再进入具体函数。
+3. 阅读可复现教程，核对示例数据、模型假设、输入格式和依赖包。
+4. 在本地实际运行代码与图表，检查错误、警告、缺失值和样本量变化。
+5. 根据效应尺度、不确定性、验证方式和研究设计解释结果，同时保留教程说明的限制。
 
 <details>
-<summary>📦 实用 R 包（点击展开）</summary>
+<summary>示意图的等价文字说明</summary>
 
-| 包名                    | 核心功能        |  难度  | 教程链接                         |
-| :---------------------- | :-------------- | :----: | :------------------------------- |
-| **bruceR**        | 一站式统计分析  |   ⭐   | [教程链接](1011-rpac_brucer.html)   |
-| **compareGroups** | 描述性统计表    |   ⭐   | [教程链接](1012-comparegroups.html) |
-| **scitb**         | 快速基线表      |   ⭐   | [教程链接](1013-scitb.html)         |
-| **purrr**         | 函数式编程      |  ⭐⭐  | [教程链接](1014-purrr.html)         |
-| **future**        | 并行计算        |   ⭐   | [教程链接](1014-future.html)        |
-| **data.table**    | 高效数据处理    | ⭐⭐⭐ | [教程链接](3002-datatable.html)     |
-| **tidyplots**     | 极简可视化      |   ⭐   | [教程链接](2018-tidyplots.html)     |
-| **GGally**        | 可视化扩展      |   ⭐   | [教程链接](2022-ggally.html)        |
-| **tidymodels**    | 现代机器学习    |  ⭐⭐  | [教程链接](1042-tidymodels.html)    |
-| **broom**         | 模型整理        |   ⭐   | [教程链接](1043-broom.html)         |
-| **rstatix**       | 管道式统计      |   ⭐   | [教程链接](1045-rstatix.html)       |
-| **dplyr/tidyr**   | 数据清洗整形    |  ⭐⭐  | [教程链接](3003-dplyr-tidyr.html)   |
-| **duckplyr**      | DuckDB 加速     |  ⭐⭐  | [教程链接](3013-duckplyr.html)      |
-| **tidytable**     | data.table 引擎 |  ⭐⭐  | [教程链接](3015-tidytable.html)     |
-| **gtsummary**     | 论文表格生成    |  ⭐⭐  | [教程链接](1053-gtsummary.html)     |
-| **ggguides**      | 图例简化        |   ⭐   | [教程链接](2034-ggguides.html)      |
-| **officer**       | Office文档自动化 |  ⭐⭐  | [教程链接](1068-officer.html)       |
+图中包含五个自左向右连接的阶段：研究问题阶段明确设计、数据与估计目标；选择学习路径阶段在统计、绘图、机器学习和 Skills 之间定位任务；阅读可复现教程阶段比较方法并核对代码、函数与包；运行代码与图表阶段检查错误、警告和样本量；解释结果与边界阶段关注效应量、不确定性与适用条件。箭头表示推荐的阅读和实践顺序，不表示所有研究都使用相同统计方法。
 
 </details>
 
-<details>
-<summary>📈 数据可视化（点击展开）</summary>
+## 按任务选择教程
 
-#### 🏗️ 基础图表
+| 研究或学习任务 | 建议起点 | 可继续阅读 |
+| --- | --- | --- |
+| 多重检验与错误发现率 | [FDR 与多重检验](https://r.wk8686.top/1135-fdr.html) | 结合研究问题预设检验族与调整策略 |
+| 样本量与把握度设计 | [样本量与功效分析](https://r.wk8686.top/1048-power-analysis.html) | 比较均值、率、生存结局、重复测量和预测模型场景 |
+| 重复测量与纵向数据 | [GEE](https://r.wk8686.top/1085-gee.html) | [多水平模型](https://r.wk8686.top/1024-multilevel.html)、[时变协变量 Cox](https://r.wk8686.top/1089-time-varying-cox.html) |
+| 临床预测模型 | [预测模型工作流](https://r.wk8686.top/1100-prediction-model.html) | [分布、ROC、校准与决策曲线](https://r.wk8686.top/2072-prediction-evaluation-plots.html) |
+| 个体与纵向临床图形 | [临床研究个体数据图](https://r.wk8686.top/2071-clinical-individual-plots.html) | 云雨图、配对变化、个体轨迹、瀑布图和游泳图 |
+| 效应量与不确定性 | [效应估计图](https://r.wk8686.top/2073-effect-estimate-plots.html) | 系数图、亚组森林图与非线性预测曲线 |
+| 组学结果展示 | [组学科研绘图](https://r.wk8686.top/2074-omics-research-plots.html) | MA、PCA、表达热图与过度富集气泡图 |
+| 科研工作流与 Skills | [EpiAgentKit Skills 完整目录](https://r.wk8686.top/5019-epiagentkit-skills.html) | 按研究设计、分析、写作、图件和交付任务选择 Skill |
 
-| 图表类型                   | 难度 | 教程链接                                | 适用场景                                |
-| :------------------------- | :--- | :-------------------------------------- | :-------------------------------------- |
-| **箱线图与小提琴图** | ⭐   | [教程链接](2025-bindboxplot.html)          | 展示数据分布、比较组间差异              |
-| **散点图与趋势线**   | ⭐   | [教程链接](2026-bindscatterplot.html)      | 探索变量关系、回归分析                  |
-| **直方图与密度图**   | ⭐   | [教程链接](2027-bindhistogram.html)        | 查看数据分布形态                        |
-| **柱状图与饼图**     | ⭐   | [教程链接](2028-bindbarchart.html)         | 分类数据比较                            |
-| **折线图与时间序列** | ⭐   | [教程链接](2029-bindlineplot.html)         | 时间趋势、多组对比                      |
-| **可访问性折线图**   | ⭐⭐ | [教程链接](2069-accessible-linechart.html) | 色盲友好、WCAG合规、可访问性设计 ⭐新增 |
-| **面积图与堆叠图**   | ⭐⭐ | [教程链接](2030-bindareaplot.html)         | 堆叠比例、河流图                        |
+## 教程质量标准
 
-#### 📊 专业图表
+新建或结构性重写的教程按仓库内 `.claude/skills/` 的项目规范验收。历史文章仍在按同一标准逐步修订。
 
-| 图表类型                          | 难度 | 教程链接                              | 适用场景                       |
-| :-------------------------------- | :--- | :------------------------------------ | :----------------------------- |
-| **热图**                    | ⭐⭐ | [教程链接](2020-heatmap.html)            | 矩阵数据、聚类分析             |
-| **森林图**                  | ⭐   | [教程链接](2016-forestplot.html)         | Meta 分析、OR/HR 展示          |
-| **火山图（Volcano Plot）**  | ⭐⭐ | [教程链接](2070-volcano-plot.html)       | 差异分析可视化、候选分子筛选   |
-| **分组森林图**              | ⭐⭐ | [教程链接](2065-grouped-forestplot.html) | 亚组分析、多模型对比           |
-| **地图**                    | ⭐⭐ | [教程链接](2015-map.html)                | 地理数据可视化                 |
-| **桑基图**                  | ⭐⭐ | [教程链接](2014-sankey.html)             | 流量/转化路径                  |
-| **冲积图（Alluvial Plot）** | ⭐⭐ | [教程链接](2067-alluvial.html)           | 多阶段路径与分类流向           |
-| **UpSet 多集合交集**        | ⭐⭐ | [教程链接](2066-upset.html)              | 多集合交集规模展示             |
-| **雷达图**                  | ⭐⭐ | [教程链接](2023-radar.html)              | 多维度对比                     |
-| **韦恩图**                  | ⭐   | [教程链接](2024-venn.html)               | 集合关系展示                   |
-| **词云图**                  | ⭐   | [教程链接](2053-bindwordcloud.html)      | 文本可视化                     |
-| **网络图**                  | ⭐⭐ | [教程链接](2054-bindnetwork.html)        | 节点关系展示                   |
-| **甘特图**                  | ⭐⭐ | [教程链接](2055-bindgantt.html)          | 项目时间管理                   |
-| **漏斗图**                  | ⭐⭐ | [教程链接](2056-bindfunnel.html)         | 营销转化分析                   |
-| **ML 可视化**               | ⭐⭐ | [教程链接](2060-ml-visualization.html)   | 混淆矩阵、ROC 曲线、特征重要性 |
+- **问题先于函数**：先说明研究问题、数据结构和目标量，再介绍包与函数。
+- **代码实际执行**：除非普通计算机难以完成或存在明确外部依赖，示例代码应实际运行，不以 `eval = FALSE` 隐藏错误。
+- **结果可解释**：图表和模型输出需说明分母、参考组、尺度、不确定性和不能推出的结论。
+- **方法有边界**：存在易混淆方法时，增加比较、工作流或示意图，明确选择条件和停止条件。
+- **视觉可访问**：内容图使用非颜色编码、替代文本和最终尺寸检查；统计图来自真实代码，科研原始图像不做生成式重绘。
+- **来源可核验**：包接口和技术事实优先指向 R 官方手册、包官方文档或方法学原始来源。
 
-#### 🎨 图表美化与组合
+## 本地阅读与开发
 
-| 技能                  | 难度   | 教程链接                           | 说明                   |
-| :-------------------- | :----- | :--------------------------------- | :--------------------- |
-| **配色方案**    | ⭐     | [教程链接](2011-viscolor.html)        | 科学期刊配色、色盲友好 |
-| **字体设置**    | ⭐⭐   | [教程链接](2017-ggtext.html)          | 图表中的专业字体设置   |
-| **样式设置**    | ⭐⭐⭐ | [教程链接](2033-ggplot2-styling.html) | 主题与组件微调         |
-| **图例自定义**  | ⭐     | [教程链接](2013-legend.html)          | 图例位置、样式调整     |
-| **图形拼接**    | ⭐     | [教程链接](2012-patchwork.html)       | 多图组合排版           |
-| **图形组合**    | ⭐⭐⭐ | [教程链接](2021-cowplot.html)         | 专业出版级图表         |
-| **双坐标轴**    | ⭐⭐   | [教程链接](2019-dualaxis.html)        | 双 Y 轴图表            |
-| **复杂组合**    | ⭐⭐⭐ | [教程链接](2031-bindcomplex.html)     | 论文发表级别图表       |
-| **Base R 绘图** | ⭐⭐   | [教程链接](2061-base-r-graphics.html) | 基础绘图系统、快速探索 |
+### 环境
 
-</details>
+- R，用于执行 `.rmd` 中的代码。
+- Quarto，用于预览和渲染网站。
+- 各教程声明的 R 包。
+- Git，仅在需要参与版本控制时使用。
 
-<details>
-<summary>📐 统计分析方法（点击展开）</summary>
+本仓库当前没有统一的 `renv.lock`。不同教程使用的扩展包不同，应根据目标文章中的 `library()` 调用安装依赖，不建议为阅读单篇文章一次性安装全站全部包。最近一次本地验证环境为 R 4.5.2 和 Quarto 1.8.27；更早版本能否运行取决于文章使用的包接口。
 
-#### 📊 基础回归
+### 获取仓库
 
-| 方法                           | 难度 | 教程链接                                        | 适用场景                                       |
-| :----------------------------- | :--- | :---------------------------------------------- | :--------------------------------------------- |
-| **常见数据分布**         | ⭐   | [教程链接](1119-distributions.html)                | 正态/对数正态/Weibull/Logistic等分布识别与拟合 |
-| **ANOVA**                | ⭐   | [教程链接](1036-anova.html)                        | 多组均值比较                                   |
-| **线性回归**             | ⭐   | [教程链接](1021-linear-regression.html)            | 连续因变量预测                                 |
-| **稳健线性回归**         | ⭐⭐ | [教程链接](1112-robust-linear-regression.html)     | 抵抗异常值的回归分析                           |
-| **岭回归与 Lasso**       | ⭐⭐ | [教程链接](1104-ridge-lasso.html)                  | 解决共线性与变量筛选                           |
-| **回归特征筛选**         | ⭐⭐ | [教程链接](1105-regression-feature-selection.html) | 逐步回归与最佳子集                             |
-| **Logistic 回归**        | ⭐   | [教程链接](1019-logistic.html)                     | 二分类结局预测                                 |
-| **临床预测模型**     | ⭐⭐ | [教程链接](1100-prediction-model.html)            | 从构建到验证的完整实践                          |
-| **Framingham 评分系统** | ⭐⭐ | [教程链接](1134-framingham-post-logistic.html)     | 回归系数积分化与风险分层 ⭐新增                |
-| **Poisson/负二项回归**   | ⭐   | [教程链接](1026-poisson.html)                      | 计数数据建模                                   |
-| **有序回归**             | ⭐   | [教程链接](1093-ordinal-regression.html)           | 有序分类结局建模                               |
-| **ROC 分析**             | ⭐   | [教程链接](1047-roc-analysis.html)                 | 模型区分度评估                                 |
-| **Bootstrap 与置换检验** | ⭐⭐ | [教程链接](1052-bootstrap.html)                    | 小样本非参数方法                               |
-| **样本量计算**           | ⭐⭐ | [教程链接](1048-power-analysis.html)               | 研究设计必备                                   |
-| **常见距离指标**         | ⭐⭐ | [教程链接](1100-distance-metrics.html)           | 欧氏/曼哈顿/马氏等距离度量 ⭐新增             |
+```bash
+git clone https://github.com/KangWang42/R_note_for_Epidemiology.git
+cd R_note_for_Epidemiology
+```
 
-#### ⏱️ 生存分析
+### 定向预览单篇教程
 
-| 方法                           | 难度 | 教程链接                                  | 适用场景       |
-| :----------------------------- | :--- | :---------------------------------------- | :------------- |
-| **生存分析**             | ⭐   | [教程链接](1020-survival.html)               | 时间到事件数据 |
-| **竞争风险分析**         | ⭐⭐ | [教程链接](1050-competing-risks.html)        | 多结局生存分析 |
-| **限制性立方样条 (RCS)** | ⭐⭐ | [教程链接](1027-rcs.html)                    | 剂量-反应关系  |
-| **时间序列分析**         | ⭐   | [教程链接](1017-timeseries.html)             | 趋势预测       |
-| **治疗效果分析**         | ⭐⭐ | [教程链接](1055-tx-effects-survival.html)    | 效应量化       |
-| **随机生存森林 (RSF)**   | ⭐⭐ | [教程链接](1061-random-survival-forest.html) | 生存预测       |
-| **复合结局分析**         | ⭐⭐ | [教程链接](1077-composite-endpoints.html)    | 多结局建模     |
+日常修改采用定向预览，不执行全站渲染：
 
-#### 🎯 因果推断
+```bash
+cd doc
+quarto preview 2072-prediction-evaluation-plots.rmd
+```
 
-| 方法                                | 难度   | 教程链接                                   | 适用场景             |
-| :---------------------------------- | :----- | :----------------------------------------- | :------------------- |
-| **倾向性得分匹配 (PSM)**      | ⭐⭐   | [教程链接](1018-psm.html)                     | 观察性研究因果推断   |
-| **双重差分法 (DiD)**          | ⭐⭐   | [教程链接](1028-did.html)                     | 政策效果评估         |
-| **中介效应分析**              | ⭐     | [教程链接](1023-mediation.html)               | 作用机制探索         |
-| **亚组分析与交互作用**        | ⭐⭐   | [教程链接](1054-subgroup.html)                | 效应修饰与森林图     |
-| **DAG 因果图**                | ⭐⭐   | [教程链接](1056-dag.html)                     | 混杂识别与调整策略   |
-| **目标试验模拟**              | ⭐⭐   | [教程链接](1057-target-trial.html)            | 观察数据模拟 RCT     |
-| **目标试验模拟进阶**          | ⭐⭐   | [教程链接](1091-advanced-target-trial.html)   | 方案设计与敏感性     |
-| **孟德尔随机化**              | ⭐⭐   | [教程链接](1058-mendelian-randomization.html) | 遗传工具变量因果推断 |
-| **工具变量法 (IV)**           | ⭐⭐   | [教程链接](1060-instrumental-variables.html)  | 解决内生性问题       |
-| **E值敏感性分析**             | ⭐     | [教程链接](1059-evalue.html)                  | 未测量混杂评估       |
-| **TMLE 双重稳健估计**         | ⭐⭐⭐ | [教程链接](1065-tmle-doubly-robust.html)      | 双重稳健方法         |
-| **CausalImpact 时间序列因果** | ⭐⭐   | [教程链接](1066-causalimpact.html)            | 时序干预分析         |
-| **IPW 倒概率加权**            | ⭐⭐⭐ | [教程链接](1076-ipw-weighting.rmd)            | IPTW 稳定性评估      |
-| **倾向评分权重诊断**          | ⭐⭐⭐ | [教程链接](1090-ps-weight-diagnostics.html)   | 权重平衡性检验       |
-| **双重机器学习 (DML)**        | ⭐⭐⭐ | [教程链接](1092-double-machine-learning.html) | 高维因果推断         |
+### 定向生成网站文件
 
-#### 📐 高级建模
+```bash
+cd doc
 
-| 方法                             | 难度   | 教程链接                               | 适用场景           |
-| :------------------------------- | :----- | :------------------------------------- | :----------------- |
-| **面板数据分析**           | ⭐⭐   | [教程链接](1127-panel-data.html)          | 纵向数据 FE/RE 模型 ⭐新增 |
-| **多水平模型**             | ⭐⭐   | [教程链接](1024-multilevel.html)          | 嵌套/层次数据      |
-| **广义加性模型 (GAM)**     | ⭐⭐   | [教程链接](1025-gam.html)                 | 非线性关系建模     |
-| **广义估计方程 (GEE)**     | ⭐⭐   | [教程链接](1085-gee.html)                 | 重复测量与相关数据 |
-| **多重插补**               | ⭐⭐   | [教程链接](1086-multiple-imputation.html) | 缺失数据稳健处理   |
-| **MSM 与 IPTW**            | ⭐⭐⭐ | [教程链接](1087-msm-iptw.html)            | 时变混杂的因果推断 |
-| **Fine-Gray 竞争风险模型** | ⭐⭐   | [教程链接](1088-fine-gray.html)           | 累积发生率分析     |
-| **时变协变量 Cox 模型**    | ⭐⭐⭐ | [教程链接](1089-time-varying-cox.html)    | 动态暴露生存分析   |
+# 渲染发生变化的文章
+quarto render 2072-prediction-evaluation-plots.rmd --to html
 
-#### 📈 贝叶斯统计
+# 导航变化时重新生成栏目页
+Rscript generate_sections.R
 
-| 方法                           | 难度   | 教程链接                                      | 适用场景           |
-| :----------------------------- | :----- | :-------------------------------------------- | :----------------- |
-| **贝叶斯统计入门**       | ⭐     | [教程链接](1051-bayesian.html)                   | 先验 + 似然 = 后验 |
-| **rstanarm 贝叶斯回归**  | ⭐⭐   | [教程链接](1078-rstanarm-bayesian.html)          | 简单贝叶斯建模     |
-| **贝叶斯多层负二项回归** | ⭐⭐⭐ | [教程链接](1111-bayesian-multilevel-negbin.html) | 层次数据计数建模   |
-| **prophet 时间序列预测** | ⭐⭐   | [教程链接](1073-prophet-forecasting.html)        | 时间序列预测       |
+# 渲染相关栏目与首页
+quarto render sections/visualization.qmd --to html
+quarto render index.qmd --to html
+```
 
-#### 🎯 模型评估
+Quarto 的输出目录是仓库根目录下的 `public/`。该目录是实际部署产物，不应手工修改生成的 HTML。
 
-| 方法                           | 难度 | 教程链接                             | 适用场景                 |
-| :----------------------------- | :--- | :----------------------------------- | :----------------------- |
-| **探索性数据分析 (EDA)** | ⭐   | [教程链接](1049-eda.html)               | 数据探索与质量检查       |
-| **缺失值处理**           | ⭐⭐ | [教程链接](1046-missing-data.html)      | 多重插补与分析           |
-| **异常值检测与处理**     | ⭐⭐ | [教程链接](1063-outlier-detection.html) | IQR、Z-score、MAD 等方法 |
-
-#### 📚 循证医学与综述
-
-| 方法                         | 难度 | 教程链接                                | 适用场景       |
-| :--------------------------- | :--- | :-------------------------------------- | :------------- |
-| **Meta 分析**          | ⭐⭐ | [教程链接](1022-meta-analysis.html)        | 多研究证据整合 |
-| **网状 Meta 分析**     | ⭐⭐ | [教程链接](1041-network-meta.html)         | 多干预措施比较 |
-| **伞状综述**           | ⭐⭐ | [教程链接](1029-umbrella-review.html)      | Meta 的 Meta   |
-| **范围综述**           | ⭐   | [教程链接](1040-scoping-review.html)       | 文献地图绘制   |
-| **质性研究与文本挖掘** | ⭐   | [教程链接](1030-qualitative-research.html) | 文本分析       |
-
-#### 🔬 高级方法
-
-| 方法                             | 难度   | 教程链接                        | 适用场景               |
-| :------------------------------- | :----- | :------------------------------ | :--------------------- |
-| **结构方程模型 (SEM)**     | ⭐⭐   | [教程链接](1032-sem.html)          | 复杂路径分析           |
-| **PLS-PM 路径模型**        | ⭐⭐   | [教程链接](1037-plspm.html)        | 小样本路径分析         |
-| **DEA-Tobit 两阶段模型**   | ⭐⭐   | [教程链接](1125-dea-tobit.html)    | 效率评价与影响因素分析 |
-| **因子分析 (EFA/CFA)**     | ⭐⭐   | [教程链接](1038-efa-cfa.html)      | 量表验证、结构分析     |
-| **主成分分析 (PCA)**       | ⭐⭐   | [教程链接](1039-pca.html)          | 降维、特征提取         |
-| **多重对应分析 (MCA)**      | ⭐⭐   | [教程链接](1100-mca.html)          | 分类变量降维与可视化 ⭐新增 |
-| **潜类别分析 (LCA)**       | ⭐⭐   | [教程链接](1031-lca.html)          | 人群亚型识别           |
-| **分布滞后模型 (DLNM)**    | ⭐⭐⭐ | [教程链接](1033-dlnm.html)         | 暴露-滞后效应          |
-| **加权分位数和回归 (WQS)** | ⭐⭐⭐ | [教程链接](1106-wqs.html)          | 混合暴露分析           |
-| **变分模态分解 (VMD)**     | ⭐⭐⭐ | [教程链接](1034-nvmd.html)         | 信号处理分析           |
-| **FFT + VMD + GMM**        | ⭐⭐⭐ | [教程链接](1035-fft-nvmd-gmm.html) | 组合信号分析           |
-
-</details>
-
-<details>
-<summary>🚀 机器学习与 AI（点击展开）</summary>
-
-| 类别                   | 难度   | 教程链接                                                                       | 说明                    |
-| :--------------------- | :----- | :----------------------------------------------------------------------------- | :---------------------- |
-| **机器学习框架** | ⭐     | [mlr3 机器学习](1016-mlr3.html), [tidymodels 机器学习](1042-tidymodels.html)         | 现代机器学习工作流      |
-| **聚类分析** | ⭐⭐ | [聚类分析方法大全](1121-clustering-methods.html) ⭐新增 | K-means/层次/DBSCAN/GMM/PAM/谱聚类 |
-| **树模型**       | ⭐⭐   | [随机森林与决策树](1080-random-forest.html)                                       | 随机森林、决策树        |
-| **核方法**       | ⭐⭐   | [支持向量机 (SVM)](1081-svm.html)                                                 | 支持向量机              |
-| **集成学习**     | ⭐⭐⭐ | [集成学习](1082-ensemble-learning.html)                                           | Bagging、Stacking       |
-| **降维方法**     | ⭐⭐   | [降维 (PCA/UMAP/t-SNE)](1083-dimensionality-reduction.html)                       | PCA、UMAP、t-SNE        |
-| **异常检测**     | ⭐⭐⭐ | [无监督异常检测](1084-anomaly-detection.html)                                     | 聚类、孤立森林          |
-| **深度学习**     | ⭐⭐   | [LSTM 时间序列预测](1044-lstm.html), [torch 深度学习](1069-torch-deep-learning.html) | 神经网络、LSTM、PyTorch |
-| **模型整理**     | ⭐     | [broom 模型整理](1043-broom.html)                                                 | 统一模型输出            |
-| **AI 工具对比**  | ⭐     | [OpenCode vs Claude Code](5007-opencode-vs-claude-code.html)                      | AI 编程工具选型         |
-| **Claude Code**  | ⭐     | [Claude Code 完全指南](5008-claudecode.html)                                      | Anthropic 官方 AI 助手  | ⭐新增 |
-| **OpenCode Hooks** | ⭐     | [OpenCode Hooks 钩子系统](5009-opencode-hooks.html)                               | 工作流自动化与 Hooks 系统 | ⭐新增 |
-| **LLM 选型**     | ⭐     | [主流大语言模型 API 选型指南](5010-llm-comparison.html)                              | Kimi/DeepSeek/GLM/Gemini/Claude/GPT-5 对比 | ⭐新增 |
-| **VPS 代理**     | ⭐     | [VPS 代理搭建完全指南](5011-vps-proxy-chatgpt.html)                                  | Hysteria 2 + 住宅IP 稳定访问 ChatGPT | ⭐新增 |
-| **OpenAI 订阅与Codex** | ⭐     | [OpenAI 购买与使用教程](5012-openai-subscription-codex-guide.html)                   | Go/Plus/Pro 区别、Codex 差异、降智挽救与链式代理 | ⭐新增 |
-| **EpiClaude**    | ⭐     | [EpiClaude 流行病学科研工作流](5013-epiclaude.html)                                  | 面向流行病学/生物统计的 Claude Code 配置与技能生态 | ⭐新增 |
-| **CLAUDE.md 写作** | ⭐     | [如何写好一份 CLAUDE.md](5014-claude-md-guide.html)                                  | 删除测试、分层指针、硬红线，写出让 AI 守规矩的规则文件 | ⭐新增 |
-| **技能·project-init** | ⭐     | [技能分享：project-init 项目初始化](5015-skill-project-init.html)                    | 一键搭建七层目录骨架、模板与 Git 配置 | ⭐新增 |
-| **技能·r-biostats** | ⭐     | [技能分享：r-biostats 统计分析](5016-skill-r-biostats.html)                          | PLAN→CODE→RUN→VERIFY→DOC 五阶状态机做分析 | ⭐新增 |
-| **技能·pub-figures** | ⭐     | [技能分享：publication-figures 图件](5017-skill-publication-figures.html)            | 发表级图件标准与约 180 种图型选型画廊 | ⭐新增 |
-| **技能·academic-pub** | ⭐     | [技能分享：academic-publishing 论文写作](5018-skill-academic-publishing.html)        | 中英双语论文逐部件门控、零编造零 AI 痕迹 | ⭐新增 |
-
-</details>
-
-<details>
-<summary>🛠️ 特殊应用（点击展开）</summary>
-
-| 类别                   | 难度   | 教程链接                                                                                                                                                  | 说明                    |
-| :--------------------- | :----- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------- |
-| **卫生经济学**   | ⭐⭐   | [卫生经济学分析](1015-health-economics.html), [TreeAge Pro 决策分析](1062-treeage-pro.html)                                                                     | 成本-效果分析、决策模型 |
-| **质性研究**     | ⭐⭐   | [质性研究与文本挖掘](1030-qualitative-research.html)                                                                                                         | 文本分析、质性方法      |
-| **信号处理**     | ⭐⭐⭐ | [小波变换](1096-wavelet-transform.html), [变分模态分解](1034-nvmd.html), [FFT+VMD+GMM](1035-fft-nvmd-gmm.html)                                                     | 时频分析、信号分解      |
-| **环境流行病学** | ⭐⭐⭐ | [分布滞后模型 (DLNM)](1033-dlnm.html), [加权分位数和回归 (WQS)](1106-wqs.html), [分位数 G-计算 (qgcomp)](1107-qgcomp.html), [贝叶斯核机器回归 (BKMR)](1108-bkmr.html) | 暴露效应分析、混合暴露  |
-| **计算模拟**     | ⭐⭐⭐ | [元胞自动机完整教程](6001-cellular-automata.html)                                                                                                             | 复杂系统建模与空间动力学模拟 |
-
-</details>
-
-<details>
-<summary>🛠️ 实用操作（点击展开）</summary>
-
-| 主题                          | 难度   | 教程链接                                            | 说明                          |
-| :---------------------------- | :----- | :-------------------------------------------------- | :---------------------------- |
-| **数据导入导出**        | ⭐     | [数据导入导出](3001-imports.html)                      | Excel、CSV、SPSS 等格式       |
-| **高效数据处理**        | ⭐⭐   | [data.table 完全指南](3002-datatable.html)             | 大数据处理最佳实践            |
-| **tidyverse vs pandas** | ⭐⭐   | [tidyverse vs pandas 对比](3016-tidyverse-pandas.html) | R与Python数据处理对比 ⭐新增  |
-| **字符串处理**          | ⭐     | [stringr 字符串处理](3010-stringr.html)                | tidyverse 字符串操作          |
-| **因子处理**            | ⭐     | [forcats 因子处理](3011-forcats.html)                  | 分类变量与可视化              |
-| **日期时间处理**        | ⭐     | [日期时间处理](3009-datetime.html)                     | lubridate 日期运算与格式转换  |
-| **正则表达式**          | ⭐     | [正则表达式](3008-regexp.html)                         | stringr 处理字符串模式        |
-| **网络爬虫**            | ⭐⭐   | [网络爬虫入门](3004-web-scraping.html)                 | 使用 rvest/httr 抓取网页数据  |
-| **PDF 文件读取**        | ⭐⭐   | [PDF 文件读取](3005-pdf-reading.html)                  | pdftools 提取 PDF 文本和表格  |
-| **主流科研数据库指南**  | ⭐⭐⭐ | [主流科研数据库指南](3007-research-databases.html)     | CHARLS/NHANES/CFPS 等数据获取 |
-| **可重复研究工作流**    | ⭐⭐   | [可重复研究工作流](3006-reproducible-research.html)    | 研究闭环最佳实践              |
-| **Shiny Web 应用**      | ⭐⭐⭐ | [Shiny Web 应用](4001-shiny.html)                      | 构建交互式数据应用            |
-
-</details>
-
----
-
-<details>
-<summary>🏗️ 开发环境（点击展开）</summary>
-
-| 工具                          | 难度 | 教程链接                                  | 说明                 |
-| :---------------------------- | :--- | :---------------------------------------- | :------------------- |
-| **Positron IDE**        | ⭐   | [Positron IDE 教程](0013-positron.html)      | 现代化的 R 开发环境  |
-| **RMarkdown 入门**      | ⭐   | [RMarkdown 入门](0011-rmarkdown.html)        | 创建可重复的研究报告 |
-| **Quarto vs RMarkdown** | ⭐⭐ | [Quarto vs RMarkdown](0012-quarto-vs-rmd.qmd) | 选择合适的文档格式   |
-
-</details>
-
----
-
-## 🛠️ 技术栈
-
-| 组件               | 技术实现                    | 版本要求 |
-| :----------------- | :-------------------------- | :------- |
-| **文档框架** | [Quarto](https://quarto.org/)  | ≥ 1.4   |
-| **编程语言** | R 4.x                       | ≥ 4.3   |
-| **可视化**   | ggplot2 + 扩展包            | ≥ 3.6   |
-| **部署方案** | GitHub Actions + 自建服务器 | -        |
-
----
-
-## 📁 项目结构
+## 项目结构
 
 ```text
 .
-├── doc/                  # Quarto 源文件目录
-│   ├── index.qmd        # 网站首页
-│   ├── *.rmd            # 各教程文章
-│   ├── images/          # 封面图片
-│   ├── sections/        # 分类索引页
-│   └── _quarto.yml      # Quarto 配置
-├── public/              # 生成的静态网站 (自动构建)
-├── .github/workflows/   # GitHub Actions 自动部署
-└── README.md            # 项目说明
+├── .claude/skills/           # 本仓库的教程写作与栏目质量规范
+├── .github/workflows/
+│   └── deploy.yml            # 将 public/ 同步到服务器
+├── doc/
+│   ├── _quarto.yml           # 导航、栏目和网站配置
+│   ├── index.qmd             # 首页源文件
+│   ├── NNNN-topic.rmd/qmd    # 按编号管理的教程源文件
+│   ├── sections/             # 由 generate_sections.R 生成的栏目页
+│   ├── images/               # 封面、示意图与静态图片
+│   ├── figure/               # R 代码生成的文章图件
+│   ├── generate_sections.R   # 根据 _quarto.yml 更新栏目页
+│   ├── styles.css            # 网站组件与响应式样式
+│   └── theme.scss            # Quarto 主题变量
+├── public/                   # 可直接部署的静态网站
+├── CLAUDE.md                 # 项目级维护约束
+└── README.md
 ```
 
-## 🚀 快速开始
+教程编号约定用于保持目录稳定：`00xx` 为入门，`10xx` 为统计与方法，`20xx` 为可视化，`30xx` 为实用操作，`40xx` 为应用开发，`50xx` 为 AI 工具与科研 Skills，`60xx` 为特殊应用。
 
-### 环境要求
+## 新建或修改教程
 
-- **R**: ≥ 4.3
-- **Quarto**: ≥ 1.4
-- **Git**: 用于版本控制（可选）
-- **浏览器**: 现代 Web 浏览器（推荐 Chrome/Firefox）
+1. 阅读 `CLAUDE.md`、`.claude/skills/tutorial-authoring/` 和目标栏目的 Skill。
+2. 在 `doc/` 中新增或修改编号源文件，补齐 `title`、`date`、`categories` 和 `description`。
+3. 更新 `doc/_quarto.yml` 的导航位置。不要直接维护 `doc/sections/` 中的生成内容。
+4. 实际运行全部常规代码块，检查错误、警告、缺失值和意外样本量变化。
+5. 执行 `Rscript generate_sections.R`，然后定向渲染文章、相关栏目和首页。
+6. 检查生成 HTML 的图片路径、替代文本、公式、代码折行、桌面目录和移动端布局。
+7. 提交教程源文件以及相应的 `public/` 生成产物。
 
-### 本地运行
+可使用仓库自带的结构审计脚本检查教程：
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/KangWang42/R_note_for_Epidemiology.git
-cd R_note_for_Epidemiology
-
-# 2. 进入文档目录
-cd doc
-
-# 3. 安装依赖（首次运行）
-# 确保 R 和 Quarto 已安装
-# quarto install tinytex (Windows 用户可选)
-
-# 4. 运行预览
-quarto preview
-
-# 5. 构建静态网站
-quarto render
+python .claude/skills/tutorial-authoring/scripts/audit_tutorial.py \
+  doc/2072-prediction-evaluation-plots.rmd
 ```
 
-### 在线浏览
+## 部署方式
 
-访问 [https://r.wk8686.top](https://r.wk8686.top) 浏览所有教程内容。
+`.github/workflows/deploy.yml` 在 `main` 分支的 `public/**` 发生变化时触发，将 `public/` 通过 `rsync` 同步到服务器。工作流只负责部署，不会在 GitHub Actions 中安装 R、执行教程或构建 Quarto 网站。因此，进入 `main` 的提交必须已经包含经过验证的静态生成文件。
 
----
+## 贡献
 
-## 📚 贡献指南
+欢迎通过 Issue 报告以下问题：
 
-欢迎通过以下方式参与项目：
+- 代码无法运行、包接口变化或结果与正文不一致。
+- 公式、图注、替代文本、导航或移动端显示异常。
+- 方法选择、统计解释或证据边界不准确。
+- 希望补充的研究设计、分析方法、R 包或科研绘图主题。
 
-| 方式                   | 说明                         |
-| :--------------------- | :--------------------------- |
-| **提交 Issue**   | 报告错误或建议新教程主题     |
-| **Pull Request** | 修正内容或添加新教程         |
-| **分享反馈**     | 告诉我们哪些教程对你帮助最大 |
-
----
-
-## 📜 许可证
-
-本项目采用 **MIT 许可证**。教程内容可自由使用，但请注明出处。
-
----
-
-<div align="center">
-
-**[⭐ 如果这个项目对你有帮助，欢迎 Star 支持！⭐](https://github.com/KangWang42/R_note_for_Epidemiology/stargazers)**
-
-</div>
+Pull Request 应保持一个清楚的修改主题，并说明受影响文章、验证命令和兼容性影响。不要顺带重排无关文件，也不要用未经核验的示例替换现有方法口径。
