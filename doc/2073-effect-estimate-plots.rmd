@@ -1,0 +1,368 @@
+---
+title: "效应估计图：系数图、亚组森林图与非线性预测曲线"
+date: '2026-07-31'
+categories:
+  - 数据可视化
+  - 科研绘图
+  - 效应量
+  - 回归模型
+description: "从真实模型对象提取估计值和置信区间，绘制比值尺度系数图、带交互作用核对的亚组森林图及非线性预测曲线。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.width = 8.2,
+  fig.height = 5.5,
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 先锁定估计量与参考值
+
+点估计加置信区间是科研绘图中最稳定的视觉语法之一，但“森林图”并不是一个统计方法。图形是否正确，取决于每一行的估计量、尺度、比较组、调整集和不确定性是否一致。比值类估计量通常以 1 为无效应参考值，差值类估计量以 0 为参考值；两者不能放在同一数轴上直接比较。
+
+本教程使用一份模拟二分类结局数据，演示三种常见任务：汇总一个回归模型的系数、展示预先定义的亚组效应、把非线性模型转成可解释的预测风险曲线。图中结果只验证代码与读图逻辑，不代表真实治疗效果。
+
+| 图形 | 每一行或每一点是什么 | 参考值 | 主要风险 |
+|---|---|---|---|
+| 回归系数图 | 同一模型中的一个调整后比值估计 | 1 | 不同单位的连续变量不能按点的位置比较重要性 |
+| 亚组森林图 | 一个亚组内的目标对比 | 1 或 0 | “一个显著、一个不显著”不等于存在亚组差异 |
+| 非线性预测曲线 | 指定协变量组合下的模型预测 | 无固定参考线 | 曲线是模型估计，不是原始个体轨迹或因果剂量反应 |
+
+## 构造带效应修饰和非线性关联的数据
+
+下面模拟 1,400 名参与者。治疗随机分配，严重程度可能修饰治疗与结局的关联，生物标志物与结局在 logit 尺度上呈非线性关系。数据生成机制已知，便于检查图形是否能反映预设结构。
+
+```{r effect-data}
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(splines)
+
+set.seed(2074)
+
+n_participants <- 1400
+
+effect_data <- tibble(
+  treatment = factor(
+    rbinom(n_participants, size = 1, prob = 0.5),
+    levels = c(0, 1),
+    labels = c("Control", "Intervention")
+  ),
+  age = pmin(85, pmax(35, rnorm(n_participants, mean = 62, sd = 10))),
+  sex = factor(
+    rbinom(n_participants, size = 1, prob = 0.52),
+    levels = c(0, 1),
+    labels = c("Female", "Male")
+  ),
+  severity = factor(
+    sample(
+      c("Mild", "Moderate", "Severe"),
+      n_participants,
+      replace = TRUE,
+      prob = c(0.38, 0.40, 0.22)
+    ),
+    levels = c("Mild", "Moderate", "Severe")
+  ),
+  biomarker = rnorm(n_participants)
+) |>
+  mutate(
+    age10 = (age - 60) / 10,
+    treatment_indicator = as.integer(treatment == "Intervention"),
+    severe_indicator = as.integer(severity == "Severe"),
+    linear_predictor = -1.85 - 0.58 * treatment_indicator +
+      0.34 * age10 + 0.22 * as.integer(sex == "Male") +
+      0.42 * as.integer(severity == "Moderate") +
+      0.92 * severe_indicator +
+      0.38 * treatment_indicator * severe_indicator +
+      0.62 * sin(1.15 * biomarker),
+    event = rbinom(n(), size = 1, prob = plogis(linear_predictor))
+  )
+
+effect_data |>
+  count(treatment, event) |>
+  group_by(treatment) |>
+  mutate(proportion = n / sum(n)) |>
+  ungroup()
+```
+
+## 回归系数图：同一模型内对齐估计值与区间
+
+下面拟合一个未包含交互项的主效应 logistic 回归，并从模型对象提取回归系数和标准误。年龄预先换算为每 10 岁，因此轴标签能明确比值比对应的变化量。生物标志物具有预设的非线性关联，不把它的样条基函数系数塞进这张图；后文改在预测风险尺度上展示完整曲线。
+
+```{r coefficient-data}
+coefficient_model <- glm(
+  event ~ treatment + age10 + sex + severity,
+  data = effect_data,
+  family = binomial()
+)
+
+coefficient_plot_data <- broom::tidy(coefficient_model) |>
+  filter(term != "(Intercept)") |>
+  mutate(
+    odds_ratio = exp(estimate),
+    conf_low = exp(estimate - qnorm(0.975) * std.error),
+    conf_high = exp(estimate + qnorm(0.975) * std.error),
+    label = recode(
+      term,
+      treatmentIntervention = "Intervention vs control",
+      age10 = "Age, per 10 years",
+      sexMale = "Male vs female",
+      severityModerate = "Moderate vs mild severity",
+      severitySevere = "Severe vs mild severity"
+    )
+  ) |>
+  arrange(odds_ratio) |>
+  mutate(label = factor(label, levels = label))
+
+stopifnot(
+  all(coefficient_plot_data$conf_low > 0),
+  !anyNA(coefficient_plot_data$label)
+)
+```
+
+```{r coefficient-forest, fig.alt="多变量logistic回归的系数图。五个调整后比值比及95%置信区间沿对数横轴排列，虚线位于比值比1。干预估计位于1左侧，严重程度估计位于1右侧。"}
+theme_effect <- theme_classic(base_size = 11) +
+  theme(
+    axis.line.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.x = element_line(linewidth = 0.4),
+    legend.position = "none"
+  )
+
+p_coefficients <- ggplot(
+  coefficient_plot_data,
+  aes(x = odds_ratio, y = label)
+) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#777777") +
+  geom_errorbarh(
+    aes(xmin = conf_low, xmax = conf_high),
+    height = 0.18,
+    linewidth = 0.55,
+    colour = "#333333"
+  ) +
+  geom_point(shape = 21, size = 2.6, stroke = 0.6, fill = "white", colour = "#0072B2") +
+  scale_x_log10(breaks = c(0.5, 0.75, 1, 1.5, 2, 3)) +
+  labs(x = "Adjusted odds ratio (95% CI)", y = NULL) +
+  theme_effect
+
+p_coefficients
+```
+
+对数坐标让相同倍数的增加和减少在参考值两侧具有对称视觉距离。例如 0.5 与 2 的距离相同。点离 1 更远不代表变量“更重要”，因为不同变量的单位、测量误差和对比范围不同；置信区间也不能被解释为 95% 的个体效应范围。
+
+## 亚组森林图：同时给出交互作用检验
+
+亚组图的目标是检查目标对比是否随预设特征改变，而不是逐行寻找小于 0.05 的结果。下面在总体、年龄、性别和严重程度各层拟合简化的治疗对比，并另外使用似然比检验比较含交互项与不含交互项的模型。
+
+```{r subgroup-functions}
+extract_treatment_or <- function(data, category, level) {
+  model <- glm(event ~ treatment, data = data, family = binomial())
+  row <- broom::tidy(model) |>
+    filter(term == "treatmentIntervention")
+
+  tibble(
+    category = category,
+    level = level,
+    n = nrow(data),
+    events = sum(data$event),
+    odds_ratio = exp(row$estimate),
+    conf_low = exp(row$estimate - qnorm(0.975) * row$std.error),
+    conf_high = exp(row$estimate + qnorm(0.975) * row$std.error)
+  )
+}
+
+interaction_lrt <- function(data, subgroup) {
+  main_formula <- reformulate(c("treatment", subgroup), response = "event")
+  interaction_formula <- as.formula(
+    paste("event ~ treatment *", subgroup)
+  )
+
+  main_model <- glm(main_formula, data = data, family = binomial())
+  interaction_model <- glm(interaction_formula, data = data, family = binomial())
+  as.numeric(anova(main_model, interaction_model, test = "LRT")$`Pr(>Chi)`[2])
+}
+```
+
+```{r subgroup-data}
+effect_data <- effect_data |>
+  mutate(
+    age_group = factor(if_else(age < 65, "<65 years", "65+ years"),
+                       levels = c("<65 years", "65+ years"))
+  )
+
+subgroup_plot_data <- bind_rows(
+  extract_treatment_or(effect_data, "Overall", "All participants"),
+  bind_rows(lapply(levels(effect_data$age_group), function(x) {
+    extract_treatment_or(filter(effect_data, age_group == x), "Age", x)
+  })),
+  bind_rows(lapply(levels(effect_data$sex), function(x) {
+    extract_treatment_or(filter(effect_data, sex == x), "Sex", x)
+  })),
+  bind_rows(lapply(levels(effect_data$severity), function(x) {
+    extract_treatment_or(filter(effect_data, severity == x), "Severity", x)
+  }))
+) |>
+  mutate(
+    display_label = sprintf("%s: %s  (n=%d; events=%d)", category, level, n, events),
+    display_label = factor(display_label, levels = rev(display_label))
+  )
+
+interaction_tests <- tibble(
+  subgroup = c("Age", "Sex", "Severity"),
+  p_interaction = c(
+    interaction_lrt(effect_data, "age_group"),
+    interaction_lrt(effect_data, "sex"),
+    interaction_lrt(effect_data, "severity")
+  )
+)
+
+interaction_tests
+```
+
+```{r subgroup-forest, fig.alt="总体及年龄、性别、严重程度亚组的治疗比值比森林图。每行给出样本量和事件数，点和横线分别表示比值比与95%置信区间，虚线位于1。"}
+p_subgroups <- ggplot(
+  subgroup_plot_data,
+  aes(x = odds_ratio, y = display_label)
+) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#777777") +
+  geom_errorbarh(
+    aes(xmin = conf_low, xmax = conf_high),
+    height = 0.16,
+    linewidth = 0.5,
+    colour = "#333333"
+  ) +
+  geom_point(shape = 21, size = 2.4, stroke = 0.6, fill = "white", colour = "#0072B2") +
+  scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4)) +
+  labs(x = "Treatment odds ratio (95% CI)", y = NULL) +
+  theme_effect
+
+p_subgroups
+```
+
+图中的亚组比值比用于展示方向和不确定性，`interaction_tests` 才直接检验亚组间效应是否不同。不能因为一行区间跨 1、另一行不跨 1，就断言两亚组存在差异。本例治疗为随机分配，因此用简化模型突出交互作用读法；观察性研究通常需要在总体与各亚组模型中使用同一套预先规定的混杂调整集，不能按亚组分别挑选变量。亚组变量、分组阈值、调整集和交互作用检验应在分析前确定；样本稀疏时宽区间比点估计的视觉差异更值得关注。
+
+## 非线性预测曲线：把模型尺度转回风险尺度
+
+生物标志物在数据生成机制中具有非线性关联。这里用自然样条拟合，并在其他协变量固定为明确参考值时生成条件预测。预测先在 logit 尺度计算标准误，再将点估计和区间共同转换为概率。
+
+```{r nonlinear-prediction-data}
+nonlinear_model <- glm(
+  event ~ treatment * severity + ns(biomarker, df = 4) + age10 + sex,
+  data = effect_data,
+  family = binomial()
+)
+
+prediction_grid <- tidyr::expand_grid(
+  biomarker = seq(
+    quantile(effect_data$biomarker, 0.02),
+    quantile(effect_data$biomarker, 0.98),
+    length.out = 160
+  ),
+  treatment = levels(effect_data$treatment)
+) |>
+  mutate(
+    treatment = factor(treatment, levels = levels(effect_data$treatment)),
+    age10 = 0,
+    sex = factor("Female", levels = levels(effect_data$sex)),
+    severity = factor("Mild", levels = levels(effect_data$severity))
+  )
+
+link_prediction <- predict(
+  nonlinear_model,
+  newdata = prediction_grid,
+  type = "link",
+  se.fit = TRUE
+)
+
+prediction_grid <- prediction_grid |>
+  mutate(
+    estimate = plogis(link_prediction$fit),
+    lower = plogis(link_prediction$fit - qnorm(0.975) * link_prediction$se.fit),
+    upper = plogis(link_prediction$fit + qnorm(0.975) * link_prediction$se.fit)
+  )
+```
+
+```{r nonlinear-prediction, fig.alt="生物标志物与模型预测风险的非线性曲线，分别给出对照组和干预组的条件预测及95%置信带；底部短线表示原始生物标志物分布。"}
+group_colours <- c(Control = "#0072B2", Intervention = "#D55E00")
+group_linetypes <- c(Control = "solid", Intervention = "22")
+
+p_nonlinear <- ggplot(
+  prediction_grid,
+  aes(x = biomarker, y = estimate, colour = treatment, fill = treatment)
+) +
+  geom_ribbon(
+    aes(ymin = lower, ymax = upper, group = treatment),
+    alpha = 0.16,
+    colour = NA
+  ) +
+  geom_line(aes(linetype = treatment), linewidth = 0.95) +
+  geom_rug(
+    data = effect_data,
+    aes(x = biomarker),
+    inherit.aes = FALSE,
+    sides = "b",
+    alpha = 0.08,
+    length = grid::unit(0.025, "npc")
+  ) +
+  scale_colour_manual(values = group_colours) +
+  scale_fill_manual(values = group_colours) +
+  scale_linetype_manual(values = group_linetypes) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(x = "Biomarker (SD units)", y = "Conditional predicted risk") +
+  theme_classic(base_size = 11) +
+  theme(
+    axis.line = element_line(linewidth = 0.4),
+    axis.ticks = element_line(linewidth = 0.4),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  )
+
+p_nonlinear
+```
+
+曲线描述的是 60 岁、女性、轻度严重程度这一协变量组合下的条件预测。它不是对全样本平均后的边际风险，也不是未经假设即可解释的生物学剂量反应。两端置信带变宽通常与数据稀疏有关，因此保留底部 rug 有助于判断外推范围。
+
+## 导出与报告
+
+森林图的高度应随行数增加，不能把十几行压进固定小画布。下面按行数计算高度，并实际导出亚组图的 PDF 与 PNG。
+
+```{r effect-export}
+forest_height_mm <- max(85, 7 * nrow(subgroup_plot_data) + 22)
+pdf_file <- file.path(tempdir(), "subgroup_forest.pdf")
+png_file <- file.path(tempdir(), "subgroup_forest.png")
+
+ggsave(
+  pdf_file,
+  p_subgroups,
+  width = 160,
+  height = forest_height_mm,
+  units = "mm",
+  device = grDevices::cairo_pdf,
+  bg = "white"
+)
+ggsave(
+  png_file,
+  p_subgroups,
+  width = 160,
+  height = forest_height_mm,
+  units = "mm",
+  dpi = 300,
+  bg = "white"
+)
+
+stopifnot(all(file.exists(c(pdf_file, png_file))))
+data.frame(
+  file = basename(c(pdf_file, png_file)),
+  size_kb = round(file.info(c(pdf_file, png_file))$size / 1024, 1),
+  row.names = NULL
+)
+```
+
+图注至少说明效应尺度、参考组、连续变量单位、置信区间方法、模型调整集、亚组定义和交互作用检验。森林图借鉴表格与区间严格对齐的布局，但本教程将比值估计放在对数轴并以 1 为参考，避免把 log 比值画在零参考线上却仍标成原始比值。
+
+更多方法边界可阅读 [亚组分析与交互作用](1054-subgroup.html)、[限制性立方样条](1027-rcs.html)和 [marginaleffects](1064-marginaleffects.html)。`ggplot2` 的水平区间图层与坐标接口见 [官方参考](https://ggplot2.tidyverse.org/reference/geom_linerange.html)。

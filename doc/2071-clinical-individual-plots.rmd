@@ -1,0 +1,410 @@
+---
+title: "临床研究个体数据图：分布、变化与事件时间线"
+date: '2026-07-31'
+categories:
+  - 数据可视化
+  - 科研绘图
+  - 临床研究
+  - ggplot2
+description: "用可复现模拟数据绘制云雨图、配对变化图、纵向轨迹图、肿瘤瀑布图和游泳图，并说明各图回答的问题、误读风险与发表级导出。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.width = 8.4,
+  fig.height = 5.2,
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 先按研究问题选图
+
+临床研究中的个体数据图不只是“把每个观测画出来”。同一批数据可以回答分布、个体变化、总体时间趋势或事件历程等不同问题，图形选择决定了读者能看到什么，也决定了哪些结构可能被隐藏。本教程面向已经会使用 `ggplot2`、希望把临床数据画成可解释科研图的读者。
+
+读完后，你可以从同一套教学数据生成五类图，并能判断何时不应使用它们。所有数值均来自模拟数据，只用于核验绘图工作流，不代表任何真实临床研究结果。
+
+| 研究问题 | 首选图形 | 图中基本单位 | 容易混淆之处 |
+|---|---|---|---|
+| 两组结局的分布是否重叠 | 云雨图或原始点加箱线图 | 每位参与者的一次测量 | 箱体只概括四分位数，不能代替完整分布 |
+| 同一参与者前后怎样变化 | 配对变化图 | 同一人的两次测量及连接线 | 两个独立样本不能用线连接 |
+| 多个随访时点如何变化 | 个体轨迹加均值区间 | 每人的重复测量 | 描述性均值区间不能替代 GEE 或混合效应模型 |
+| 每位患者的最佳肿瘤变化是多少 | 肿瘤瀑布图 | 每位患者的一根柱 | 单一百分比不足以完成 RECIST 疗效判定 |
+| 随访多长、何时出现事件 | 游泳图 | 每位患者的一条时间线 | 不能用线长直接比较生存概率 |
+
+云雨图借鉴了 `ggdist` 的半眼图层，将密度、区间和原始点放在同一坐标中；游泳图则把持续时间与离散事件拆成线和形状两套编码。二者都比单纯增加装饰元素多提供了一层可核对的信息。
+
+## 构造有重复测量结构的教学数据
+
+下面先生成 96 名参与者在基线及第 4、8、12 周的评分。`baseline` 是参与者层面的随机差异，因此同一个人的四次测量具有相关性；干预组的平均变化随时间逐渐增大。这一生成机制只为让图中出现可辨认的纵向结构。
+
+```{r clinical-data}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggdist)
+
+set.seed(2071)
+
+participant <- tibble(
+  patient_id = sprintf("P%03d", 1:96),
+  group = factor(
+    rep(c("Control", "Intervention"), each = 48),
+    levels = c("Control", "Intervention")
+  ),
+  baseline = rnorm(96, mean = 68, sd = 8)
+)
+
+longitudinal <- tidyr::crossing(
+  patient_id = participant$patient_id,
+  week = c(0, 4, 8, 12)
+) |>
+  left_join(participant, by = "patient_id") |>
+  mutate(
+    expected_score = baseline - 0.08 * week -
+      if_else(group == "Intervention", 0.34 * week, 0),
+    score = expected_score + rnorm(n(), mean = 0, sd = 2.4)
+  )
+
+group_colours <- c(Control = "#0072B2", Intervention = "#D55E00")
+group_linetypes <- c(Control = "solid", Intervention = "22")
+
+theme_research <- theme_classic(base_size = 11) +
+  theme(
+    axis.line = element_line(linewidth = 0.4),
+    axis.ticks = element_line(linewidth = 0.4),
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    strip.background = element_rect(fill = "#F2F2F2", colour = NA),
+    strip.text = element_text(face = "bold")
+  )
+
+longitudinal |>
+  count(group, week)
+```
+
+数据采用长格式：一行是一位参与者在一个时点的观测。参与者编号、分组、时间与结局必须分别占一列，后面的配对线和纵向线才不会连接错人。
+
+## 云雨图：同时检查分布与原始观测
+
+这里的问题是：第 12 周两组评分的中心位置、离散程度和重叠范围怎样？半眼密度显示分布形状，窄箱体显示中位数与四分位数，抖动点保留每位参与者。删除任一层都会损失一种信息，但样本量很大时原始点可能过密，应降低透明度或抽样显示并明确说明。
+
+```{r clinical-raincloud, fig.alt="第12周两组临床评分的云雨图。每组同时显示半侧密度、箱线摘要和所有参与者的抖动点，干预组分布整体位于较低评分区域，但两组仍有明显重叠。"}
+week12 <- longitudinal |>
+  filter(week == 12)
+
+p_raincloud <- ggplot(
+  week12,
+  aes(x = score, y = group, fill = group, colour = group)
+) +
+  ggdist::stat_halfeye(
+    adjust = 0.7,
+    width = 0.55,
+    .width = 0,
+    justification = -0.25,
+    point_colour = NA,
+    alpha = 0.62
+  ) +
+  geom_boxplot(
+    width = 0.16,
+    outlier.shape = NA,
+    fill = "white",
+    linewidth = 0.5
+  ) +
+  geom_point(
+    position = position_jitter(height = 0.075, width = 0, seed = 2071),
+    size = 1.25,
+    alpha = 0.45
+  ) +
+  scale_fill_manual(values = group_colours) +
+  scale_colour_manual(values = group_colours) +
+  labs(x = "Clinical score at week 12", y = NULL) +
+  coord_cartesian(clip = "off") +
+  theme_research +
+  theme(legend.position = "none")
+
+p_raincloud
+```
+
+这张图支持“干预组的模拟评分分布整体较低，且两组仍有重叠”的描述。它不能说明组间差异具有因果效应，也不能从箱线图的须线判断哪些观测应被删除。若结局高度偏态或存在测量上下限，应先说明尺度，再决定是否变换坐标。
+
+## 配对变化图：保留变化方向
+
+前后均值相同并不意味着每位参与者都没有变化。配对图用连接线保留个体方向，适合时点较少且配对关系可靠的数据。这里按组分面，避免两组线条交叉造成误读。
+
+```{r clinical-paired, fig.alt="基线到第12周的配对变化图，按对照组和干预组分面。每条细线连接同一参与者的两次评分，干预组中向下变化的线更多。"}
+paired <- longitudinal |>
+  filter(week %in% c(0, 12)) |>
+  mutate(visit = factor(week, levels = c(0, 12), labels = c("Baseline", "Week 12")))
+
+p_paired <- ggplot(
+  paired,
+  aes(x = visit, y = score, group = patient_id)
+) +
+  geom_line(colour = "#9A9A9A", alpha = 0.35, linewidth = 0.45) +
+  geom_point(aes(colour = group, shape = group), size = 1.8, alpha = 0.78) +
+  facet_wrap(~group) +
+  scale_colour_manual(values = group_colours) +
+  scale_shape_manual(values = c(Control = 16, Intervention = 17)) +
+  labs(x = NULL, y = "Clinical score") +
+  theme_research +
+  theme(legend.position = "none")
+
+p_paired
+```
+
+线条只表示“属于同一个人”，不表示两个时点之间真实按直线变化。若基线或随访存在大量缺失，完整配对者可能不再代表原始样本，应在图注或相邻表格报告纳入图形的人数和缺失处理方式。
+
+## 纵向轨迹图：区分个体轨迹与总体均值
+
+随访时点增多后，逐条强调每个人会形成难以阅读的“意大利面图”。更稳妥的做法是让个体线退到背景，再突出各组均值及其 95% 置信区间。读图时先看个体异质性，再看组水平趋势。
+
+```{r clinical-longitudinal-summary}
+longitudinal_summary <- longitudinal |>
+  group_by(group, week) |>
+  summarise(
+    n = n(),
+    mean = mean(score),
+    se = sd(score) / sqrt(n),
+    lower = mean - qt(0.975, df = n - 1) * se,
+    upper = mean + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  )
+
+longitudinal_summary
+```
+
+```{r clinical-longitudinal, fig.alt="四个随访时点的纵向轨迹图。灰色细线表示每位参与者，彩色粗线和半透明带分别表示各组均值与逐时点95%置信区间；干预组平均评分随时间下降更快。"}
+p_longitudinal <- ggplot() +
+  geom_line(
+    data = longitudinal,
+    aes(x = week, y = score, group = patient_id),
+    colour = "#8C8C8C",
+    linewidth = 0.32,
+    alpha = 0.15
+  ) +
+  geom_ribbon(
+    data = longitudinal_summary,
+    aes(x = week, ymin = lower, ymax = upper, fill = group, group = group),
+    alpha = 0.18,
+    colour = NA
+  ) +
+  geom_line(
+    data = longitudinal_summary,
+    aes(x = week, y = mean, colour = group, linetype = group),
+    linewidth = 1.05
+  ) +
+  geom_point(
+    data = longitudinal_summary,
+    aes(x = week, y = mean, colour = group, shape = group),
+    size = 2.2
+  ) +
+  scale_colour_manual(values = group_colours) +
+  scale_fill_manual(values = group_colours) +
+  scale_linetype_manual(values = group_linetypes) +
+  scale_shape_manual(values = c(Control = 16, Intervention = 17)) +
+  scale_x_continuous(breaks = c(0, 4, 8, 12)) +
+  labs(x = "Follow-up week", y = "Clinical score") +
+  theme_research
+
+p_longitudinal
+```
+
+图中的区间是各时点均值的不确定性，未建模重复测量相关性，也未处理不同时间的协变量或缺失机制。正式推断应根据研究问题使用广义估计方程或混合效应模型，并从模型对象生成与 estimand 一致的预测或对比；这张描述图不能替代模型。
+
+## 肿瘤瀑布图：一位患者一根柱
+
+肿瘤疗效瀑布图与财务分解瀑布图同名但结构不同。前者按每位患者的最佳靶病灶百分比变化排序，零线表示无变化，负值表示缩小。下面的阈值仅用于演示视觉分区，不构成真实 RECIST 疗效判定。
+
+```{r clinical-waterfall-data}
+set.seed(2072)
+
+tumour_response <- tibble(
+  patient_id = sprintf("T%02d", 1:48),
+  best_change = pmax(-100, pmin(72, rnorm(48, mean = -18, sd = 34)))
+) |>
+  mutate(
+    display_group = case_when(
+      best_change <= -30 ~ "Decrease at least 30%",
+      best_change >= 20 ~ "Increase at least 20%",
+      TRUE ~ "Between display thresholds"
+    ),
+    display_group = factor(
+      display_group,
+      levels = c(
+        "Decrease at least 30%",
+        "Between display thresholds",
+        "Increase at least 20%"
+      )
+    )
+  ) |>
+  arrange(best_change) |>
+  mutate(patient_id = factor(patient_id, levels = patient_id))
+```
+
+```{r clinical-waterfall, fig.alt="48名模拟患者的最佳肿瘤百分比变化瀑布图，柱按变化值从低到高排序，并标出负30%和正20%的视觉参考线。多数柱位于零线以下。"}
+response_colours <- c(
+  "Decrease at least 30%" = "#0072B2",
+  "Between display thresholds" = "#999999",
+  "Increase at least 20%" = "#D55E00"
+)
+
+p_waterfall <- ggplot(
+  tumour_response,
+  aes(x = patient_id, y = best_change, fill = display_group)
+) +
+  geom_col(width = 0.84) +
+  geom_hline(yintercept = 0, linewidth = 0.45) +
+  geom_hline(yintercept = c(-30, 20), linetype = "dashed", colour = "#555555") +
+  scale_fill_manual(values = response_colours) +
+  scale_x_discrete(breaks = levels(tumour_response$patient_id)[seq(1, 48, by = 6)]) +
+  labs(x = "Patient ordered by best change", y = "Best change from baseline (%)") +
+  theme_research +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p_waterfall
+```
+
+最佳靶病灶百分比变化不能单独判定完全缓解、部分缓解、疾病稳定或进展。真实判定还可能涉及非靶病灶、新病灶、最小绝对增加量和确认时间。图中阈值必须与研究方案和实际判定规则一致，不能为了让颜色分组更均衡而调整。
+
+## 游泳图：把持续时间与事件分开编码
+
+游泳图适合样本较小、需要逐人展示随访长度和关键事件的研究。线段编码持续时间，点形编码事件，箭头表示截至数据截点仍在随访。若患者很多，图会迅速失去可读性，应改用生存曲线、累积发生曲线或汇总表。
+
+```{r clinical-swimmer-data}
+set.seed(2073)
+
+swimmer <- tibble(
+  patient_id = sprintf("S%02d", 1:18),
+  group = factor(rep(c("Control", "Intervention"), each = 9),
+                 levels = c("Control", "Intervention")),
+  duration = sample(12:42, 18, replace = TRUE),
+  ongoing = runif(18) < 0.38,
+  responded = runif(18) < if_else(group == "Intervention", 0.72, 0.48)
+) |>
+  mutate(
+    response_time = if_else(
+      responded,
+      pmin(duration - 2, pmax(2, round(rnorm(n(), mean = 9, sd = 3)))),
+      NA_real_
+    ),
+    progression_time = if_else(ongoing, NA_real_, as.numeric(duration))
+  ) |>
+  arrange(duration) |>
+  mutate(patient_id = factor(patient_id, levels = patient_id))
+
+swimmer_events <- bind_rows(
+  swimmer |>
+    filter(!is.na(response_time)) |>
+    transmute(patient_id, time = response_time, event = "Response"),
+  swimmer |>
+    filter(!is.na(progression_time)) |>
+    transmute(patient_id, time = progression_time, event = "Progression")
+) |>
+  mutate(event = factor(event, levels = c("Response", "Progression")))
+```
+
+```{r clinical-swimmer, fig.alt="18名模拟患者的游泳图。每条横线表示随访持续时间，颜色和线型区分组别，圆点表示出现应答，叉号表示进展，线尾箭头表示仍在随访。"}
+p_swimmer <- ggplot(swimmer) +
+  geom_segment(
+    aes(
+      x = 0,
+      xend = duration,
+      y = patient_id,
+      yend = patient_id,
+      colour = group,
+      linetype = group
+    ),
+    linewidth = 2.2,
+    lineend = "butt"
+  ) +
+  geom_segment(
+    data = filter(swimmer, ongoing),
+    aes(
+      x = duration,
+      xend = duration + 1.8,
+      y = patient_id,
+      yend = patient_id,
+      colour = group
+    ),
+    linewidth = 0.75,
+    arrow = arrow(type = "closed", length = grid::unit(0.075, "inches")),
+    show.legend = FALSE
+  ) +
+  geom_point(
+    data = swimmer_events,
+    aes(x = time, y = patient_id, shape = event),
+    inherit.aes = FALSE,
+    size = 2.5,
+    stroke = 0.8,
+    colour = "#202020"
+  ) +
+  scale_colour_manual(values = group_colours) +
+  scale_linetype_manual(values = group_linetypes) +
+  scale_shape_manual(values = c(Response = 21, Progression = 4)) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.07))) +
+  labs(x = "Follow-up time (weeks)", y = "Patient", shape = "Event") +
+  theme_research +
+  theme(panel.grid.major.y = element_line(colour = "#EEEEEE", linewidth = 0.35))
+
+p_swimmer
+```
+
+图中的线长是已观察的随访时间，不是个体生存概率；末端箭头表示观察仍在继续，也不表示患者将长期无事件。若存在竞争事件，应单独编码并在方法中定义，不能把所有结束原因都画成同一种叉号。
+
+## 按最终载体导出
+
+网页中的预览尺寸不等于投稿尺寸。最终导出前先确定单栏、双栏或演示载体，再用毫米指定宽高。下面的函数同时生成矢量 PDF 和 300 DPI PNG，并在临时目录实际写出游泳图以核验文件存在。
+
+```{r clinical-export}
+save_research_figure <- function(plot, filename, width_mm, height_mm) {
+  pdf_file <- paste0(filename, ".pdf")
+  png_file <- paste0(filename, ".png")
+
+  ggsave(
+    pdf_file,
+    plot,
+    width = width_mm,
+    height = height_mm,
+    units = "mm",
+    device = grDevices::cairo_pdf,
+    bg = "white"
+  )
+  ggsave(
+    png_file,
+    plot,
+    width = width_mm,
+    height = height_mm,
+    units = "mm",
+    dpi = 300,
+    bg = "white"
+  )
+
+  c(pdf = pdf_file, png = png_file)
+}
+
+export_stub <- file.path(tempdir(), "clinical_swimmer")
+exported_files <- save_research_figure(p_swimmer, export_stub, 180, 115)
+stopifnot(all(file.exists(exported_files)))
+
+data.frame(
+  file = basename(exported_files),
+  size_kb = round(file.info(exported_files)$size / 1024, 1),
+  row.names = NULL
+)
+```
+
+导出后仍需重新打开 PDF 和 PNG，核对字体、图例、裁切和灰度可读性。中文图应显式注册中文字体，并分别检查 PDF 与 PNG 两条渲染路径。
+
+## 常见错误与检查顺序
+
+1. 先确认图中的基本单位是一位患者、一次测量还是一个模型估计，不能把不同层级混在同一图中。
+2. 配对线和纵向线必须按参与者编号分组；排序、筛选或缺失处理后再次核对连接关系。
+3. 箱线图、均值区间和阈值色块都是摘要或规则，不应遮住原始数据结构，也不能代替正式统计模型。
+4. 颜色之外再提供线型、形状、直接标签或分面。组别在整篇文章中保持同一颜色含义。
+5. 图注报告纳入图形的样本量、时间单位、区间定义、缺失口径和事件定义。
+
+`ggdist::stat_halfeye()` 的当前接口与分布图层说明可查阅 [ggdist 官方参考](https://mjskay.github.io/ggdist/reference/stat_slabinterval.html)；常用点、线、区间和坐标图层见 [ggplot2 官方参考](https://ggplot2.tidyverse.org/reference/)。

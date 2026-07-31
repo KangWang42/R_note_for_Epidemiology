@@ -1,0 +1,388 @@
+---
+title: "组学科研绘图：MA、PCA、表达热图与富集气泡图"
+date: '2026-07-31'
+categories:
+  - 数据可视化
+  - 科研绘图
+  - 组学分析
+  - ggplot2
+description: "从同一份可复现表达矩阵生成 MA 图、PCA 样本图、标准化表达热图和过度富集气泡图，说明筛选、尺度、批次与多重比较的读图边界。"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.width = 8.4,
+  fig.height = 5.5,
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 150
+)
+```
+
+## 四类图对应四个分析层级
+
+组学图常把数千个特征压缩到一个画面，但不同图形压缩的是不同对象。MA 图的单位是特征，PCA 图的单位是样本，热图同时排列特征与样本，富集气泡图的单位则是预先定义的基因集。若不先确认图中的基本单位，很容易把样本聚类、单基因差异和通路富集混成同一个结论。
+
+本教程从一份模拟 log2 表达矩阵出发，完整展示数据到图的转换。模拟数据包含已知组别信号和批次信号，只用于检查绘图是否能暴露这些结构，不代表真实组学研究发现。
+
+| 图形 | 图中基本单位 | 主要问题 | 常见误读 |
+|---|---|---|---|
+| MA 图 | 每个点是一个特征 | 效应量是否随平均丰度变化 | 显著颜色不等于具有生物学重要性 |
+| PCA 图 | 每个点是一个样本 | 主要变异方向与组别、批次怎样对应 | 视觉分离不等于差异检验显著 |
+| 表达热图 | 每格是一个特征在一个样本中的标准化值 | 选定特征的相对表达模式 | 行标准化后的颜色不能比较基因间绝对表达量 |
+| 富集气泡图 | 每点是一个基因集 | 输入特征在哪些集合中过度出现 | 相似通路高度重叠，点数不等于独立证据数 |
+
+## 构造表达矩阵与样本信息
+
+这里生成 600 个特征和 32 个样本。前 36 个特征具有组别效应，另有一批特征受到批次影响。每个批次都同时包含对照与处理样本，避免让组别和批次完全混杂。
+
+```{r omics-data}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+
+set.seed(2075)
+
+n_genes <- 600
+n_samples <- 32
+gene_ids <- sprintf("Gene_%03d", 1:n_genes)
+sample_ids <- sprintf("Sample_%02d", 1:n_samples)
+
+sample_meta <- tibble(
+  sample_id = sample_ids,
+  condition = factor(
+    rep(c("Control", "Treatment"), each = n_samples / 2),
+    levels = c("Control", "Treatment")
+  ),
+  batch = factor(rep(rep(c("Batch A", "Batch B"), each = 8), times = 2))
+)
+
+gene_baseline <- rnorm(n_genes, mean = 7.5, sd = 1.2)
+expression_matrix <- matrix(
+  rnorm(n_genes * n_samples, mean = 0, sd = 0.75),
+  nrow = n_genes,
+  dimnames = list(gene_ids, sample_ids)
+)
+expression_matrix <- sweep(expression_matrix, 1, gene_baseline, FUN = "+")
+
+treatment_samples <- sample_meta$condition == "Treatment"
+batch_b_samples <- sample_meta$batch == "Batch B"
+
+true_group_effect <- c(rep(1.35, 18), rep(-1.20, 18))
+expression_matrix[1:36, treatment_samples] <-
+  expression_matrix[1:36, treatment_samples] + true_group_effect
+expression_matrix[101:160, batch_b_samples] <-
+  expression_matrix[101:160, batch_b_samples] + 0.58
+
+dim(expression_matrix)
+sample_meta |>
+  count(condition, batch)
+```
+
+正式分析不应把这里的逐特征 t 检验当作 RNA-seq 计数模型。实际工作应从适合测量平台的标准化、设计矩阵、批次处理和差异分析对象中提取效应量与不确定性，再复用本教程的绘图结构。
+
+## MA 图：效应量是否依赖丰度
+
+先计算每个特征的平均表达、组间 log2 表达差和经 Benjamini-Hochberg 方法调整的 p 值。由于矩阵已经在 log2 尺度上，两个组均值之差就是此处的 log2 fold change 教学近似。
+
+```{r differential-summary}
+control_index <- sample_meta$condition == "Control"
+treatment_index <- sample_meta$condition == "Treatment"
+
+mean_control <- rowMeans(expression_matrix[, control_index, drop = FALSE])
+mean_treatment <- rowMeans(expression_matrix[, treatment_index, drop = FALSE])
+
+p_values <- apply(expression_matrix, 1, function(values) {
+  t.test(values[treatment_index], values[control_index])$p.value
+})
+
+differential_results <- tibble(
+  gene = gene_ids,
+  mean_log2_expression = rowMeans(expression_matrix),
+  log2_fold_change = mean_treatment - mean_control,
+  p_value = p_values,
+  adjusted_p_value = p.adjust(p_values, method = "BH")
+) |>
+  mutate(
+    result = case_when(
+      adjusted_p_value < 0.05 & log2_fold_change >= 1 ~ "Higher in treatment",
+      adjusted_p_value < 0.05 & log2_fold_change <= -1 ~ "Lower in treatment",
+      TRUE ~ "Not selected"
+    ),
+    result = factor(
+      result,
+      levels = c("Higher in treatment", "Lower in treatment", "Not selected")
+    )
+  )
+
+stopifnot(!anyNA(differential_results$result))
+differential_results |>
+  count(result)
+```
+
+```{r omics-ma, fig.alt="600个模拟特征的MA图。横轴为平均log2表达，纵轴为处理组相对对照组的log2变化；显著上调、下调和未筛选特征用不同颜色表示，并标出正负1的效应量参考线。"}
+result_colours <- c(
+  "Higher in treatment" = "#D55E00",
+  "Lower in treatment" = "#0072B2",
+  "Not selected" = "#A0A0A0"
+)
+
+theme_omics <- theme_classic(base_size = 11) +
+  theme(
+    axis.line = element_line(linewidth = 0.4),
+    axis.ticks = element_line(linewidth = 0.4),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  )
+
+p_ma <- ggplot(
+  differential_results,
+  aes(x = mean_log2_expression, y = log2_fold_change, colour = result)
+) +
+  geom_hline(yintercept = 0, linewidth = 0.4, colour = "#555555") +
+  geom_hline(yintercept = c(-1, 1), linetype = "dashed", colour = "#777777") +
+  geom_point(size = 1.5, alpha = 0.72) +
+  scale_colour_manual(values = result_colours) +
+  labs(x = "Mean log2 expression", y = "Log2 fold change") +
+  theme_omics
+
+p_ma
+```
+
+MA 图将效应量和丰度放在同一画面，适合检查低丰度区域是否出现更大的离散或系统偏移。颜色分组同时使用调整 p 值和效应量阈值，但阈值应来自分析计划和测量尺度，不应为了让图形左右对称而修改。
+
+## PCA 图：同时编码生物组别与技术批次
+
+主成分分析在不使用结局标签的情况下寻找样本间最大变异方向。下面对样本转置后的矩阵进行中心化与标准化，再把组别映射为颜色、批次映射为形状。两套编码使读者能判断主要分离更接近生物因素还是技术因素。
+
+```{r pca-data}
+pca_fit <- prcomp(t(expression_matrix), center = TRUE, scale. = TRUE)
+pca_variance <- 100 * pca_fit$sdev^2 / sum(pca_fit$sdev^2)
+
+pca_scores <- as.data.frame(pca_fit$x[, 1:2, drop = FALSE]) |>
+  tibble::rownames_to_column("sample_id") |>
+  left_join(sample_meta, by = "sample_id")
+
+stopifnot(nrow(pca_scores) == n_samples, !anyNA(pca_scores$condition))
+```
+
+```{r omics-pca, fig.alt="32个模拟样本的PCA得分图。颜色区分对照与处理组，圆形和三角形区分两个批次；横纵轴标出前两个主成分解释的变异比例。"}
+condition_colours <- c(Control = "#0072B2", Treatment = "#D55E00")
+
+p_pca <- ggplot(
+  pca_scores,
+  aes(x = PC1, y = PC2, colour = condition, shape = batch)
+) +
+  geom_hline(yintercept = 0, linewidth = 0.3, colour = "#E0E0E0") +
+  geom_vline(xintercept = 0, linewidth = 0.3, colour = "#E0E0E0") +
+  geom_point(size = 2.8, stroke = 0.65, alpha = 0.9) +
+  scale_colour_manual(values = condition_colours) +
+  scale_shape_manual(values = c("Batch A" = 16, "Batch B" = 17)) +
+  labs(
+    x = sprintf("PC1 (%.1f%%)", pca_variance[1]),
+    y = sprintf("PC2 (%.1f%%)", pca_variance[2]),
+    colour = "Condition",
+    shape = "Batch"
+  ) +
+  theme_omics +
+  theme(legend.title = element_text(size = 9))
+
+p_pca
+```
+
+PCA 点间距离概括的是进入分析的全部特征和预处理尺度。视觉分离不是组间差异的显著性检验，椭圆也不应被自动解释为置信区域。若组别与批次完全重合，图形只能暴露混杂，不能从数据中分离两者效应。
+
+## 表达热图：明确行标准化的含义
+
+下面选择调整 p 值最小的 28 个特征，并在每个特征内部计算 z 分数。这样可以比较同一特征在不同样本中的相对高低，但不能比较两个特征的绝对表达量。样本按组别和批次排序，排序步骤在代码中可追溯。
+
+```{r heatmap-data}
+top_genes <- differential_results |>
+  arrange(adjusted_p_value, desc(abs(log2_fold_change))) |>
+  slice_head(n = 28) |>
+  pull(gene)
+
+ordered_samples <- sample_meta |>
+  arrange(condition, batch, sample_id) |>
+  pull(sample_id)
+
+heatmap_matrix <- expression_matrix[top_genes, ordered_samples, drop = FALSE]
+heatmap_z <- t(scale(t(heatmap_matrix)))
+
+heatmap_long <- as.data.frame(heatmap_z) |>
+  tibble::rownames_to_column("gene") |>
+  pivot_longer(-gene, names_to = "sample_id", values_to = "row_z") |>
+  left_join(sample_meta, by = "sample_id") |>
+  mutate(
+    gene = factor(gene, levels = rev(top_genes)),
+    sample_id = factor(sample_id, levels = ordered_samples)
+  )
+
+stopifnot(!anyNA(heatmap_long$row_z))
+```
+
+```{r omics-heatmap, fig.alt="28个筛选特征在32个样本中的行标准化表达热图，按对照和处理组分成两个横向面板，样本在组内按批次排序；蓝色表示相对低表达，橙色表示相对高表达。"}
+p_heatmap <- ggplot(
+  heatmap_long,
+  aes(x = sample_id, y = gene, fill = row_z)
+) +
+  geom_tile() +
+  facet_grid(
+    cols = vars(condition),
+    scales = "free_x",
+    space = "free_x"
+  ) +
+  scale_fill_gradient2(
+    low = "#2166AC",
+    mid = "#F7F7F7",
+    high = "#B35806",
+    midpoint = 0,
+    limits = c(-2.5, 2.5),
+    oob = squish,
+    name = "Row z-score"
+  ) +
+  labs(x = "Sample", y = "Selected feature") +
+  theme_minimal(base_size = 9) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 6.5),
+    axis.text.y = element_text(size = 6.8),
+    strip.text = element_text(face = "bold"),
+    legend.position = "right"
+  )
+
+p_heatmap
+```
+
+热图使用差异结果选择特征，因此组间模式会比未筛选矩阵更明显，不能再把同一张图当作独立验证。正式报告应说明特征选择规则、标准化方向、距离、聚类方法和缺失值处理；若进行聚类，树状图与热图必须使用同一距离对象。
+
+## 富集气泡图：把集合大小、重叠数与证据分开
+
+最后建立八个教学基因集，并使用超几何检验计算筛选特征是否在各集合中过度出现。富集图的输入集合来自 MA 图使用的同一筛选规则，背景集合是进入差异分析的全部 600 个特征。八个集合全部进入多重比较校正，绘图时再省略重叠数为 0 的集合；没有重叠的集合不能作为富集气泡展示。
+
+```{r enrichment-data}
+set.seed(2076)
+
+pathways <- list(
+  "Inflammatory response" = unique(c(1:30, sample(37:600, 25))),
+  "Cell-cycle regulation" = unique(c(12:36, sample(37:600, 28))),
+  "Lipid metabolism" = sample(37:600, 58),
+  "DNA repair" = sample(37:600, 52),
+  "Oxidative stress" = unique(c(1:12, sample(37:600, 43))),
+  "Extracellular matrix" = sample(37:600, 60),
+  "Innate immune signalling" = unique(c(5:26, sample(37:600, 34))),
+  "Mitochondrial transport" = sample(37:600, 48)
+)
+
+selected_genes <- differential_results |>
+  filter(adjusted_p_value < 0.05, abs(log2_fold_change) >= 1) |>
+  pull(gene)
+
+stopifnot(length(selected_genes) > 0)
+
+selected_indices <- match(selected_genes, gene_ids)
+universe_size <- length(gene_ids)
+selected_total <- length(selected_indices)
+
+enrichment_results <- bind_rows(lapply(names(pathways), function(pathway_name) {
+  members <- pathways[[pathway_name]]
+  overlap <- sum(selected_indices %in% members)
+  pathway_size <- length(members)
+
+  tibble(
+    pathway = pathway_name,
+    pathway_size = pathway_size,
+    overlap = overlap,
+    gene_ratio = overlap / selected_total,
+    p_value = phyper(
+      overlap - 1,
+      pathway_size,
+      universe_size - pathway_size,
+      selected_total,
+      lower.tail = FALSE
+    )
+  )
+})) |>
+  mutate(
+    adjusted_p_value = p.adjust(p_value, method = "BH"),
+    evidence = -log10(pmax(adjusted_p_value, .Machine$double.xmin))
+  ) |>
+  filter(overlap > 0) |>
+  arrange(evidence) |>
+  mutate(pathway = factor(pathway, levels = pathway))
+
+overlap_breaks <- pretty(range(enrichment_results$overlap), n = 4)
+overlap_breaks <- overlap_breaks[
+  overlap_breaks >= min(enrichment_results$overlap) &
+    overlap_breaks <= max(enrichment_results$overlap)
+]
+```
+
+```{r omics-enrichment, fig.alt="具有至少一个重叠特征的教学基因集过度富集气泡图。横轴为入选特征中与通路重叠的比例，点大小表示重叠特征数，颜色表示负对数调整p值；炎症和细胞周期相关集合位于右侧。"}
+p_enrichment <- ggplot(
+  enrichment_results,
+  aes(x = gene_ratio, y = pathway, size = overlap, colour = evidence)
+) +
+  geom_point(alpha = 0.9) +
+  scale_x_continuous(labels = label_percent(accuracy = 1)) +
+  scale_size_continuous(range = c(2.5, 7), breaks = overlap_breaks) +
+  scale_colour_viridis_c(option = "C", end = 0.9) +
+  labs(
+    x = "Selected genes overlapping the set",
+    y = NULL,
+    size = "Overlap",
+    colour = "-log10 adjusted p"
+  ) +
+  theme_omics +
+  theme(legend.position = "right", legend.title = element_text(size = 8.5))
+
+p_enrichment
+```
+
+`gene_ratio` 的分母是本例入选特征总数，不是通路大小；点大小是重叠特征数；颜色才表示经多重比较调整后的统计证据。三个视觉通道必须在图注分别定义。过度富集还依赖背景集合和数据库版本，相似通路之间经常共享大量成员，不能把每个显著点当成独立机制。
+
+## 组合、导出与复核
+
+PCA、MA 和富集图可以组成一个结果概览，但热图需要更高的纵向分辨率，应单独导出。每个面板保留独立问题，颜色也不强求共用同一语义：组别色、差异方向色和连续证据色分别服务不同变量。
+
+```{r omics-export}
+library(patchwork)
+
+p_omics_panel <- (p_pca | p_ma) / p_enrichment +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(face = "bold", size = 9))
+
+pdf_file <- file.path(tempdir(), "omics_overview.pdf")
+png_file <- file.path(tempdir(), "omics_overview.png")
+
+ggsave(
+  pdf_file,
+  p_omics_panel,
+  width = 180,
+  height = 145,
+  units = "mm",
+  device = grDevices::cairo_pdf,
+  bg = "white"
+)
+ggsave(
+  png_file,
+  p_omics_panel,
+  width = 180,
+  height = 145,
+  units = "mm",
+  dpi = 300,
+  bg = "white"
+)
+
+stopifnot(all(file.exists(c(pdf_file, png_file))))
+data.frame(
+  file = basename(c(pdf_file, png_file)),
+  size_kb = round(file.info(c(pdf_file, png_file))$size / 1024, 1),
+  row.names = NULL
+)
+```
+
+发表前应从分析对象重新生成所有图，核对特征 ID、组别、批次、筛选规则和调整 p 值一致。图中不得手工移动点、更换某个特征的分类或只保留有利对比。火山图的效应量与多重比较边界可继续阅读 [火山图教程](2070-volcano-plot.html)，热图布局与聚类见 [热图教程](2020-heatmap.html)。`stats::prcomp()` 的参数与返回对象见 [R 官方手册](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prcomp.html)。
