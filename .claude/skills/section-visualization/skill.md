@@ -1,181 +1,42 @@
 ---
 name: section-visualization
-description: Generate comprehensive R data visualization tutorials (ggplot2, chart types, styling, publication-ready plots) with theory + practice workflow. Use when: (1) User requests visualization tutorials, (2) File names match 20xx-*.rmd pattern, (3) Keywords: boxplot, scatterplot, heatmap, forestplot, sankey, ggplot2 styling, color palettes.
+description: 为本仓库新建、重写或审校 R 数据可视化教程，包括 ggplot2、图形类型、配色、标注、组合、交互与导出。适用于 `doc/20xx-*.rmd`、`doc/20xx-*.qmd` 和数据可视化栏目；先用 `tutorial-authoring`，任何统计数据图同时使用 `biostat-principles` 与 `publication-figures`。不用于非统计流程、机制或框架图。
 ---
-## 核心任务
 
-生成数据可视化类教程 (.rmd/.qmd)，涵盖图表原理、绘图代码、样式美化、结果解读。
+# 数据可视化教程
 
-## 快速启动 (Quick Start)
+## 开工
 
-1. **确定图表**: 如 "箱线图 (Boxplot)"。
-2. **加载模板**: 阅读 [content-structure.md](references/content-structure.md) 获取 YAML 和标题结构。
-3. **生成内容**: 遵循 "图表用途 -> 数据准备 -> 绘图流程 -> 美化技巧 -> 解读说明" 流程。
-4. **视觉设计**: 参考 [visual-templates.md](references/visual-templates.md) 生成封面图和原理示意图。
-5. **质量检查**: 使用 [quality-checklist.md](references/quality-checklist.md) 验证导航更新。
+1. 先执行 `tutorial-authoring`，再读取 [content-structure.md](references/content-structure.md)。
+2. 明确图要回答的问题、数据形态、主要读者、网页/论文/演示载体和最终显示尺寸。
+3. 核对图形函数、扩展包、返回对象和导出接口的当前官方文档。
+4. 统计图先确认估计目标、分母、不确定性和数据限制；不能用视觉修饰掩盖数据或方法问题。
 
-## 完整工作流程
+## 内容主线
 
-### 步骤1: 逐部分生成教程内容（CRITICAL - 分段生成策略）
+按“问题 → 数据 → 最小图 → 读图 → 改进 → 误导风险 → 导出”组织，不强制固定行数、三个示例或每个代码块都出图。每个新增示例必须增加一种信息能力，例如分组、区间、标注、分面、坐标转换或无障碍，而不是只换主题和颜色。
 
-**⚠️ 重要：教程内容超过 300 行时必须分段生成，避免一次性输出过长内容。**
+- 先解释图形编码与统计量，再讲样式。
+- 数据变换、排序、聚合和缺失处理必须在代码中可见。
+- 不把平滑线、箱线图须、误差条或显著性标记解释成它们没有表达的量。
+- 坐标截断、对数尺度、双轴、面积/体积编码和抖动会改变读图，应说明原因与限制。
+- 图题、坐标、图例、单位和注释由读者任务决定；不机械要求每张图内部重复文章标题。
 
-**分段生成流程**：
+## 配色与可访问性
 
-1. **第一部分**：生成 YAML 头部 + Setup + 图表用途 + 数据准备 + 基础图表（约 150-200 行）
-2. **第二部分**：追加中级图表 + 美化技巧 + 主题定制（约 150-200 行）
-3. **第三部分**：追加高级应用 + 常见问题 + 相关资源（约 100-150 行）
-4. **验证完整性**：确认至少包含 3 个图表示例
+按需读取 [color-palettes.md](references/color-palettes.md)。颜色与变量类型匹配，并用形状、线型、直接标签或分面提供冗余编码。期刊风格包只是候选色值来源，不代表期刊认可，也不保证色盲、灰度或投影条件下可读。
 
-**内容生成要求**：
-- **必须包含**: 至少 3 个图表示例（基础 → 中级 → 高级）
-- **可复现性**: 所有随机数据必须设置种子 `set.seed(2026)`
+## 代码与图件
 
-### 步骤1.5: 生成配图并在文章中引用（CRITICAL）
+- 所有图由文章代码实跑生成；随机抖动、抽样或布局才设置种子。
+- 中间对象命名清楚，使读者能核对数据到图的转换。
+- 使用最终载体的物理尺寸检查字号、线宽、图例和多面板密度。
+- 每张内容图提供准确 `fig.alt` 或 Markdown 替代文本；替代文本描述结构、组别和主要关系。
+- 图件选择与导出读取 [visual-templates.md](references/visual-templates.md)。
 
-**⚠️ 必须完成的两步操作**：
+## 验证与导航
 
-**第一步：生成图片文件**
-
-1. **封面图 (MANDATORY)**: 
-   - 路径：`doc/images/[number]-[topic]-cover.svg`
-   - 风格：视觉吸引、展示图表类型
-
-2. **文内示意图 (MANDATORY - 每篇至少 1 张)**：
-   - 路径：`doc/images/diagrams/viz-*.svg`
-   - 格式：**必须使用 SVG 格式**（扩展名必须是 .svg）
-   - **尺寸要求**（CRITICAL）：
-     - **推荐标准尺寸**: `viewBox="0 0 1400 800"` (宽 1400, 高 800)
-     - **对比表格图**: 1400×800～1400×900 (横向宽幅)
-     - **决策树**: 1400×800 (横向布局，避免过高导致显示不全)
-     - **配色方案展示**: 1200×600～1400×700
-     - **布局示意图**: 1000×600～1200×700
-     - ⚠️ **避免**: 过高的纵向布局 (如 1000×1100)，会导致显示不全
-   - 用途：**图表类型对比、配色方案、布局结构**
-   - 示例场景：
-     - 图表类型选择决策树
-     - 常用配色方案展示
-     - 布局排列示例
-     - ggplot2 图层结构图
-     - 图表对比表格
-
-**第二步：在文章中引用图片（CRITICAL）**
-
-⚠️ **生成图片后必须立即用 Markdown 语法在文章中引用！**
-
-```markdown
-## 图表类型选择指南
-
-![常见图表类型选择决策树](images/diagrams/viz-chart-selection.svg)
-
-**使用说明**：根据数据类型和展示目的，参考上图快速选择合适的图表。
-```
-
-**插入位置**：
-- 配色方案图 → "配色方案"章节
-- 图表选择树 → "图表用途"章节
-- 布局示例 → "图形组合"章节
-
-**验证**：
-```bash
-grep "!\[.*\](images/diagrams/" doc/[number]-[topic].rmd
-```
-
-### 步骤2: 验证渲染 (CRITICAL)
-
-在提交前必须进行本地渲染验证，确保代码可运行且图片生成正确。
-
-```bash
-# 渲染单文件验证内容
-quarto render doc/20[number]-[topic].rmd
-
-# 确保图片生成在 doc/figure/ 目录下，无报错
-```
-
-### 步骤3: 更新导航系统 (CRITICAL)
-
-**⚠️ 重要顺序：必须先创建文章 → 更新 _quarto.yml → 运行 generate_sections.R**
-
-必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
-
-**⚠️ 更新导航前务必验证**:
-
-- 确认新文件已成功渲染
-- 确认文件编号无冲突
-- 确认YAML元数据正确
-
-1. **更新 `doc/_quarto.yml`**:
-
-   - 找到 `sidebar` -> `contents` -> `数据可视化` 部分。
-   - 添加新条目，**注意缩进**:
-     ```yaml
-               - text: "文章标题"
-                 href: "20xx-filename.rmd"
-     ```
-
-2. **运行自动生成脚本 (MANDATORY - 在更新 _quarto.yml 之后)**:
-
-   - ⚠️ **必须在 _quarto.yml 更新后运行**，否则新的文章链接不会出现在 sections 中
-   - 此脚本会根据 `_quarto.yml` 更新 `sections/visualization.qmd` 等分类索引页。
-
-   ```bash
-   # 在 doc 目录下运行
-   cd doc && Rscript generate_sections.R
-   ```
-
-3. **渲染 sections 页面 (MANDATORY - 必须执行)**:
-
-   ⚠️ **运行 generate_sections.R 后必须立即渲染 sections 页面！**
-
-   ```bash
-   # 渲染 visualization 页面（新增文章所在分类）
-   quarto render doc/sections/visualization.qmd
-
-   # 如果需要，也渲染主页以更新导航
-   quarto render doc/index.qmd
-   ```
-
-   **为什么必须渲染**：
-   - generate_sections.R 只更新 .qmd 源文件
-   - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
-
-4. **验证 sections 已更新**:
-
-   ```bash
-   # 检查新文章是否出现在 sections/visualization.qmd 中
-   grep "20xx-[filename]" doc/sections/visualization.qmd
-   ```
-
-### 步骤4: 最终渲染与提交
-
-1. **重新渲染受影响页面**:
-
-   ```bash
-   quarto render doc/sections/visualization.qmd
-   quarto render doc/index.qmd
-   ```
-2. **提交代码**:
-
-   ```bash
-   git add doc/20xx-*.rmd doc/images/[topic]-cover.svg
-   git add doc/_quarto.yml doc/0001-guide.rmd README.md doc/sections/visualization.qmd
-   git commit -m "feat(viz): 新增[图表类型]可视化教程"
-   ```
-
-## 写作规范
-
-- **内容标准**:
-  - **详细度**: 内容必须详尽，起到深入教程的作用。
-  - **篇幅**: 不少于 300 行 (Not less than 300 lines)。
-  - **比例**: 文字说明约占 70%，代码约占 30% (70% text, 30% code)。
-  - **结构**: 必须提前构建全面的内容框架，然后根据框架填充详细内容。
-- **图文比例**: 目标是每个代码块都有对应的图表输出。
-- **配色**: 优先使用 `ggsci` 期刊配色、`ColorBrewer` 或 `viridis` (色盲友好)。
-- **注释**: 每张图都要包含标题、坐标轴标签、图例标题。
-
-## 参考资源
-
-- [content-structure.md](references/content-structure.md): 详细内容模板与标题规范。
-- [visual-templates.md](references/visual-templates.md): SVG 封面与示意图模板库。
-- [quality-checklist.md](references/quality-checklist.md): 完整质量检查与导航更新指南。
-- [color-palettes.md](references/color-palettes.md): 常用配色方案参考。
+1. 按 [quality-checklist.md](references/quality-checklist.md) 审查并实跑所有绘图代码。
+2. 更新 `_quarto.yml` 后从 `doc/` 运行 `Rscript generate_sections.R`。
+3. 只渲染目标文章、`sections/visualization.qmd` 和 `index.qmd`。
+4. 检查最终 HTML、目标尺寸图片、中文字体、替代文本、颜色以外的编码和完整日志。

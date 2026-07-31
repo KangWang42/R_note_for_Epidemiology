@@ -1,44 +1,22 @@
-# 封面图与 AI 示意图 SVG 模板库
+# 统计教程图件选择
 
-## 1. 封面图设计原则
-- **路径**: `doc/images/[topic]-cover.svg`
-- **视觉**: 深色背景 + 渐变色 + 核心统计元素。
-- **文字**: 标题字号 ≥ 56，副标题 ≥ 28。
+## 优先级
 
-## 2. 封面图模板
-### 模板 A: 回归/曲线类 (线性回归, GAM, RCS)
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e3a8a" />
-      <stop offset="100%" stop-color="#3b82f6" />
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="675" fill="url(#bg)" />
-  <line x1="150" y1="550" x2="1050" y2="550" stroke="#e2e8f0" stroke-width="2" opacity="0.6"/>
-  <line x1="150" y1="550" x2="150" y2="150" stroke="#e2e8f0" stroke-width="2" opacity="0.6"/>
-  <g fill="#93c5fd" opacity="0.6">
-    <circle cx="250" cy="450" r="8"/><circle cx="350" cy="420" r="8"/><circle cx="450" cy="380" r="8"/>
-  </g>
-  <path d="M250,450 Q600,300 950,220" stroke="#fbbf24" stroke-width="4" fill="none" opacity="0.9"/>
-  <text x="600" y="100" font-family="Arial" font-size="56" font-weight="bold" fill="white" text-anchor="middle">[方法中文名]</text>
-  <text x="600" y="150" font-family="Arial" font-size="28" fill="#e0f2fe" text-anchor="middle">[English Name]</text>
-</svg>
-```
+1. 数据分布、效应、不确定性、诊断和模拟结果：用文章代码生成真实统计图。
+2. 软件或文档结果：运行真实产物后截图。
+3. 风险集、因果结构或工作流难以用短文说明时，再使用非统计内容图。
 
-## 3. 文章内 AI 示意图模板
-- **路径**: `doc/images/diagrams/stat-[topic]-[type].svg`
-- **类型**:
-    - `workflow`: 分析流程图 (矩形 + 箭头)
-    - `principle`: 原理示意图 (对比组, 匹配过程)
-    - `structure`: 数据结构图 (嵌套层级)
-    - `decision`: 决策树 (菱形判断)
+不强制每篇都有封面或示意图，不以固定 SVG 尺寸作质量标准。非统计图遵循 `research-visuals`，统计图遵循 `publication-figures`。
 
-### 示例: PSM 匹配流程
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
-  <!-- 包含处理组、对照组、计算PS、匹配后平衡的完整逻辑 -->
-  <!-- 详见 section-statistics 原始 skill.md 第 668-725 行 -->
-</svg>
-```
+## 常见有效图位
+
+- FDR：排序 P 值与 BH 临界线、重复模拟 FDP 分布；
+- 样本量：效应量或基线风险的敏感性曲线；
+- GEE：不同工作相关结构的估计与区间；
+- MI：迭代轨迹、观测与插补分布；
+- IPTW/MSM：重叠、权重尾部、ESS 和逐时点平衡；
+- 竞争风险：各原因 CIF 和残差随时间；
+- 时变 Cox：个体暴露区间与事件对齐；
+- 目标试验：真实分析得到的标准化风险曲线。
+
+每张图前说明问题，图后说明模式和限制；替代文本描述坐标、组别和主要关系。

@@ -1,124 +1,30 @@
 ---
 name: section-operations
-description: Generate comprehensive R practical operation tutorials (data import/export, cleaning, transformation, regex, web scraping, environment setup) with theory + practice workflow. Use when: (1) User requests data processing or tool setup tutorials, (2) File names match 30xx-*.rmd pattern, (3) Keywords: readr, stringr, lubridate, rvest, RMarkdown/Quarto setup, Positron/RStudio config.
+description: 为本仓库新建、重写或审校实用操作教程，包括数据导入清洗、字符串日期、网页抓取、R/Quarto/Typst、编辑器和环境配置。适用于 `doc/30xx-*.rmd`、`doc/30xx-*.qmd` 与实用操作栏目；先用 `tutorial-authoring`，涉及数据分析时再使用相应统计 skill。当前软件功能、命令和平台差异必须以官方文档和实际运行核验。不用于直接修改业务数据或只修一个命令。
 ---
-## 核心任务
 
-生成实用操作类教程 (.rmd/.qmd)，涵盖数据处理、工具使用、工作流优化，强调 "任务目标 → 工具选择 → 操作步骤 → 结果验证"。
+# 实用操作教程
 
-## 快速启动 (Quick Start)
+## 开工
 
-1. **确定任务**: 如 "正则表达式处理字符串 (Regex)"。
-2. **加载模板**: 阅读 [content-structure.md](references/content-structure.md) 获取 YAML 和标题结构。
-3. **生成内容**: 遵循 "目标 -> 准备 -> 基础操作 -> 实战案例 -> 进阶技巧" 流程。
-4. **视觉设计**: 参考 [visual-templates.md](references/visual-templates.md) 生成封面图和流程示意图。
-5. **质量检查**: 验证路径规范与导航更新。
+1. 先执行 `tutorial-authoring` 并读取 [content-structure.md](references/content-structure.md)。
+2. 确定读者的操作系统、工具版本、输入文件、目标产物和验证方式。只有平台差异会改变步骤时才拆分说明。
+3. 用实际 `--help`、版本命令和官方文档核对命令；稳定、实验和已弃用功能分开写。
+4. 数据清洗主题另读 [data-cleaning-workflow.md](references/data-cleaning-workflow.md)，保持原始输入只读。
 
-## 完整工作流程
+## 写作与示例
 
-### 步骤1: 生成教程内容与封面
+围绕“任务 → 前置条件 → 最小步骤 → 预期结果 → 验证 → 常见失败”组织。命令块必须可复制，但路径、引号、shell 和工作目录需与平台一致。解释关键参数改变什么，不逐字翻译每个选项。
 
-按 [content-structure.md](references/content-structure.md) 结构生成文件。
+安装命令与日常使用分开；不要求用户在教程构建时升级运行时或全局环境。外部字体、TeX、Java、系统库和编译器等依赖要说明核验命令和失败影响。
 
-- **必须包含**: 任务目标、准备工作、分步骤操作流程、至少一个实战案例。
-- **操作导向**: 每步都应可直接操作，并提供预期输出说明。
-- **封面图 (MANDATORY)**: 必须生成 `doc/images/[number]-[topic]-cover.svg`。
-- **原理图**: 复杂逻辑，结构图，代码不好展现的，必须AI生图生成 `doc/images/diagrams/stat-*.svg（或者png），由AI直接生成`，比如一些思维导图，可视化内容。使用md语法在文章内引用
+## 图件
 
-### 步骤2: 验证渲染 (CRITICAL)
+按 [visual-templates.md](references/visual-templates.md) 选择真实终端、文档、页面或文件树截图。界面和编译结果必须实际运行得到；概念流程只有在文字和真实截图无法表达关系时使用。
 
-在提交前必须进行本地渲染验证，确保代码可运行且格式正确。
+## 验证与导航
 
-```bash
-# 渲染单文件验证内容
-quarto render doc/[number]-[topic].rmd
-
-# 确保无报错、包缺失或格式问题
-```
-
-### 步骤3: 更新导航系统 (CRITICAL)
-
-**⚠️ 重要顺序：必须先创建文章 → 更新 _quarto.yml → 运行 generate_sections.R**
-
-必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
-
-**⚠️ 更新导航前务必验证**:
-
-- 确认新文件已成功渲染
-- 确认文件编号无冲突
-- 确认YAML元数据正确
-
-1. **更新 `doc/_quarto.yml`**:
-
-   - 找到 `sidebar` -> `contents` -> `实用操作` 部分。
-   - 添加新条目，**注意缩进**:
-     ```yaml
-               - text: "文章标题"
-                 href: "[number]-[topic].rmd"
-     ```
-
-2. **运行自动生成脚本 (MANDATORY - 在更新 _quarto.yml 之后)**:
-
-   - ⚠️ **必须在 _quarto.yml 更新后运行**，否则新的文章链接不会出现在 sections 中
-   - 此脚本会根据 `_quarto.yml` 更新 `sections/operation.qmd` 等分类索引页。
-
-   ```bash
-   # 在 doc 目录下运行
-   cd doc && Rscript generate_sections.R
-   ```
-
-3. **渲染 sections 页面 (MANDATORY - 必须执行)**:
-
-   ⚠️ **运行 generate_sections.R 后必须立即渲染 sections 页面！**
-
-   ```bash
-   # 渲染 operation 页面（新增文章所在分类）
-   quarto render doc/sections/operation.qmd
-
-   # 如果需要，也渲染主页以更新导航
-   quarto render doc/index.qmd
-   ```
-
-   **为什么必须渲染**：
-   - generate_sections.R 只更新 .qmd 源文件
-   - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
-
-4. **验证 sections 已更新**:
-
-   ```bash
-   # 检查新文章是否出现在 sections/operation.qmd 中
-   grep "[number]-[topic]" doc/sections/operation.qmd
-   ```
-
-### 步骤4: 最终渲染与提交
-
-1. **重新渲染受影响页面**:
-
-   ```bash
-   quarto render doc/sections/operation.qmd
-   quarto render doc/index.qmd
-   ```
-2. **提交代码**:
-
-   ```bash
-   git add doc/[number]-[topic].rmd doc/images/[number]-[topic]-cover.svg
-   git add doc/_quarto.yml doc/0001-guide.rmd README.md doc/sections/operation.qmd
-   git commit -m "feat(ops): 新增[主题]实用操作教程"
-   ```
-
-## 写作规范
-
-- **内容标准**:
-  - **详细度**: 内容必须详尽，起到深入教程的作用。
-  - **篇幅**: 不少于 300 行 (Not less than 300 lines)。
-  - **比例**: 文字说明约占 70%，代码约占 30% (70% text, 30% code)。
-  - **结构**: 必须提前构建全面的内容框架，然后根据框架填充详细内容。
-- **路径**: 优先使用相对路径 + `here` 包，避免硬编码绝对路径。
-- **验证**: 每个关键步骤提供验证代码和检查清单。
-- **风格**: 遵循 tidyverse 风格指南，适当添加注释。
-
-## 参考资源
-
-- [content-structure.md](references/content-structure.md): 详细内容模板与标题规范。
-- [visual-templates.md](references/visual-templates.md): SVG 封面与示意图模板库。
-- [data-cleaning-workflow.md](references/data-cleaning-workflow.md): 数据清洗标准工作流。
+- 从干净工作目录按文中顺序执行关键命令，检查输出文件、退出码和完整日志。
+- Typst/Quarto 等教程至少编译一个最小文件，并检查最终 PNG/PDF/HTML，不只检查源码。
+- 运行项目教程审计与目标文章渲染，扫描 warning/error。
+- 更新 `_quarto.yml` 后从 `doc/` 运行 `Rscript generate_sections.R`，再定向渲染 `sections/operation.qmd` 和 `index.qmd`。

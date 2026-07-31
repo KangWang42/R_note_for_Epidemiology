@@ -1,124 +1,43 @@
 ---
 name: section-intro-guide
-description: Generate comprehensive R introductory guides (learning paths, basic concepts, beginner tutorials) with theory + practice workflow. Use when: (1) User requests R introductory tutorials, (2) File names match 00xx-*.rmd pattern, (3) Keywords: beginner, learning path, basic knowledge, RStudio setup, RMarkdown intro.
+description: 为本仓库新建、重写或审校 R 入门指南、学习路线、基础概念和首次上手教程。适用于 `doc/00xx-*.rmd`、`doc/00xx-*.qmd` 与入门指南栏目；先用 `tutorial-authoring`，再按主题调用对应 R、文档或视觉 skill。不用于把进阶统计方法强行简化成零基础文章。
 ---
-## 核心任务
 
-生成符合初学者需求的入门指南类教程 (.rmd/.qmd)，强调 "概念 → 流程 → 代码 → 解释" 结构，确保 70% 文字 + 30% 代码比例。
+# R 入门指南
 
-## 快速启动 (Quick Start)
+## 开工
 
-1. **确定主题**: 如 "R 语言数据结构 (Data Structures)"。
-2. **加载模板**: 阅读 [content-structure.md](references/content-structure.md) 获取 YAML 和标题结构。
-3. **生成内容**: 遵循 "目标 -> 路线 -> 概念 -> 实践 -> 错误纠偏" 流程。
-4. **视觉设计**: 参考 [visual-templates.md](references/visual-templates.md) 生成封面图和学习路径图。
-5. **质量检查**: 验证文字比例与导航更新。
+1. 先执行 `tutorial-authoring`，完整读取其质量标准，再读取 [content-structure.md](references/content-structure.md)。
+2. 明确读者已经会什么、读完要完成什么任务，以及可用于练习的最小数据或文件。
+3. 新建文章前核对 `00xx` 编号、相近主题、稳定 URL 和 `_quarto.yml` 位置。
+4. 涉及 R、RStudio、Positron、Quarto 或包接口时核对当前官方文档；不要复用过期界面和安装步骤。
 
-## 完整工作流程
+## 教学主线
 
-### 步骤1: 生成教程内容与封面
+按学习问题组织内容，不固定章节数、行数或文字/代码比例。入门教程通常依次完成：建立任务语境、解释最少必要概念、给出可复制的最小示例、展示预期输出、让读者完成一个小练习，并说明失败时从哪里检查。
 
-按 [content-structure.md](references/content-structure.md) 结构生成文件。
+- 一个例子只引入少量新概念；后续例子复用前文对象，避免每节重新造数据。
+- 代码块前说明输入和目的，代码块后解释输出中需要看的量；不逐行翻译显而易见的语法。
+- 类比只用于建立直觉，随后明确其不能覆盖的技术边界。
+- 错误示例必须能实际复现，并给出错误信息、最早检查点、原因和修复。
+- 学习路线以能力和可验证任务分阶段，不承诺固定周数，也不把安装大量包当作学习成果。
 
-- **必须包含**: `## 教程目标与适用场景` 到 `## 进阶扩展` 的标准结构。
-- **文字比例**: 必须确保文字解释占 70% 以上，假设读者是零基础。
-- **封面图 (MANDATORY)**: 必须生成 `doc/images/00[number]-[topic]-cover.svg`。
-- **原理图**: 复杂逻辑，结构图，代码不好展现的，必须AI生图生成 `doc/images/diagrams/stat-*.svg（或者png），由AI直接生成`，比如一些思维导图，可视化内容，使用md语法在文章内引用
+需要编写路线图时读取 [learning-roadmap.md](references/learning-roadmap.md)。
 
-### 步骤2: 验证渲染 (CRITICAL)
+## 代码与环境
 
-在提交前必须进行本地渲染验证，确保代码可运行且格式正确。
+- 从空白 R 会话按文章顺序实跑全部可执行代码；随机过程才设置种子。
+- 优先使用小而真实的数据结构，不通过隐藏 warning、错误或输出制造“顺利”体验。
+- 安装与日常代码分开。缺少运行时、系统库或外部软件时遵循仓库依赖规则，不默认改全局环境。
+- 展示文件路径时说明工作目录并使用本项目可复现的相对路径。
 
-```bash
-# 渲染单文件验证内容
-quarto render doc/00[number]-[topic].rmd
+## 图件
 
-# 确保无报错、包缺失或格式问题
-```
+读取 [visual-templates.md](references/visual-templates.md)。真实控制台、编辑器、文档和图形均来自实际运行或渲染。只有关系、顺序或层级用文字难以追踪时才生成内容图；封面和示意图均不设数量指标。
 
-### 步骤3: 更新导航系统 (CRITICAL)
+## 验证与导航
 
-**⚠️ 重要顺序：必须先创建文章 → 更新 _quarto.yml → 运行 generate_sections.R**
-
-必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
-
-**⚠️ 更新导航前务必验证**:
-
-- 确认新文件已成功渲染
-- 确认文件编号无冲突
-- 确认YAML元数据正确
-
-1. **更新 `doc/_quarto.yml`**:
-
-   - 找到 `sidebar` -> `contents` -> `入门指南` 部分。
-   - 添加新条目，**注意缩进**:
-     ```yaml
-               - text: "文章标题"
-                 href: "00xx-[topic].rmd"
-     ```
-
-2. **运行自动生成脚本 (MANDATORY - 在更新 _quarto.yml 之后)**:
-
-   - ⚠️ **必须在 _quarto.yml 更新后运行**，否则新的文章链接不会出现在 sections 中
-   - 此脚本会根据 `_quarto.yml` 更新对应的 section 分类索引页。
-
-   ```bash
-   # 在 doc 目录下运行
-   cd doc && Rscript generate_sections.R
-   ```
-
-3. **渲染 sections 页面 (MANDATORY - 必须执行)**:
-
-   ⚠️ **运行 generate_sections.R 后必须立即渲染 sections 页面！**
-
-   ```bash
-   # 渲染 guide 页面（新增文章所在分类）
-   quarto render doc/sections/guide.qmd
-
-   # 如果需要，也渲染主页以更新导航
-   quarto render doc/index.qmd
-   ```
-
-   **为什么必须渲染**：
-   - generate_sections.R 只更新 .qmd 源文件
-   - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
-
-4. **验证 sections 已更新**:
-
-   ```bash
-   # 检查新文章是否出现在对应的 section 中
-   grep "00xx-[topic]" doc/sections/guide.qmd
-   ```
-
-### 步骤4: 最终渲染与提交
-
-1. **重新渲染受影响页面**:
-
-   ```bash
-   quarto render doc/sections/guide.qmd
-   quarto render doc/index.qmd
-   ```
-2. **提交代码**:
-
-   ```bash
-   git add doc/00xx-*.rmd doc/images/00xx-*-cover.svg
-   git add doc/_quarto.yml doc/0001-guide.rmd README.md doc/sections/guide.qmd
-   git commit -m "feat(guide): 新增[教程标题]入门教程"
-   ```
-
-## 写作规范
-
-- **内容标准**:
-  - **详细度**: 内容必须详尽，起到深入教程的作用。
-  - **篇幅**: 不少于 300 行 (Not less than 300 lines)。
-  - **比例**: 文字说明约占 70%，代码约占 30% (70% text, 30% code)。
-  - **结构**: 必须提前构建全面的内容框架，然后根据框架填充详细内容。
-- **语言**: 客观、科学、结构清晰，以段落叙述为主。
-- **代码**: 优先使用 `pkg::fn()`；随机过程设置 `set.seed(2026)`。
-- **标题**: 使用中文标题，层级清晰（一级到三级）。
-
-## 参考资源
-
-- [content-structure.md](references/content-structure.md): 详细内容模板与标题规范。
-- [visual-templates.md](references/visual-templates.md): SVG 封面与示意图模板库。
-- [learning-roadmap.md](references/learning-roadmap.md): R 语言学习路线参考。
+1. 运行项目教程审计脚本并实跑示例。
+2. 定向渲染目标文章，检查代码、表格、图件、中文和移动端可读性。
+3. 更新 `doc/_quarto.yml` 后从 `doc/` 运行 `Rscript generate_sections.R`。
+4. 只渲染 `sections/guide.qmd`、`index.qmd` 与目标文章，扫描完整日志中的 warning/error。

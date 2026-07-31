@@ -1,223 +1,44 @@
 ---
 name: section-ml-ai
-description: Generate comprehensive R machine learning and AI tutorials (mlr3, tidymodels, xgboost, torch, etc.) with theory + practice workflow. Use when: (1) User requests ML/AI tutorials, (2) File names match 10xx-*.rmd pattern, (3) Keywords: classification, regression, clustering, feature engineering, hyperparameter tuning, random forest, SVM, neural networks.
+description: 为本仓库新建、重写或审校机器学习与人工智能方法教程，包括分类、回归、聚类、特征工程、重采样、调参、校准、解释与部署前验证。适用于机器学习栏目及相关 Rmd/Qmd；先用 `tutorial-authoring`，涉及 R 代码时使用 `r-biostats`，统计图使用 `publication-figures`。不用于当前 AI 产品的操作指南，后者使用 `section-ai-tools`。
 ---
-## 核心任务
 
-生成机器学习与 AI 类教程 (.rmd/.qmd)，涵盖算法原理、工程实践、模型评估、可解释性，强调 "问题定义 → 数据准备 → 模型训练 → 评估优化 → 可解释性"。
+# 机器学习与人工智能教程
 
-## 快速启动 (Quick Start)
+## 开工
 
-1. **确定算法**: 如 "随机森林分类 (Random Forest)"。
-2. **加载模板**: 阅读 [content-structure.md](references/content-structure.md) 获取 YAML 和标题结构。
-3. **生成内容**: 遵循 "原理 -> 工作流 -> 训练 -> 评估 -> 调参 -> 可解释性" 流程。
-4. **视觉设计**: 参考 [visual-templates.md](references/visual-templates.md) 生成封面图和算法流程图。
-5. **质量检查**: 验证交叉验证与导航更新。
+1. 先执行 `tutorial-authoring` 并读取 [content-structure.md](references/content-structure.md)。
+2. 锁定任务类型、目标人群、预测时点、结局、观测单位、数据切分单位和主要评价指标。
+3. 明确文章演示的是开发、内部验证、外部验证还是部署；不要把一次训练/测试切分写成普遍性能。
+4. 核对框架、学习器和参数的当前官方文档。包接口、默认值、硬件支持和模型/API 功能不得凭记忆断言。
 
-## 完整工作流程
+## 内容主线
 
-### 步骤1: 逐部分生成教程内容（CRITICAL - 分段生成策略）
+文章围绕一个预测或学习问题展开，不强制固定行数、三个难度层级、多个指标、调参或 SHAP。完整教程通常覆盖：目标与数据、基线方案、无泄漏预处理、重采样、模型训练、预设指标、校准与误差分析、最终测试或外部验证，以及适用边界。
 
-**⚠️ 重要：教程内容超过 300 行时必须分段生成，避免一次性输出过长内容。**
+- 先给朴素、可解释的基线，再说明复杂模型增加了什么能力和成本。
+- 特征选择、缺失处理、标准化和调参必须在每个重采样训练折内完成。
+- 测试集只用于锁定流程后的最终评价，不反复查看后修改模型。
+- 分类阈值与临床或业务代价相连；不默认以 0.5、准确率或 AUC 作为唯一标准。
+- 聚类、降维和生成模型使用与任务相符的稳定性、重构、人工审查或外部效度标准，不套监督学习指标。
 
-**分段生成流程**：
+需要设计搜索空间时读取 [hyperparameter-guides.md](references/hyperparameter-guides.md)。
 
-1. **第一部分**：生成 YAML 头部 + Setup + 教程目标 + 算法原理 + 数据准备（约 150-200 行）
-2. **第二部分**：追加模型训练 + 模型评估 + 超参数优化（约 150-200 行）
-3. **第三部分**：追加模型可解释性 + 实战案例 + 总结（约 100-150 行）
-4. **验证完整性**：确认所有必需章节都已包含
+## 代码与结果
 
-**使用 `edit` 或 `bash` 追加内容时的注意事项**：
-- 使用 `edit` 工具在特定位置插入内容
-- 或使用 `cat >> file.rmd << 'EOF'` 追加大段内容
-- 每次追加后检查文件行数确认成功
+- 使用项目既有框架；没有既有合同时按文章目的选择 tidymodels、mlr3 或底层包，不为“现代”而无依据替换。
+- 所有随机数据划分、重采样和随机算法记录种子；需要分层、分组或时间顺序时在代码中显式实现。
+- 输出至少包含目标指标及其不确定性或重采样分布，并根据任务检查校准、类别/亚组误差和失败案例。
+- 比较模型时复用相同数据划分、预处理范围和指标。没有公平基准时不写“更优”“更快”。
+- 示例性能只属于示例数据，不写成真实研究或部署效果。
 
-**内容生成要求**：
-- **必须包含**: 完整的建模流程（数据划分、特征工程、训练、评估、调参）
-- **可复现性**: 所有随机操作必须设置种子 `set.seed(2026)`
+## 图件
 
-### 步骤1.5: 生成配图并在文章中引用（CRITICAL）
+读取 [visual-templates.md](references/visual-templates.md)。ROC、PR、校准、残差、学习曲线和重采样分布必须来自真实预测对象。算法或数据流示意图只有在能澄清训练与验证边界时才使用 `research-visuals`。
 
-**⚠️ 必须完成的两步操作**：
+## 验证与导航
 
-**第一步：生成图片文件**
-
-1. **封面图 (MANDATORY)**: 
-   - 路径：`doc/images/[number]-[topic]-cover.svg`
-   - 风格：现代、专业、与主题相关
-   - 工具：使用 `write` 工具创建 SVG 文件
-
-2. **文内示意图 (MANDATORY - 每篇至少 1 张)**：
-   - 路径：`doc/images/diagrams/ml-*.svg`
-   - 格式：**必须使用 SVG 格式**（不要用 PNG，即使内容是 SVG 也要用 .svg 扩展名）
-   - **尺寸要求**（CRITICAL）：
-     - **推荐标准尺寸**: `viewBox="0 0 1400 800"` (宽 1400, 高 800)
-     - **对比表格图**: 1400×800～1400×900 (横向宽幅)
-     - **决策树**: 1400×800 (横向布局，避免过高导致显示不全)
-     - **流程图**: 1200×600～1400×800 (横向流程)
-     - **架构图**: 1000×800～1200×800
-     - ⚠️ **避免**: 过高的纵向布局 (如 1000×1100)，会导致显示不全
-   - 用途：**结构对比、流程图、决策树、算法原理示意**
-   - 示例场景：
-     - 多算法对比表格图
-     - 算法选择决策树
-     - ML 工作流程图
-     - 特征工程流程
-     - 模型架构示意图
-
-**第二步：在文章中引用图片（CRITICAL - 必须执行）**
-
-⚠️ **生成图片后必须立即在文章中添加引用，否则图片不会显示！**
-
-**引用位置与方法**：
-
-1. **封面图**：已在 YAML 头部 `image:` 字段引用，无需额外操作
-
-2. **文内图必须用 Markdown 语法引用**：
-
-   **正确做法**：
-```markdown
-## 算法对比分析
-
-![六大聚类算法特性对比](images/diagrams/clustering-algorithms-comparison.svg)
-
-**图示说明**：上图总结了六种算法在簇形状适应性、计算复杂度等维度的对比。
-```
-
-   **错误做法**（生成了图但不引用）：
-   ```markdown
-   ## 算法对比分析
-   
-   下面我们对比六种算法...
-   （没有 ![...](images/...) 语法，图片不会显示）
-   ```
-
-**插入图片的最佳位置**：
-- 算法对比表 → 在"总结与推荐"章节插入
-- 决策树/流程图 → 在"算法选择"章节插入
-- 工作流程图 → 在"教程目标"或"ML工作流程"章节插入
-- 架构图 → 在"算法原理"章节插入
-
-**图片生成与引用的完整示例**：
-
-```markdown
-# 步骤1: 使用 write 工具生成 SVG 图片
-write(filePath="doc/images/diagrams/ml-workflow.svg", content="<svg>...</svg>")
-
-# 步骤2: 在文章对应位置添加引用（使用 edit 工具）
-## ML 工作流程概览
-
-![机器学习完整工作流程](images/diagrams/ml-workflow.svg)
-
-**流程说明**：上图展示了从数据准备到模型部署的完整流程...
-```
-
-**验证图片引用是否成功**：
-```bash
-# 检查文章中是否包含图片引用
-grep "!\[.*\](images/diagrams/" doc/[number]-[topic].rmd
-# 应该至少看到 1-2 条匹配结果
-```
-
-**⚠️ 常见错误**：
-- ❌ 生成 SVG 内容但使用 `.png` 扩展名 → 图片无法显示
-- ❌ 生成图片但不在文章中引用 → 图片无法显示
-- ✅ 正确：生成 `.svg` 文件 + 在文章中用 Markdown 引用
-
-### 步骤2: 验证渲染 (CRITICAL)
-
-在提交前必须进行本地渲染验证，确保代码可运行且格式正确。
-
-```bash
-# 渲染单文件验证内容
-quarto render doc/[number]-[topic].rmd
-
-# 确保无报错、包缺失或格式问题
-```
-
-### 步骤3: 更新导航系统 (CRITICAL)
-
-**⚠️ 重要顺序：必须先创建文章 → 更新 _quarto.yml → 运行 generate_sections.R**
-
-必须执行以下步骤，否则新文章无法在网站侧边栏和分类页显示。
-
-**⚠️ 更新导航前务必验证**:
-
-- 确认新文件已成功渲染
-- 确认文件编号无冲突
-- 确认YAML元数据正确
-
-1. **更新 `doc/_quarto.yml`**:
-
-   - 找到 `sidebar` -> `contents` -> `机器学习与 AI` 部分。
-   - 添加新条目，**注意缩进**:
-     ```yaml
-               - text: "文章标题"
-                 href: "[number]-[topic].rmd"
-     ```
-
-2. **运行自动生成脚本 (MANDATORY - 在更新 _quarto.yml 之后)**:
-
-   - ⚠️ **必须在 _quarto.yml 更新后运行**，否则新的文章链接不会出现在 sections 中
-   - 此脚本会根据 `_quarto.yml` 更新 `sections/machine-learning.qmd` 等分类索引页。
-
-   ```bash
-   # 在 doc 目录下运行
-   cd doc && Rscript generate_sections.R
-   ```
-
-3. **渲染 sections 页面 (MANDATORY - 必须执行)**:
-
-   ⚠️ **运行 generate_sections.R 后必须立即渲染 sections 页面！**
-
-   ```bash
-   # 渲染 machine-learning 页面（新增文章所在分类）
-   quarto render doc/sections/machine-learning.qmd
-
-   # 如果需要，也渲染主页以更新导航
-   quarto render doc/index.qmd
-   ```
-
-   **为什么必须渲染**：
-   - generate_sections.R 只更新 .qmd 源文件
-   - 必须渲染才能生成 HTML，新文章链接才会出现在网站侧边栏
-
-4. **验证 sections 已更新**:
-
-   ```bash
-   # 检查新文章是否出现在 sections/machine-learning.qmd 中
-   grep "[number]-[topic]" doc/sections/machine-learning.qmd
-   ```
-
-### 步骤4: 最终渲染与提交
-
-1. **重新渲染受影响页面**:
-
-   ```bash
-   quarto render doc/sections/machine-learning.qmd
-   quarto render doc/index.qmd
-   ```
-2. **提交代码**:
-
-   ```bash
-   git add doc/[number]-[topic].rmd doc/images/[number]-[topic]-cover.svg
-   git add doc/_quarto.yml doc/0001-guide.rmd README.md doc/sections/machine-learning.qmd
-   git commit -m "feat(ml): 新增[算法名称]机器学习教程"
-   ```
-
-## 写作规范
-
-- **内容标准**:
-  - **详细度**: 内容必须详尽，起到深入教程的作用。
-  - **篇幅**: 不少于 300 行 (Not less than 300 lines)。
-  - **比例**: 文字说明约占 70%，代码约占 30% (70% text, 30% code)。
-  - **结构**: 必须提前构建全面的内容框架，然后根据框架填充详细内容。
-- **框架**: 推荐使用 `mlr3` 或 `tidymodels` 现代框架。
-- **指标**: 必须展示多个评估指标（如 ACC, AUC, F1 等）。
-- **调参**: 必须包含超参数优化步骤（网格搜索或随机搜索）。
-
-## 参考资源
-
-- [content-structure.md](references/content-structure.md): 详细内容模板与标题规范。
-- [visual-templates.md](references/visual-templates.md): SVG 封面与示意图模板库。
-- [hyperparameter-guides.md](references/hyperparameter-guides.md): 常用算法调参指南。
+1. 从空会话实跑数据准备、重采样、训练、评价和预测代码，检查泄漏与训练/测试样本变化。
+2. 运行教程审计并扫描 warning、收敛、缺失预测和失败折。
+3. 更新 `_quarto.yml` 后从 `doc/` 运行 `Rscript generate_sections.R`。
+4. 只渲染目标文章、`sections/machine-learning.qmd` 和 `index.qmd`，检查最终 HTML 和图件。
