@@ -1,19 +1,20 @@
 ---
-title: 广义估计方程 (GEE) 完整教程
-subtitle: "处理重复测量与相关数据的稳健回归"
-date: "2026-01-18"
+title: 广义估计方程：相关数据的总体平均效应
+subtitle: "从估计目标、工作相关结构到稳健标准误与缺失数据边界"
+date: "2026-07-31"
 image: images/1085-gee-cover.svg
 categories:
 - 统计分析方法
-- 高级建模
+- 纵向数据
+- 聚类数据
 - GEE
-- longitudinal
+description: 系统讲解 GEE 的总体平均效应、工作相关结构、稳健标准误、缺失数据边界与 R 实现
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
-  warning = FALSE,
+  warning = TRUE,
   message = FALSE,
   fig.width = 7.4,
   fig.height = 4.8,
@@ -28,142 +29,209 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(geepack)
-library(broom)
 ```
 
-## 方法背景与适用场景
+## GEE 回答什么问题
 
-GEE（广义估计方程）是处理重复测量与相关数据的常用方法。
-它不要求完整的随机效应分布假设，而是关注总体平均效应，
-适合队列随访、聚类试验、医院/社区分层等“相关观测”场景。
+广义估计方程（generalized estimating equations, GEE）用于分析同一簇内相关、不同簇之间近似独立的数据，例如同一受试者的重复测量、同一家庭的成员或同一医疗机构的患者。它把广义线性模型的均值结构与一个“工作相关结构”结合，主要估计总体平均效应（population-averaged effect）。
 
-它常用于纵向随访的重复测量数据、医院/班级等聚类数据，以及希望获得稳健标准误的广义线性模型场景。在这些研究里，同一簇内的观测不再独立，因此需要 GEE 来修正相关性带来的偏差。
+开始建模前，应先确定三件事：
 
-## 模型入门与核心概念
+1. **估计目标**：关注总体平均差异，还是个体特异的轨迹与异质性？
+2. **簇的定义**：哪些观测可能相关？在纵向数据中通常是一名受试者构成一簇。
+3. **结局分布与链接函数**：连续、二分类和计数结局分别对应合适的 `family`。
 
-GEE 可以理解为“广义线性模型 + 相关结构修正”。它先用和 GLM 类似的均值模型描述结局与协变量的关系，再引入工作相关结构来刻画同一簇内的相关性，最后通过稳健标准误保证推断可靠。这样做的结果是，GEE 更关注总体平均效应，而不是个体层面的随机效应，因此适合回答群体平均结局的变化。
+GEE 不是“给普通回归换一个标准误”这么简单。均值模型、链接函数和簇定义仍须正确；相关结构主要影响估计效率，而不是替代研究设计和混杂控制。
 
-## 模型假设与前提
+## GEE 与混合效应模型并不等价
 
-GEE 假设簇内相关、簇间独立，均值模型结构合理。即使工作相关结构指定不完全准确，也可以依赖稳健标准误维持推断的可靠性，但前提是协变量与结局的均值关系设置正确。
+两类模型的目标不同，不应只根据哪个结果更显著来选择。
 
-## 通俗举例：为什么需要 GEE
+| 问题 | GEE | 广义线性混合模型 |
+|---|---|---|
+| 主要效应 | 总体平均效应 | 条件于随机效应的个体或簇特异效应 |
+| 簇内相关 | 工作相关矩阵 | 随机效应及条件分布 |
+| 随机效应分布 | 不建模 | 需要指定 |
+| 常见用途 | 政策或人群平均效应 | 个体轨迹、簇间异质性、预测 |
 
-想象我们对 100 名患者在 4 次随访中重复测量血压。
-如果直接把 400 条记录当成独立样本，会忽略同一患者
-之间的“相似性”，导致标准误被低估，结论看起来过于显著。
-GEE 的价值就在于：它承认“同一患者的记录更接近”，
-从而修正标准误，让结论更稳健。
+在线性恒等链接模型中，两者的固定效应有时相近；在 logistic 等非线性模型中，总体平均比值比与条件比值比通常不相等。
 
-## 方法对比：GEE vs 混合效应模型
+## 工作相关结构
 
-GEE 关注总体平均效应，适合回答群体平均差异或政策效果问题；混合效应模型强调个体差异，更适合研究个体轨迹是否不同。换句话说，如果你的目标是“治疗是否改善了总体平均结局”，GEE 更合适；如果你关心的是“每个人变化是否一样”，混合效应模型更合适。
+`geepack::geeglm()` 常用的 `corstr` 包括：
 
-## 数据准备与变量定义
+- `independence`：工作上假定簇内独立；
+- `exchangeable`：同一簇内任意两次观测具有相同相关性；
+- `ar1`：相邻时间点相关性更强，并按间隔递减；
+- `unstructured`：每一对测量可有不同相关性，参数多，对簇数和完整测量要求更高。
 
-这里模拟一个随访数据：每位受试者在 4 个时间点测量连续结局。
+“工作”意味着相关结构可以是近似模型。若均值模型正确、簇之间独立、簇数足够多并满足相应正则条件，sandwich 标准误可在相关结构错设时保持渐近稳健；这不表示有限样本中一定可靠。簇数很少、簇大小高度不均或个别簇影响很大时，常规 sandwich 标准误可能偏小，应考虑小样本修正、簇级 bootstrap 或与设计相符的其他方法。
+
+## 一个有真实簇内相关的模拟例子
+
+下面生成 160 名受试者、每人 5 次测量的数据。随机截距只用于生成相关数据；拟合目标仍是总体平均的治疗、时间及交互作用。
 
 ```{r gee-data}
-set.seed(2026)
-subjects <- 120
-visits <- 4
+set.seed(20260731)
 
-long_data <- tidyr::crossing(
-  subject_id = 1:subjects,
-  time = 1:visits
+n_subject <- 160
+n_visit <- 5
+
+subject_data <- tibble(
+  id = seq_len(n_subject),
+  treatment = rbinom(n_subject, 1, 0.5),
+  random_intercept = rnorm(n_subject, sd = 1.2)
+)
+
+long_data <- crossing(
+  id = subject_data$id,
+  visit = 0:(n_visit - 1)
 ) |>
+  left_join(subject_data, by = "id") |>
   mutate(
-    treatment = if_else(subject_id %% 2 == 0, 1, 0),
-    subject_effect = rnorm(subjects)[subject_id],
-    time_effect = 0.4 * time,
-    outcome = 5 + 1.2 * treatment + time_effect + subject_effect + rnorm(n())
+    outcome = 8 +
+      0.35 * visit +
+      0.60 * treatment +
+      0.25 * visit * treatment +
+      random_intercept +
+      rnorm(n(), sd = 1),
+    id = factor(id)
   ) |>
-  select(subject_id, time, treatment, outcome)
+  arrange(id, visit)
 
-long_data
+long_data |>
+  select(-random_intercept) |>
+  slice_head(n = 10)
 ```
 
-## 分析流程步骤
+在 `geeglm()` 中，同一 `id` 的记录应连续排列；`waves` 用于明确簇内测量顺序，尤其适合 AR(1) 或有间断测量的情况。
 
-分析流程可以概括为四步：先建立忽略相关性的基线模型，再指定工作相关结构拟合 GEE，之后比较不同相关结构下的结果，最后解读稳健标准误与总体平均效应是否一致。这一流程强调“先理解，再修正，再解释”，避免一开始就陷入模型细节。
+## 拟合并比较相关结构
 
-## 参数讲解与使用要点
-
-`id` 用于标记聚类或受试者编号，决定哪些样本彼此相关；`corstr` 用于描述相关结构，常见的有 `independence`、`exchangeable` 和 `ar1`；`family` 与 GLM 类似，用来定义结局类型（连续、二分类、计数）。实际操作时，若你对相关性结构不了解，可先从 `independence` 作为基线，再尝试 `exchangeable` 或 `ar1` 看结果是否稳定。
-
-## 代码实现
-
-### 基线模型（忽略相关）
-
-```{r gee-glm}
-glm_fit <- glm(outcome ~ treatment + time, data = long_data)
-summary(glm_fit)
-```
-
-### GEE：独立相关结构
-
-```{r gee-independence}
+```{r gee-fit}
 gee_ind <- geeglm(
-  outcome ~ treatment + time,
-  id = subject_id,
+  outcome ~ treatment * visit,
+  id = id,
+  waves = visit,
   data = long_data,
-  family = gaussian,
-  corstr = "independence"
+  family = gaussian(link = "identity"),
+  corstr = "independence",
+  std.err = "san.se"
 )
 
-summary(gee_ind)
-```
-
-### GEE：交换相关结构
-
-```{r gee-exchangeable}
-gee_exch <- geeglm(
-  outcome ~ treatment + time,
-  id = subject_id,
-  data = long_data,
-  family = gaussian,
-  corstr = "exchangeable"
-)
+gee_exch <- update(gee_ind, corstr = "exchangeable")
+gee_ar1 <- update(gee_ind, corstr = "ar1")
 
 summary(gee_exch)
 ```
 
-## 结果解读与报告
+这里的 sandwich 标准误在 `summary()` 输出中用于 Wald 推断。系数含义由均值模型决定：
 
-```{r gee-compare}
-comparison <- bind_rows(
-  tidy(glm_fit) |> mutate(model = "GLM"),
-  tidy(gee_ind) |> mutate(model = "GEE (independence)"),
-  tidy(gee_exch) |> mutate(model = "GEE (exchangeable)")
+- `treatment`：`visit = 0` 时两组的总体平均差异；
+- `visit`：对照组每增加一次访视的平均变化；
+- `treatment:visit`：两组随时间变化斜率之差。
+
+```{r gee-table}
+extract_gee <- function(fit, model_name) {
+  coef_table <- summary(fit)$coefficients
+  tibble(
+    model = model_name,
+    term = rownames(coef_table),
+    estimate = coef_table[, "Estimate"],
+    std_error = coef_table[, "Std.err"],
+    conf_low = estimate - qnorm(0.975) * std_error,
+    conf_high = estimate + qnorm(0.975) * std_error
+  )
+}
+
+gee_results <- bind_rows(
+  extract_gee(gee_ind, "独立"),
+  extract_gee(gee_exch, "交换型"),
+  extract_gee(gee_ar1, "AR(1)")
 )
 
-comparison
+gee_results
 ```
 
-```{r gee-plot}
-comparison |>
+```{r gee-plot, fig.alt="独立、交换型和 AR(1) 三种工作相关结构下各回归系数及其 95% 置信区间。"}
+gee_results |>
   filter(term != "(Intercept)") |>
-  ggplot(aes(x = estimate, y = model, color = term)) +
-  geom_point(size = 3) +
-  geom_errorbarh(aes(xmin = estimate - 1.96 * std.error, xmax = estimate + 1.96 * std.error), height = 0.2) +
-  labs(
-    title = "GEE 与 GLM 参数对比",
-    x = "估计值 (95% CI)",
-    y = NULL
+  ggplot(aes(x = estimate, y = model)) +
+  geom_vline(xintercept = 0, colour = "grey75") +
+  geom_errorbar(
+    aes(xmin = conf_low, xmax = conf_high),
+    width = 0.16,
+    orientation = "y"
   ) +
+  geom_point(size = 2.5, colour = "#1f5a94") +
+  facet_wrap(~term, scales = "free_x") +
+  labs(x = "回归系数及 95% 置信区间", y = NULL) +
   theme_minimal(base_size = 12)
 ```
 
-报告时建议明确说明使用的相关结构（independence 或 exchangeable），并给出稳健标准误与置信区间。解读时强调 GEE 的系数代表总体平均效应，而不是个体层面的随机效应。
-## 常见错误与纠偏
+不同相关结构下结果相近，只能说明这组模拟数据中的结论对这些设定不敏感，不能证明某个结构正确。
 
-常见错误包括忽略相关性直接使用 GLM、随意选择相关结构、簇 ID 标记错误以及缺失值未处理。实践中建议通过比较不同相关结构的结果做敏感性分析，并在建模前明确簇定义与缺失处理策略。
+## 如何选择相关结构
 
-## 进阶扩展
+相关结构应首先由数据生成过程和测量时间决定，而不是只看拟合优度：
 
-进阶应用可以尝试 `corstr = "ar1"` 处理时间序列相关，或在二分类结局下使用 `family = binomial`。若研究关注个体差异，也可以与混合效应模型并行分析，用来比较总体效应与个体效应的差异。
-## 总结
+- 同一家庭或医院内没有自然顺序时，交换型结构常有合理解释；
+- 等间隔纵向测量且相关性随时间距离下降时，可考虑 AR(1)；
+- 测量次数少、簇数充足时，可把非结构化相关作为候选；
+- 独立结构可作为基准，但可能损失效率。
 
-GEE 是处理相关数据的稳健方法，强调总体平均效应。
-对于纵向与聚类数据，建议以 GEE 作为基线模型，
-并通过不同相关结构进行敏感性分析。
+`geepack::QIC()` 可比较同一均值模型、同一分析样本上的候选工作相关结构。QIC 是辅助信息，不应覆盖研究设计，也不能用来在大量均值模型间无约束筛选。
+
+```{r gee-qic}
+rbind(
+  independence = QIC(gee_ind),
+  exchangeable = QIC(gee_exch),
+  ar1 = QIC(gee_ar1)
+)
+```
+
+## 二分类和计数结局
+
+二分类结局通常使用 `family = binomial("logit")`。指数化系数是总体平均比值比，而非风险比。若研究目标是风险比或风险差，需要选择相应链接函数并检查模型能否稳定收敛。计数结局可考虑 Poisson 均值模型，但仍应检查过度离散、零膨胀和随访时长，并在需要时加入 offset。
+
+## 缺失数据的边界
+
+常规 GEE 不能因为使用了稳健标准误就自动处理信息性失访。对纵向结局而言，标准 GEE 在完全随机缺失（MCAR）下通常有较直接的有效性保证；当缺失依赖已观测历史（MAR）时，完整记录 GEE 仍可能有偏。可根据研究问题采用逆概率加权 GEE、多重插补或联合模型，并明确：
+
+- 缺失发生在结局、暴露还是协变量；
+- 缺失模型使用了哪些既往信息；
+- 权重或插补模型是否与分析模型相容；
+- 对不可忽略缺失（MNAR）做了什么敏感性分析。
+
+## 建模前后的检查
+
+### 建模前
+
+- 检查 `id` 是否唯一标识簇，记录是否按 `id` 和时间排序；
+- 画出个体轨迹和簇大小分布，核对异常时间顺序；
+- 预先确定均值模型中的非线性、交互和时间表示；
+- 统计实际簇数，而不是把总观测数当作独立样本量。
+
+### 建模后
+
+- 报告簇数、每簇观测数范围和分析样本；
+- 检查收敛、残差、影响簇及估计相关参数；
+- 比较有科学依据的相关结构，说明主分析与敏感性分析；
+- 簇数较少时，不依赖大样本 Wald 检验给出过强结论。
+
+## 推荐报告内容
+
+一份可复核的 GEE 报告至少包括：
+
+- 结局分布、链接函数和均值模型公式；
+- 簇变量、时间变量、工作相关结构；
+- sandwich 标准误及任何小样本修正；
+- 回归系数或指数化效应量、95% 置信区间；
+- 缺失数据处理和相关结构敏感性分析；
+- 对效应是“总体平均”而非“个体特异”的解释。
+
+## 参考资料
+
+- Liang KY, Zeger SL. Longitudinal data analysis using generalized linear models. *Biometrika*. 1986;73(1):13–22. [doi:10.1093/biomet/73.1.13](https://doi.org/10.1093/biomet/73.1.13)
+- [geepack 官方手册与函数索引](https://cran.r-project.org/package=geepack)
+- [geeglm 官方参考文档](https://rdrr.io/cran/geepack/man/geeglm.html)

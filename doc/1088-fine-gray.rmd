@@ -1,130 +1,277 @@
 ---
-title: Fine-Gray 竞争风险模型完整教程
-subtitle: "累积发生率视角的生存分析"
-date: "2026-01-18"
+title: 竞争风险与 Fine–Gray 回归
+subtitle: "区分累积发生函数、原因别风险与亚分布风险"
+date: "2026-07-31"
 image: images/1088-fine-gray-cover.svg
 categories:
 - 统计分析方法
 - 生存分析
 - 竞争风险
-- Fine-Gray
+- Fine–Gray
+description: 区分累积发生函数、原因别风险和亚分布风险，并用 cmprsk 完成 Fine–Gray 回归与诊断
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
-  warning = FALSE,
+  warning = TRUE,
   message = FALSE,
-  fig.width = 7.4,
+  fig.width = 7.2,
   fig.height = 4.8,
   dpi = 150,
   out.width = "100%",
-  fig.path = "figure/1088-finegray-"
+  fig.path = "figure/1088-fg-"
 )
 ```
 
 ```{r packages}
 library(dplyr)
 library(ggplot2)
+library(survival)
 library(cmprsk)
 ```
 
-## 方法背景与适用场景
+## 什么是竞争风险
 
-在竞争风险数据中，某些事件会阻止感兴趣事件发生。
-Fine-Gray 模型直接建模“累积发生率”，适合回答
-“在真实世界里某事件发生的总体概率有多大”。
+竞争事件是会阻止感兴趣事件发生，或从根本上改变其发生概率的事件。例如研究心血管死亡时，非心血管死亡会使此后心血管死亡不再可能。此时把竞争事件当作普通右删失，并用 `1 - Kaplan–Meier` 估计感兴趣事件概率，通常会高估累积发生风险，因为这种做法把发生竞争事件者视为未来仍可能发生目标事件。
 
-典型场景包括研究心血管死亡（非心血管死亡是竞争事件）、研究肿瘤复发（死亡阻止复发发生）、研究移植等待时间（等待期间死亡属于竞争风险）。这些场景的共同点是：一旦发生竞争事件，感兴趣事件就无法再发生。
+竞争风险分析首先应报告累积发生函数（cumulative incidence function, CIF）：
 
-## 模型入门与核心概念
+\[
+F_k(t)=P(T\le t, J=k),
+\]
 
-Fine-Gray 模型的目标是 **亚分布风险（subdistribution hazard）**，
-它直接对应累积发生率曲线（CIF）。
-与 Cox 模型不同，它不会把竞争事件当成删失，
-因此能给出更真实的总体发生率。
+即在时间 (t) 前发生第 (k) 类事件的绝对概率。CIF 同时取决于目标事件和竞争事件过程。
 
-## 方法对比：Cox vs Fine-Gray
+## 两类回归回答不同问题
 
-Cox（cause-specific）更适合机制分析，关注的是瞬时风险；Fine-Gray 更适合风险预测与政策决策，关注的是累积发生率。简单来说，如果你关心“某因素是否改变了事件发生的速度”，用 Cox；如果你关心“真实世界中最终发生多少”，用 Fine-Gray。
+### 原因别 Cox 模型
 
-## 模型假设与前提
+对目标事件建模时，把竞争事件在发生时移出风险集。原因别风险描述：在目前仍未发生任何事件者中，协变量与目标事件瞬时发生率的关系。它常用于病因或过程研究，也可与所有原因别模型结合推导绝对风险。
 
-Fine-Gray 模型要求竞争事件分类明确，且协变量与亚分布风险满足比例风险假设。事件定义清晰、模型结构合理时，亚分布风险比可用于解释累积发生率差异。
+### Fine–Gray 模型
 
-## 通俗举例：为什么 KM 会高估
+Fine–Gray 模型直接建模亚分布风险。发生竞争事件者以特定方式保留在修改后的风险集中，使回归系数与目标事件 CIF 的排序和变化相联系。指数化系数是亚分布风险比（subdistribution hazard ratio, sHR）。
 
-如果把竞争事件当成删失，KM 会假设这些人“未来仍可能发生感兴趣事件”。
-实际上他们已经无法发生感兴趣事件，结果就会高估累积发生率。
-Fine-Gray 通过保留这些个体的权重，避免高估。
+sHR 不是普通意义上“当前仍无事件者”的瞬时风险比，也不是风险比。`sHR > 1` 表示在比例亚分布风险模型下，协变量与更高的目标事件累积发生相关；这种关系可能同时受目标事件和竞争事件影响，不能自动解释为直接生物学作用。
 
-## 数据准备与变量定义
+## 先写清 estimand
 
-```{r finegray-data}
-set.seed(2026)
-size <- 300
+方法选择应由问题决定：
 
-sim_time <- rexp(size, rate = 0.1)
-comp_time <- rexp(size, rate = 0.08)
-status <- if_else(sim_time <= comp_time, 1, 2)
+- 要比较特定时间点的绝对发生概率：优先报告 CIF、风险差或风险比；
+- 要研究仍无事件者中的目标事件发生过程：原因别风险更直接；
+- 要建立与 CIF 关联的协变量回归或预后模型：可考虑 Fine–Gray；
+- 要做治疗效果的因果解释：还需明确竞争事件的处理策略和因果 estimand，不能只凭模型名称决定。
 
-follow_time <- pmin(sim_time, comp_time)
+同一研究同时报告 CIF、原因别 HR 和 sHR 是可以的，但必须说明各自回答的问题，不能把数值差异解释为模型“互相矛盾”。
 
-covariate <- rbinom(size, 1, 0.5)
+## 生成有竞争事件和删失的数据
+
+下面通过两个原因别事件时间和一个独立删失时间生成数据。暴露会提高目标事件的原因别发生率，并轻度降低竞争事件发生率；年龄也影响目标事件。这样，协变量、事件和删失过程具有明确关系。
+
+```{r fg-data}
+set.seed(20260731)
+n <- 1200
 
 fg_data <- tibble(
-  time = follow_time,
-  status = status,
-  exposure = covariate
+  id = seq_len(n),
+  exposure = rbinom(n, 1, 0.5),
+  age = rnorm(n, 62, 9)
+) |>
+  mutate(
+    target_time = rexp(
+      n,
+      rate = 0.045 * exp(0.55 * exposure + 0.025 * (age - 62))
+    ),
+    competing_time = rexp(
+      n,
+      rate = 0.040 * exp(-0.20 * exposure + 0.010 * (age - 62))
+    ),
+    censor_time = rexp(n, rate = 0.020),
+    time = pmin(target_time, competing_time, censor_time),
+    status = case_when(
+      target_time <= competing_time & target_time <= censor_time ~ 1L,
+      competing_time < target_time & competing_time <= censor_time ~ 2L,
+      TRUE ~ 0L
+    )
+  ) |>
+  select(id, time, status, exposure, age)
+
+fg_data |>
+  count(status) |>
+  mutate(label = recode(
+    as.character(status),
+    `0` = "删失", `1` = "目标事件", `2` = "竞争事件"
+  ))
+```
+
+事件编码必须在分析前冻结并核对：这里 `0 = 删失`、`1 = 目标事件`、`2 = 竞争事件`。把竞争事件误写成 `0` 会改变 estimand，而不只是标签错误。
+
+## 非参数估计 CIF
+
+```{r fg-cif}
+cif_fit <- cuminc(
+  ftime = fg_data$time,
+  fstatus = fg_data$status,
+  group = fg_data$exposure,
+  cencode = 0
 )
 
-fg_data
+cif_fit
 ```
 
-## 分析流程步骤
+```{r fg-cif-plot, fig.alt="暴露组与未暴露组的目标事件和竞争事件累积发生函数阶梯曲线。"}
+cif_names <- names(cif_fit)[vapply(
+  cif_fit,
+  function(x) is.list(x) && all(c("time", "est") %in% names(x)),
+  logical(1)
+)]
 
-分析流程通常先绘制 CIF 曲线了解总体发生率，再拟合 Fine-Gray 模型，最后解读亚分布风险比。这一顺序能保证你先理解真实发生率，再讨论协变量对发生率的影响。
+cif_plot_data <- bind_rows(lapply(cif_names, function(curve_name) {
+  tibble(
+    time = cif_fit[[curve_name]]$time,
+    cif = cif_fit[[curve_name]]$est,
+    curve = curve_name
+  )
+})) |>
+  tidyr::separate(
+    curve,
+    into = c("exposure", "cause"),
+    sep = " ",
+    convert = TRUE
+  ) |>
+  mutate(
+    exposure = factor(exposure, levels = c(0, 1), labels = c("未暴露", "暴露")),
+    cause = factor(cause, levels = c(1, 2), labels = c("目标事件", "竞争事件"))
+  )
 
-## 参数讲解与使用要点
-
-`ftime` 表示随访时间，`fstatus` 表示结局状态（0=删失，1=感兴趣事件，2=竞争事件），`cov1` 是协变量矩阵。最容易出错的地方是 `fstatus` 编码，因此要在建模前确认状态定义一致。
-
-## 代码实现
-
-### CIF 曲线
-
-```{r finegray-cif}
-fg_cif <- cuminc(ftime = fg_data$time, fstatus = fg_data$status, group = fg_data$exposure)
-fg_cif
+ggplot(cif_plot_data, aes(x = time, y = cif, colour = exposure)) +
+  geom_step(linewidth = 0.8) +
+  facet_wrap(~cause) +
+  scale_colour_manual(values = c("#3b6f8f", "#c55a3d")) +
+  labs(x = "随访时间", y = "累积发生概率", colour = NULL) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "bottom")
 ```
 
-```{r finegray-cif-plot}
-plot(fg_cif, col = c("#2563eb", "#ef4444"), lwd = 2)
-```
+`cuminc()` 同时估计各组、各事件类型的 CIF，并给出组间 Gray 检验。Gray 检验只能说明整条 CIF 曲线是否存在统计证据支持的差异，不提供效应大小，也不替代特定时间点的绝对风险及置信区间。
 
-### Fine-Gray 模型
+## Fine–Gray 回归
 
-```{r finegray-fit}
+`cmprsk::crr()` 的协变量参数必须是数值矩阵。分类变量应先用 `model.matrix()` 显式编码，避免把因子内部整数编码误当作连续变量。
+
+```{r fg-fit}
+x_matrix <- model.matrix(
+  ~ exposure + age,
+  data = fg_data
+)[, -1, drop = FALSE]
+
 fg_fit <- crr(
   ftime = fg_data$time,
   fstatus = fg_data$status,
-  cov1 = as.matrix(fg_data$exposure)
+  cov1 = x_matrix,
+  failcode = 1,
+  cencode = 0
 )
 
 summary(fg_fit)
 ```
 
-## 结果解读与报告
+```{r fg-result}
+fg_coef <- fg_fit$coef
+fg_se <- sqrt(diag(fg_fit$var))
 
-报告时应给出亚分布风险比（sHR）及 95% 置信区间，并强调它反映的是累积发生率差异，而不是瞬时风险差异。为了让读者更好理解，可同时报告 Cox 的 cause-specific 结果，说明两者回答的是不同问题。
-## 常见错误与纠偏
+fg_result <- tibble(
+  term = names(fg_coef),
+  sHR = exp(fg_coef),
+  conf_low = exp(fg_coef - qnorm(0.975) * fg_se),
+  conf_high = exp(fg_coef + qnorm(0.975) * fg_se)
+)
 
-常见错误包括状态编码混乱、把竞争事件当作删失处理以及忽视比例风险假设。实践中要先确认 0/1/2 的状态定义，再检查模型是否满足比例风险假设，避免解释上的偏差。
+fg_result
+```
 
-## 进阶扩展
+报告应写成“与目标事件亚分布风险的关联”，并同时给出有临床意义时间点的标准化 CIF 或组别 CIF。单独给 sHR 往往不足以说明绝对风险差异。
 
-进阶应用可以使用 `riskRegression` 绘制 CIF 的预测曲线，并同步报告 cause-specific Cox 结果作为补充，以区分瞬时风险与累积发生率这两类解释视角。
-## 总结
+## 原因别 Cox 作为补充
 
-Fine-Gray 模型适合评估竞争风险下的累积发生率，
-在临床预后与真实世界风险评估中非常重要。
+```{r fg-cause-specific}
+cs_fit <- coxph(
+  Surv(time, status == 1) ~ exposure + age,
+  data = fg_data,
+  ties = "efron"
+)
+
+summary(cs_fit)
+```
+
+在该模型中，竞争事件发生时被移出目标事件的风险集。原因别 HR 与 sHR 的数值不可直接比较大小来判断“哪种效应更真实”；二者基于不同风险集和估计目标。
+
+## 模型检查
+
+### 比例亚分布风险
+
+Fine–Gray 模型假设协变量对亚分布风险的对数效应不随时间变化。可以：
+
+- 绘制 `crr` 对象中的 Schoenfeld 型残差随目标事件时间变化；
+- 加入协变量与时间函数的交互项；
+- 比较分时段效应或使用更灵活的 CIF 回归。
+
+```{r fg-residuals, fig.alt="暴露变量的 Fine-Gray Schoenfeld 型残差随目标事件时间的散点和平滑趋势线。"}
+target_event_times <- sort(unique(fg_data$time[fg_data$status == 1]))
+
+residual_data <- tibble(
+  time = target_event_times,
+  residual = fg_fit$res[, match("exposure", names(fg_fit$coef))]
+)
+
+ggplot(residual_data, aes(x = time, y = residual)) +
+  geom_hline(yintercept = 0, linetype = 2, colour = "grey60") +
+  geom_point(size = 0.8, alpha = 0.45, colour = "#3b6f8f") +
+  geom_smooth(
+    method = "loess",
+    formula = y ~ x,
+    se = FALSE,
+    colour = "#c55a3d",
+    linewidth = 0.8
+  ) +
+  labs(x = "目标事件时间", y = "exposure 的残差") +
+  theme_classic(base_size = 10)
+```
+
+平滑线的系统性时间趋势提示需要进一步检查，但不应仅凭视觉图作二元判定。
+
+### 删失机制
+
+标准方法依赖独立删失或给定协变量后的条件独立删失。若删失依赖预后，需要逆概率删失加权或其他适当方法。行政随访结束与失访也应分别编码和描述。
+
+### 非线性与预测性能
+
+年龄等连续变量未必线性。可使用样条并通过校准、时间依赖预测误差和外部验证评价预测模型。显著 sHR 不等于良好预测，也不等于临床效用。
+
+## 常见错误
+
+1. 用 `1 - KM` 估计存在竞争事件时的目标事件概率。
+2. 把竞争事件编码为普通删失，却把结果称为 CIF。
+3. 把 sHR 解释为风险比或原因别瞬时 HR。
+4. 只报告相对效应，不报告特定时间点绝对风险。
+5. 忽略比例亚分布风险、非线性和信息性删失。
+6. 用结局后变量调整模型，或把预测模型系数写成因果效应。
+7. 认为 Fine–Gray 总是优于原因别 Cox；方法应由 estimand 决定。
+
+## 报告清单
+
+- 目标事件、所有竞争事件和删失的操作性定义；
+- 时间起点、随访终点及事件判定优先级；
+- 每类事件数和各组 CIF；
+- 回归模型的风险集、效应量名称和 95% 置信区间；
+- 关键时间点的绝对风险及不确定性；
+- 比例风险、删失、非线性和缺失数据处理；
+- 若作因果解释，明确竞争事件对应的因果 estimand。
+
+## 参考资料
+
+- Fine JP, Gray RJ. A proportional hazards model for the subdistribution of a competing risk. *Journal of the American Statistical Association*. 1999;94(446):496–509. [doi:10.1080/01621459.1999.10474144](https://doi.org/10.1080/01621459.1999.10474144)
+- [cmprsk 官方手册](https://cran.r-project.org/package=cmprsk)
+- [survival 包 competing risks vignette](https://cran.r-project.org/package=survival)

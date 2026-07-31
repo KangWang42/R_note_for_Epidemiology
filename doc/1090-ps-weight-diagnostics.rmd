@@ -1,19 +1,20 @@
 ---
-title: 倾向评分加权诊断与稳定权重完整教程
-subtitle: "权重评估、截断与稳健推断的系统流程"
-date: "2026-01-18"
+title: 倾向评分加权的诊断与推断
+subtitle: "从 estimand、重叠与协变量平衡到极端权重敏感性分析"
+date: "2026-07-31"
 image: images/1090-ps-weight-diagnostics-cover.svg
 categories:
 - 统计分析方法
 - 因果推断
-- IPTW
 - 倾向评分
+- 加权诊断
+description: 从 estimand 出发完成倾向评分加权、重叠与平衡诊断、ESS 评估、结局推断和截断敏感性分析
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
-  warning = FALSE,
+  warning = TRUE,
   message = FALSE,
   fig.width = 7.2,
   fig.height = 4.8,
@@ -31,122 +32,269 @@ library(cobalt)
 library(survey)
 ```
 
-## 方法背景与适用场景
+## 先定义目标人群，再计算权重
 
-倾向评分加权（IPTW）能把观察性数据调整到接近随机试验的状态，但能否成立取决于权重是否稳定。临床与流行病学研究中常见的问题不是“权重有没有算”，而是“权重是否可用”。因此，加权诊断、权重截断与稳健推断是 IPTW 的核心部分。
+倾向评分 (e(X)=P(A=1\mid X)) 是在基线协变量 (X) 下接受治疗的概率。不同权重对应不同目标人群和 estimand，不能在看到结果后任意互换。
 
-## 模型入门与核心概念
+| Estimand | 治疗组权重 | 对照组权重 | 目标人群 |
+|---|---:|---:|---|
+| ATE | \(1/e(X)\) | \(1/[1-e(X)]\) | 总体 |
+| ATT | 1 | \(e(X)/[1-e(X)]\) | 实际接受治疗者 |
+| ATO | \(1-e(X)\) | \(e(X)\) | 两组重叠人群 |
 
-IPTW 的目标是让处理组与对照组在协变量上分布一致。这个目标能否实现，取决于两件事：一是倾向评分模型是否合理，二是权重分布是否极端。权重太大意味着某些样本几乎无法在对照组中找到可比对象，此时估计结果会变得不稳定。
+ATE 在倾向评分接近 0 或 1 时容易产生大权重；ATO 会弱化重叠不足区域的贡献，但它估计的是重叠人群效应，不是“更稳定的 ATE”。选择 estimand 应由研究问题、治疗可及性和目标人群决定。
 
-## 方法对比：不诊断权重的风险
+## 因果解释依赖哪些条件
 
-如果直接使用未经检查的权重，可能出现估计量不稳定、标准误异常、甚至极端值主导模型结果的情况。诊断与截断的意义在于控制方差，让估计更稳健，同时避免权重分布过于偏斜。
+倾向评分加权依赖：
 
-## 模型假设与前提
+- 一致性和明确的治疗版本；
+- 给定纳入的基线协变量后不存在未测量混杂；
+- 目标人群内具有足够的治疗阳性与分布重叠；
+- 倾向评分、权重和结局分析得到正确实现；
+- 没有未经处理的干扰、选择偏倚或信息性缺失。
 
-IPTW 建立在无未测混杂和阳性假设成立的前提上，同时要求倾向评分模型能合理捕捉协变量与治疗的关系。权重诊断的目标是检验这些假设是否在数据中得到支持。
+平衡诊断只能检查已测量协变量，不能证明“无未测量混杂”。倾向评分模型的目标是产生适合 estimand 的平衡，而不是最大化治疗预测 AUC。
 
-## 通俗举例：为什么权重会极端
+## 协变量如何选择
 
-如果某些高风险人群几乎都接受治疗，那么这类人被分配到对照组的概率极低。IPTW 会给这些“极少见的对照组个体”非常大的权重，从而放大随机波动。权重截断就是为了降低这些极端权重对结果的影响。
+通常优先纳入治疗前的共同原因和结局强预测因子。应避免：
 
-## 数据准备与变量定义
+- 治疗后的中介或受治疗影响的测量；
+- 仅因单变量 p 值不显著而删除重要混杂因素；
+- 无科学理由地加入大量强预测治疗但与结局无关的工具变量，因为它们可能放大方差和未测量混杂偏倚；
+- 用逐步回归显著性代替因果结构判断。
+
+连续协变量常需要非线性项，关键变量之间可能需要交互。最终标准是加权后的分布平衡和数据支持，而不是倾向评分模型系数是否显著。
+
+## 模拟观察性治疗数据
 
 ```{r psw-data}
-set.seed(2026)
-size <- 800
+set.seed(20260731)
+n <- 1200
 
 ps_data <- tibble(
-  age = rnorm(size, 55, 12),
-  female = rbinom(size, 1, 0.55),
-  severity = rnorm(size),
-  comorbidity = rbinom(size, 1, 0.35)
+  id = seq_len(n),
+  age = rnorm(n, 58, 11),
+  female = rbinom(n, 1, 0.54),
+  severity = rnorm(n),
+  comorbidity = rbinom(n, 1, 0.38)
 ) |>
   mutate(
-    treatment_prob = plogis(-1 + 0.03 * age + 0.6 * severity - 0.4 * comorbidity),
-    treatment = rbinom(size, 1, treatment_prob),
-    outcome = 12 + 2.1 * treatment + 0.4 * severity - 0.8 * comorbidity + rnorm(size)
+    treatment_probability = plogis(
+      -0.35 + 0.025 * (age - 58) + 0.75 * severity -
+        0.45 * comorbidity + 0.25 * female * severity
+    ),
+    treatment = rbinom(n, 1, treatment_probability),
+    outcome = 12 - 1.6 * treatment + 0.06 * (age - 58) +
+      1.10 * severity + 0.70 * comorbidity +
+      0.25 * severity^2 + rnorm(n, sd = 2.2)
   )
 
-ps_data
+ps_data |>
+  count(treatment)
 ```
 
-## 分析流程步骤
+模拟中的真实生成式只用于验证教学代码。分析时不会把 `treatment_probability` 放进模型，因为真实数据中它不可见。
 
-分析流程包括四个关键阶段：先估计倾向评分并计算权重，再检查权重分布，必要时进行截断或稳定化处理，最后用稳健方法估计因果效应并检验协变量平衡性。
-
-## 参数讲解与使用要点
-
-`WeightIt` 用于计算权重，`cobalt` 用于诊断协变量平衡性。权重截断常用 1%/99% 或 5%/95% 分位点；若权重分布高度偏斜，可考虑稳定权重或替换估计策略。
-
-## 代码实现
-
-### 估计权重
+## 估计 ATE 权重
 
 ```{r psw-weightit}
-ps_weight <- weightit(
-  treatment ~ age + female + severity + comorbidity,
+weight_fit <- weightit(
+  treatment ~ age + I((age - 58)^2) + female + severity +
+    I(severity^2) + comorbidity + female:severity,
   data = ps_data,
-  method = "ps",
-  estimand = "ATE"
+  method = "glm",
+  estimand = "ATE",
+  stabilize = FALSE
 )
 
-ps_weight
+weight_fit
+summary(weight_fit)
 ```
 
-### 权重分布诊断
+`WeightIt` 将估计的权重保存在 `weight_fit$weights`。上述二项 logistic 模型只是常用起点；若平衡不足，应根据具体变量关系调整非线性和交互，或使用适合的平衡优化方法，并避免在同一数据上无限试错后只报告最好的一次。
 
-```{r psw-weights}
-ps_data <- ps_data |>
-  mutate(weight = ps_weight$weights)
+## 诊断一：倾向评分重叠
 
-summary(ps_data$weight)
+```{r psw-overlap, fig.alt="治疗组与对照组估计倾向评分的重叠密度曲线。"}
+overlap_data <- ps_data |>
+  mutate(
+    propensity_score = weight_fit$ps,
+    treatment_label = factor(treatment, levels = c(0, 1), labels = c("对照", "治疗"))
+  )
+
+ggplot(
+  overlap_data,
+  aes(x = propensity_score, colour = treatment_label, fill = treatment_label)
+) +
+  geom_density(alpha = 0.20, linewidth = 0.8) +
+  scale_colour_manual(values = c("#3b6f8f", "#c55a3d")) +
+  scale_fill_manual(values = c("#3b6f8f", "#c55a3d")) +
+  labs(x = "估计倾向评分", y = "密度", colour = NULL, fill = NULL) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "bottom")
 ```
 
-```{r psw-weight-plot}
-ps_data |>
-  ggplot(aes(x = weight)) +
-  geom_histogram(bins = 30, fill = "#2563eb", alpha = 0.8) +
-  labs(title = "IPTW 权重分布", x = "Weight", y = "Count") +
+重叠图要结合目标 estimand 解读。少量尾部观察不自动要求删除；完全或近完全分离则提示某些目标人群对比缺乏数据支持。应核对数据错误、治疗禁忌、资格规则和模型外推，再决定缩小目标人群、改变 estimand 或停止估计。
+
+## 诊断二：权重分布和 ESS
+
+```{r psw-weight-summary}
+ps_weighted <- ps_data |>
+  mutate(weight = weight_fit$weights)
+
+weight_distribution <- ps_weighted |>
+  group_by(treatment) |>
+  summarise(
+    n = n(),
+    mean = mean(weight),
+    sd = sd(weight),
+    min = min(weight),
+    p01 = quantile(weight, 0.01),
+    median = median(weight),
+    p99 = quantile(weight, 0.99),
+    max = max(weight),
+    ess = sum(weight)^2 / sum(weight^2),
+    .groups = "drop"
+  )
+
+weight_distribution
+```
+
+```{r psw-weight-plot, fig.alt="治疗组与对照组 ATE 权重的重叠直方图；横轴仅缩放到权重的 99.5% 分位数。"}
+ps_weighted |>
+  ggplot(aes(x = weight, fill = factor(treatment))) +
+  geom_histogram(bins = 45, position = "identity", alpha = 0.45) +
+  coord_cartesian(xlim = c(0, quantile(ps_weighted$weight, 0.995))) +
+  labs(x = "ATE 权重", y = "人数", fill = "治疗") +
   theme_minimal(base_size = 12)
 ```
 
-### 协变量平衡诊断
+有效样本量（effective sample size, ESS）描述权重不均造成的信息损失，不等于独立观察的精确数量，也不能单独判定估计是否有效。绘图截断横轴只是为了看清主体分布，并未修改分析权重。
+
+## 诊断三：协变量平衡
 
 ```{r psw-balance}
-bal.tab(ps_weight)
+balance <- bal.tab(
+  weight_fit,
+  un = TRUE,
+  stats = c("m", "v"),
+  binary = "std",
+  thresholds = c(m = 0.1)
+)
+
+balance
 ```
 
-```{r psw-love}
-love.plot(ps_weight, stats = "mean.diffs", threshold = 0.1)
+```{r psw-love-plot, fig.alt="加权前后各协变量绝对标准化均值差的 Love plot，并标出 0.1 参考线。"}
+love.plot(
+  weight_fit,
+  stats = "mean.diffs",
+  abs = TRUE,
+  binary = "std",
+  thresholds = c(m = 0.1),
+  var.order = "unadjusted"
+)
 ```
 
-### 截断权重并估计效应
+绝对标准化均值差（SMD）小于 0.1 是常见启发式标准，不是普适的统计检验或合格证。样本量大不会让小 SMD 自动有临床意义，样本量小也不会使大 SMD 可以忽略。还应检查：
 
-```{r psw-trim}
-ps_data <- ps_data |>
+- 连续变量的方差比、分位数、密度和尾部；
+- 预设的重要非线性项与交互；
+- 多分类治疗各对比和纵向治疗各时点；
+- 缺失模式和缺失指示变量的平衡；
+- 个别观察的影响。
+
+不要根据加权后的结局模型结果反向选择倾向评分规格。
+
+## 用权重估计结局效应
+
+连续结局下，ATE 风险差尺度对应加权均值差。`survey::svyglm()` 提供 sandwich 方差；结果模型不需要为了“显著”再加入一套事后筛选变量。
+
+```{r psw-outcome}
+weighted_design <- svydesign(
+  ids = ~1,
+  weights = ~weight,
+  data = ps_weighted
+)
+
+weighted_fit <- svyglm(
+  outcome ~ treatment,
+  design = weighted_design
+)
+
+summary(weighted_fit)
+confint(weighted_fit)
+```
+
+常规 sandwich 方差把最终权重视为给定，未必完整反映倾向评分估计和模型选择的不确定性。可使用 `WeightIt` 支持的结果模型方法，或按原始抽样单位 bootstrap，并在每次重复中重新估计倾向评分、权重和结局模型。匹配、聚类、重复测量或复杂抽样还要使用相应的簇级方差。
+
+二分类结局若使用带 logit 链接的加权回归，治疗系数是边际结构模型的 log OR；由于 OR 非可折叠且不直观，常进一步标准化得到风险、风险差或风险比。生存结局也应预先定义时间范围和效应尺度，不把加权 Cox HR 当作唯一答案。
+
+## 权重截断是敏感性分析，不是默认步骤
+
+任意使用 1%/99% 或 5%/95% 截断会改变权重、引入偏倚，并使估计对应的加权人群偏离原定 ATE。若根据预设方案需要考察截断，可保留未截断主分析，并清楚报告规则、平衡和 ESS 的变化。
+
+```{r psw-trim-sensitivity}
+trim_limits <- quantile(ps_weighted$weight, c(0.01, 0.99))
+
+ps_sensitivity <- ps_weighted |>
   mutate(
-    weight_trim = pmin(pmax(weight, quantile(weight, 0.02)), quantile(weight, 0.98))
+    weight_trimmed = pmin(
+      pmax(weight, trim_limits[[1]]),
+      trim_limits[[2]]
+    )
   )
 
-svy_design <- svydesign(ids = ~1, weights = ~weight_trim, data = ps_data)
-svy_fit <- svyglm(outcome ~ treatment, design = svy_design)
-summary(svy_fit)
+trimmed_design <- svydesign(
+  ids = ~1,
+  weights = ~weight_trimmed,
+  data = ps_sensitivity
+)
+
+trimmed_fit <- svyglm(
+  outcome ~ treatment,
+  design = trimmed_design
+)
+
+tibble(
+  analysis = c("未截断 ATE 权重", "1%/99% 截断敏感性分析"),
+  estimate = c(coef(weighted_fit)["treatment"], coef(trimmed_fit)["treatment"]),
+  std_error = c(
+    sqrt(vcov(weighted_fit)["treatment", "treatment"]),
+    sqrt(vcov(trimmed_fit)["treatment", "treatment"])
+  )
+)
 ```
 
-## 结果解读与报告
+截断后必须重新检查平衡，不能只比较效应数值。若极端权重来自结构性阳性违背，截断可能让结果看起来稳定，却不能创造缺失的治疗对照。
 
-报告时应说明权重截断阈值、截断后的权重分布，以及平衡诊断结果（如标准化差异是否低于 0.1）。随后给出加权模型的效应估计与稳健标准误，并说明与未加权估计的差异。
+## 常见错误
 
-## 常见错误与纠偏
+1. 在看到权重后才决定 ATE、ATT 或 ATO，却仍沿用原研究问题。
+2. 把治疗后变量纳入倾向评分模型。
+3. 用预测性能或 Hosmer–Lemeshow 检验代替平衡诊断。
+4. 只报告平均 SMD，不检查尾部、交互和 ESS。
+5. 把 0.1 当作普适合格线，把 1%/99% 当作通用截断规则。
+6. 截断后仍把结果无条件称为原总体 ATE。
+7. 忽略估计权重、聚类和缺失数据带来的方差问题。
+8. 因已测量协变量平衡而宣称研究“等同随机试验”。
 
-常见问题包括权重分布极端、协变量平衡不足或忽略权重诊断。解决方式是尝试截断权重、重新设定倾向评分模型，并使用 `cobalt` 的平衡诊断确认调整效果。
+## 报告清单
 
-## 进阶扩展
+- 目标人群、治疗定义、时间零点和 estimand；
+- 协变量选择依据及其测量时间；
+- 倾向评分方法、函数形式、软件和版本；
+- 治疗组与对照组的倾向评分重叠；
+- 权重分布、极值、ESS 和个体影响；
+- 加权前后的均值、方差、分布与关键交互平衡；
+- 结局模型、效应尺度和方差估计；
+- 截断或更换 estimand 的理由及敏感性分析；
+- 对未测量混杂、阳性和缺失数据的限制说明。
 
-进阶分析可以考虑稳定权重、重叠权重或采用双重稳健方法（如 AIPW），并通过敏感性分析检验结果的稳健性。
+## 参考资料
 
-## 总结
-
-IPTW 的关键不在于权重的计算，而在于权重是否稳定、协变量是否平衡。系统的诊断与截断流程能显著提升因果推断的可信度。
+- [WeightIt 官方文档](https://ngreifer.github.io/WeightIt/)
+- [cobalt 官方文档](https://ngreifer.github.io/cobalt/)
+- Austin PC, Stuart EA. Moving towards best practice when using inverse probability of treatment weighting using the propensity score. *Statistics in Medicine*. 2015;34(28):3661–3679. [doi:10.1002/sim.6607](https://doi.org/10.1002/sim.6607)

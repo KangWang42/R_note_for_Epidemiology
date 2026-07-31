@@ -1,0 +1,318 @@
+---
+title: "FDR 与多重检验校正"
+subtitle: "从错误发现率到 Benjamini-Hochberg、q-value 与规范报告"
+date: '2026-07-31'
+categories:
+  - 统计分析方法
+  - 模型评估
+  - 多重检验
+  - FDR
+description: 系统解释错误发现率、FWER、BH 与 BY 方法，并用 R 完成多重检验校正、结果筛选和模拟核验
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = TRUE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  fig.retina = 2,
+  out.width = "100%",
+  fig.align = "center",
+  fig.path = "figure/1135-fdr-"
+)
+```
+
+```{r packages}
+library(ggplot2)
+```
+
+## FDR 解决什么问题
+
+一次检验把显著性水平设为 0.05，并不意味着进行 1,000 次检验后仍只承担 5% 的整体错误风险。检验数量增加时，即使所有原假设都成立，也更容易出现偶然的小 P 值。多重检验校正的第一步不是选择函数，而是确定希望控制哪一种错误。
+
+设一次分析共拒绝 (R) 个原假设，其中 (V) 个实际上为真。错误发现比例（false discovery proportion, FDP）定义为
+
+\[
+\mathrm{FDP}=\frac{V}{\max(R,1)}.
+\]
+
+错误发现率（false discovery rate, FDR）是 FDP 的期望：
+
+\[
+\mathrm{FDR}=E(\mathrm{FDP}).
+\]
+
+因此，“FDR 控制在 5%”描述的是一个重复抽样性质：在同一分析流程反复实施时，被判为发现的结果中，错误发现比例的期望不超过目标水平。它不是“每个显著结果有 5% 的概率为假”，也不是原始 P 值的另一种名称。
+
+## FDR、FWER 与单次检验错误率
+
+| 控制目标 | 定义 | 适合的问题 | 一般特征 |
+|---|---|---|---|
+| 单次检验 I 类错误率 | 某一个真原假设被拒绝的概率 | 只有一个预先指定的主要检验 | 不处理检验族的累积错误 |
+| 家族错误率（FWER） | 至少出现一个错误拒绝的概率 | 验证性试验、少量关键终点、安全性决策 | 控制严格，通常发现较少 |
+| 错误发现率（FDR） | 错误发现占全部发现比例的期望 | 组学筛选、高通量探索、多指标发现 | 容许少量错误发现以换取更高检出能力 |
+
+Bonferroni、Holm、Hochberg 和 Hommel 方法主要控制家族错误率；Benjamini-Hochberg（BH）和 Benjamini-Yekutieli（BY）方法控制 FDR。验证性主要终点不能因为 BH 更容易获得显著结果就临时改用 FDR；错误率目标应由研究目的和预先定义的检验族决定。
+
+## Benjamini-Hochberg 方法
+
+### 阶梯式判定
+
+把 (m) 个 P 值从小到大排序为 (p_{(1)}\le \cdots \le p_{(m)})，给定目标 FDR 水平 (q)，寻找满足下式的最大序号 (k)：
+
+\[
+p_{(k)} \le \frac{k}{m}q.
+\]
+
+随后拒绝排序后前 (k) 个原假设。BH 是 step-up 程序，判定必须针对整个排序序列完成，不能把每个 P 值分别与 (q/m) 比较。后一种做法接近 Bonferroni，控制目标不同。
+
+### 手工核对 BH 步骤
+
+```{r bh-manual}
+p_value <- c(0.0004, 0.003, 0.011, 0.018, 0.041, 0.20, 0.44, 0.80)
+q <- 0.05
+
+bh_check <- data.frame(
+  rank = seq_along(p_value),
+  p_value = sort(p_value)
+)
+
+bh_check$critical_value <- bh_check$rank / nrow(bh_check) * q
+bh_check$passes <- bh_check$p_value <= bh_check$critical_value
+bh_check
+```
+
+BH 的判定不是逐个把 P 值与 0.05 比较。图中实线是排序后的 P 值，虚线是随秩次增加的 BH 临界值；只有找到最靠右、仍满足 `p_(k) <= kq/m` 的位置后，才把该位置及其左侧全部纳入拒绝集。
+
+```{r bh-stepup-plot, fig.alt="排序 P 值散点与 BH 临界值虚线；满足阶梯规则的前若干检验标为拒绝原假设。"}
+last_rejection <- if (any(bh_check$passes)) {
+  max(bh_check$rank[bh_check$passes])
+} else {
+  0
+}
+
+bh_plot_data <- transform(
+  bh_check,
+  decision = ifelse(rank <= last_rejection, "拒绝原假设", "不拒绝")
+)
+
+ggplot(bh_plot_data, aes(x = rank)) +
+  geom_line(aes(y = critical_value, linetype = "BH 临界值"), linewidth = 0.8) +
+  geom_point(aes(y = p_value, colour = decision), size = 2.3) +
+  scale_colour_manual(values = c("不拒绝" = "#777777", "拒绝原假设" = "#c55a3d")) +
+  scale_linetype_manual(values = c("BH 临界值" = 2)) +
+  labs(x = "P 值排序后的秩", y = "P 值与临界值", colour = NULL, linetype = NULL) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "bottom")
+```
+
+实际分析应直接使用经过充分测试的 `stats::p.adjust()`，手工步骤只用于理解和核对。
+
+## R 中的多重检验校正
+
+### 同时比较常用方法
+
+```{r p-adjust-methods}
+result <- data.frame(
+  hypothesis = paste0("H", seq_along(p_value)),
+  p_value = p_value
+)
+
+result$p_holm <- p.adjust(result$p_value, method = "holm")
+result$p_bh <- p.adjust(result$p_value, method = "BH")
+result$p_by <- p.adjust(result$p_value, method = "BY")
+result$reject_bh_005 <- result$p_bh <= 0.05
+
+result[order(result$p_value), ]
+```
+
+`p.adjust()` 返回校正后的 P 值。对于 BH 方法，`p_bh <= 0.05` 与在目标 FDR 0.05 下执行 BH 拒绝规则相对应。`"fdr"` 是 `"BH"` 的别名，但正文和代码使用 `"BH"` 更容易说明具体方法。
+
+`n` 参数默认等于输入 P 值的数量。只有在明确知道检验族包含更多、但未出现在向量中的检验时才改变 `n`；把筛选后剩余 P 值的数量当作 `n`，会低估校正强度。
+
+### 从一组模型结果中保留原始值与校正值
+
+```{r tidy-results}
+model_results <- data.frame(
+  marker = paste0("marker_", seq_len(12)),
+  estimate = c(0.42, -0.31, 0.18, 0.07, -0.22, 0.51,
+               0.09, -0.11, 0.28, 0.03, -0.16, 0.35),
+  p_value = c(0.0008, 0.006, 0.013, 0.071, 0.031, 0.0002,
+              0.40, 0.22, 0.018, 0.76, 0.12, 0.009)
+)
+
+model_results$p_bh <- p.adjust(model_results$p_value, method = "BH")
+model_results$selected <- model_results$p_bh <= 0.05
+
+model_results[order(model_results$p_bh), ]
+```
+
+报告时应同时保留效应量、区间估计、原始 P 值和校正后 P 值。FDR 校正只处理多重性，不会修复模型设定错误、混杂、选择偏倚或效应量不稳定。
+
+## 模拟理解“期望比例”
+
+下面的模拟包含 900 个真原假设和 100 个真实信号。因为模拟中知道每个原假设的真假，可以直接计算一次实验的 FDP。真实研究通常不知道哪些发现为真，因此不能从一份数据反推出实际错误发现数量。
+
+```{r fdr-simulation}
+set.seed(20260731)
+
+m <- 1000
+is_signal <- c(rep(FALSE, 900), rep(TRUE, 100))
+z_score <- rnorm(m, mean = ifelse(is_signal, 2.8, 0), sd = 1)
+p_sim <- 2 * pnorm(-abs(z_score))
+
+selected_raw <- p_sim <= 0.05
+selected_bh <- p.adjust(p_sim, method = "BH") <= 0.05
+selected_holm <- p.adjust(p_sim, method = "holm") <= 0.05
+
+summarise_selection <- function(selected, method) {
+  discoveries <- sum(selected)
+  false_discoveries <- sum(selected & !is_signal)
+
+  data.frame(
+    method = method,
+    discoveries = discoveries,
+    true_discoveries = sum(selected & is_signal),
+    false_discoveries = false_discoveries,
+    fdp = false_discoveries / max(discoveries, 1)
+  )
+}
+
+rbind(
+  summarise_selection(selected_raw, "未校正"),
+  summarise_selection(selected_bh, "BH"),
+  summarise_selection(selected_holm, "Holm")
+)
+```
+
+单次模拟的 FDP 可以高于或低于 0.05。FDR 控制针对重复抽样下的期望，而不是保证每一次数据集的 FDP 都不超过阈值。
+
+为了把“期望”看得更直观，下面将同一数据生成过程重复 500 次。每次都重新生成 P 值并记录 FDP；横轴不是某个假设的错误概率，而是一次完整实验中错误发现所占的比例。
+
+```{r fdr-repeated-simulation, fig.alt="未校正、BH 和 Holm 三种方法在 500 次模拟中的错误发现比例分布；虚线标出 0.05。"}
+set.seed(20260731)
+
+calculate_fdp <- function(selected, truth) {
+  sum(selected & !truth) / max(sum(selected), 1)
+}
+
+repeated_fdp <- as.data.frame(t(replicate(500, {
+  z <- rnorm(m, mean = ifelse(is_signal, 2.8, 0), sd = 1)
+  p <- 2 * pnorm(-abs(z))
+
+  c(
+    raw = calculate_fdp(p <= 0.05, is_signal),
+    BH = calculate_fdp(p.adjust(p, "BH") <= 0.05, is_signal),
+    Holm = calculate_fdp(p.adjust(p, "holm") <= 0.05, is_signal)
+  )
+})))
+
+colMeans(repeated_fdp)
+
+fdp_long <- stack(repeated_fdp)
+names(fdp_long) <- c("fdp", "method")
+fdp_long$method <- factor(
+  fdp_long$method,
+  levels = c("raw", "BH", "Holm"),
+  labels = c("未校正", "BH", "Holm")
+)
+
+ggplot(fdp_long, aes(x = fdp)) +
+  geom_histogram(bins = 25, fill = "#3b6f8f", colour = "white") +
+  geom_vline(xintercept = 0.05, linetype = 2, colour = "#c55a3d") +
+  facet_wrap(~method, ncol = 1) +
+  labs(x = "单次实验的错误发现比例（FDP）", y = "重复次数") +
+  theme_classic(base_size = 10)
+```
+
+图中 BH 的单次 FDP 仍会跨过 0.05，但多次重复的平均 FDP 受目标 FDR 约束。Holm 控制的是更严格的 FWER，因此在这个示例中通常发现更少，FDP 也更集中在较低位置；这不是说 Holm 在所有探索性任务中都“更好”，而是它回答了不同的错误控制问题。
+
+## 方法选择与依赖结构
+
+### BH 与 BY
+
+BH 在独立检验以及特定正相关依赖条件下控制 FDR。大量生物标志物、基因或影像特征往往相关，但“存在相关”本身不足以自动判定 BH 无效；关键是依赖结构是否满足方法条件。若需要在任意依赖结构下获得理论保证，可采用 BY，但它通常更保守。
+
+```{r bh-by-comparison}
+data.frame(
+  p_value = sort(p_value),
+  BH = p.adjust(sort(p_value), method = "BH"),
+  BY = p.adjust(sort(p_value), method = "BY")
+)
+```
+
+在复杂依赖、层级检验、空间数据或自适应筛选中，简单替换为 BY 未必是最有效方案。更合理的做法可能是使用与研究结构一致的分层、多阶段或置换方法，并在方案中明确检验族和选择规则。
+
+### 独立过滤与数据驱动筛选
+
+先删除低信息特征再做多重检验可以提高效率，但过滤统计量需要在原假设下与检验统计量独立，或使用具有相应错误率保证的方法。按同一批数据的原始 P 值先筛选，再只对筛选后的 P 值执行 BH，会改变检验族并破坏常规解释。
+
+常见安全做法包括：
+
+- 在看结局前根据检测下限、缺失比例或预先规定的质量标准过滤；
+- 在独立训练数据中完成特征选择，在验证数据中检验；
+- 使用 Independent Hypothesis Weighting（IHW）等明确利用独立协变量并提供错误率控制的方法。
+
+## q-value 与 local FDR
+
+BH 校正 P 值、q-value 和 local FDR 不是同一个量。
+
+| 名称 | 主要含义 | 常用实现 |
+|---|---|---|
+| BH 校正 P 值 | 在 BH 程序下使该假设进入拒绝集的最小目标水平 | `p.adjust(p, "BH")` |
+| q-value | 在包含该发现的拒绝集中估计的最小 FDR，通常估计真原假设比例 \(\pi_0\) | `qvalue::qvalue()` |
+| local FDR | 给定某个统计量或 P 值附近，该假设来自原假设分布的后验概率型估计 | `qvalue` 等方法 |
+
+`qvalue` 包适合 P 值数量较多、P 值分布足以估计 \(\pi_0\) 的场景。样本很小或 P 值直方图异常时，估计可能不稳定，不能把 q-value 当作对单个发现真假的确定概率。
+
+```r
+# Bioconductor 包，安装方式见包主页
+library(qvalue)
+
+qobj <- qvalue(p = p_sim)
+head(qobj$qvalues)
+qobj$pi0
+```
+
+## 检验族如何定义
+
+多重性校正的范围取决于“哪些检验属于同一个科学问题”。常见检验族可以是一个主要结局对应的全部候选暴露、一张表中同层级的亚组交互检验，或一项组学分析的全部特征。不能在看完结果后把不显著检验拆到别的检验族，也不能仅因检验来自不同回归模型就默认彼此独立。
+
+确定检验族时应记录：
+
+1. 每个检验对应的研究问题和层级；
+2. 主要、次要与探索性终点的区分；
+3. 同一结论是否会综合多个 P 值；
+4. 筛选、停止或分层规则是否使用了当前数据；
+5. 计划控制 FWER、FDR，还是仅描述未经校正的探索结果。
+
+## 结果报告
+
+规范报告至少包括检验总数、检验族定义、校正方法、目标错误率、单侧或双侧设定，以及是否进行过滤或加权。结果表应保留全部或可追溯的检验结果，而不是只报告校正后显著的条目。
+
+可采用如下表述：
+
+> 本分析将 120 个预先定义的生物标志物检验视为同一检验族，使用 Benjamini-Hochberg 方法控制错误发现率。双侧检验的目标 FDR 设为 0.05，同时报告效应估计、95% 置信区间、原始 P 值和 BH 校正 P 值。
+
+避免写成“BH 消除了假阳性”或“校正后结果均有 95% 的概率为真”。校正降低的是预先定义错误率标准下的错误发现风险，不提供单个结论真实性的保证。
+
+## 常见错误
+
+| 错误 | 后果 | 修正 |
+|---|---|---|
+| 把 FDR 解释为单个结果为假的概率 | 错误解释发现可信度 | 按重复抽样下的期望错误比例解释 |
+| 看完 P 值后再定义检验族 | 校正范围被结果驱动 | 在分析前按科学问题确定检验族 |
+| 只保存校正 P 值 | 无法核对原始证据和方法差异 | 同时保存原始值、校正值、效应量和区间 |
+| 将 BH 用于唯一验证性主要终点 | 改变原定错误控制目标 | 按方案使用单次检验或 FWER 控制 |
+| 对筛选后的 P 值直接执行 BH | 可能低估多重性 | 使用独立过滤、数据拆分或有理论保证的方法 |
+| 把“不显著”解释为无效应 | 混淆证据不足与等效 | 结合效应量、置信区间和设计精度解释 |
+
+## 参考资料
+
+- Benjamini Y, Hochberg Y. [Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x). *Journal of the Royal Statistical Society: Series B*. 1995.
+- Benjamini Y, Yekutieli D. [The Control of the False Discovery Rate in Multiple Testing under Dependency](https://doi.org/10.1214/aos/1013699998). *The Annals of Statistics*. 2001.
+- R Core Team. [`stats::p.adjust()` 官方文档](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/p.adjust.html).
+- Storey JD, Bass AJ. [`qvalue` 包说明与 vignette](https://www.bioconductor.org/packages/release/bioc/html/qvalue.html).
+- Ignatiadis N, Klaus B, Zaugg JB, Huber W. [Data-driven hypothesis weighting increases detection power in genome-scale multiple testing](https://doi.org/10.1038/nmeth.3885). *Nature Methods*. 2016.

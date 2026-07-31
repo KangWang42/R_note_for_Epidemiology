@@ -1,307 +1,444 @@
 ---
-title: 样本量与功效分析
-date: '2026-01-13'
+title: "样本量计算：研究设计、工具与 R 实现"
+subtitle: "从均值、率和生存结局到聚类设计、预测模型与模拟法"
+date: '2026-07-31'
 categories:
-- 统计分析方法
-- 模型评估
-- 统计设计
-- 样本量
+  - 统计分析方法
+  - 模型评估
+  - 统计设计
+  - 样本量
 image: images/power-analysis-cover.svg
+description: 按研究设计选择样本量方法，系统介绍精度法、功效法、事件数法、设计效应、模拟法及常用软件和 R 包
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-    echo = TRUE,
-    warning = FALSE,
-    message = FALSE,
-    fig.width = 8,
-    fig.height = 5
+  echo = TRUE,
+  warning = TRUE,
+  message = FALSE,
+  fig.width = 7.2,
+  fig.height = 4.8,
+  fig.retina = 2,
+  out.width = "100%",
+  fig.align = "center",
+  fig.path = "figure/1048-power-"
 )
 ```
 
-## 功效分析简介
+## 样本量计算的起点
 
-**功效分析**用于确定研究所需的样本量，或评估给定样本量下检测效应的能力。
+样本量不是由“研究类型”或某个通用效应量单独决定的。可复核的计算必须先锁定研究问题、主要 estimand、主要结局、组间分配、分析方法和可接受的不确定性。软件只能求解已经定义清楚的统计问题，不能替研究者补齐设计。
 
-### 核心概念
+一份计算说明至少需要以下输入。
 
-| 概念 | 符号 | 含义 | 常用值 |
-|------|------|------|--------|
-| **显著性水平** | α | I类错误概率 | 0.05 |
-| **功效** | 1-β | 检测真实效应的概率 | 0.80 |
-| **效应量** | d/r/f | 效应大小 | 因检验而异 |
-| **样本量** | n | 每组样本数 | 待计算 |
+| 输入 | 需要明确的内容 | 常见来源 |
+|---|---|---|
+| 研究设计 | 平行、配对、交叉、聚类、重复测量、队列、病例对照或诊断研究 | PROTOCOL 或研究方案 |
+| 主要结局 | 连续、二分类、计数、时间结局或预测性能 | 主要终点定义 |
+| 目标效应 | 均值差、风险差、风险比、优势比、风险比、相关系数或最小临床重要差异 | 既往同人群研究、预实验、专家共识 |
+| 变异或基线风险 | 标准差、组内相关系数、对照组率、事件率、删失率 | 外部研究或历史数据 |
+| 错误率 | 双侧或单侧 \(\alpha\)、目标功效 \(1-\beta\)、多重性策略 | 分析计划 |
+| 实施参数 | 分配比、失访、不依从、聚类大小、入组期和随访期 | 实际研究条件 |
 
-### 四要素关系
+效应量不应只按“小、中、大”模板选择。Cohen 的经验阈值适合教学和敏感性分析，不是临床重要性的替代。正式计算应优先使用有明确单位的目标差异、基线风险和变异参数，并展示合理范围内的敏感性分析。
 
-知道任意三个，可求第四个：
-- **样本量计算**：已知 α, 功效, 效应量 → 求 n
-- **功效计算**：已知 α, n, 效应量 → 求功效
-- **效应量估计**：已知 α, n, 功效 → 求可检测效应量
+## 四类计算思路
 
-## 安装与加载
+### 检验功效法
 
-```{r}
+给定效应、显著性水平和目标功效，求达到预定检验能力所需的样本量。两组均值、两组率、相关、方差分析和回归的经典公式多属于这一类。
+
+### 估计精度法
+
+目标不是“得到显著差异”，而是把均值、率、灵敏度或风险的置信区间控制到预设宽度。描述性调查、患病率估计、登记研究和诊断准确性研究常用精度法。
+
+### 事件数法
+
+生存分析和二分类预测模型的有效信息主要由事件数量决定。总样本量需要结合事件发生率、入组期、随访期和删失率，从目标事件数反推，不能只报告入组人数。
+
+### 模拟法
+
+当设计含重复测量、非正态结局、复杂相关结构、非线性模型、适应性规则或多阶段流程时，解析公式可能不适用。模拟法按拟采用的完整分析流程反复生成数据，以达到目标拒绝率或区间精度的最小样本量作为结果。
+
+## Base R 的常用函数
+
+### 两独立样本均值
+
+假设主要结局的目标均值差为 5，组内标准差为 10，采用双侧检验，\(\alpha=0.05\)，目标功效为 0.80。`power.t.test()` 返回的是每组样本量，实际招募数应向上取整。
+
+```{r two-mean}
+mean_design <- power.t.test(
+  delta = 5,
+  sd = 10,
+  sig.level = 0.05,
+  power = 0.80,
+  type = "two.sample",
+  alternative = "two.sided"
+)
+
+mean_design
+ceiling(mean_design$n)
+```
+
+`power.t.test()` 的两独立样本计算假定两组样本量相等，并使用共同标准差。若预期方差不等或分配比不是 1:1，应使用与最终 Welch 检验或模型一致的方法，例如 `powerSurvEpi::ssizeWelchT()`、专用软件或模拟。
+
+### 配对均值
+
+配对设计需要的是“个体内差值”的标准差，而不是两个时间点各自的标准差。
+
+```{r paired-mean}
+paired_design <- power.t.test(
+  delta = 3,
+  sd = 8,
+  sig.level = 0.05,
+  power = 0.90,
+  type = "paired"
+)
+
+paired_design
+ceiling(paired_design$n)
+```
+
+如果只知道两个时间点的标准差 \(s_1,s_2\) 和相关系数 \(r\)，差值标准差可按
+
+\[
+s_D=\sqrt{s_1^2+s_2^2-2rs_1s_2}
+\]
+
+换算。相关系数的不确定性应进入敏感性分析。
+
+### 两独立样本率
+
+```{r two-proportions}
+prop_design <- power.prop.test(
+  p1 = 0.40,
+  p2 = 0.60,
+  sig.level = 0.05,
+  power = 0.80,
+  alternative = "two.sided"
+)
+
+prop_design
+ceiling(prop_design$n)
+```
+
+该函数返回每组近似样本量，适合大样本两比例检验。事件稀少、小样本、非劣效或等效性设计需要与预定检验相匹配的专门方法。
+
+### 单因素方差分析
+
+```{r one-way-anova}
+anova_design <- power.anova.test(
+  groups = 4,
+  between.var = 6.25,
+  within.var = 100,
+  sig.level = 0.05,
+  power = 0.80
+)
+
+anova_design
+ceiling(anova_design$n)
+```
+
+`between.var` 是组均值的方差，`within.var` 是共同组内方差。函数假定各组样本量相等，回答总体 F 检验的功效，不等同于某个指定组间对比的功效。
+
+## `pwr` 包的经典检验
+
+`pwr` 使用标准化效应量统一实现常见检验。标准化便于比较，但正式方案仍应记录效应量如何从原始尺度得到。
+
+```{r pwr-package}
 library(pwr)
+```
+
+### 相关、卡方与多元回归
+
+```{r pwr-examples}
+cor_design <- pwr.r.test(
+  r = 0.30,
+  sig.level = 0.05,
+  power = 0.80,
+  alternative = "two.sided"
+)
+
+chisq_design <- pwr.chisq.test(
+  w = 0.30,
+  df = 1,
+  sig.level = 0.05,
+  power = 0.80
+)
+
+reg_design <- pwr.f2.test(
+  u = 5,
+  f2 = 0.15,
+  sig.level = 0.05,
+  power = 0.80
+)
+
+data.frame(
+  design = c("相关", "卡方", "多元回归"),
+  required_n = c(
+    ceiling(cor_design$n),
+    ceiling(chisq_design$N),
+    ceiling(reg_design$v + reg_design$u + 1)
+  )
+)
+```
+
+`pwr.f2.test()` 中的 `u` 是被检验的分子自由度，`v` 是残差自由度；总样本量为 `u + v + 1`。效应量
+
+\[
+f^2=\frac{R^2_{\mathrm{full}}-R^2_{\mathrm{reduced}}}{1-R^2_{\mathrm{full}}}
+\]
+
+应对应“完整模型相对于约简模型新增部分”的检验，而不是机械套用全部模型的 \(R^2\)。
+
+## 精度导向的计算
+
+### 估计均值
+
+希望双侧 95% 置信区间的半宽不超过 2，预期标准差为 12，可用正态近似得到初始样本量。
+
+```{r precision-mean}
+alpha <- 0.05
+sd_expected <- 12
+margin <- 2
+
+n_mean_precision <- ceiling(
+  (qnorm(1 - alpha / 2) * sd_expected / margin)^2
+)
+
+n_mean_precision
+```
+
+小样本时应使用 t 分布迭代修正；若标准差来自很小的预实验，也应对其不确定性进行保守调整。
+
+### 估计率
+
+```{r precision-proportion}
+p_expected <- 0.20
+margin <- 0.03
+
+n_prop_precision <- ceiling(
+  qnorm(0.975)^2 * p_expected * (1 - p_expected) / margin^2
+)
+
+n_prop_precision
+```
+
+不知道预期率时，`p_expected = 0.5` 给出最大方差下的保守结果。抽样总体有限且抽样比例较高时，再使用有限总体校正；复杂抽样还需乘以设计效应。
+
+## 生存结局：事件数与总样本量
+
+`powerSurvEpi` 提供随机试验和流行病学研究的 Cox 模型、交互作用及竞争风险相关计算。下面按实验组与对照组 1:1 分配，预期最大随访期内事件概率分别为 0.3707 和 0.4890，目标风险比为 0.70。
+
+```{r survival-sample-size}
+library(powerSurvEpi)
+
+survival_design <- ssizeCT.default(
+  power = 0.80,
+  k = 1,
+  pE = 0.3707,
+  pC = 0.4890,
+  RR = 0.70,
+  alpha = 0.05
+)
+
+survival_design
+sum(survival_design)
+```
+
+这里的 `pE` 与 `pC` 是研究最大随访期内的事件概率，不是某一时点的横断面患病率。若入组时间分散、删失随时间变化、存在非比例风险、竞争事件或延迟效应，应使用与这些机制一致的事件驱动或模拟方法。
+
+## 聚类、重复测量与多中心设计
+
+### 设计效应近似
+
+当每簇平均纳入 \(\bar m\) 人、组内相关系数为 \(\rho\) 时，等簇大小下的经典设计效应为
+
+\[
+\mathrm{DE}=1+(\bar m-1)\rho.
+\]
+
+```{r cluster-design-effect}
+individual_n <- 240
+mean_cluster_size <- 20
+icc <- 0.03
+
+design_effect <- 1 + (mean_cluster_size - 1) * icc
+cluster_adjusted_n <- ceiling(individual_n * design_effect)
+clusters_required <- ceiling(cluster_adjusted_n / mean_cluster_size)
+
+data.frame(
+  design_effect = design_effect,
+  adjusted_individuals = cluster_adjusted_n,
+  minimum_clusters = clusters_required
+)
+```
+
+该公式只适合作为初步近似。簇数过少、簇大小不等、分层随机、基线调整和纵向重复测量都会改变方差。正式聚类试验应以“簇数”和“每簇人数”同时规划，并使用 `clusterPower`、`CRTSize`、`powerlmm` 或基于拟采用混合模型/GEE 的模拟。
+
+### 重复测量
+
+重复测量的功效取决于时间点数量、同一受试者内相关结构、时间趋势、处理与时间交互、失访模式和最终模型。把所有观测数当作独立样本会高估信息量。`longpower` 适合部分线性混合模型场景，`powerlmm` 面向纵向多层设计，`simr` 可基于 `lme4` 模型进行模拟功效分析。
+
+## 预测模型的样本量
+
+“每个变量 10 个事件”不是普遍适用的预测模型样本量规则。候选预测参数数目、结局频率、预期模型解释度、允许的过拟合和总体风险估计精度都应进入计算。`pmsampsize` 按 Riley 等提出的标准支持连续、二分类和生存结局模型开发。
+
+```r
+library(pmsampsize)
+
+# 二分类结局：24 个候选参数、结局率 17.4%、
+# 预期 Cox-Snell R² 为 0.288
+pmsampsize(
+  type = "b",
+  csrsquared = 0.288,
+  parameters = 24,
+  prevalence = 0.174
+)
+```
+
+这里的 `parameters` 是候选回归参数数，而不只是变量个数。一个多分类变量、样条项和交互项都可能占用多个参数。模型外部验证的样本量还应根据校准、判别和目标人群风险分布的精度另行规划。
+
+## 失访、不依从与多重性
+
+### 失访膨胀
+
+若解析计算得到需要完成随访的样本量 \(n\)，预期失访比例为 \(d\)，招募量为
+
+\[
+n_{\mathrm{recruit}}=\left\lceil\frac{n}{1-d}\right\rceil.
+\]
+
+```{r attrition-adjustment}
+completed_per_group <- ceiling(prop_design$n)
+loss_to_follow_up <- 0.15
+
+recruit_per_group <- ceiling(completed_per_group / (1 - loss_to_follow_up))
+total_recruitment <- 2 * recruit_per_group
+
+c(per_group = recruit_per_group, total = total_recruitment)
+```
+
+不能简单写成 `n * 1.15`，因为该式只补回原样本量的 15%，不足以抵消招募总数中 15% 的流失。若失访与组别或预后有关，单纯扩大样本量不能消除偏倚，还需要预防、追踪和缺失数据策略。
+
+多个主要终点、中期分析、多组比较或亚组交互会改变显著性水平分配。应先确定层级检验、门控、Bonferroni/Holm、组序贯边界或其他多重性方案，再计算样本量，不能先按 \(\alpha=0.05\) 计算后临时增加主要检验。
+
+## 敏感性分析
+
+单个点估计容易造成虚假的确定性。下面同时改变目标均值差和标准差，观察每组样本量。
+
+```{r sensitivity-grid}
+sensitivity <- expand.grid(
+  delta = c(3, 4, 5),
+  sd = c(8, 10, 12)
+)
+
+sensitivity$n_per_group <- mapply(
+  function(delta, sd) {
+    ceiling(power.t.test(
+      delta = delta,
+      sd = sd,
+      sig.level = 0.05,
+      power = 0.80,
+      type = "two.sample"
+    )$n)
+  },
+  delta = sensitivity$delta,
+  sd = sensitivity$sd
+)
+
+sensitivity
+```
+
+表格适合核对具体数值，曲线更容易看出样本量对假设的非线性敏感性。下图仍使用同一组计算结果：在标准差不变时，目标差异越小，所需样本量上升越快；在目标差异不变时，预期变异越大，样本量也越大。这正是正式方案不能只给一个点值的原因。
+
+```{r sensitivity-plot, fig.alt="目标均值差与每组所需样本量的关系曲线；标准差为 8、10 和 12 的三条曲线均随目标差异减小而快速上升。"}
 library(ggplot2)
 
-theme_set(theme_bw(base_size = 12))
-```
-
-
-## 第一部分：t 检验样本量
-
-### 独立样本 t 检验
-
-```{r}
-# 双侧检验，中等效应（d=0.5），功效=0.8，α=0.05
-pwr.t.test(
-    d = 0.5, # Cohen's d
-    sig.level = 0.05,
-    power = 0.80,
-    type = "two.sample"
+sensitivity$sd_scenario <- factor(
+  sensitivity$sd,
+  levels = c(8, 10, 12),
+  labels = c("标准差 8", "标准差 10", "标准差 12")
 )
+
+ggplot(
+  sensitivity,
+  aes(x = delta, y = n_per_group, colour = sd_scenario, group = sd_scenario)
+) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_colour_manual(values = c("#3b6f8f", "#8a6f3d", "#c55a3d")) +
+  scale_x_continuous(breaks = sort(unique(sensitivity$delta))) +
+  labs(
+    x = "目标均值差",
+    y = "每组所需样本量",
+    colour = NULL
+  ) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "bottom")
 ```
 
-**解读**：每组需要 64 人，总共 128 人。
+敏感性范围应来自可解释的临床或实施情景。正式方案通常采用主情景计算招募目标，并报告乐观和保守情景对所需样本量、事件数或簇数的影响。
 
-### 配对 t 检验
+## 常用 R 包与工具
 
-```{r}
-pwr.t.test(
-    d = 0.5,
-    sig.level = 0.05,
-    power = 0.80,
-    type = "paired"
-)
-```
+| 场景 | R 包或工具 | 常用函数 | 适用边界 |
+|---|---|---|---|
+| 均值、率、单因素 ANOVA | `stats` | `power.t.test()`、`power.prop.test()`、`power.anova.test()` | 经典平衡设计 |
+| 相关、卡方、回归与通用效应量 | `pwr` | `pwr.r.test()`、`pwr.chisq.test()`、`pwr.f2.test()` | 依赖标准化效应量 |
+| 流行病学与诊断研究 | `epiR` | `epi.ssestb()`、`epi.sscohortc()`、`epi.sscc()` 等 | 按具体设计核对函数假设 |
+| 生存分析 | `powerSurvEpi` | `ssizeCT()`、`ssizeEpi()`、`numDEpi()` | Cox/生存研究的事件与样本量 |
+| 预测模型开发 | `pmsampsize` | `pmsampsize()` | 连续、二分类和时间结局 |
+| 混合模型模拟 | `simr` | `powerSim()`、`powerCurve()` | 基于 `lme4` 模型，结果依赖模拟机制 |
+| 组序贯与适应性设计 | `gsDesign`、`rpact` | `gsDesign()`、`getSampleSizeMeans()` 等 | 需预先定义中期分析与边界 |
+| 因子 ANOVA | `Superpower` | `ANOVA_power()`、`ANOVA_exact()` | 因子设计和交互作用 |
+| 通用 GUI | G*Power | 图形界面 | 常见检验方便，但复杂设计有限 |
+| 商业软件 | PASS、nQuery | 图形界面与监管文档 | 覆盖广，需许可证并核对版本 |
 
-### Cohen's d 参考标准
+不同软件可能使用不同近似、连续性校正、自由度或效应量定义。交付时不应只写“用 G*Power 计算”，而应保存软件版本、检验类型、所有输入、单/双侧设定、输出和取整规则。
 
-| 效应大小 | Cohen's d | 含义 |
-|---------|-----------|------|
-| 小 | 0.2 | 微弱差异 |
-| 中 | 0.5 | 中等差异 |
-| 大 | 0.8 | 明显差异 |
+## 模拟法的最小流程
 
-### 从原始数据估算 d
+复杂设计的模拟功效分析应复用最终分析流程，而不是只模拟一个简化 t 检验。
 
-```{r}
-# 根据均值差和标准差估算
-mean_diff <- 5 # 预期均值差
-pooled_sd <- 10 # 合并标准差
-d <- mean_diff / pooled_sd
-cat("Cohen's d =", d)
-```
+1. 按候选样本量生成协变量、结局、聚类和缺失过程；
+2. 使数据生成机制覆盖主情景和关键偏离情景；
+3. 每次模拟运行计划中的完整模型和检验；
+4. 记录收敛失败、不可估计和拒绝原假设的比例；
+5. 增加模拟次数，给功效估计报告 Monte Carlo 误差；
+6. 选择达到目标功效且实施可行的最小样本量，并保留模拟代码。
 
+如果 1,000 次模拟得到功效估计 \(\hat p=0.80\)，其 Monte Carlo 标准误约为
 
-## 第二部分：方差分析样本量
+\[
+\sqrt{\frac{0.8(1-0.8)}{1000}}\approx0.013.
+\]
 
-### 单因素 ANOVA
+这说明“模拟功效 80%”本身也有数值误差。临界样本量附近应增加模拟次数并报告不确定性。
 
-```{r}
-# k=3组，中等效应（f=0.25）
-pwr.anova.test(
-    k = 3, # 组数
-    f = 0.25, # 效应量
-    sig.level = 0.05,
-    power = 0.80
-)
-```
+## 计算结果的报告模板
 
-**解读**：每组需要 52 人，总共 156 人。
+> 主要结局为第 12 周连续量表变化，主要比较采用双侧两独立样本 t 检验。根据同目标人群既往研究，组内标准差预计为 10 分；研究设定最小临床重要差异为 5 分，显著性水平为 0.05，功效为 0.80，两组按 1:1 分配。计算得到每组所需完成随访人数，并向上取整；再按预期 15% 失访率使用 \(n/(1-d)\) 膨胀招募量。另以标准差 8–12 分和目标差异 3–5 分进行敏感性分析。
 
-### 效应量 f 转换
+实际报告应把模板中的每个数字替换为可核验来源，并说明使用的函数或软件版本。若主要分析不是 t 检验，样本量方法也必须随之改变。
 
-```{r}
-# 从 eta-squared 转换
-eta_sq <- 0.06 # 中等效应
-f <- sqrt(eta_sq / (1 - eta_sq))
-cat("f =", round(f, 3))
-```
+## 常见错误
 
-| η² | f | 效应大小 |
-|----|---|---------|
-| 0.01 | 0.10 | 小 |
-| 0.06 | 0.25 | 中 |
-| 0.14 | 0.40 | 大 |
+| 错误 | 影响 | 处理 |
+|---|---|---|
+| 用中等效应量代替临床目标差异 | 计算与研究决策脱节 | 回到原始单位和最小临床重要差异 |
+| 按最终计划之外的简单检验计算 | 实际模型功效未知 | 使用与主要分析一致的解析或模拟方法 |
+| 只给总样本量，不给事件数或簇数 | 无法判断有效信息 | 同时报告事件、簇和每簇人数 |
+| 把失访率直接加到原样本量 | 招募量不足 | 使用 `n / (1 - d)` |
+| 忽略多重主要终点和中期分析 | 实际 I 类错误率高于设计值 | 先定多重性方案，再计算 |
+| 仅报告一个输入情景 | 结果对不确定参数过度敏感 | 报告预设的敏感性范围 |
+| 用事后功效解释非显著结果 | 只是 P 值的变换，信息增量有限 | 报告效应量与置信区间 |
 
+## 参考资料
 
-## 第三部分：相关分析样本量
-
-```{r}
-# 中等相关（r=0.3）
-pwr.r.test(
-    r = 0.3,
-    sig.level = 0.05,
-    power = 0.80
-)
-```
-
-**解读**：需要 84 个样本。
-
-| r | 效应大小 |
-|---|---------|
-| 0.1 | 小 |
-| 0.3 | 中 |
-| 0.5 | 大 |
-
-
-## 第四部分：卡方检验样本量
-
-```{r}
-# 2x2 列联表，中等效应
-pwr.chisq.test(
-    w = 0.3, # 效应量
-    df = 1, # 自由度 = (行-1)*(列-1)
-    sig.level = 0.05,
-    power = 0.80
-)
-```
-
-| w | 效应大小 |
-|---|---------|
-| 0.1 | 小 |
-| 0.3 | 中 |
-| 0.5 | 大 |
-
-
-## 第五部分：回归分析样本量
-
-```{r}
-# 多元回归：5个预测变量，f²=0.15
-pwr.f2.test(
-    u = 5, # 预测变量数
-    f2 = 0.15, # 效应量
-    sig.level = 0.05,
-    power = 0.80
-)
-```
-
-**解读**：需要 $v+u+1 = 73+5+1 = 79$ 个样本。
-
-| f² | 效应大小 | R² |
-|----|---------|-----|
-| 0.02 | 小 | 0.02 |
-| 0.15 | 中 | 0.13 |
-| 0.35 | 大 | 0.26 |
-
-
-## 第六部分：可视化功效曲线
-
-### 样本量 vs 功效
-
-```{r}
-# 计算不同样本量的功效
-sample_sizes <- seq(10, 200, by = 5)
-powers <- sapply(sample_sizes, function(n) {
-    pwr.t.test(n = n, d = 0.5, sig.level = 0.05)$power
-})
-
-# 绑图
-power_df <- data.frame(n = sample_sizes, power = powers)
-
-ggplot(power_df, aes(x = n, y = power)) +
-    geom_line(color = "#4f46e5", linewidth = 1.2) +
-    geom_hline(yintercept = 0.8, linetype = "dashed", color = "red") +
-    geom_vline(xintercept = 64, linetype = "dashed", color = "gray50") +
-    labs(
-        title = "功效曲线（Cohen's d = 0.5）",
-        x = "每组样本量",
-        y = "统计功效"
-    ) +
-    scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
-    annotate("text", x = 70, y = 0.75, label = "n = 64", color = "gray30")
-```
-
-### 效应量 vs 所需样本
-
-```{r}
-effect_sizes <- seq(0.2, 1, by = 0.05)
-sample_needed <- sapply(effect_sizes, function(d) {
-    pwr.t.test(d = d, sig.level = 0.05, power = 0.80)$n
-})
-
-effect_df <- data.frame(d = effect_sizes, n = sample_needed)
-
-ggplot(effect_df, aes(x = d, y = n)) +
-    geom_line(color = "#10b981", linewidth = 1.2) +
-    labs(
-        title = "效应量与所需样本量的关系",
-        x = "Cohen's d",
-        y = "每组所需样本量"
-    )
-```
-
-
-## 第七部分：临床研究案例
-
-### RCT 样本量计算
-
-```{r}
-# 假设：对照组治愈率40%，干预组预期60%
-# 转换为 Cohen's h
-p1 <- 0.40 # 对照组比例
-p2 <- 0.60 # 干预组比例
-h <- 2 * asin(sqrt(p2)) - 2 * asin(sqrt(p1))
-
-pwr.2p.test(h = h, sig.level = 0.05, power = 0.80)
-```
-
-**解读**：每组需要 97 人。
-
-### 考虑脱落率
-
-```{r}
-# 预期脱落率 15%
-n_calculated <- 97
-dropout_rate <- 0.15
-n_final <- ceiling(n_calculated / (1 - dropout_rate))
-cat("考虑脱落后每组需要:", n_final, "人\n")
-cat("总样本量:", n_final * 2, "人")
-```
-
-
-## 常用代码速查
-
-```{r eval=FALSE}
-# t 检验
-pwr.t.test(d = 0.5, power = 0.8, sig.level = 0.05)
-
-# 配对 t 检验
-pwr.t.test(d = 0.5, power = 0.8, type = "paired")
-
-# ANOVA
-pwr.anova.test(k = 3, f = 0.25, power = 0.8)
-
-# 相关
-pwr.r.test(r = 0.3, power = 0.8)
-
-# 卡方
-pwr.chisq.test(w = 0.3, df = 1, power = 0.8)
-
-# 回归
-pwr.f2.test(u = 5, f2 = 0.15, power = 0.8)
-
-# 两比例
-pwr.2p.test(h = 0.5, power = 0.8)
-```
-
-
-## 小结
-
-样本量计算要点：
-
-1. **明确研究设计**：选择正确的统计方法
-2. **预估效应量**：参考文献或预实验
-3. **设定功效水平**：通常 80% 或 90%
-4. **考虑实际因素**：脱落率、多重比较
-
-> **建议**：宁可略微高估样本量，预留 10-20% 余量。
-
-
-## 参考资源
-
-- [pwr 包文档](https://cran.r-project.org/web/packages/pwr/)
-- [G*Power 软件](https://www.psychologie.hhu.de/arbeitsgruppen/allgemeine-psychologie-und-arbeitspsychologie/gpower)
-- Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences
+- R Core Team. [`power.t.test()` 官方文档](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.t.test.html)、[`power.prop.test()` 官方文档](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.prop.test.html) 与 [`power.anova.test()` 官方文档](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.anova.test.html).
+- Champely S. [`pwr` 包参考手册](https://cran.r-project.org/web/packages/pwr/pwr.pdf).
+- Qiu W, Chavarro J, Lazarus R, Rosner B, Ma J. [`powerSurvEpi` 包参考手册](https://cran.r-project.org/web/packages/powerSurvEpi/powerSurvEpi.pdf).
+- Ensor J, Riley RD. [`pmsampsize` 包参考手册](https://cran.r-project.org/web/packages/pmsampsize/pmsampsize.pdf).
+- Green P, MacLeod CJ. [SIMR: an R package for power analysis of generalized linear mixed models by simulation](https://doi.org/10.1111/2041-210X.12504). *Methods in Ecology and Evolution*. 2016.
+- Lakens D. [Sample Size Justification](https://doi.org/10.1525/collabra.33267). *Collabra: Psychology*. 2022.

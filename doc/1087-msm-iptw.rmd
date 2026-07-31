@@ -1,19 +1,20 @@
 ---
-title: 边际结构模型 (MSM) 与 IPTW 完整教程
-subtitle: "用加权解决时变混杂的因果推断方案"
-date: "2026-01-18"
+title: 边际结构模型与纵向 IPTW
+subtitle: "正确构造稳定权重，处理受既往治疗影响的时变混杂"
+date: "2026-07-31"
 image: images/1087-msm-iptw-cover.svg
 categories:
 - 统计分析方法
 - 因果推断
-- MSM
+- 边际结构模型
 - IPTW
+description: 讲解边际结构模型的识别假设、纵向稳定权重、逐时点诊断、结果模型和截断敏感性分析
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
-  warning = FALSE,
+  warning = TRUE,
   message = FALSE,
   fig.width = 7.2,
   fig.height = 4.8,
@@ -25,144 +26,259 @@ knitr::opts_chunk$set(
 
 ```{r packages}
 library(dplyr)
+library(tidyr)
 library(ggplot2)
+library(survey)
 ```
 
-## 方法背景与适用场景
+## 为什么普通回归可能失败
 
-边际结构模型（Marginal Structural Model, MSM）是处理时变混杂的经典方法。
-当某个变量既会影响后续治疗，又会被治疗影响时，传统回归会出现偏倚。
-IPTW（逆概率加权）通过构建权重，把观测数据转换成“伪随机化”样本，
-从而估计总体平均因果效应。
+设 (A_t) 是时点 (t) 的治疗，(L_t) 是治疗前测量的疾病严重度。若既往治疗 (A_{t-1}) 会改变 (L_t)，而 (L_t) 又影响后续治疗 (A_t) 和结局，那么 (L_t) 同时是：
 
-它常用于治疗在随访过程中反复调整、疾病严重程度既影响治疗又被治疗改善的场景。当研究目标是估计“总体平均治疗效应”而不是个体轨迹时，MSM 往往是更稳健的选择。
+- 后续治疗与结局的混杂因素；
+- 既往治疗作用路径上的中间变量。
 
-## 模型入门与核心概念
+在结局回归中直接调整全部 (L_t)，可能阻断既往治疗经 (L_t) 产生的部分作用；完全不调整又会留下后续治疗的混杂。边际结构模型（marginal structural model, MSM）通过逆概率治疗加权（inverse probability of treatment weighting, IPTW）建立一个加权伪总体，再在该总体中拟合治疗史与潜在结局的边际关系。
 
-可以把 MSM 理解为两步：先用倾向性模型估计每个时间点的治疗概率，构造稳定权重；再用这些权重拟合边际模型，得到总体平均效应。IPTW 的直觉是“让接受治疗的样本代表更多同类人”，从而使处理组与对照组在协变量上看起来更像随机分配。
+MSM 不是倾向评分模型本身。治疗模型用于构造权重，MSM 则规定希望比较哪些治疗史以及如何表达其效应。
 
-## 方法对比：传统回归 vs MSM
+## 识别假设
 
-传统回归通过直接调整协变量来消除混杂，但遇到“协变量既是原因又是结果”的情况时容易产生偏倚。MSM/IPTW 通过加权把时变混杂拉回基线，使估计更稳健，但代价是需要稳定权重，样本量太小时容易不稳定。
+把加权结果解释为因果效应，至少需要：
 
-## 模型假设与前提
+1. **一致性**：观察到的治疗策略有明确、可重复的定义；个体接受某策略时，观察结局对应其该策略下的潜在结局。
+2. **序贯可交换性**：给定已测量的既往治疗和协变量史，每次治疗分配不存在未测量混杂。
+3. **序贯阳性**：在相关协变量史下，各个待比较治疗选择都有正概率。
+4. **模型与测量正确**：治疗、删失和边际结局模型足以支持目标估计量。
+5. **干扰可忽略或已建模**：一个人的治疗不会以未处理的方式改变另一个人的结局。
 
-MSM 假设治疗分配可被协变量充分解释（无未测混杂），每种治疗策略都有足够样本支持（阳性假设），并且权重模型指定合理。只要这些假设基本成立，MSM 的估计就更接近真实的总体平均效应。
+这些假设不能由权重直方图证明。极端权重可提示阳性不足或模型问题，但“权重不极端”不等于不存在未测量混杂。
 
-## 通俗举例：为什么传统回归会错
+## 稳定权重的定义
 
-想象糖尿病患者更严重时更容易接受强化治疗，
-而强化治疗又会降低后续严重程度。
-如果你把严重程度当作协变量直接调整，
-就相当于“调整了治疗造成的结果”，导致偏倚。
-MSM 的做法是：先用权重让治疗分配更像随机，
-再估计治疗对结局的真实影响。
+对二分类治疗，个体 (i) 到时点 (t) 的稳定治疗权重可写为：
 
-## 数据准备与变量定义
+\[
+SW_i(t)=\prod_{k=0}^{t}
+\frac{P(A_{ik}=a_{ik}\mid \bar A_{i,k-1}, V_i)}
+{P(A_{ik}=a_{ik}\mid \bar A_{i,k-1}, \bar L_{ik}, V_i)},
+\]
 
-这里模拟一个两时间点的治疗与结局数据，存在时变混杂。
+其中 (V) 是允许进入分子的基线变量，
+\(\bar L_k\) 是到时点 (k) 的协变量史。分母用于控制混杂；分子用于稳定方差并决定最终 MSM 需要纳入哪些变量。
+
+分子与分母不能机械地写成同一个模型。如果二者相同，权重因子恒为 1，不会产生所需的平衡。分子是否包含基线变量取决于目标 MSM；若包含，通常也要在结果模型中适当处理这些变量。
+
+## 生成一个纵向治疗过程
+
+这个例子有 3 次治疗决策。当前严重度受既往治疗影响，又影响本次治疗和最终连续结局，因此具有需要 MSM 的时变混杂结构。
 
 ```{r msm-data}
-set.seed(2026)
-size <- 600
-baseline_risk <- rnorm(size)
+set.seed(20260731)
+n <- 1500
 
-trt1_prob <- plogis(-0.3 + 0.7 * baseline_risk)
-trt1 <- rbinom(size, 1, trt1_prob)
-
-risk_t1 <- 0.6 * baseline_risk - 0.8 * trt1 + rnorm(size)
-
-trt2_prob <- plogis(-0.2 + 0.4 * baseline_risk + 0.8 * risk_t1 + 0.5 * trt1)
-trt2 <- rbinom(size, 1, trt2_prob)
-
-outcome <- 3 + 1.2 * trt1 + 1.6 * trt2 + 0.8 * risk_t1 + rnorm(size)
-
-msm_data <- tibble(
-  baseline_risk,
-  risk_t1,
-  trt1,
-  trt2,
-  outcome
-)
-
-msm_data
-```
-
-## 分析流程步骤
-
-分析流程可以概括为四步：先为每个时间点建立治疗模型，计算稳定权重；再检查权重分布并做必要的截断；最后用权重拟合边际模型并解释总体平均效应。这样做的目的，是让权重既能纠正混杂，又尽量保持数值稳定。
-## 参数讲解与使用要点
-
-`p_num` 是分子模型，只包含基线协变量；`p_den` 是分母模型，包含时变混杂。稳定权重就是分子与分母的乘积，它能避免极端权重带来的不稳定性。实践中通常在 1%/99% 或 5%/95% 位置截断权重，以平衡偏倚和方差。
-## 代码实现
-
-### 计算稳定权重
-
-```{r msm-weights}
-model_num1 <- glm(trt1 ~ baseline_risk, data = msm_data, family = binomial)
-model_den1 <- glm(trt1 ~ baseline_risk, data = msm_data, family = binomial)
-
-model_num2 <- glm(trt2 ~ trt1 + baseline_risk, data = msm_data, family = binomial)
-model_den2 <- glm(trt2 ~ trt1 + baseline_risk + risk_t1, data = msm_data, family = binomial)
-
-p_num1 <- predict(model_num1, type = "response")
-p_den1 <- predict(model_den1, type = "response")
-
-p_num2 <- predict(model_num2, type = "response")
-p_den2 <- predict(model_den2, type = "response")
-
-weight1 <- if_else(trt1 == 1, p_num1 / p_den1, (1 - p_num1) / (1 - p_den1))
-weight2 <- if_else(trt2 == 1, p_num2 / p_den2, (1 - p_num2) / (1 - p_den2))
-
-msm_data <- msm_data |>
+wide_data <- tibble(
+  id = seq_len(n),
+  l0 = rnorm(n)
+) |>
   mutate(
-    sw = weight1 * weight2,
-    sw_trim = pmin(pmax(sw, quantile(sw, 0.02)), quantile(sw, 0.98))
+    p_a0 = plogis(-0.3 + 0.9 * l0),
+    a0 = rbinom(n, 1, p_a0),
+    l1 = 0.65 * l0 - 0.70 * a0 + rnorm(n),
+    p_a1 = plogis(-0.4 + 0.55 * a0 + 0.85 * l1 + 0.25 * l0),
+    a1 = rbinom(n, 1, p_a1),
+    l2 = 0.55 * l1 - 0.65 * a1 + 0.15 * a0 + rnorm(n),
+    p_a2 = plogis(-0.4 + 0.55 * a1 + 0.85 * l2 + 0.20 * l0),
+    a2 = rbinom(n, 1, p_a2),
+    cumulative_treatment = a0 + a1 + a2,
+    outcome = 5 - 0.75 * cumulative_treatment +
+      0.90 * l2 + 0.35 * l0 + rnorm(n)
   )
 
-summary(msm_data$sw)
+long_data <- bind_rows(
+  wide_data |>
+    transmute(id, time = 0L, l0, l = l0, lag_a = 0L, a = a0),
+  wide_data |>
+    transmute(id, time = 1L, l0, l = l1, lag_a = a0, a = a1),
+  wide_data |>
+    transmute(id, time = 2L, l0, l = l2, lag_a = a1, a = a2)
+) |>
+  arrange(id, time)
+
+long_data |>
+  slice_head(n = 9)
 ```
 
-### 权重分布检查
+每行的 `l` 必须在同一行的 `a` 之前测量。若时间顺序相反，把治疗后的协变量放进治疗模型会引入偏倚。
 
-```{r msm-weight-plot}
-msm_data |>
-  ggplot(aes(x = sw_trim)) +
-  geom_histogram(bins = 30, fill = "#2563eb", alpha = 0.8) +
-  labs(
-    title = "稳定权重分布（截断后）",
-    x = "Stabilized Weight",
-    y = "Count"
-  ) +
+## 拟合分子与分母模型
+
+这里使用 pooled logistic 回归。分子只含时间和既往治疗；分母还含基线及当前严重度。真实研究应根据有向无环图、临床知识和治疗机制加入非线性、交互及更完整的历史，而不是靠逐步筛选。
+
+```{r msm-treatment-models}
+numerator_model <- glm(
+  a ~ factor(time) + lag_a,
+  data = long_data,
+  family = binomial()
+)
+
+denominator_model <- glm(
+  a ~ factor(time) + lag_a + l0 + l,
+  data = long_data,
+  family = binomial()
+)
+
+long_weighted <- long_data |>
+  mutate(
+    p_num = predict(numerator_model, type = "response"),
+    p_den = predict(denominator_model, type = "response"),
+    observed_p_num = if_else(a == 1, p_num, 1 - p_num),
+    observed_p_den = if_else(a == 1, p_den, 1 - p_den),
+    weight_factor = observed_p_num / observed_p_den
+  ) |>
+  group_by(id) |>
+  arrange(time, .by_group = TRUE) |>
+  mutate(stabilized_weight = cumprod(weight_factor)) |>
+  ungroup()
+
+long_weighted |>
+  select(id, time, a, l, observed_p_num, observed_p_den,
+         weight_factor, stabilized_weight) |>
+  slice_head(n = 9)
+```
+
+## 先诊断，再拟合 MSM
+
+### 预测概率与阳性
+
+```{r msm-probability-plot, fig.alt="三个治疗时点中实际治疗组与未治疗组的分母模型预测治疗概率直方图。"}
+long_weighted |>
+  ggplot(aes(x = p_den, fill = factor(a))) +
+  geom_histogram(bins = 30, position = "identity", alpha = 0.45) +
+  facet_wrap(~time) +
+  labs(x = "分母模型预测的治疗概率", y = "人数", fill = "实际治疗") +
   theme_minimal(base_size = 12)
 ```
 
-### 边际结构模型
+若某些协变量史下治疗概率非常接近 0 或 1，应先判断是模型外推、数据稀疏，还是实际方案决定了某策略不可能发生。后者属于结构性阳性违背，不能靠更复杂的模型修复，可能需要缩小目标人群或改变 estimand。
 
-```{r msm-fit}
-naive_fit <- lm(outcome ~ trt1 + trt2 + risk_t1, data = msm_data)
-msm_fit <- lm(outcome ~ trt1 + trt2, data = msm_data, weights = sw_trim)
+### 权重分布与有效样本量
 
-summary(naive_fit)
-summary(msm_fit)
+```{r msm-weight-summary}
+weight_summary <- long_weighted |>
+  group_by(time) |>
+  summarise(
+    n = n(),
+    mean = mean(stabilized_weight),
+    sd = sd(stabilized_weight),
+    min = min(stabilized_weight),
+    p01 = quantile(stabilized_weight, 0.01),
+    median = median(stabilized_weight),
+    p99 = quantile(stabilized_weight, 0.99),
+    max = max(stabilized_weight),
+    ess = sum(stabilized_weight)^2 / sum(stabilized_weight^2),
+    .groups = "drop"
+  )
+
+weight_summary
 ```
 
-## 结果解读与报告
+稳定权重的均值常接近 1，但这不是充分诊断。还要看尾部、有效样本量（effective sample size, ESS）、随时间累积的离散程度以及单个个体对结果的影响。
 
-报告时需要说明权重截断阈值与分布范围，并对比 naive 回归与 MSM 的系数差异，强调 MSM 系数代表的是“总体平均效应”。如果两者差异明显，应解释时变混杂对估计的影响。
+### 每次决策前的协变量平衡
 
-## 常见错误与纠偏
+```{r msm-balance}
+weighted_smd <- function(data, weight) {
+  w <- data[[weight]]
+  a <- data$a
+  x <- data$l
+  mean_1 <- weighted.mean(x[a == 1], w[a == 1])
+  mean_0 <- weighted.mean(x[a == 0], w[a == 0])
+  var_1 <- weighted.mean((x[a == 1] - mean_1)^2, w[a == 1])
+  var_0 <- weighted.mean((x[a == 0] - mean_0)^2, w[a == 0])
+  (mean_1 - mean_0) / sqrt((var_1 + var_0) / 2)
+}
 
-常见问题包括权重极端值过多（提示阳性假设可能被破坏）、分母模型遗漏时变混杂、以及样本量过小导致权重不稳定。实践中可通过权重截断、补充关键混杂变量、扩大样本量或做敏感性分析来改善稳定性。
+balance_by_time <- bind_rows(lapply(
+  split(long_weighted, long_weighted$time),
+  function(d) {
+    tibble(
+      time = unique(d$time),
+      unweighted_smd = weighted_smd(mutate(d, unit_weight = 1), "unit_weight"),
+      weighted_smd = weighted_smd(d, "stabilized_weight")
+    )
+  }
+))
 
-## 进阶扩展
+balance_by_time
+```
 
-- 更复杂的多时间点权重构建。
-- 结合截断与平滑权重策略。
-- 使用 `ipw` 或 `WeightIt` 进行更系统的权重估计。
+这里用一个连续协变量说明思路。实际分析应在每个治疗决策时点检查基线和截至该时点的协变量史，并关注均值、方差、分布和关键交互。固定的绝对 SMD 阈值只能作启发式参考，不能替代实质判断。
 
-## 总结
+## 拟合边际结构模型
 
-MSM 与 IPTW 是时变混杂的标准解决方案。
-当治疗与混杂变量相互影响时，MSM 可以显著降低偏倚，
-给出更可信的总体平均因果效应。
+以下 MSM 把累计治疗次数作为连续项，估计“多一次接受治疗”对应的总体平均结局差异。若研究问题比较“始终治疗”与“从不治疗”等策略，应使用能表达相应治疗史的模型，并报告标准化后的策略对比。
+
+```{r msm-outcome}
+msm_data <- long_weighted |>
+  filter(time == max(time)) |>
+  select(id, stabilized_weight) |>
+  left_join(
+    wide_data |>
+      select(id, cumulative_treatment, outcome),
+    by = "id"
+  )
+
+msm_design <- svydesign(
+  ids = ~1,
+  weights = ~stabilized_weight,
+  data = msm_data
+)
+
+msm_fit <- svyglm(
+  outcome ~ cumulative_treatment,
+  design = msm_design
+)
+
+summary(msm_fit)
+confint(msm_fit)
+```
+
+这里的标准误使用 sandwich 形式，但并未完整传播所有模型选择和权重估计不确定性。复杂纵向分析可采用按个体重抽样的 bootstrap，并在每次重抽样中重新拟合权重和 MSM。
+
+## 失访与不依从
+
+若随访期间发生删失，还需构造逆概率删失权重。总权重通常是治疗权重与删失权重的乘积。删失模型应只用删失前已知的信息，并针对“仍未删失”计算累积概率。把失访者直接排除，或只在结局模型中加入失访预测因子，不能自动解决信息性删失。
+
+## 权重截断不是默认修复
+
+按 1%/99% 或其他分位数截断没有普适依据。截断通常降低方差，却引入偏倚，并使加权人群不再严格对应原定的 ATE 伪总体。合理做法是：
+
+- 先检查时间顺序、编码、模型形式和数据支持；
+- 若方案允许，预先规定截断规则及选择依据；
+- 同时报告未截断与截断结果、权重分布、ESS 和平衡；
+- 不能用截断掩盖结构性阳性违背。
+
+## 常见错误
+
+1. 分子和分母模型相同，导致权重恒为 1。
+2. 用结局后的信息预测此前治疗，产生时间倒置。
+3. 只看最终权重，不检查各时点的概率和平衡。
+4. 在加权 MSM 中再次机械调整受既往治疗影响的时变混杂因素。
+5. 把稳定权重、归一化权重和截断权重混为一谈。
+6. 忽略失访、治疗监测过程和估计权重带来的不确定性。
+7. 把加权样本描述为“已经随机化”；它仍是依赖不可检验假设的观察性分析。
+
+## 报告清单
+
+- 时间零点、各治疗决策时点、测量顺序和目标治疗策略；
+- 分子、分母及删失模型的变量、函数形式和时间历史；
+- 各时点概率、权重分布、ESS 和协变量平衡；
+- MSM 的函数形式、目标对比和方差估计方法；
+- 阳性问题、截断规则及完整敏感性分析；
+- 序贯可交换性、一致性和干扰假设的适用性边界。
+
+## 参考资料
+
+- Robins JM, Hernán MA, Brumback B. Marginal structural models and causal inference in epidemiology. *Epidemiology*. 2000;11(5):550–560. [PubMed](https://pubmed.ncbi.nlm.nih.gov/10955408/)
+- Hernán MA, Robins JM. *Causal Inference: What If*. [免费在线版](https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/)

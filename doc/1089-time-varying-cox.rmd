@@ -1,25 +1,26 @@
 ---
-title: 时变协变量 Cox 模型完整教程
-subtitle: "把时间变化纳入生存分析"
-date: "2026-01-18"
+title: 时变协变量 Cox 模型
+subtitle: "用起止时间数据和 tmerge 对齐暴露、风险集与事件时间"
+date: "2026-07-31"
 image: images/1089-time-varying-cox-cover.svg
 categories:
 - 统计分析方法
 - 生存分析
 - Cox 模型
-- 时间变协变量
+- 时变协变量
+description: 使用 tmerge 构造起止时间数据，正确对齐时变暴露、风险集和事件，并识别不死时间偏倚
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
-  warning = FALSE,
+  warning = TRUE,
   message = FALSE,
   fig.width = 7.2,
   fig.height = 4.8,
   dpi = 150,
   out.width = "100%",
-  fig.path = "figure/1089-timevary-"
+  fig.path = "figure/1089-tvcox-"
 )
 ```
 
@@ -29,91 +30,225 @@ library(ggplot2)
 library(survival)
 ```
 
-## 方法背景与适用场景
+## 两个容易混淆的概念
 
-时变协变量 Cox 模型用于处理“协变量随时间变化”的场景。
-例如药物剂量、随访期间的实验指标、暴露水平等。
-传统 Cox 把协变量当作固定值，会忽略这种动态变化。
+**时变协变量**是取值随时间变化的 (X(t))，例如治疗启用状态、近期生物标志物或当前剂量。模型为：
 
-## 模型入门与核心概念
+\[
+h(t\mid X(t))=h_0(t)\exp\{\beta X(t)\}.
+\]
 
-Cox 模型的风险函数可以写成 `h(t) = h0(t) * exp(beta * X)`。当协变量随时间变化时，`X` 不再是一个常数，而是 `X(t)`，模型也随之变成 `h(t) = h0(t) * exp(beta * X(t))`。这意味着风险随时间和协变量共同变化，能够更真实地反映随访过程中暴露变化带来的影响。
+**时变系数**是同一协变量的效应随时间变化，即 \(\beta(t)\)。`coxph()` 中的起止时间格式主要解决前者；`tt()` 或协变量与时间函数的交互用于后者。两者可以同时存在，但不是同一问题。
 
-## 方法对比：固定协变量 vs 时变协变量
+## 为什么必须对齐时间
 
-固定协变量模型适合基线变量（如性别、基因），而时变协变量模型适合随访中会变化的指标（如药物使用、实验室指标）。如果用固定协变量去近似动态暴露，往往会稀释真实效应。
+若某人第 90 天才开始用药，就不能把第 0–89 天标成已用药。否则，只有存活到第 90 天才能进入“用药组”的这段无事件时间会被错误归给用药，形成 immortal time bias（不死时间偏倚）。
 
-## 模型假设与前提
+Cox 部分似然要求在每个事件时点知道风险集中每个人当时的协变量值。因此，时变资料通常整理为 `(tstart, tstop]`：
 
-时变协变量 Cox 模型仍需满足比例风险假设，同时要求数据整理为“起止时间段”格式，以便在每个区间内更新协变量。只有把时间结构整理清楚，模型才有意义。
+- 协变量在一个区间内保持不变；
+- 事件若发生，只出现在该人的最后一个区间；
+- 相邻区间无重叠，且没有无法解释的空档；
+- 区间使用同一个明确的时间尺度。
 
-## 通俗举例：为什么需要时变协变量
+## 模拟一个与治疗状态相关的事件过程
 
-假设某药物在随访第 3 个月才开始使用，
-如果把它当作基线变量，会把“未使用期”也当成使用期，
-导致药物效果被稀释或扭曲。
-时变协变量模型通过拆分时间段，精准记录何时开始暴露。
-
-## 数据准备与变量定义
+下面先生成治疗开始时间，再用分段指数分布生成事件：治疗前和治疗后的事件率不同，年龄也影响事件率。删失时间单独生成。因此，事件并非与暴露独立随机拼接。
 
 ```{r tv-data}
-set.seed(2026)
-size <- 80
+set.seed(20260731)
+n <- 700
 
-baseline <- tibble(
-  id = 1:size,
-  follow_time = rexp(size, rate = 0.08),
-  event = rbinom(size, 1, 0.6),
-  start_drug = runif(size, 0, 5)
+age <- rnorm(n, 60, 9)
+will_start <- rbinom(n, 1, 0.72)
+start_drug <- ifelse(will_start == 1, rexp(n, rate = 0.16), Inf)
+
+rate_before <- 0.075 * exp(0.025 * (age - 60))
+rate_after <- rate_before * exp(-0.60)
+
+time_before_event <- rexp(n, rate_before)
+event_time <- ifelse(
+  time_before_event <= start_drug,
+  time_before_event,
+  start_drug + rexp(n, rate_after)
 )
 
-split_data <- baseline |>
-  mutate(
-    tstart = 0,
-    tstop = follow_time,
-    drug = if_else(start_drug <= tstart, 1, 0)
+censor_time <- runif(n, min = 4, max = 16)
+follow_time <- pmin(event_time, censor_time)
+event_status <- as.integer(event_time <= censor_time)
+
+baseline <- tibble(
+  id = seq_len(n),
+  age = age,
+  follow_time = follow_time,
+  event_status = event_status,
+  start_drug = start_drug
+)
+
+baseline |>
+  summarise(
+    participants = n(),
+    events = sum(event_status),
+    started_during_followup = sum(start_drug < follow_time)
+  )
+```
+
+## 用 `tmerge()` 构造起止时间数据
+
+第一次 `tmerge()` 创建随访区间和事件；第二次只向治疗确实在随访中开始的人加入 `tdc()` 变化时点。`tdc()` 表示 time-dependent covariate。
+
+```{r tv-tmerge}
+tv_data <- tmerge(
+  data1 = baseline,
+  data2 = baseline,
+  id = id,
+  tstop = follow_time,
+  event = event(follow_time, event_status)
+)
+
+drug_updates <- baseline |>
+  filter(is.finite(start_drug), start_drug < follow_time) |>
+  select(id, start_drug)
+
+tv_data <- tmerge(
+  data1 = tv_data,
+  data2 = drug_updates,
+  id = id,
+  drug = tdc(start_drug, init = 0)
+) |>
+  arrange(id, tstart)
+
+tv_data |>
+  select(id, age, tstart, tstop, drug, event) |>
+  slice_head(n = 12)
+```
+
+在 `(tstart, tstop]` 约定下，治疗恰好在 `start_drug` 时更新；事件时点的先后处理应与数据采集规则一致。若暴露和事件只有日期没有时刻，必须预先规定同日事件与暴露的排序，并做敏感性分析。
+
+## 对拆分结果做结构检查
+
+```{r tv-validation}
+interval_check <- tv_data |>
+  group_by(id) |>
+  arrange(tstart, .by_group = TRUE) |>
+  summarise(
+    first_start = first(tstart),
+    last_stop = last(tstop),
+    expected_stop = first(follow_time),
+    has_nonpositive_interval = any(tstop <= tstart),
+    has_gap_or_overlap = any(
+      abs(tstart[-1] - tstop[-n()]) > 1e-10
+    ),
+    event_count = sum(event),
+    .groups = "drop"
   )
 
-split_data <- survSplit(
-  data = split_data,
-  cut = sort(unique(round(baseline$start_drug, 1))),
-  end = "tstop",
-  start = "tstart",
-  event = "event"
-) |>
-  mutate(drug = if_else(tstart >= start_drug, 1, 0))
+stopifnot(
+  all(interval_check$first_start == 0),
+  all(abs(interval_check$last_stop - interval_check$expected_stop) < 1e-10),
+  !any(interval_check$has_nonpositive_interval),
+  !any(interval_check$has_gap_or_overlap),
+  all(interval_check$event_count <= 1)
+)
 
-split_data
+interval_check |>
+  summarise(
+    participants = n(),
+    all_intervals_valid = all(
+      !has_nonpositive_interval & !has_gap_or_overlap
+    )
+  )
 ```
 
-## 分析流程步骤
+这里的断言是代码核验，不应等到模型出现异常后才检查。
 
-分析流程可以理解为三步：先构造 (start, stop] 区间格式，再在每个区间更新协变量，最后拟合时变协变量 Cox 模型。核心思想是把一名受试者的随访过程拆成多个片段，让每个片段反映真实暴露状态。
-
-## 参数讲解与使用要点
-
-`Surv(tstart, tstop, event)` 用于定义起止时间格式，`survSplit()` 可以按暴露变化时间拆分数据，而 `tt()` 则提供另一种定义时间变效应的方式。实际操作时，先用 `survSplit()` 处理数据通常更直观，也便于检查拆分结果是否合理。
-
-## 代码实现
+## 拟合时变协变量 Cox 模型
 
 ```{r tv-cox}
-cox_tv <- coxph(Surv(tstart, tstop, event) ~ drug, data = split_data)
-summary(cox_tv)
+tv_fit <- coxph(
+  Surv(tstart, tstop, event) ~ drug + age,
+  data = tv_data,
+  ties = "efron",
+  id = id
+)
+
+summary(tv_fit)
 ```
 
-## 结果解读与报告
+`drug` 的指数化系数比较同一时刻风险集中当前已开始用药者与尚未开始者的原因别瞬时风险，条件于模型中的年龄。它不是固定时间风险比，也不是自动的治疗因果效应。
 
-- 报告药物的 HR 及其置信区间
-- 明确暴露定义与拆分时间段
+同一人被拆成多行并没有创造更多独立受试者。`id` 明确这些区间属于同一个人，并支持涉及多行记录的稳健方差处理；实际项目还应根据重复事件、簇抽样和权重设计选择合适方差估计。
 
-## 常见错误与纠偏
+## 可视化暴露对齐
 
-常见错误包括拆分时间不准确、事件时间与 tstop 不一致、忽略比例风险假设。解决方式是先核对暴露开始时间和事件时间，再做 PH 假设检验，确保模型设定与数据一致。
+```{r tv-plot, fig.alt="12 名受试者的随访区间按当前用药状态着色，叉号标记事件发生时间。"}
+plot_ids <- baseline |>
+  filter(start_drug < follow_time) |>
+  slice_head(n = 12) |>
+  pull(id)
 
-## 进阶扩展
+tv_data |>
+  filter(id %in% plot_ids) |>
+  ggplot(aes(
+    x = tstart,
+    xend = tstop,
+    y = factor(id),
+    yend = factor(id),
+    colour = factor(drug)
+  )) +
+  geom_segment(linewidth = 3, lineend = "butt") +
+  geom_point(
+    data = ~filter(.x, event == 1),
+    aes(x = tstop, y = factor(id)),
+    inherit.aes = FALSE,
+    shape = 4,
+    size = 2.5
+  ) +
+  labs(x = "随访时间", y = "受试者", colour = "当前用药") +
+  theme_minimal(base_size = 12)
+```
 
-进阶应用可以使用 `tt()` 指定时间函数（如 log(time)）描述时间变效应，也可以同时纳入多个时变协变量，进一步贴近复杂的随访过程。
-## 总结
+这种图适合发现治疗前时间被错误标为治疗期、事件落入错误区间或暴露状态反向切换等问题。
 
-时变协变量 Cox 模型让随访数据更贴近真实暴露过程，
-适合药物启用、指标变化等动态场景。
+## 比例风险与时变效应
+
+当前 `drug` 可以随时间更新，但模型仍假定“当前用药”的 log HR 在整个随访期恒定。可用残差、分段交互或平滑时间函数检查这一点。
+
+```{r tv-ph, fig.alt="年龄和当前用药变量的 Cox 比例风险诊断图，显示缩放残差随变换后时间的变化。"}
+ph_check <- cox.zph(tv_fit, transform = "km")
+ph_check
+plot(ph_check)
+```
+
+若效应随时间变化，可在预先有依据时加入 `drug × g(time)`，或用 `tt(drug)` 明确参数化。不要因为 PH 检验不显著就宣称假设已被证明；事件数不足时检验能力有限。
+
+## 当前值不等于因果效应
+
+内部时变协变量常由个体健康过程产生。例如病情恶化会同时促使用药并提高近期事件风险。即使 `coxph()` 正确对齐时间，`drug` 仍可能有时变混杂或反向因果。若混杂因素受既往治疗影响，直接把当前病情加入 Cox 模型还可能阻断治疗作用路径；此时应根据 estimand 考虑边际结构模型、g-formula 或其他纵向因果方法。
+
+实验室指标只在就诊时测量时，测量频率本身可能与病情有关。把“最近一次值”无限期向前填充隐含了未必合理的测量模型，应说明允许的时间窗和滞后规则。
+
+## 常见错误
+
+1. 用“随访期间是否曾用药”作为基线变量，产生不死时间偏倚。
+2. 让事件后的测量值影响事件前区间，使用未来信息。
+3. 区间重叠、留空或 `event = 1` 出现在非最后区间。
+4. 把时变协变量和时变系数混为一谈。
+5. 把拆分后的行数当作独立样本量。
+6. 忽略同日测量顺序、检测频率和滞后效应。
+7. 认为调整时变混杂后的 Cox 系数自然具有因果解释。
+
+## 报告清单
+
+- 时间零点、时间尺度和随访终点；
+- 每个时变变量的测量、更新、滞后及同日排序规则；
+- `(tstart, tstop]` 区间生成和结构核验；
+- Cox 公式、风险集、ties 处理和方差估计；
+- 比例风险或时变效应检查；
+- 反向因果、时间依赖混杂和信息性测量的处理；
+- HR 的条件与时间解释，不把它写成固定时点风险比。
+
+## 参考资料
+
+- [survival 包 time-dependent covariates and coefficients vignette](https://cran.r-project.org/package=survival)
+- [survival::tmerge 官方文档](https://stat.ethz.ch/R-manual/R-devel/library/survival/html/tmerge.html)
