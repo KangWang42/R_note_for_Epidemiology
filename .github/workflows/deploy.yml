@@ -23,7 +23,47 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy public to server
+      - name: Verify published assets
+        shell: bash
         run: |
-          rsync -az --delete -e "ssh" ./public/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.SERVER_PATH }}/
+          set -euo pipefail
+
+          assets=(
+            custom-sidebar.css
+            custom-sidebar.js
+            home.css
+            site-interactions.js
+            styles.css
+            theme-toggle.js
+          )
+
+          for asset in "${assets[@]}"; do
+            if [[ ! -s "public/${asset}" ]]; then
+              echo "::error file=public/${asset}::Published asset is missing or empty"
+              exit 1
+            fi
+
+            if ! cmp --silent "doc/${asset}" "public/${asset}"; then
+              echo "::error file=public/${asset}::Published asset is stale; render the site before deployment"
+              exit 1
+            fi
+          done
+
+      - name: Deploy public to server
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -azc --delete --itemize-changes -e "ssh" ./public/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.SERVER_PATH }}/
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "chown -R 1000:1000 ${{ secrets.SERVER_PATH }}"
+
+      - name: Verify server mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          drift="$(rsync -rlzcn --delete --out-format='%i %n%L' -e "ssh" ./public/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.SERVER_PATH }}/)"
+          if [[ -n "${drift}" ]]; then
+            echo "::error::Server files differ from the published site after deployment"
+            printf '%s\n' "${drift}"
+            exit 1
+          fi

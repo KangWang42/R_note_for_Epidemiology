@@ -197,7 +197,10 @@ function upgradePublishedHtml(): void {
       footerUpgrades++;
     }
 
-    html = html.replace(/styles\.css\?v=[^"']+/g, "styles.css?v=20260731-performance");
+    html = html.replace(
+      /(\bhref=["'](?:\.\.?\/)*styles\.css)(?:\?v=[^"']*)?(["'])/g,
+      "$1?v=20260731-interactions$2"
+    );
 
     const title = normalizeMetaText(
       html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || SITE_NAME
