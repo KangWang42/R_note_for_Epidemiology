@@ -12,6 +12,34 @@ from pathlib import Path
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.S)
 CHUNK_RE = re.compile(r"^```\{(?:r|python)(?:\s+([^,}\s]+))?", re.M)
 IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+[^)]*)?\)")
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+UNSUPPORTED_MATH_DELIMITER_RE = re.compile(r"\\[()[\]]")
+
+
+def unsupported_math_delimiter_lines(text: str) -> list[int]:
+    """Find unsupported TeX math delimiters in prose, excluding fenced/inline code."""
+    matches: list[int] = []
+    fence_marker: str | None = None
+
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        stripped = line.lstrip()
+        marker = next(
+            (candidate for candidate in ("```", "~~~") if stripped.startswith(candidate)),
+            None,
+        )
+        if marker:
+            if fence_marker is None:
+                fence_marker = marker
+            elif marker == fence_marker:
+                fence_marker = None
+            continue
+        if fence_marker is not None:
+            continue
+        prose = INLINE_CODE_RE.sub("", line)
+        if UNSUPPORTED_MATH_DELIMITER_RE.search(prose):
+            matches.append(line_number)
+
+    return matches
 
 
 def field_present(frontmatter: str, field: str) -> bool:
@@ -68,6 +96,14 @@ def audit(path: Path) -> tuple[list[str], list[str], dict[str, int]]:
     duplicates = sorted({label for label in labels if labels.count(label) > 1})
     if duplicates:
         errors.append("重复 chunk 标签：" + ", ".join(duplicates))
+
+    delimiter_lines = unsupported_math_delimiter_lines(text)
+    if delimiter_lines:
+        line_list = ", ".join(str(line) for line in delimiter_lines)
+        errors.append(
+            "正文使用当前渲染链不支持的 LaTeX 定界符 "
+            rf"\(...\) 或 \[...\]（行 {line_list}）；请使用 $...$ 或 $$...$$"
+        )
 
     images = IMAGE_RE.findall(text)
     stats["images"] = len(images)

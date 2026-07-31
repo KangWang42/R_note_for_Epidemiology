@@ -143,6 +143,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 })();
 </script>
 
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="custom-sidebar.css">
@@ -2432,10 +2461,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="fdr-解决什么问题" class="level2">
 <h2 class="anchored" data-anchor-id="fdr-解决什么问题">FDR 解决什么问题</h2>
 <p>一次检验把显著性水平设为 0.05，并不意味着进行 1,000 次检验后仍只承担 5% 的整体错误风险。检验数量增加时，即使所有原假设都成立，也更容易出现偶然的小 P 值。多重检验校正的第一步不是选择函数，而是确定希望控制哪一种错误。</p>
-<p>设一次分析共拒绝 (R) 个原假设，其中 (V) 个实际上为真。错误发现比例（false discovery proportion, FDP）定义为</p>
-<p>[ =. ]</p>
+<p>设一次分析共拒绝 <span class="math inline">\(R\)</span> 个原假设，其中 <span class="math inline">\(V\)</span> 个实际上为真。错误发现比例（false discovery proportion, FDP）定义为</p>
+<p><span class="math display">\[
+\mathrm{FDP}=\frac{V}{\max(R,1)}.
+\]</span></p>
 <p>错误发现率（false discovery rate, FDR）是 FDP 的期望：</p>
-<p>[ =E(). ]</p>
+<p><span class="math display">\[
+\mathrm{FDR}=E(\mathrm{FDP}).
+\]</span></p>
 <p>因此，“FDR 控制在 5%”描述的是一个重复抽样性质：在同一分析流程反复实施时，被判为发现的结果中，错误发现比例的期望不超过目标水平。它不是“每个显著结果有 5% 的概率为假”，也不是原始 P 值的另一种名称。</p>
 </section>
 <section id="fdrfwer-与单次检验错误率" class="level2">
@@ -2482,9 +2515,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="benjamini-hochberg-方法">Benjamini-Hochberg 方法</h2>
 <section id="阶梯式判定" class="level3">
 <h3 class="anchored" data-anchor-id="阶梯式判定">阶梯式判定</h3>
-<p>把 (m) 个 P 值从小到大排序为 (p_{(1)}p_{(m)})，给定目标 FDR 水平 (q)，寻找满足下式的最大序号 (k)：</p>
-<p>[ p_{(k)} q. ]</p>
-<p>随后拒绝排序后前 (k) 个原假设。BH 是 step-up 程序，判定必须针对整个排序序列完成，不能把每个 P 值分别与 (q/m) 比较。后一种做法接近 Bonferroni，控制目标不同。</p>
+<p>把 <span class="math inline">\(m\)</span> 个 P 值从小到大排序为 <span class="math inline">\(p_{(1)}\le \cdots \le p_{(m)}\)</span>，给定目标 FDR 水平 <span class="math inline">\(q\)</span>，寻找满足下式的最大序号 <span class="math inline">\(k\)</span>：</p>
+<p><span class="math display">\[
+p_{(k)} \le \frac{k}{m}q.
+\]</span></p>
+<p>随后拒绝排序后前 <span class="math inline">\(k\)</span> 个原假设。BH 是 step-up 程序，判定必须针对整个排序序列完成，不能把每个 P 值分别与 <span class="math inline">\(q/m\)</span> 比较。后一种做法接近 Bonferroni，控制目标不同。</p>
 </section>
 <section id="手工核对-bh-步骤" class="level3">
 <h3 class="anchored" data-anchor-id="手工核对-bh-步骤">手工核对 BH 步骤</h3>
@@ -2758,7 +2793,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td>q-value</td>
-<td>在包含该发现的拒绝集中估计的最小 FDR，通常估计真原假设比例 (_0)</td>
+<td>在包含该发现的拒绝集中估计的最小 FDR，通常估计真原假设比例 <span class="math inline">\(\pi_0\)</span></td>
 <td><code>qvalue::qvalue()</code></td>
 </tr>
 <tr class="odd">
@@ -2768,7 +2803,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p><code>qvalue</code> 包适合 P 值数量较多、P 值分布足以估计 (_0) 的场景。样本很小或 P 值直方图异常时，估计可能不稳定，不能把 q-value 当作对单个发现真假的确定概率。</p>
+<p><code>qvalue</code> 包适合 P 值数量较多、P 值分布足以估计 <span class="math inline">\(\pi_0\)</span> 的场景。样本很小或 P 值直方图异常时，估计可能不稳定，不能把 q-value 当作对单个发现真假的确定概率。</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bioconductor 包，安装方式见包主页</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(qvalue)</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
