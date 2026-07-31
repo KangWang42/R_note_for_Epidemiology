@@ -11,12 +11,13 @@ description: 为本仓库新建、重写或审校统计方法教程，包括回�
 2. 新建文件前扫描 `doc/` 的数字前缀、相近主题和 `_quarto.yml`，避免重复编号与重复教程；重写时保留原路径。
 3. 明确研究问题是描述、关联、预测还是因果，锁定数据结构、estimand、结局、时间零点和主要效应尺度。
 4. 需要理论保证、报告规范或当前包接口时，用权威论文和官方文档核验，不凭记忆补引文或函数。
+5. 按 [共同辨析合同](../tutorial-authoring/references/comparison-and-visuals.md) 判断是否存在易混淆候选。只有选错方法会改变 estimand、效应解释或诊断时，才列出最接近的 2–4 个候选并把比较放在正文前段。
 
 ## 内容主线
 
 按文章需要读取 [content-structure.md](references/content-structure.md)。写作顺序通常是：问题与适用范围、估计目标、方法原理、假设、与相近方法的区别、具有正确生成机制的示例、模型拟合、诊断、结果解释、失败模式和报告清单。
 
-方法选择参考 [method-comparison.md](references/method-comparison.md)，但最终选择必须服从研究设计和 estimand。不要用显著性、拟合优度或某个软件是否方便来反向决定方法。
+方法选择参考 [method-comparison.md](references/method-comparison.md)，但最终选择必须服从研究设计和 estimand。比较至少覆盖目标量、数据结构、相关性或风险集处理、假设、缺失或删失、诊断与改用条件；不要用显著性、拟合优度或某个软件是否方便来反向决定方法。
 
 ## 代码与模拟
 
@@ -28,7 +29,7 @@ description: 为本仓库新建、重写或审校统计方法教程，包括回�
 
 ## 图件
 
-读取 [visual-templates.md](references/visual-templates.md)。优先生成能教会读者诊断或解释的真实统计图，例如权重分布、平衡图、CIF、残差、功效敏感性曲线和模拟分布。流程或机制图仅在关系难以用短文和表格说明时使用，并遵循 `research-visuals`。
+读取 [visual-templates.md](references/visual-templates.md)。优先生成能教会读者诊断或解释的真实统计图，例如权重分布、平衡图、CIF、残差、功效敏感性曲线和模拟分布。固定维度的一一比较用表格；三个以上方法共享输入却导向不同目标，或选择过程含分支时，才考虑概念定位图，并遵循 `research-visuals`。
 
 ## 验证与导航
 
