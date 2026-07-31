@@ -166,8 +166,14 @@ function lightweightControls(assetPrefix: string): string {
 `;
 }
 
-function upgradePublishedHtml(): void {
+async function upgradePublishedHtml(): Promise<void> {
   const htmlFiles = listHtmlFiles(outputDir);
+  const stylesDigest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", Deno.readFileSync(`${outputDir}/styles.css`))
+  );
+  const stylesVersion = Array.from(stylesDigest.slice(0, 8), (byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
   let footerUpgrades = 0;
 
   for (const filePath of htmlFiles) {
@@ -199,7 +205,7 @@ function upgradePublishedHtml(): void {
 
     html = html.replace(
       /(\bhref=["'](?:\.\.?\/)*styles\.css)(?:\?v=[^"']*)?(["'])/g,
-      "$1?v=20260731-interactions$2"
+      `$1?v=${stylesVersion}$2`
     );
 
     const title = normalizeMetaText(
@@ -289,6 +295,6 @@ function buildSitemap(): void {
   }
 }
 
-upgradePublishedHtml();
+await upgradePublishedHtml();
 optimizeSearchIndex();
 buildSitemap();
