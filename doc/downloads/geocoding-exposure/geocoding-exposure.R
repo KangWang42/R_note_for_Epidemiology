@@ -34,6 +34,11 @@ homes_ll <- st_as_sf(
 homes_ll
 
 
+## ----swapped-coordinates------------------------------------------------------
+homes_swapped <- st_as_sf(locations, coords = c("lat", "lon"), crs = 4326)
+st_bbox(homes_swapped)
+
+
 ## ----projection---------------------------------------------------------------
 homes_m <- st_transform(homes_ll, 32650)
 tibble(
@@ -42,6 +47,19 @@ tibble(
   northing_m = st_coordinates(homes_m)[, "Y"]
 )
 st_crs(homes_m)$units_gdal
+
+
+## ----crs-label-vs-transform---------------------------------------------------
+homes_mislabelled <- st_as_sf(locations, coords = c("lon", "lat"), crs = 32650)
+rbind(
+  贴错标签 = st_coordinates(homes_mislabelled)[1, ],
+  正确转换 = st_coordinates(homes_m)[1, ]
+)
+
+
+## ----utm-zone-----------------------------------------------------------------
+utm_zone <- floor((mean(locations$lon) + 180) / 6) + 1
+c(utm_zone = utm_zone, epsg = 32600 + utm_zone)
 
 
 ## ----inspect-sf---------------------------------------------------------------
@@ -67,6 +85,23 @@ homes_read <- st_read(
 stopifnot(
   nrow(homes_read) == nrow(homes_ll),
   st_crs(homes_read) == st_crs(homes_ll)
+)
+
+
+## ----read-own-csv-------------------------------------------------------------
+write_csv(locations, "geocoding-output/locations_demo.csv")
+locations_read <- read_csv(
+  "geocoding-output/locations_demo.csv",
+  col_types = cols(
+    address_id = col_character(), lon = col_double(), lat = col_double()
+  )
+)
+homes_from_csv <- st_as_sf(
+  locations_read, coords = c("lon", "lat"), crs = 4326, remove = FALSE
+)
+stopifnot(
+  !anyNA(locations_read$lon), !anyNA(locations_read$lat),
+  all(st_coordinates(homes_from_csv) == st_coordinates(homes_ll))
 )
 
 
@@ -127,6 +162,46 @@ distance_table <- tibble(
   buffer_area_km2 = as.numeric(st_area(buffers_500)) / 1e6
 )
 knitr::kable(distance_table, digits = 3)
+
+
+## ----nearest-station----------------------------------------------------------
+stations <- tibble(
+  station_id = c("S1", "S2", "S3"),
+  lon = c(118.750, 118.790, 118.810),
+  lat = c(32.050, 32.030, 32.080)
+) |>
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) |>
+  st_transform(st_crs(homes_m))
+
+nearest_row <- st_nearest_feature(homes_m, stations)
+nearest_station <- tibble(
+  address_id = homes_m$address_id,
+  station_id = stations$station_id[nearest_row],
+  distance_m = as.numeric(
+    st_distance(homes_m, stations[nearest_row, ], by_element = TRUE)
+  )
+)
+knitr::kable(nearest_station, digits = 0)
+
+
+## ----green-share--------------------------------------------------------------
+a03_xy <- st_coordinates(homes_m)[homes_m$address_id == "A03", ]
+green <- st_as_sfc(st_bbox(
+  c(xmin = a03_xy[["X"]] - 200, xmax = a03_xy[["X"]] + 900,
+    ymin = a03_xy[["Y"]] - 900, ymax = a03_xy[["Y"]] + 250),
+  crs = st_crs(homes_m)
+))
+
+green_m2 <- map_dbl(seq_len(nrow(buffers_500)), function(i) {
+  overlap <- st_intersection(st_geometry(buffers_500)[i], green)
+  sum(as.numeric(st_area(overlap)))
+})
+green_share <- tibble(
+  address_id = buffers_500$address_id,
+  green_m2 = green_m2,
+  green_share = green_m2 / as.numeric(st_area(buffers_500))
+)
+knitr::kable(green_share, digits = c(0, 0, 3))
 
 
 ## ----address-input------------------------------------------------------------
@@ -334,6 +409,21 @@ method_comparison |>
   scale_color_manual(values = c("#176B74", "#A74722", "#6A5599")) +
   labs(x = "PM2.5 (µg/m³)", y = "地址", color = "提取方法", shape = "提取方法") +
   theme(legend.position = "bottom")
+
+
+## ----position-error-----------------------------------------------------------
+homes_shifted <- st_set_geometry(
+  homes_raster,
+  st_set_crs(st_geometry(homes_raster) + c(500, 0), st_crs(homes_raster))
+)
+shifted_values <- terra::extract(pm_day, vect(homes_shifted), method = "simple")
+
+position_error <- point_pm25 |>
+  mutate(
+    pm25_shifted = shifted_values$pm25,
+    difference = pm25_shifted - pm25_simple
+  )
+knitr::kable(position_error, digits = 2)
 
 
 ## ----daily-rasters------------------------------------------------------------
